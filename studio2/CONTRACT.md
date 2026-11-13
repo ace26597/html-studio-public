@@ -1661,9 +1661,21 @@ HTML page, then Yahoo's. Rules (`search.py`):
   12 November 2026 and answered the repeat).
 - The same query in the same turn of a project is answered from memory (`cached: true`);
   answers are kept 30 minutes at most.
-- No paid key is involved. A third service was looked for and not added: Bing answered but with
-  unrelated results for some queries, and Brave, Mojeek, Startpage, Ecosia and Qwant refused or
+- No paid key is needed. A third public service was looked for and not added: Bing answered but
+  with unrelated results for some queries, and Brave, Mojeek, Startpage, Ecosia and Qwant refused or
   sent a challenge from this machine.
+- **A search service with a key comes first when the person has one** (see "Keys for other
+  services"). Today that is Tavily: `POST https://api.tavily.com/search` with
+  `Authorization: Bearer <key>` and `{query, max_results}`; each of its `results` (`title`, `url`,
+  `content`) becomes a result with `content` as the snippet, and `via` is `tavily`. When it cannot
+  answer (401: the key is refused; 432 or 433: the plan's limit is used up; anything else), the
+  public pages answer instead and the result carries `note` saying why. A refused key or a used-up
+  limit rests Tavily for ten minutes, so a bad key costs one request, not one per search.
+- **A connector that searches comes before both.** When a connector attached to the request is
+  a search service (its name holds `tavily`, `brave`, `exa`, `perplexity`, `serper`, `firecrawl`,
+  `kagi` or `searx`), the project facts tell the agent to search with that connector's tools first
+  and to keep `search_web` as the fallback. The person makes a connector the default by choosing
+  "always" for it, for a project or for the machine, in the Library.
 
 ## The LiteLLM the studio runs
 
@@ -2484,3 +2496,29 @@ repository; **Everything** still works).
 **Export…** in the page's menu (in place of "Download as zip") opens a dialog with the three ways,
 each with its size, what is and is not inside, and a download button; a way that is not available
 is shown with its reason. The project facts tell the agent that the person exports from there.
+
+# Keys for other services
+
+One standard for every credential the studio holds, whatever it is for: a model key, the access
+key, a database password, a connector's secret, and now the key of a service the studio itself
+calls (a search service today).
+
+- **One store.** A secret is kept in the operating system's keychain, or in a file only its owner
+  can read (`~/.config/studio2/secrets.json`, mode 600) where there is no keychain (`keystore.py`).
+  It is never in `config.json`, the repository, a project, a log or an API answer; the config
+  names a secret, it does not hold it.
+- **The service's own variable wins.** A service key is read from the environment variable the
+  service itself documents (`TAVILY_API_KEY`) when that is set, and from the store otherwise, so a
+  machine that already has the variable needs no setup. The answer says which (`source`).
+- **Listed, never shown.** `GET /api/services` → `[{name, label, used_for, env, site, configured,
+  source: "env" | "store" | null}]`. `PUT /api/services/{name}` with `{key}` saves it in the store
+  (400 `invalid_key` for an empty one, 404 `unknown_service`); `DELETE /api/services/{name}`
+  removes it from the store (a key in the environment is not the studio's to remove, and the
+  answer still says `source: "env"`). No route returns a key.
+- **The same from the terminal:** `studio keys` lists them, `studio keys set <name>` asks for the
+  key without echoing it (or `--key-file FILE`), `studio keys remove <name>`.
+- **Shared studios.** These routes change the machine's settings: like setup, they are for the
+  owner on this computer.
+
+The Library page has a **Keys for other services** block: each service with what it is used for,
+whether a key is there and where from, a field to save one and a button to remove it.

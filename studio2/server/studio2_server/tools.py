@@ -15,7 +15,7 @@ from typing import Any, Awaitable, Callable
 from . import workspace as ws
 from .check import check_page, run_sql
 from .datasources import DataError, run_query, run_schema, to_json
-from . import effort, generate, media, nextsteps, office
+from . import effort, generate, media, nextsteps, office, services
 from .look import LookUnavailable
 from . import search as web_search
 from .search import SearchError
@@ -45,7 +45,8 @@ async def t_search_web(studio, project_id, args):
         turn = studio.store.get(project_id).get("running_turn") or ""
     except Exception:
         turn = ""
-    return await web_search.search(args.get("query"), args.get("max_results") or 8, scope=f"{project_id}:{turn}")
+    return await web_search.search(args.get("query"), args.get("max_results") or 8, scope=f"{project_id}:{turn}",
+                                   tavily_key=services.key(studio.settings, "tavily"))
 
 
 async def t_fetch_source(studio, project_id, args):

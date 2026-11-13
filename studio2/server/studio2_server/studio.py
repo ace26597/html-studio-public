@@ -23,7 +23,7 @@ from .datasources import DataSources, KeychainSecrets, MemorySecrets, driver_ava
 from .events import EventHub, EventLog
 from .examples import Examples
 from .harness import Registry, empty_usage
-from . import generate, media, nextsteps, office, ship as shipping, tools
+from . import generate, media, nextsteps, office, services, ship as shipping, tools
 from .modelcheck import ModelChecks
 from .costs import CURRENT_TURN, RESTART_ERROR, Costs
 from .library import KeychainJson, Library, MemoryJson
@@ -376,6 +376,10 @@ class Studio:
             "check_page and render_document. Prefer fetch_source over other ways of reading a page you will cite: it saves the "
             "text in the project under an id (s1, s2, …) that the page's figures point to, and check_page then "
             "verifies them.")
+        searching = services.search_connectors([item.get("name") for item in (picked or {}).get("connectors") or []])
+        if searching:       # a search connector attached to this request is the first way to search
+            lines.append(f"- For web search, use the tools of the connector {' or '.join(f'“{name}”' for name in searching)} "
+                         "first: the person attached it for this. `search_web` is the fallback when it cannot answer.")
         lines.append(nextsteps.AGENT_RULE)
         lines.append("- The person takes this project out of the studio themselves, from Export in the page's menu: "
                      "one HTML file with everything inside (a page without a back end), a folder to host or run "

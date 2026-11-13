@@ -5,6 +5,7 @@ import { DataSourcesManager, kindsOrKnown } from "./DataSources";
 import { LibraryIndexView } from "./LibraryIndexView";
 import { LibraryView, useLibrary } from "./LibraryView";
 import { ModelsView } from "./ModelsView";
+import { ServiceKeys } from "./ServiceKeysBlock";
 import { TemplatesManager } from "./TemplatesManager";
 import type { Navigate } from "./router";
 import type { Theme } from "./theme";
@@ -61,6 +62,10 @@ export function LibraryPage({ navigate, theme, onToggleTheme }: LibraryPageProps
         <section id="models" className="library-block" aria-labelledby="models-title">
           <h2 id="models-title">Models</h2>
           <ModelsView />
+        </section>
+        <section id="service-keys" className="library-block" aria-labelledby="service-keys-title">
+          <h2 id="service-keys-title">Keys for other services</h2>
+          <ServiceKeys />
         </section>
         <section id="data-sources" className="library-block" aria-labelledby="data-sources-title">
           <h2 id="data-sources-title">Data sources</h2>

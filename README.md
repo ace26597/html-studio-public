@@ -153,7 +153,7 @@ was not. It is the only record that is kept current.
 | Path | What |
 |---|---|
 | [`studio2/`](studio2/) | The studio: server, interface, the library the agent is given, tests |
-| [`studio2/docs/`](studio2/docs/) | The detail moved off this page: [install](studio2/docs/install.md), [models](studio2/docs/models.md), [features](studio2/docs/features.md), [apps](studio2/docs/apps.md), [safety](studio2/docs/safety.md), [examples](studio2/docs/examples.md) |
+| [`studio2/docs/`](studio2/docs/) | The detail moved off this page: [install](studio2/docs/install.md), [models](studio2/docs/models.md), [features](studio2/docs/features.md), [apps](studio2/docs/apps.md), [safety](studio2/docs/safety.md), [credentials](studio2/docs/credentials.md), [examples](studio2/docs/examples.md) |
 | [`studio2/README.md`](studio2/README.md) | For developers: layout, running from source, tests, every setting |
 | [`studio2/ATTACH.md`](studio2/ATTACH.md) | Attaching an existing app and making it live, in detail |
 | [`studio2/CONTRACT.md`](studio2/CONTRACT.md) | The API and event contract |

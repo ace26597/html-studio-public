@@ -36,6 +36,7 @@ from .preview import bind, listen
 from .store import NoFreePort, ProjectNotFound
 from .studio import Studio
 from . import export as exporting
+from . import services
 from .templates import TemplateError
 from .turns import TurnRunning
 from .ship import ShipError, ShipRunning
@@ -779,6 +780,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         name = re.sub(r"[^A-Za-z0-9._ -]+", "", project["name"]).strip() or project_id
         return FileResponse(handle.name, media_type="application/zip", filename=f"{name}.zip",
                             background=BackgroundTask(Path(handle.name).unlink, missing_ok=True))
+
+    # -- keys for other services (CONTRACT.md): listed, saved and removed; never shown ------------
+    @app.get("/api/services")
+    async def list_services():
+        return await asyncio.to_thread(services.listing, settings)
+
+    @app.put("/api/services/{name}")
+    async def save_service_key(name: str, body: dict = Body(...)):
+        try:
+            await asyncio.to_thread(services.save, settings, name, str(body.get("key") or ""))
+        except services.UnknownService:
+            raise ApiError(404, "unknown_service", "There is no such service.") from None
+        except ValueError as exc:
+            raise ApiError(400, "invalid_key", str(exc)) from None
+        return next(item for item in services.listing(settings) if item["name"] == name)
+
+    @app.delete("/api/services/{name}")
+    async def remove_service_key(name: str):
+        try:
+            await asyncio.to_thread(services.remove, settings, name)
+        except services.UnknownService:
+            raise ApiError(404, "unknown_service", "There is no such service.") from None
+        return next(item for item in services.listing(settings) if item["name"] == name)
 
     # -- export: one HTML file, or a folder to host or run (CONTRACT.md, "Export") ----------------
     def _export_name(project: dict) -> str:

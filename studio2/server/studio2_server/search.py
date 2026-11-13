@@ -139,8 +139,36 @@ async def _try(service: str, query: str, limit: int, retry: bool) -> list[dict]:
             _last[service] = time.monotonic()
 
 
-async def search(query: str, max_results: int = 8, scope: str = "") -> dict:
-    """→ {results, via, cached}. `scope` names the turn: the same query in it is answered once."""
+TAVILY_URL = "https://api.tavily.com/search"
+TAVILY_REST = 600.0          # a refused key or a used-up limit: left alone for ten minutes
+
+
+async def _tavily(query: str, limit: int, key: str) -> list[dict]:
+    """Tavily's search API (CONTRACT.md, "Web search"). Raises Refused with the reason for the person."""
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=6.0), trust_env=False) as client:
+            response = await client.post(TAVILY_URL, headers={"Authorization": f"Bearer {key}"},
+                                         json={"query": query, "max_results": limit})
+    except httpx.HTTPError as exc:
+        raise Refused(f"it did not answer ({exc.__class__.__name__})", busy=True) from None
+    if response.status_code == 401:
+        raise Refused("it refused the key")
+    if response.status_code in (432, 433):
+        raise Refused("the plan's limit is used up")
+    if response.status_code != 200:
+        raise Refused(f"it answered HTTP {response.status_code}", busy=True)
+    try:
+        items = response.json().get("results") or []
+    except (ValueError, AttributeError):
+        raise Refused("it answered something that is not a result list", busy=True) from None
+    return [{"title": _clean(str(item.get("title") or "")), "url": str(item.get("url")),
+             "snippet": " ".join(str(item.get("content") or "").split())[:500]}
+            for item in items if isinstance(item, dict) and str(item.get("url") or "").startswith("http")][:limit]
+
+
+async def search(query: str, max_results: int = 8, scope: str = "", tavily_key: str | None = None) -> dict:
+    """→ {results, via, cached, note?}. `scope` names the turn: the same query in it is answered once.
+    With `tavily_key`, Tavily is asked first; when it cannot answer, the public pages do and `note` says why."""
     query = " ".join(str(query or "").split())
     if not query:
         raise SearchError("The search query is empty.")
@@ -156,6 +184,19 @@ async def search(query: str, max_results: int = 8, scope: str = "") -> dict:
             del _cache[old]
         if key in _cache:
             return {**_cache[key][1], "cached": True}
+        note = None
+        if tavily_key and _resting.get("tavily", 0.0) <= now:
+            try:
+                results = await _tavily(query, limit, tavily_key)
+                answer = {"results": results, "via": "tavily", "cached": False}
+                _cache[key] = (time.monotonic(), answer)
+                return answer
+            except Refused as exc:
+                if not exc.busy:        # the key or the plan: asking again at once would only fail again
+                    _resting["tavily"] = time.monotonic() + TAVILY_REST
+                note = f"Tavily was asked first and could not answer ({exc}); the public search pages answered instead."
+        elif tavily_key:
+            note = "Tavily is being left alone for a few minutes after refusing; the public search pages answered instead."
         awake = [s for s in SERVICES if _resting.get(s, 0.0) <= now]
         reasons, answer = {}, None
         # A resting service is asked last and once, rather than giving up with it unasked.
@@ -168,7 +209,7 @@ async def search(query: str, max_results: int = 8, scope: str = "") -> dict:
                     _resting[service] = time.monotonic() + REST
                 continue
             _resting.pop(service, None)
-            answer = {"results": results, "via": service, "cached": False}
+            answer = {"results": results, "via": service, "cached": False, **({"note": note} if note else {})}
             if results:
                 break
         if answer is not None:

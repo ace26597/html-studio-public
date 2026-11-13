@@ -429,6 +429,37 @@ def cmd_access_key(args) -> int:
     return 0
 
 
+def cmd_keys(args, secret=getpass.getpass) -> int:
+    """Keys for other services (CONTRACT.md): list them, save one, remove one. A key is never printed."""
+    from . import services
+
+    settings = Settings.from_env()
+    action = getattr(args, "action", None) or "list"
+    if action == "list":
+        for item in services.listing(settings):
+            where = {"env": f"set, from the environment variable {item['env']}", "store": f"set, kept in {settings.secret_store().label}",
+                     None: f"not set  (studio keys set {item['name']}, or the variable {item['env']})"}[item["source"]]
+            say(f"  {item['name']:10} {where}")
+            say(f"  {'':10} {item['used_for']}  {item['site']}")
+        return 0
+    try:
+        if action == "set":
+            value = _read_secret_file(args.key_file) if getattr(args, "key_file", None) else secret(f"{args.name} key: ")
+            services.save(settings, args.name, value)
+            say(f"Saved in {settings.secret_store().label}. The running studio uses it from the next search.")
+        else:
+            services.remove(settings, args.name)
+            left = services.source(settings, args.name)
+            say("Removed." + (f" The environment variable {services.SERVICES[args.name]['env']} is still set, and is still used." if left == "env" else ""))
+    except services.UnknownService:
+        say(f"There is no service called {args.name}. Known: {', '.join(services.SERVICES)}.")
+        return 2
+    except ValueError as exc:
+        say(str(exc))
+        return 2
+    return 0
+
+
 def cmd_login(args) -> int:
     """Sign this computer in to a Claude plan with the agent program that ships with the studio."""
     settings = Settings.from_env()
@@ -926,6 +957,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     key = commands.add_parser("access-key", help="print the access key other devices sign in with")
     key.set_defaults(run=cmd_access_key)
+    keys = commands.add_parser("keys", help="keys for other services the studio calls (web search): list, set, remove")
+    keys.set_defaults(run=cmd_keys)
+    keys.add_argument("action", nargs="?", choices=("list", "set", "remove"), default="list")
+    keys.add_argument("name", nargs="?", help="the service, for set and remove")
+    keys.add_argument("--key-file", metavar="FILE", help="read the key from this file instead of asking")
     login = commands.add_parser("login", help="sign this computer in to your Claude plan")
     login.set_defaults(run=cmd_login)
     return parser

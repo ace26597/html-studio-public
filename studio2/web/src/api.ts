@@ -1,3 +1,4 @@
+import type { ServiceKey } from "./serviceKeys";
 import type { ExportOptions } from "./exportInfo";
 import type { Example } from "./examples";
 import type { TurnOptions } from "./effort";
@@ -258,6 +259,9 @@ export const api = {
     request<AppLogs>("GET", `/projects/${enc(id)}/app/logs?after=${after}`, undefined, signal),
 
   downloadUrl: (id: string) => `/api/projects/${enc(id)}/download`,
+  listServices: () => request<ServiceKey[]>("GET", "/services"),
+  saveServiceKey: (name: string, key: string) => request<ServiceKey>("PUT", `/services/${enc(name)}`, { key }),
+  removeServiceKey: (name: string) => request<ServiceKey>("DELETE", `/services/${enc(name)}`),
   exportOptions: (id: string) => request<ExportOptions>("GET", `/projects/${enc(id)}/export`),
   exportPageUrl: (id: string) => `/api/projects/${enc(id)}/export/page`,
   exportFolderUrl: (id: string) => `/api/projects/${enc(id)}/export/folder`,
