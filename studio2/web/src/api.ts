@@ -1,3 +1,4 @@
+import type { LibraryPlacesInfo } from "./libraryPlaces";
 import type { ServiceKey } from "./serviceKeys";
 import type { ExportOptions } from "./exportInfo";
 import type { Example } from "./examples";
@@ -259,6 +260,9 @@ export const api = {
     request<AppLogs>("GET", `/projects/${enc(id)}/app/logs?after=${after}`, undefined, signal),
 
   downloadUrl: (id: string) => `/api/projects/${enc(id)}/download`,
+  libraryPlaces: () => request<LibraryPlacesInfo>("GET", "/library/places"),
+  saveLibraryPlaces: (body: { skill_dirs?: string[]; connector_files?: string[] }) =>
+    request<LibraryPlacesInfo>("PUT", "/library/places", body),
   listServices: () => request<ServiceKey[]>("GET", "/services"),
   saveServiceKey: (name: string, key: string) => request<ServiceKey>("PUT", `/services/${enc(name)}`, { key }),
   removeServiceKey: (name: string) => request<ServiceKey>("DELETE", `/services/${enc(name)}`),

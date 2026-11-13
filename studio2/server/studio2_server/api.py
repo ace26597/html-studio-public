@@ -36,7 +36,7 @@ from .preview import bind, listen
 from .store import NoFreePort, ProjectNotFound
 from .studio import Studio
 from . import export as exporting
-from . import services
+from . import places, services
 from .templates import TemplateError
 from .turns import TurnRunning
 from .ship import ShipError, ShipRunning
@@ -780,6 +780,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         name = re.sub(r"[^A-Za-z0-9._ -]+", "", project["name"]).strip() or project_id
         return FileResponse(handle.name, media_type="application/zip", filename=f"{name}.zip",
                             background=BackgroundTask(Path(handle.name).unlink, missing_ok=True))
+
+    # -- more places to look for skills and connectors (CONTRACT.md) --------------------------------
+    @app.get("/api/library/places")
+    async def library_places_view():
+        return await asyncio.to_thread(places.view, settings)
+
+    @app.put("/api/library/places")
+    async def library_places_save(body: dict = Body(...)):
+        if settings.shared:
+            raise ApiError(403, "not_for_shared", "On a shared studio this is set by its owner, in the config file.")
+        try:
+            saved = await asyncio.to_thread(places.save, settings, body.get("skill_dirs"), body.get("connector_files"))
+        except places.PlaceError as exc:
+            raise ApiError(400, "invalid_place", str(exc)) from None
+        await asyncio.to_thread(studio.lib.catalog.ensure, True)    # the new places are read at once
+        return saved
 
     # -- keys for other services (CONTRACT.md): listed, saved and removed; never shown ------------
     @app.get("/api/services")

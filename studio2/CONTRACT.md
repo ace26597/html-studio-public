@@ -2536,3 +2536,25 @@ calls (a search service today).
 
 The Library page has a **Keys for other services** block: each service with what it is used for,
 whether a key is there and where from, a field to save one and a button to remove it.
+
+# More places to look for skills and connectors
+
+The studio always reads this machine's `~/.claude/skills`, the plugins installed for Claude Code and
+`~/.claude.json`. A person who keeps skills in other folders, or connectors (MCP servers) in another
+file, names those places; nothing is copied.
+
+- Config: `library: {skill_dirs: [path], connector_files: [path]}`. The variables
+  `STUDIO2_SKILL_DIRS` and `STUDIO2_CONNECTOR_FILES` (paths joined by the system's path separator)
+  win over the config when set. `~` is expanded.
+- A skill folder holds one folder per skill with a `SKILL.md` (or is itself one skill). Its skills
+  are listed like those of `~/.claude/skills`, with the folder as their origin. A skill whose name
+  is already found elsewhere is not listed twice.
+- A connector file is JSON with `mcpServers`, or the map of names to settings itself. Its
+  connectors join those of `~/.claude.json`; a name found twice keeps its first settings.
+- `GET /api/library/places` → `{always, skill_dirs: [{path, found, skills}], connector_files:
+  [{path, found, connectors}], from_env: {skill_dirs, connector_files}}`.
+  `PUT /api/library/places` with `{skill_dirs?, connector_files?}` replaces the lists it is given,
+  keeps them in the config and uses them at once. 400 `invalid_place` (not a full path, no such
+  folder or file, a file that is not connectors); 403 `not_for_shared` on a shared studio.
+- `studio library` shows them; `studio library add <path>` and `studio library remove <path>`.
+- The Library page has a **Where the studio looks** block with the same.

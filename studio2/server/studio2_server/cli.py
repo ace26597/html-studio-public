@@ -460,6 +460,37 @@ def cmd_keys(args, secret=getpass.getpass) -> int:
     return 0
 
 
+def cmd_library(args) -> int:
+    """More places to look for skills and connectors: show them, add a folder or a file, remove one."""
+    from . import places
+
+    settings = Settings.from_env()
+    action, target = getattr(args, "action", None) or "show", getattr(args, "path", None)
+    try:
+        if action in ("add", "remove"):
+            if not target:
+                say(f"Give a path:  studio library {action} <folder of skills, or file of connectors>")
+                return 2
+            full = Path(target).expanduser()
+            key = "connector_files" if full.is_file() or target in [str(p) for p in settings.connector_files] else "skill_dirs"
+            have = [str(path) for path in getattr(settings, key)]
+            wanted = [*have, target] if action == "add" else [item for item in have if item != target]
+            places.save(settings, **{key: wanted})
+            say("Saved. The running studio picks it up when it is restarted.")
+    except places.PlaceError as exc:
+        say(str(exc))
+        return 2
+    found = places.view(settings)
+    say("Always read: " + "; ".join(found["always"]) + ".")
+    for item in found["skill_dirs"]:
+        say(f"  skills      {item['path']}  ({item['skills']} found)" if item["found"] else f"  skills      {item['path']}  (no such folder)")
+    for item in found["connector_files"]:
+        say(f"  connectors  {item['path']}  ({item['connectors']} found)" if item["found"] else f"  connectors  {item['path']}  (no such file)")
+    if not found["skill_dirs"] and not found["connector_files"]:
+        say("  No other place is set.  studio library add <folder of skills, or file of connectors>")
+    return 0
+
+
 def cmd_login(args) -> int:
     """Sign this computer in to a Claude plan with the agent program that ships with the studio."""
     settings = Settings.from_env()
@@ -957,6 +988,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     key = commands.add_parser("access-key", help="print the access key other devices sign in with")
     key.set_defaults(run=cmd_access_key)
+    lib = commands.add_parser("library", help="more places to look for skills and connectors: show, add, remove")
+    lib.set_defaults(run=cmd_library)
+    lib.add_argument("action", nargs="?", choices=("show", "add", "remove"), default="show")
+    lib.add_argument("path", nargs="?", help="a folder of skills, or a file of connectors")
     keys = commands.add_parser("keys", help="keys for other services the studio calls (web search): list, set, remove")
     keys.set_defaults(run=cmd_keys)
     keys.add_argument("action", nargs="?", choices=("list", "set", "remove"), default="list")

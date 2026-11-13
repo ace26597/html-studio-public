@@ -45,6 +45,10 @@ studio keys set tavily      # asks for the key without echoing it; or --key-file
 studio keys remove tavily
 ```
 
+## Skills and connectors kept elsewhere
+
+Not credentials, but set in the same place: Library → Where the studio looks, or `studio library add <folder of skills, or file of connectors>`. The studio always reads `~/.claude/skills`, the plugins installed for Claude Code and `~/.claude.json`.
+
 ## Adding another service
 
 Add it to `SERVICES` in `server/studio2_server/services.py` with its label, what it is used for and

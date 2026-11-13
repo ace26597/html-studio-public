@@ -142,12 +142,23 @@ class Library:
         return [item for item in items or [] if isinstance(item, dict) and item.get("id")]
 
     def _machine_servers(self) -> dict[str, dict]:
-        try:
-            raw = json.loads((self.settings.home / ".claude.json").read_text("utf-8")).get("mcpServers")
-        except (OSError, ValueError, AttributeError):
-            return {}
-        return {name: config for name, config in (raw or {}).items()
-                if isinstance(config, dict) and NAME.fullmatch(name.lower()) and name != "studio"}
+        """This machine's connectors: `~/.claude.json`, then the person's other files (config
+        `library.connector_files`), each either `{"mcpServers": {…}}` or the map itself. A name found
+        twice keeps its first settings."""
+        found: dict[str, dict] = {}
+        for path in (self.settings.home / ".claude.json", *(Path(p) for p in self.settings.connector_files)):
+            try:
+                data = json.loads(Path(path).read_text("utf-8"))
+                raw = data.get("mcpServers", data if path != self.settings.home / ".claude.json" else None)
+            except (OSError, ValueError, AttributeError):
+                continue
+            for name, config in (raw if isinstance(raw, dict) else {}).items():
+                extra = path != self.settings.home / ".claude.json"     # such a file may hold other things too
+                if (isinstance(config, dict) and isinstance(name, str) and NAME.fullmatch(name.lower())
+                        and name != "studio" and name not in found
+                        and (not extra or "command" in config or "url" in config)):
+                    found[name] = config
+        return found
 
     def _suggested(self) -> list[dict]:
         try:

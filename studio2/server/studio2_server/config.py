@@ -59,6 +59,22 @@ def range_for(port: int) -> tuple[int, int]:
     return port + 1, port + 99
 
 
+def library_places(from_env: str | None, from_file) -> tuple:
+    """More places to look for skills or connectors: the variable (paths joined by the system's path
+    separator) wins over the config file's list. Each is expanded; none is checked here."""
+    if from_env and from_env.strip():
+        raw = [part for part in from_env.split(os.pathsep)]
+    else:
+        raw = from_file if isinstance(from_file, list) else []
+    seen, out = set(), []
+    for item in raw:
+        text = str(item or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            out.append(Path(text).expanduser())
+    return tuple(out)
+
+
 def read_config(path: Path) -> dict:
     """The config file as a dict; {} when it is missing or not a JSON object."""
     try:
@@ -85,6 +101,8 @@ class Settings:
     config_path: Path = field(default_factory=lambda: Path.home() / ".config/studio2/config.json")
     web_dist: Path = STUDIO2_ROOT / "web" / "dist"
     library_dir: Path = STUDIO2_ROOT / "library"
+    skill_dirs: tuple = ()          # more folders of skills on this machine (config `library.skill_dirs`)
+    connector_files: tuple = ()     # more files of connectors (MCP servers), each like ~/.claude.json
     ping_seconds: float = 15.0
     hosts: tuple[str, ...] = ()        # extra addresses to listen on (STUDIO2_HOSTS); loopback is always on
     access_key: str | None = None      # required when hosts is set (STUDIO2_ACCESS_KEY), unless open_tailnet
@@ -140,6 +158,9 @@ class Settings:
             settings.open_tailnet = env["STUDIO2_OPEN_TAILNET"] == "1"
         else:
             settings.open_tailnet = run.get("open_tailnet") is True
+        places = file.get("library") if isinstance(file.get("library"), dict) else {}
+        settings.skill_dirs = library_places(env.get("STUDIO2_SKILL_DIRS"), places.get("skill_dirs"))
+        settings.connector_files = library_places(env.get("STUDIO2_CONNECTOR_FILES"), places.get("connector_files"))
         shared = _flag(env.get("STUDIO2_SHARED"))
         settings.shared = shared if shared is not None else file.get("shared") is True
         settings.access_key = (env.get("STUDIO2_ACCESS_KEY") or "").strip() or None

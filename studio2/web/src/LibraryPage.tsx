@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { DataSourcesManager, kindsOrKnown } from "./DataSources";
 import { LibraryIndexView } from "./LibraryIndexView";
 import { LibraryView, useLibrary } from "./LibraryView";
+import { LibraryPlacesBlock } from "./LibraryPlacesBlock";
 import { ModelsView } from "./ModelsView";
 import { ServiceKeys } from "./ServiceKeysBlock";
 import { TemplatesManager } from "./TemplatesManager";
@@ -62,6 +63,10 @@ export function LibraryPage({ navigate, theme, onToggleTheme }: LibraryPageProps
         <section id="models" className="library-block" aria-labelledby="models-title">
           <h2 id="models-title">Models</h2>
           <ModelsView />
+        </section>
+        <section id="places" className="library-block" aria-labelledby="places-title">
+          <h2 id="places-title">Where the studio looks</h2>
+          <LibraryPlacesBlock onChanged={() => window.location.reload()} />
         </section>
         <section id="service-keys" className="library-block" aria-labelledby="service-keys-title">
           <h2 id="service-keys-title">Keys for other services</h2>

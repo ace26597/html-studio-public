@@ -200,7 +200,9 @@ class Catalog:
                  _stat(self.claude / "settings.json"), _stat(self.settings.home / ".claude.json"),
                  _stat(self.claude / "agents"), _stat(self.settings.library_dir / "mcp-suggestions.json"),
                  _stat(self.settings.data_dir / "mcp-servers.json")]
-        for folder in (self.settings.library_dir / "skills", self.settings.data_dir / "skills", self.claude / "skills"):
+        parts.extend(_stat(Path(path)) for path in self.settings.connector_files)
+        for folder in (self.settings.library_dir / "skills", self.settings.data_dir / "skills", self.claude / "skills",
+                       *(Path(path) for path in self.settings.skill_dirs)):
             parts.append(_stat(folder))
             if folder.is_dir():
                 parts.extend(_stat(manifest) for manifest in sorted(folder.glob("*/SKILL.md")))
@@ -278,6 +280,16 @@ class Catalog:
             if folder.is_dir():
                 entries.extend(self._skill(m, source, origin, f"{source}:{m.parent.name}")
                                for m in sorted(folder.glob("*/SKILL.md")))
+        known = {entry["name"] for entry in entries}
+        for number, folder in enumerate(Path(path) for path in self.settings.skill_dirs):     # the person's other folders
+            if not folder.is_dir():
+                continue
+            found = sorted(folder.glob("*/SKILL.md")) + ([folder / "SKILL.md"] if (folder / "SKILL.md").is_file() else [])
+            for manifest in found:
+                if manifest.parent.name in known:       # the same skill is already found elsewhere: that one stays
+                    continue
+                known.add(manifest.parent.name)
+                entries.append(self._skill(manifest, "machine", str(folder), f"extra{number}:{manifest.parent.name}"))
         agents = self.settings.library_dir / "agents"
         entries.extend(self._agent(p, "studio", "Comes with the studio", f"studio-agent:{p.stem}")
                        for p in (sorted(agents.glob("*.md")) if agents.is_dir() else []))
