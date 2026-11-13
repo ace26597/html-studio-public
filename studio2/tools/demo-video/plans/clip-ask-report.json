@@ -1,0 +1,45 @@
+{
+ "crf": 27,
+ "items": [
+  {
+   "dir": "frames/report",
+   "phases": {
+    "typing": {
+     "speed": 3.0,
+     "caption": "1 \u00b7 Ask a real question, in plain words",
+     "right": "real time"
+    },
+    "sent": {
+     "speed": 1.3,
+     "caption": "2 \u00b7 The agent starts work",
+     "right": "real time",
+     "clock": "run"
+    },
+    "working": {
+     "speed": 45,
+     "caption": "2 \u00b7 It searches, saves what it reads, writes, and checks the figures",
+     "right": "time-lapse",
+     "clock": "run",
+     "still_cap": 0.3
+    },
+    "finished": {
+     "speed": 1.3,
+     "caption": "3 \u00b7 21 minutes later: a sourced report",
+     "right": "real time",
+     "clock": "run",
+     "hold": 1.0
+    }
+   }
+  },
+  {
+   "dir": "frames/report-tour",
+   "phases": {
+    "t_result": {
+     "speed": 1.3,
+     "caption": "3 \u00b7 21 minutes later: a sourced report",
+     "right": "real time"
+    }
+   }
+  }
+ ]
+}

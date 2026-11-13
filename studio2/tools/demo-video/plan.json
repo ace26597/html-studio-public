@@ -1,0 +1,126 @@
+{
+ "crf": 23,
+ "items": [
+  {
+   "card": [
+    "Studio",
+    "One request, start to finish",
+    "A real run in the real interface. Waiting is time-lapsed; the clock shows real time."
+   ],
+   "seconds": 2.6
+  },
+  {
+   "dir": "frames/a",
+   "phases": {
+    "blank": {
+     "speed": 1.4,
+     "caption": "1 · A blank page and a chat",
+     "right": "real time"
+    },
+    "typing": {
+     "speed": 1.7,
+     "caption": "1 · Say what you want, in plain words",
+     "right": "real time"
+    },
+    "sent": {
+     "speed": 1.2,
+     "caption": "2 · The agent starts work",
+     "right": "real time",
+     "clock": "run"
+    },
+    "working": {
+     "speed": 26,
+     "still_cap": 0.3,
+     "caption": "2 · It finds the data, fetches it and builds the page",
+     "right": "time-lapse",
+     "clock": "run"
+    }
+   }
+  },
+  {
+   "dir": "frames/a2",
+   "phases": {
+    "working": {
+     "speed": 26,
+     "still_cap": 0.3,
+     "caption": "2 · It finds the data, fetches it and builds the page",
+     "right": "time-lapse",
+     "clock": "run"
+    },
+    "finished": {
+     "speed": 1.4,
+     "caption": "3 · Done, and saved as a version",
+     "right": "real time",
+     "clock": "run",
+     "hold": 1.0
+    }
+   }
+  },
+  {
+   "dir": "frames/b",
+   "phases": {
+    "b_result": {
+     "speed": 1.5,
+     "caption": "3 · Done, and saved as a version",
+     "right": "real time"
+    },
+    "b_tour": {
+     "speed": 1.25,
+     "caption": "4 · The result is a real page you can use",
+     "right": "real time"
+    },
+    "b_select": {
+     "speed": 1.1,
+     "caption": "5 · Point at something on the page…",
+     "right": "real time"
+    },
+    "b_typing": {
+     "speed": 1.6,
+     "caption": "5 · …and say what should change",
+     "right": "real time"
+    },
+    "b_sent": {
+     "speed": 1.3,
+     "caption": "6 · The agent changes just that",
+     "right": "real time",
+     "clock": "change"
+    },
+    "b_working": {
+     "speed": 5,
+     "caption": "6 · The agent changes just that",
+     "right": "time-lapse",
+     "clock": "change"
+    },
+    "b_done": {
+     "speed": 1.5,
+     "caption": "6 · Changed in 34 seconds",
+     "right": "real time"
+    },
+    "b_versions": {
+     "speed": 1.1,
+     "caption": "7 · Every step is a version you can go back to",
+     "right": "real time"
+    },
+    "b_files": {
+     "speed": 1.1,
+     "caption": "8 · And it is all ordinary files in a folder",
+     "right": "real time"
+    },
+    "b_end": {
+     "speed": 1.3,
+     "caption": "Studio: a page, a chat and a real coding agent",
+     "right": "",
+     "hold": 1.2
+    }
+   }
+  },
+  {
+   "card": [
+    "Studio",
+    "A page, a chat and a real coding agent",
+    "Recorded 12 November 2026 on Claude Opus. First request: 52 minutes, 73 steps. Change: 34 seconds."
+   ],
+   "seconds": 3.0
+  }
+ ]
+}

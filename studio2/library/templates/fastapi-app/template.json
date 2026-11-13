@@ -1,0 +1,5 @@
+{
+  "label": "App with a Python back end",
+  "description": "A FastAPI server plus a page. For anything that fetches, stores or computes on a schedule.",
+  "order": 50
+}

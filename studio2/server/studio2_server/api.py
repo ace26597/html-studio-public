@@ -1,0 +1,1004 @@
+"""REST API, SSE endpoint and web UI serving (CONTRACT.md, "REST")."""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+import logging
+import re
+import tempfile
+import time
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+import httpx
+from fastapi import Body, FastAPI, File, Form, Header, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
+from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from uvicorn.server import ServerState
+
+from . import __version__
+from . import drawing, effort, generate, voice
+from . import models_api, setup_api
+from .attach import AttachError
+from . import workspace as ws
+from .access import AccessGuard
+from .config import Settings, model_gateway
+from .datasources import DataError, run_query, run_schema, run_test
+from .library import LibraryError, test_server
+from .look import LookUnavailable
+from .preview import bind, listen
+from .store import NoFreePort, ProjectNotFound
+from .studio import Studio
+from .templates import TemplateError
+from .turns import TurnRunning
+from .ship import ShipError, ShipRunning
+
+log = logging.getLogger("studio2")
+TEXT_LIMIT = 1_000_000
+UPLOAD_LIMIT = 25 * 1024 * 1024
+NOT_BUILT = """<!doctype html><meta charset="utf-8"><title>Studio 2</title>
+<body style="font:15px/1.6 system-ui;max-width:40rem;margin:4rem auto;padding:0 1rem">
+<h1>Studio 2 server is running</h1>
+<p>The web UI has not been built yet. Build it with
+<code>cd studio2/web &amp;&amp; npm install &amp;&amp; npm run build</code>, or run the dev server with
+<code>npm run dev</code> and open <a href="http://127.0.0.1:5200/">http://127.0.0.1:5200/</a>.</p>
+<p>The API is at <a href="/api/health">/api/health</a>.</p></body>"""
+
+
+class ApiError(Exception):
+    def __init__(self, status: int, code: str, message: str):
+        self.status, self.code, self.message = status, code, message
+
+
+def error(status: int, code: str, message: str) -> JSONResponse:
+    return JSONResponse({"error": {"code": code, "message": message}}, status_code=status)
+
+
+class ProjectCreate(BaseModel):
+    name: str | None = None
+    template: str | None = None
+
+
+class InspectBody(BaseModel):
+    path: str = ""
+
+
+class AttachBody(BaseModel):
+    path: str = Field(min_length=1)
+    mode: str = Field(default="copy", pattern="^(copy|in_place)$")
+    name: str | None = None
+    run: str | None = None
+    address: str | None = None
+    env_files: list[str] = Field(default_factory=list, max_length=50)
+    include_uncommitted: bool = False
+
+
+class AppConfigBody(BaseModel):
+    run: str | None = None
+    restart: str | None = None
+    address: str | None = None
+
+
+class SourceBody(BaseModel):
+    name: str | None = None
+    kind: str | None = None
+    host: str | None = None
+    port: int | None = None
+    database: str | None = None
+    user: str | None = None
+    password: str | None = None
+    ssl: str | None = None
+
+
+class LibraryChoice(BaseModel):
+    """Per id: true = always in this project, false = never, null = leave it to the studio."""
+    skills: dict[str, bool | None] | None = None
+    mcp_servers: dict[str, bool | None] | None = None
+
+
+class LibraryPrefs(BaseModel):
+    """Per id, for the whole machine: "always", "never" or null (no preference)."""
+    skills: dict[str, str | None] | None = None
+    mcp_servers: dict[str, str | None] | None = None
+
+
+class QueryBody(BaseModel):
+    sql: str
+    limit: int | None = None
+    save_as: str | None = None
+
+
+class LookBody(BaseModel):
+    path: str = "/"
+    width: int = 1440
+    height: int = 900
+    dark: bool = False
+    full_page: bool = True
+    wait_ms: int = 1200
+    actions: list[dict] = Field(default_factory=list, max_length=30)
+
+
+class Decision(BaseModel):
+    decision: str = Field(pattern="^(allow|deny)$")
+
+
+class ShipDecision(BaseModel):
+    decision: str = Field(pattern="^(allow|deny)$")
+    confirm: str = Field(default="", max_length=300)
+
+
+class ProjectPatch(BaseModel):
+    name: str | None = None
+    connection: str | None = None
+    model: str | None = None
+    approvals: str | None = Field(default=None, pattern="^(ask|allow)$")
+    name_suggestion: None = None    # only `null` is accepted: the person dismissed the offered name
+    turn_options: dict | None = None   # the remembered {depth, verify} (effort.py)
+
+
+class FilePut(BaseModel):
+    path: str
+    content: str
+    base_hash: str | None = None
+
+
+class DomEdit(BaseModel):
+    path: str
+    tag: str | None = None
+    before_text: str
+    after_text: str
+
+
+class Restore(BaseModel):
+    sha: str
+
+
+class Selection(BaseModel):
+    path: str = "/"
+    selector: str = ""
+    tag: str = ""
+    text: str = ""
+    html: str = ""
+    source: str = ""     # where the framework says the element comes from (bridge.js sourceHint)
+
+
+class TurnCreate(BaseModel):
+    text: str = Field(min_length=1)
+    selection: Selection | None = None
+    connection: str | None = None
+    model: str | None = None
+    attachments: list[str] = Field(default_factory=list, max_length=20)
+    queue: bool = False
+    options: dict | None = None    # {depth?, verify?, check_only?} (effort.py); checked in the route
+
+
+class OriginGuard:
+    """Mutating /api requests from a browser must come from the studio's own origin."""
+
+    def __init__(self, app, allowed: set[str]):
+        self.app, self.allowed = app, allowed
+
+    async def __call__(self, scope, receive, send):
+        if (scope["type"] == "http" and scope["path"].startswith("/api/")
+                and scope["method"] not in ("GET", "HEAD", "OPTIONS")):
+            origin = dict(scope["headers"]).get(b"origin")
+            host = dict(scope["headers"]).get(b"host", b"").decode("latin-1")
+            own = f"{scope.get('scheme') or 'http'}://{host}"
+            if origin is not None and origin.decode("latin-1") not in {*self.allowed, own}:
+                response = error(403, "forbidden_origin", "This request did not come from the studio.")
+                return await response(scope, receive, send)
+        await self.app(scope, receive, send)
+
+
+def is_paid_model(model: str) -> bool:
+    """Models that bill per call on this gateway: anything routed to OpenRouter, except its free ones."""
+    return model.startswith("openrouter/") and not (model.endswith(":free") or model.endswith("/free"))
+
+
+def _hash(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _clean_name(name: str | None) -> str:
+    return " ".join((name or "").split())[:120] or "Untitled"
+
+
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or Settings.from_env()
+    studio = Studio(settings)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        await studio.start()
+        front = []
+        if settings.tls and settings.hosts:
+            # With a certificate the extra addresses speak HTTPS; loopback stays plain HTTP
+            # (served by the process's main server, see __main__).
+            front = await listen(_app, bind(settings.hosts, settings.port), settings.tls, ServerState())
+        try:
+            yield
+        finally:
+            for server in front:
+                server.close()
+            await studio.stop()
+
+    app = FastAPI(title="Studio 2", version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None)
+    app.state.studio = studio
+    app.add_middleware(OriginGuard, allowed=settings.allowed_origins)
+    app.add_middleware(AccessGuard, key=settings.access_key, studio_port=settings.port,
+                       open_tailnet=settings.open_tailnet)  # outermost
+
+    handlers = {
+        ApiError: lambda exc: error(exc.status, exc.code, exc.message),
+        DataError: lambda exc: error(exc.status, exc.code, exc.message),
+        LibraryError: lambda exc: error(exc.status, exc.code, exc.message),
+        TemplateError: lambda exc: error(exc.status, exc.code, exc.message),
+        AttachError: lambda exc: error(exc.status, exc.code, exc.message),
+        ShipError: lambda exc: error(exc.status, exc.code, exc.message),
+        ShipRunning: lambda exc: error(409, "ship_running", "The studio is making this project live; wait until it "
+                                       "finishes."),
+        ProjectNotFound: lambda exc: error(404, "project_not_found", "That project does not exist."),
+        TurnRunning: lambda exc: error(409, "turn_running", "The assistant is still working in this project."),
+        ws.InvalidPath: lambda exc: error(400, "invalid_path", "That is not a valid path inside the project."),
+        ws.GitError: lambda exc: error(500, "git_failed", f"Version history failed: {exc}"),
+        NoFreePort: lambda exc: error(503, "no_free_port", str(exc)),
+        RequestValidationError: lambda exc: error(400, "invalid_request", "The request body is not valid."),
+        StarletteHTTPException: lambda exc: error(
+            exc.status_code, {404: "not_found", 405: "method_not_allowed"}.get(exc.status_code, "http_error"),
+            str(exc.detail)),
+    }
+    for kind, build in handlers.items():
+        app.add_exception_handler(kind, lambda _request, exc, build=build: build(exc))
+
+    @app.exception_handler(Exception)
+    async def unexpected(_request: Request, exc: Exception):
+        log.exception("Unhandled error")
+        return error(500, "internal_error", "The studio server hit an unexpected error.")
+
+    def idle_project(project_id: str) -> dict:
+        project = studio.store.get(project_id)
+        if project_id in studio.turns.active:
+            raise TurnRunning(project_id)
+        if project_id in studio.ships.running:
+            raise ShipRunning(project_id)
+        return project
+
+    async def user_checkpoint(project_id: str, message: str) -> dict | None:
+        studio.watch(project_id)
+        return await studio.checkpoint(project_id, "user", message)
+
+    setup_api.register(app, settings)   # GET and POST /api/setup (the first-run screen)
+    models_api.register(app, studio, settings)   # models, "check this model", the studio's own LiteLLM
+
+    # -- health and projects ----------------------------------------------------------------
+    @app.get("/api/health")
+    async def health():
+        return {"ok": True, "version": __version__, "fake": settings.fake,
+                "setup": {"needed": setup_api.first_run(settings)}, "shared": settings.shared,
+                "transcription": {"available": voice.reason() is None, "reason": voice.reason()},
+                "connections": studio.registry.describe_all()}
+
+    @app.get("/api/projects")
+    async def list_projects():
+        # A model check's scratch project is not one of the person's pages.
+        return [studio.view(project) for project in studio.store.list() if not project.get("hidden")]
+
+    @app.get("/api/templates")
+    async def list_templates():
+        return studio.templates()
+
+    @app.post("/api/projects", status_code=201)
+    async def create_project(body: ProjectCreate | None = None):
+        try:
+            project = await studio.create_project(_clean_name(body.name if body else None),
+                                                  (body.template if body else None) or "blank")
+        except KeyError:
+            raise ApiError(400, "unknown_template", "There is no such template.") from None
+        return studio.view(project)
+
+    @app.post("/api/apps/inspect")
+    async def inspect_folder(body: InspectBody):
+        return await studio.inspect_folder(body.path)
+
+    @app.post("/api/projects/attach", status_code=201)
+    async def attach_project(body: AttachBody):
+        project = await studio.attach_project(
+            body.path, body.mode, _clean_name(body.name) if body.name and body.name.strip() else None,
+            body.run, body.address, body.env_files, body.include_uncommitted)
+        return studio.view(project)
+
+    @app.get("/api/projects/{project_id}")
+    async def get_project(project_id: str):
+        project = await studio.open_preview(studio.store.get(project_id))
+        studio.app(project_id)
+        return studio.view(project)
+
+    def checked_options(raw, request: bool = True) -> dict:
+        try:
+            return effort.clean(raw, request)
+        except effort.OptionsError as exc:
+            raise ApiError(400, "invalid_options", str(exc)) from None
+
+    @app.patch("/api/projects/{project_id}")
+    async def patch_project(project_id: str, body: ProjectPatch):
+        project = studio.store.get(project_id)
+        changes: dict = {}
+        if "name" in body.model_fields_set:
+            changes["name"] = _clean_name(body.name)
+        if {"name", "name_suggestion"} & body.model_fields_set and project.get("name_suggestion"):
+            changes["name_suggestion"] = None    # accepted, typed over or dismissed: the offer is over
+        if body.connection is not None:
+            if body.connection not in {c["id"] for c in studio.registry.connections()}:
+                raise ApiError(400, "unknown_connection", f"There is no connection named “{body.connection}”.")
+            changes["connection"] = body.connection
+            if body.connection != project.get("connection"):
+                changes["model"] = None  # a model belongs to its connection
+        if "model" in body.model_fields_set:
+            changes["model"] = body.model
+        if body.approvals is not None:
+            changes["approvals"] = body.approvals
+        if body.turn_options is not None:
+            changes["turn_options"] = checked_options(body.turn_options, request=False)
+        return studio.view(studio.store.update(project_id, **changes) if changes else project)
+
+    # -- the project's own app --------------------------------------------------------------
+    def configured_app(project_id: str):
+        project_app = studio.app(project_id)
+        project_app.refresh_config() if project_app.state == "none" else None
+        if project_app.run is None:
+            raise ApiError(409, "no_app", project_app.error or "This project has no studio.json with a run command.")
+        return project_app
+
+    @app.get("/api/projects/{project_id}/app")
+    async def get_app(project_id: str):
+        return studio.app(project_id).describe()
+
+    @app.put("/api/projects/{project_id}/app/config")
+    async def set_app_config(project_id: str, body: AppConfigBody):
+        studio.store.get(project_id)
+        await studio.set_app_config(project_id, body.model_dump())
+        return studio.app(project_id).describe()
+
+    @app.post("/api/projects/{project_id}/app/{action}")
+    async def control_app(project_id: str, action: str):
+        if action not in ("start", "stop", "restart"):
+            raise ApiError(404, "not_found", "There is no such API route.")
+        current = studio.app(project_id)
+        current.refresh_config() if current.state == "none" else None
+        if current.address:
+            raise ApiError(409, "external_app", "The studio did not start this server and does not start, stop "
+                           "or restart it.")
+        project_app = configured_app(project_id)
+        studio.watch(project_id)
+        if action == "stop":
+            await project_app.stop()
+        elif action == "start":
+            await project_app.start()
+        else:
+            await project_app.sync(restart=True)
+        if bool(studio.store.get(project_id).get("app_stopped")) != (action == "stop"):
+            studio.store.update(project_id, app_stopped=action == "stop")   # kept across a restart of the studio
+        return project_app.describe()
+
+    @app.get("/api/projects/{project_id}/app/logs")
+    async def app_logs(project_id: str, after: int = 0):
+        return studio.app(project_id).logs(max(after, 0))
+
+    @app.post("/api/projects/{project_id}/look")
+    async def look_with_actions(project_id: str, body: LookBody):
+        return await look(project_id, body.path, body.width, body.height, int(body.dark), int(body.full_page),
+                          body.wait_ms, body.actions)
+
+    @app.get("/api/projects/{project_id}/look")
+    async def look(project_id: str, path: str = "/", width: int = 1440, height: int = 900, dark: int = 0,
+                   full_page: int = 1, wait_ms: int = 1200, actions: list[dict] | None = None):
+        project = await studio.open_preview(studio.store.get(project_id))
+        if not path.startswith("/") or "://" in path or path.startswith("//"):
+            raise ApiError(400, "invalid_path", "path must start with / and stay on the project's own URL.")
+        try:
+            return await studio.looker.look(
+                # Loopback, not preview_url: that follows the caller's host and would meet the access guard.
+                f"http://127.0.0.1:{project['port']}" + path, studio.store.dir(project_id) / "looks",
+                width=max(320, min(width, 2560)), height=max(320, min(height, 2000)), dark=bool(dark),
+                full_page=bool(full_page), wait_ms=wait_ms, actions=actions if isinstance(actions, list) else None)
+        except LookUnavailable as exc:
+            raise ApiError(503, "look_unavailable", str(exc)) from None
+
+    @app.post("/api/projects/{project_id}/drawings")
+    async def save_drawing(project_id: str, body: dict = Body(...)):
+        project = await studio.open_preview(studio.store.get(project_id))
+        try:
+            drawn = drawing.clean(body)
+        except drawing.DrawingError as exc:
+            raise ApiError(400, "invalid_drawing", str(exc)) from None
+        workspace = studio.store.workspace(project_id)
+        folder, stem = workspace / "attachments", f"drawing-{int(time.time() * 1000)}"
+        images, note = [], None
+        try:
+            shots = await studio.looker.drawing_shots(
+                f"http://127.0.0.1:{project['port']}" + drawn["path"], drawn, folder, stem)
+            images = [{"path": f"attachments/{shot['file'].name}", "marks": shot["marks"]} for shot in shots]
+        except LookUnavailable as exc:
+            note = str(exc)
+        except Exception as exc:  # the drawing is still worth sending without pictures
+            note = f"The page could not be photographed ({' '.join(str(exc).split())[:160]})."
+        drawn["images"], drawn["note"] = images, note
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / f"{stem}.json").write_text(json.dumps(drawn, ensure_ascii=False), "utf-8")
+        if project_id not in studio.turns.active:
+            await user_checkpoint(project_id, "Drawing on the page")
+        return {"path": f"attachments/{stem}.json", "images": [item["path"] for item in images],
+                "marks": len(drawn["marks"]), "rendered": bool(images), "note": note}
+
+    # -- templates the person saves ------------------------------------------------------------
+    def own_template(template_id: str) -> dict:
+        found = studio.saved.get(template_id)
+        if found is None:
+            if any(item["id"] == template_id for item in studio.templates()):
+                raise ApiError(400, "builtin_template", "A built-in template cannot be changed.")
+            raise ApiError(404, "unknown_template", "There is no such template.")
+        return found
+
+    @app.post("/api/projects/{project_id}/template", status_code=201)
+    async def save_template(project_id: str, body: dict = Body(...)):
+        idle_project(project_id)
+        return await studio.save_template(project_id, str(body.get("name") or ""), str(body.get("description") or ""),
+                                          body.get("kind") or None, body.get("file") or None, str(body.get("notes") or ""))
+
+    @app.patch("/api/templates/{template_id}")
+    async def edit_template(template_id: str, body: dict = Body(...)):
+        own_template(template_id)
+        return studio.saved.update(template_id, body.get("label") if isinstance(body.get("label"), str) else None,
+                                   body.get("description") if isinstance(body.get("description"), str) else None)
+
+    @app.delete("/api/templates/{template_id}", status_code=204)
+    async def delete_template(template_id: str):
+        own_template(template_id)
+        studio.saved.delete(template_id)
+        return Response(status_code=204)
+
+    @app.get("/api/templates/{template_id}/preview")
+    async def template_preview(template_id: str):
+        image = studio.saved.preview(template_id) if studio.saved.get(template_id) else None
+        if image is None:
+            raise ApiError(404, "no_preview", "This template has no picture.")
+        return FileResponse(image, headers={"cache-control": "no-store"})
+
+    @app.get("/api/templates/{template_id}/export")
+    async def export_template(template_id: str):
+        found = own_template(template_id)
+        name = "".join(c if c.isalnum() or c in " -_" else "_" for c in found["label"]).strip() or "template"
+        data = await asyncio.to_thread(studio.saved.export, template_id)
+        return Response(content=data, media_type="application/zip",
+                        headers={"content-disposition": f'attachment; filename="{name}.studio-template.zip"'})
+
+    @app.post("/api/templates/import", status_code=201)
+    async def import_template(file: UploadFile = File(...), confirm: str = Form("")):
+        chunks, size = [], 0
+        while chunk := await file.read(1024 * 1024):
+            size += len(chunk)
+            if size > 100 * 1024 * 1024:
+                raise ApiError(413, "file_too_large", "A template file is limited to 100 MB.")
+            chunks.append(chunk)
+        return await asyncio.to_thread(studio.saved.import_zip, b"".join(chunks), confirm == "1")
+
+    @app.put("/api/projects/{project_id}/uses-template")
+    async def use_template(project_id: str, body: dict = Body(...)):
+        idle_project(project_id)
+        return studio.view(await studio.use_template(project_id, str(body.get("template") or "")))
+
+    @app.delete("/api/projects/{project_id}/uses-template")
+    async def stop_using_template(project_id: str):
+        idle_project(project_id)
+        return studio.view(await studio.use_template(project_id, None))
+
+    # -- generated media --------------------------------------------------------------------
+    @app.get("/api/generation")
+    async def generation_status():
+        generator = studio.generator
+        return {"available": generate.reason() is None, "reason": generate.reason(), "paused": generator.halted(),
+                "spent_today": generator.spent_today(), "daily_limit": generator.daily_credits}
+
+    @app.delete("/api/generation/pause", status_code=204)
+    async def generation_resume():
+        studio.generator.resume()
+        return Response(status_code=204)
+
+    # -- voice input ------------------------------------------------------------------------
+    @app.post("/api/transcribe")
+    async def transcribe(file: UploadFile = File(...), language: str = Form("auto")):
+        if voice.reason():
+            raise ApiError(503, "transcription_unavailable", voice.reason())
+        suffix = Path(file.filename or "").suffix.lower()
+        suffix = suffix if re.fullmatch(r"\.[a-z0-9]{1,5}", suffix) else ".audio"
+        with tempfile.TemporaryDirectory(prefix="studio2-voice-") as scratch:
+            target, size = Path(scratch) / f"recording{suffix}", 0
+            with target.open("wb") as handle:
+                while chunk := await file.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > UPLOAD_LIMIT:
+                        raise ApiError(413, "file_too_large", "A recording is limited to 25 MB.")
+                    handle.write(chunk)
+            try:
+                text, seconds = await asyncio.to_thread(voice.transcribe, target, language)
+            except voice.VoiceError as exc:
+                raise ApiError(422, "transcription_failed", str(exc)) from None
+        return {"text": text, "seconds": seconds}
+
+    # -- models for a project's own back end ---------------------------------------------------
+    def model_caller(project_id: str, authorization: str | None, x_studio_token: str | None) -> dict:
+        token = x_studio_token or (authorization or "").removeprefix("Bearer ").strip()
+        if not token or token != studio.token(project_id):
+            raise ApiError(401, "bad_token", "Use the project's STUDIO_TOKEN as the API key.")
+        gateway = model_gateway(settings)
+        if not gateway:
+            raise ApiError(503, "no_gateway", "This studio has no model gateway configured for project back ends.")
+        return gateway
+
+    @app.get("/api/projects/{project_id}/model/v1/models")
+    async def app_models(project_id: str, authorization: str | None = Header(None),
+                         x_studio_token: str | None = Header(None)):
+        gateway = model_caller(project_id, authorization, x_studio_token)
+        try:
+            async with studio.gateway_client() as client:
+                answer = await client.get(f"{gateway['base_url']}/v1/models",
+                                          headers={"Authorization": f"Bearer {gateway['key']}"})
+            listed = answer.json().get("data") or []
+        except (httpx.HTTPError, ValueError) as exc:
+            raise ApiError(502, "gateway_unreachable", f"The model gateway did not answer ({exc.__class__.__name__}).") from None
+        return {"object": "list", "data": [
+            {**item, "paid": is_paid_model(str(item.get("id") or ""))} for item in listed if isinstance(item, dict)]}
+
+    @app.post("/api/projects/{project_id}/model/v1/chat/completions")
+    async def app_chat(project_id: str, body: dict = Body(...), authorization: str | None = Header(None),
+                       x_studio_token: str | None = Header(None)):
+        gateway = model_caller(project_id, authorization, x_studio_token)
+        if body.get("stream"):
+            raise ApiError(400, "no_streaming", "Streaming is not supported here; call without stream.")
+        model = str(body.get("model") or "")
+        spent, cap = studio.model_spend_today(project_id), settings.app_model_daily_usd
+        if is_paid_model(model) and spent >= cap:
+            raise ApiError(429, "daily_limit", f"This project has used its ${cap:.2f} for paid models today "
+                                               f"(${spent:.2f} spent). Use a model that is not paid, or raise the limit.")
+        try:
+            async with studio.gateway_client() as client:
+                answer = await client.post(f"{gateway['base_url']}/v1/chat/completions", json=body,
+                                           headers={"Authorization": f"Bearer {gateway['key']}"})
+        except httpx.HTTPError as exc:
+            raise ApiError(502, "gateway_unreachable", f"The model gateway did not answer ({exc.__class__.__name__}).") from None
+        cost = None
+        try:
+            cost = float(answer.headers.get("x-litellm-response-cost") or "")
+        except ValueError:
+            pass
+        usage = None
+        if answer.status_code == 200:
+            try:
+                usage = answer.json().get("usage")
+            except ValueError:
+                pass
+            studio.record_model_use(project_id, model, cost, usage)
+        headers = {"x-studio-model-cost": "" if cost is None else f"{cost:.6f}",
+                   "x-studio-model-spent-today": f"{studio.model_spend_today(project_id):.6f}"}
+        return Response(content=answer.content, status_code=answer.status_code, headers=headers,
+                        media_type=answer.headers.get("content-type", "application/json"))
+
+    # -- library and data sources ------------------------------------------------------------
+    @app.get("/api/library")
+    async def library():
+        return studio.library()
+
+    async def json_object(request: Request) -> dict:
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+        if not isinstance(body, dict):
+            raise ApiError(400, "invalid_request", "Send a JSON object.")
+        return body
+
+    @app.post("/api/skills", status_code=201)
+    async def add_skill(request: Request):
+        return studio.lib.add_skill(await json_object(request))
+
+    @app.delete("/api/skills/{name}", status_code=204)
+    async def delete_skill(name: str):
+        studio.lib.delete_skill(name)
+        return Response(status_code=204)
+
+    @app.post("/api/mcp-servers", status_code=201)
+    async def add_server(request: Request):
+        return studio.lib.add_server(await json_object(request))
+
+    @app.patch("/api/mcp-servers/{server_id}")
+    async def update_server(server_id: str, request: Request):
+        return studio.lib.update_server(server_id, await json_object(request))
+
+    @app.delete("/api/mcp-servers/{server_id}", status_code=204)
+    async def delete_server(server_id: str):
+        studio.lib.delete_server(server_id)
+        for project_id, chosen in studio.lib.forget_server(studio.store.list(), server_id):
+            studio.store.update(project_id, library=chosen)
+        return Response(status_code=204)
+
+    @app.post("/api/mcp-servers/{server_id}/test")
+    async def try_server(server_id: str):
+        studio.lib.server(server_id)
+        result = await test_server(studio.lib.server_config(server_id))
+        studio.lib.record_test(server_id, result)
+        return result
+
+    def project_view(project: dict) -> dict:
+        return studio.lib.for_project(project, studio.store.workspace(project["id"]), studio.picker.prefs())
+
+    @app.get("/api/projects/{project_id}/library")
+    async def project_library(project_id: str):
+        return project_view(studio.store.get(project_id))
+
+    @app.put("/api/projects/{project_id}/library")
+    async def choose_library(project_id: str, body: LibraryChoice):
+        project = studio.store.get(project_id)
+        workspace = studio.store.workspace(project_id) if project.get("attach") else None
+        chosen = studio.lib.choose(project, body.model_dump(), workspace)
+        return project_view(studio.store.update(project_id, library=chosen))
+
+    @app.get("/api/library/items")
+    async def library_items(kind: str = "skills", q: str = "", source: str | None = None, state: str | None = None,
+                            offset: int = 0, limit: int = 50, project: str | None = None):
+        if kind not in ("skills", "agents", "connectors"):
+            raise ApiError(400, "invalid_request", "kind: skills, agents or connectors.")
+        chosen = studio.store.get(project) if project else None
+        return await asyncio.to_thread(studio.picker.items, kind, q, source or None, state or None, offset, limit, chosen)
+
+    @app.put("/api/library/prefs")
+    async def library_prefs(body: LibraryPrefs):
+        return studio.picker.set_prefs(body.model_dump())
+
+    @app.post("/api/library/refresh")
+    async def library_refresh():
+        meta = await asyncio.to_thread(studio.lib.catalog.ensure, True)
+        return studio.picker.summary(meta)
+
+    @app.get("/api/data-sources")
+    async def list_sources():
+        return studio.data.list()
+
+    @app.post("/api/data-sources", status_code=201)
+    async def create_source(body: SourceBody):
+        return studio.data.create(body.model_dump())
+
+    @app.post("/api/data-sources/test")
+    async def test_unsaved_source(body: SourceBody):
+        clean = studio.data.normalise(body.model_dump())
+        return await asyncio.to_thread(run_test, clean, body.password)
+
+    @app.patch("/api/data-sources/{source_id}")
+    async def update_source(source_id: str, body: SourceBody):
+        return studio.data.update(source_id, body.model_dump(exclude_unset=True))
+
+    @app.delete("/api/data-sources/{source_id}", status_code=204)
+    async def delete_source(source_id: str):
+        studio.data.delete(source_id)
+        for project in studio.store.list():
+            if source_id in (project.get("data_sources") or []):
+                studio.store.update(project["id"], data_sources=[i for i in project["data_sources"] if i != source_id])
+        return Response(status_code=204)
+
+    @app.post("/api/data-sources/{source_id}/test")
+    async def test_source(source_id: str):
+        source = studio.data.raw(source_id)
+        result = await asyncio.to_thread(run_test, source, studio.data.password(source_id))
+        studio.data.record_test(source_id, result)
+        return result
+
+    @app.get("/api/projects/{project_id}/data-sources")
+    async def project_sources(project_id: str):
+        attached = studio.store.get(project_id).get("data_sources") or []
+        return [{**item, "attached": item["id"] in attached} for item in studio.data.list()]
+
+    @app.put("/api/projects/{project_id}/data-sources/{source_id}", status_code=204)
+    async def attach_source(project_id: str, source_id: str):
+        studio.data.raw(source_id)
+        current = studio.store.get(project_id).get("data_sources") or []
+        if source_id not in current:
+            studio.store.update(project_id, data_sources=[*current, source_id])
+        return Response(status_code=204)
+
+    @app.delete("/api/projects/{project_id}/data-sources/{source_id}", status_code=204)
+    async def detach_source(project_id: str, source_id: str):
+        current = studio.store.get(project_id).get("data_sources") or []
+        studio.store.update(project_id, data_sources=[i for i in current if i != source_id])
+        return Response(status_code=204)
+
+    def attached(project_id: str, token: str | None, name: str | None = None):
+        if not token or token != studio.token(project_id):
+            raise ApiError(403, "bad_token", "This request needs the project's X-Studio-Token header.")
+        allowed = studio.store.get(project_id).get("data_sources") or []
+        return studio.data.by_name(name, allowed) if name is not None else allowed
+
+    @app.get("/api/projects/{project_id}/data")
+    async def project_data(project_id: str, x_studio_token: str | None = Header(None)):
+        attached(project_id, x_studio_token)
+        return [{"name": s["name"], "kind": s["kind"], "database": s["database"]}
+                for s in studio.attached_sources(project_id)]
+
+    @app.get("/api/projects/{project_id}/data/{name}/schema")
+    async def data_schema(project_id: str, name: str, table: str | None = None,
+                          x_studio_token: str | None = Header(None)):
+        source = attached(project_id, x_studio_token, name)
+        return await asyncio.to_thread(run_schema, source, studio.data.password(source["id"]), table)
+
+    @app.post("/api/projects/{project_id}/data/{name}/query")
+    async def data_query(project_id: str, name: str, body: QueryBody, x_studio_token: str | None = Header(None)):
+        source = attached(project_id, x_studio_token, name)
+        save_to = None
+        if body.save_as:
+            save_to = ws.safe_path(studio.store.workspace(project_id), body.save_as)
+            if save_to.suffix.lower() not in (".csv", ".json"):
+                raise ApiError(400, "invalid_path", "save_as must end in .csv or .json.")
+        limit = body.limit if body.limit and body.limit > 0 else (500_000 if save_to else 1_000)
+        result = await asyncio.to_thread(run_query, source, studio.data.password(source["id"]), body.sql, limit, save_to)
+        if save_to:
+            result["saved"] = save_to.relative_to(studio.store.workspace(project_id).resolve()).as_posix()
+        return result
+
+    @app.get("/api/projects/{project_id}/download")
+    async def download(project_id: str):
+        project = studio.store.get(project_id)
+        handle = tempfile.NamedTemporaryFile(prefix="studio2-", suffix=".zip", delete=False)
+        handle.close()
+        await asyncio.to_thread(ws.zip_workspace, studio.store.workspace(project_id), Path(handle.name),
+                                bool(project.get("attach")))
+        name = re.sub(r"[^A-Za-z0-9._ -]+", "", project["name"]).strip() or project_id
+        return FileResponse(handle.name, media_type="application/zip", filename=f"{name}.zip",
+                            background=BackgroundTask(Path(handle.name).unlink, missing_ok=True))
+
+    @app.delete("/api/projects/{project_id}", status_code=204)
+    async def delete_project(project_id: str):
+        await studio.delete_project(project_id)
+        return Response(status_code=204)
+
+    # -- files ------------------------------------------------------------------------------
+    @app.get("/api/projects/{project_id}/files")
+    async def list_files(project_id: str):
+        project = studio.store.get(project_id)
+        return await asyncio.to_thread(ws.list_files, studio.store.workspace(project_id), 5000,
+                                       bool(project.get("attach")))
+
+    @app.get("/api/projects/{project_id}/file")
+    async def read_file(project_id: str, path: str):
+        studio.store.get(project_id)
+        target = ws.safe_path(studio.store.workspace(project_id), path)
+        if not target.is_file():
+            raise ApiError(404, "file_not_found", f"There is no file at {path}.")
+        if target.stat().st_size > TEXT_LIMIT:
+            raise ApiError(415, "unsupported_file", "This file is larger than 1 MB.")
+        data = target.read_bytes()
+        try:
+            return {"path": path, "content": data.decode("utf-8"), "hash": _hash(data)}
+        except UnicodeDecodeError:
+            raise ApiError(415, "unsupported_file", "This file is not UTF-8 text.") from None
+
+    @app.put("/api/projects/{project_id}/file")
+    async def write_file(project_id: str, body: FilePut):
+        idle_project(project_id)
+        target = ws.safe_path(studio.store.workspace(project_id), body.path)
+        data = body.content.encode("utf-8")
+        if len(data) > TEXT_LIMIT:
+            raise ApiError(413, "file_too_large", "Text files are limited to 1 MB here.")
+        if target.is_dir():
+            raise ApiError(400, "invalid_path", "That path is a folder.")
+        if body.base_hash is not None:
+            current = _hash(target.read_bytes()) if target.is_file() else None
+            if current != body.base_hash:
+                raise ApiError(409, "stale_file", "The file changed since you opened it. Reload it and try again.")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        checkpoint = await user_checkpoint(project_id, f"Edit {body.path}")
+        return {"path": body.path, "hash": _hash(data), "checkpoint": checkpoint}
+
+    @app.post("/api/projects/{project_id}/upload")
+    async def upload(project_id: str, file: UploadFile = File(...), dir: str = Form("")):
+        studio.store.get(project_id)
+        if project_id in studio.ships.running:
+            raise ShipRunning(project_id)
+        name = Path((file.filename or "").replace("\\", "/")).name
+        if not name or name in (".", ".."):
+            raise ApiError(400, "invalid_path", "The uploaded file needs a name.")
+        rel = "/".join(part for part in (dir.strip("/"), name) if part)
+        target = ws.safe_path(studio.store.workspace(project_id), rel)
+        chunks, size = [], 0
+        while chunk := await file.read(1024 * 1024):
+            size += len(chunk)
+            if size > UPLOAD_LIMIT:
+                raise ApiError(413, "file_too_large", "Uploads are limited to 25 MB.")
+            chunks.append(chunk)
+        if target.is_dir():
+            raise ApiError(400, "invalid_path", "That path is a folder.")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"".join(chunks))
+        # During a turn the file rides along with that turn's checkpoint.
+        checkpoint = None if project_id in studio.turns.active else await user_checkpoint(project_id, f"Upload {rel}")
+        return {"path": rel, "size": size, "checkpoint": checkpoint}
+
+    @app.post("/api/projects/{project_id}/dom-edits")
+    async def dom_edit(project_id: str, body: DomEdit):
+        idle_project(project_id)
+        workspace = studio.store.workspace(project_id)
+        rel = ws.page_to_file(workspace, body.path)
+        target = ws.safe_path(workspace, rel)
+        before = body.before_text.strip()
+        if not before:
+            raise ApiError(400, "invalid_request", "The original text is empty.")
+        try:
+            source = target.read_text("utf-8")
+        except (OSError, UnicodeDecodeError):
+            raise ApiError(409, "edit_not_found", f"{rel} could not be read as text.") from None
+        updated, count = ws.apply_text_edit(source, before, body.after_text.strip(), tag=body.tag)
+        if updated is None:
+            if count > 1:
+                raise ApiError(409, "ambiguous_edit", f"That text appears {count} times in {rel}.")
+            raise ApiError(409, "edit_not_found", f"That text was not found in {rel}.")
+        target.write_text(updated, "utf-8")
+        checkpoint = await user_checkpoint(project_id, f"Edit text in {rel}")
+        return {"path": rel, "checkpoint": checkpoint}
+
+    # -- versions ---------------------------------------------------------------------------
+    def commit_or_404(project_id: str, sha: str) -> str:
+        full = ws.resolve_commit(studio.store.workspace(project_id), sha, studio.since(project_id))
+        if not full:
+            raise ApiError(404, "version_not_found", "That version does not exist in this project.")
+        return full
+
+    @app.get("/api/projects/{project_id}/versions")
+    async def versions(project_id: str):
+        studio.store.get(project_id)
+        return await asyncio.to_thread(ws.versions, studio.store.workspace(project_id), 500, studio.since(project_id))
+
+    @app.get("/api/projects/{project_id}/versions/{sha}/diff")
+    async def version_diff(project_id: str, sha: str):
+        studio.store.get(project_id)
+        return await asyncio.to_thread(ws.diff, studio.store.workspace(project_id), commit_or_404(project_id, sha))
+
+    @app.post("/api/projects/{project_id}/restore")
+    async def restore(project_id: str, body: Restore):
+        idle_project(project_id)
+        studio.watch(project_id)
+        return {"checkpoint": await studio.restore(project_id, commit_or_404(project_id, body.sha))}
+
+    # -- turns and events -------------------------------------------------------------------
+    @app.post("/api/projects/{project_id}/turns", status_code=202)
+    async def start_turn(project_id: str, body: TurnCreate):
+        project = studio.store.get(project_id)
+        if not body.text.strip():
+            raise ApiError(400, "invalid_request", "The message is empty.")
+        if body.connection and body.connection not in {c["id"] for c in studio.registry.connections()}:
+            raise ApiError(400, "unknown_connection", f"There is no connection named “{body.connection}”.")
+        selection = body.selection.model_dump() if body.selection else None
+        if selection:
+            selection["text"], selection["html"] = selection["text"][:500], selection["html"][:4000]
+            selection["source"] = selection.get("source", "")[:600]
+            # A development build reports full paths on this machine; the agent works in the project.
+            selection["source"] = selection["source"].replace(str(studio.store.workspace(project_id)) + "/", "")
+            if not selection["source"]:
+                del selection["source"]   # most pages say nothing; keep the event as it was
+        workspace = studio.store.workspace(project_id)
+        attachments = []
+        for raw in body.attachments:
+            target = ws.safe_path(workspace, raw)
+            if not target.is_file():
+                raise ApiError(400, "missing_attachment", f"The attached file {raw} is not in the project.")
+            attachments.append(target.relative_to(workspace.resolve()).as_posix())
+        options = checked_options(body.options)
+        if body.queue and (project_id in studio.turns.active or project_id in studio.ships.running):
+            return {"queued_id": studio.turns.enqueue(project, body.text, selection, body.connection,
+                                                       body.model, attachments, options)}
+        return {"turn_id": studio.turns.start(project, body.text, selection, body.connection, body.model,
+                                              attachments, options=options)}
+
+    # -- what the requests cost --------------------------------------------------------------
+    @app.get("/api/projects/{project_id}/cost")
+    async def project_cost(project_id: str):
+        studio.store.get(project_id)
+        return await asyncio.to_thread(studio.costs.project_cost, project_id)
+
+    @app.post("/api/projects/{project_id}/cost/recover")
+    async def recover_cost(project_id: str):
+        studio.store.get(project_id)
+        if project_id in studio.turns.active:
+            raise TurnRunning(project_id)
+        return await studio.costs.recover(project_id)
+
+    @app.delete("/api/projects/{project_id}/queue/{queued_id}", status_code=204)
+    async def unqueue(project_id: str, queued_id: str):
+        studio.store.get(project_id)
+        studio.turns.unqueue(project_id, queued_id)
+        return Response(status_code=204)
+
+    @app.post("/api/projects/{project_id}/turns/{turn_id}/approvals/{approval_id}", status_code=204)
+    async def answer_approval(project_id: str, turn_id: str, approval_id: str, body: Decision):
+        studio.store.get(project_id)
+        if studio.turns.active.get(project_id) != turn_id or not studio.turns.answer(turn_id, approval_id, body.decision):
+            raise ApiError(404, "unknown_approval", "That request is no longer waiting for an answer.")
+        return Response(status_code=204)
+
+    @app.post("/api/projects/{project_id}/turns/{turn_id}/stop", status_code=202)
+    async def stop_turn(project_id: str, turn_id: str):
+        studio.store.get(project_id)
+        studio.turns.stop(project_id, turn_id)
+        return {"turn_id": turn_id}
+
+    # -- ship: make it live ------------------------------------------------------------------
+    @app.get("/api/projects/{project_id}/ship")
+    async def ship_state(project_id: str):
+        project = studio.store.get(project_id)
+        if not project.get("attach"):
+            raise ApiError(404, "not_attached", "Only a project brought in from a folder can be made live.")
+        return studio.ships.view(project)
+
+    @app.put("/api/projects/{project_id}/ship/recipe")
+    async def ship_recipe(project_id: str, body: dict = Body(...)):
+        studio.ships.set_recipe(project_id, body.get("recipe") if isinstance(body.get("recipe"), dict) else body,
+                                "person")
+        return studio.ships.view(studio.store.get(project_id))
+
+    @app.post("/api/projects/{project_id}/ships", status_code=202)
+    async def start_ship(project_id: str):
+        return {"ship_id": await studio.ships.start(project_id, "person")}
+
+    @app.get("/api/projects/{project_id}/ships")
+    async def list_ships(project_id: str):
+        studio.store.get(project_id)
+        return studio.ships.records(project_id)
+
+    @app.get("/api/projects/{project_id}/ships/{ship_id}")
+    async def get_ship(project_id: str, ship_id: str):
+        studio.store.get(project_id)
+        record = studio.ships.record(project_id, ship_id) if re.fullmatch(r"s_[0-9a-f]{8}", ship_id) else None
+        if record is None:
+            raise ApiError(404, "ship_not_found", "There is no such ship.")
+        return record
+
+    @app.post("/api/projects/{project_id}/ships/{ship_id}/decision", status_code=204)
+    async def decide_ship(project_id: str, ship_id: str, body: ShipDecision):
+        studio.store.get(project_id)
+        studio.ships.decide(project_id, ship_id, body.decision, body.confirm)
+        return Response(status_code=204)
+
+    @app.post("/api/projects/{project_id}/ship/update-copy")
+    async def update_copy(project_id: str):
+        studio.watch(project_id)
+        return await studio.ships.update_copy(project_id)
+
+    @app.get("/api/projects/{project_id}/events")
+    async def events(project_id: str, after: int = 0, last_event_id: str | None = Header(None)):
+        project = studio.store.get(project_id)
+        await studio.open_preview(project)
+        studio.watch(project_id)
+        if last_event_id and last_event_id.strip().isdigit():
+            after = int(last_event_id)
+        stream = studio.log(project_id).stream(max(after, 0), settings.ping_seconds)
+        return StreamingResponse(stream, media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+    # -- web UI -----------------------------------------------------------------------------
+    @app.get("/{path:path}", include_in_schema=False)
+    async def web_ui(path: str):
+        if path == "api" or path.startswith("api/"):
+            raise ApiError(404, "not_found", "There is no such API route.")
+        dist = settings.web_dist.resolve()
+        if not (dist / "index.html").is_file():
+            return HTMLResponse(NOT_BUILT)
+        candidate = (dist / path).resolve()
+        if path and candidate.is_file() and dist in candidate.parents:
+            manifest = candidate.suffix == ".webmanifest"
+            return FileResponse(candidate, media_type="application/manifest+json" if manifest else None)
+        return FileResponse(dist / "index.html", headers={"Cache-Control": "no-cache"})
+
+    return app

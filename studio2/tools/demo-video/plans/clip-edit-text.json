@@ -1,0 +1,20 @@
+{
+ "crf": 27,
+ "items": [
+  {
+   "dir": "frames/hands",
+   "phases": {
+    "c_edit": {
+     "speed": 1.15,
+     "caption": "1 \u00b7 Edit: click any text and type",
+     "right": "real time"
+    },
+    "c_edit_saved": {
+     "speed": 1.2,
+     "caption": "2 \u00b7 Saved at once, as a version of its own",
+     "right": "real time"
+    }
+   }
+  }
+ ]
+}

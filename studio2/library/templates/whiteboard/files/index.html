@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}}</title>
+<meta name="studio-reload" content="off">
+<link rel="stylesheet" href="https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.css">
+<style>
+  html, body, #board { height: 100%; margin: 0; }
+  #status { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 10;
+            font: 12px system-ui, sans-serif; padding: 4px 10px; border-radius: 999px;
+            background: color-mix(in srgb, CanvasText 8%, Canvas); color: GrayText; pointer-events: none; }
+  #status:empty { display: none; }
+</style>
+<script>window.EXCALIDRAW_ASSET_PATH = "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/prod/";</script>
+<script type="importmap">
+{ "imports": {
+    "react": "https://esm.sh/react@19.0.0",
+    "react/jsx-runtime": "https://esm.sh/react@19.0.0/jsx-runtime",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client" } }
+</script>
+</head>
+<body>
+<div id="board"></div>
+<div id="status" data-studio-ignore></div>
+<script type="module">
+  // The drawing is board.excalidraw in this project. It is loaded on open, saved a moment after
+  // every change, and reloaded when the file changes on disk (for example when the assistant edits it).
+  import React from "react";
+  import { createRoot } from "react-dom/client";
+  import { Excalidraw, serializeAsJSON } from "https://esm.sh/@excalidraw/excalidraw@0.18.0/dist/dev/index.js?external=react,react-dom";
+
+  const status = document.getElementById("status");
+  const say = (text, ms) => { status.textContent = text; if (ms) setTimeout(() => { if (status.textContent === text) status.textContent = ""; }, ms); };
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+
+  let scene = { elements: [], appState: {}, files: {} };
+  try {
+    const response = await fetch("board.excalidraw", { cache: "no-store" });
+    if (response.ok) scene = await response.json();
+  } catch (error) { say("Could not load the saved drawing"); }
+
+  let api, timer, lastSaved = "", first = true, stamp = null, applying = false;
+  const stampNow = async () => (await (await fetch("api/board/stamp", { cache: "no-store" })).json()).stamp;
+  try { stamp = await stampNow(); } catch (error) { /* the watcher below retries */ }
+
+  // When the file changes on disk (the assistant edited it, or an older version was restored),
+  // show that drawing instead of overwriting it with what is on screen.
+  async function watch() {
+    try {
+      const current = await stampNow();
+      if (stamp !== null && current !== stamp && !timer) {
+        const fresh = await (await fetch("board.excalidraw", { cache: "no-store" })).json();
+        applying = true;
+        api.updateScene({ elements: fresh.elements || [] });
+        if (fresh.files) api.addFiles(Object.values(fresh.files));
+        api.scrollToContent(undefined, { fitToContent: true });
+        lastSaved = "";
+        say("Updated from the project", 1500);
+        setTimeout(() => { applying = false; }, 300);
+      }
+      stamp = current;
+    } catch (error) { /* app restarting; try again next time */ }
+    setTimeout(watch, 2000);
+  }
+  setTimeout(watch, 2000);
+  async function save() {
+    const body = serializeAsJSON(api.getSceneElements(), api.getAppState(), api.getFiles(), "local");
+    if (body === lastSaved) return;
+    try {
+      const response = await fetch("api/board", { method: "PUT", headers: { "Content-Type": "application/json" }, body });
+      if (!response.ok) throw new Error(response.status);
+      stamp = (await response.json()).stamp;
+      lastSaved = body;
+      say("Saved", 1200);
+    } catch (error) { say("Not saved — the project's app is not running"); }
+  }
+  function changed() {
+    if (first) { first = false; return; }
+    if (applying) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => { timer = null; save(); }, 800);
+  }
+
+  createRoot(document.getElementById("board")).render(
+    React.createElement(Excalidraw, {
+      initialData: { elements: scene.elements || [], files: scene.files || {},
+                     appState: { ...(scene.appState || {}), collaborators: new Map(), theme: dark ? "dark" : "light" },
+                     scrollToContent: true },
+      excalidrawAPI: (value) => { api = value; },
+      onChange: changed,
+    }));
+</script>
+</body>
+</html>

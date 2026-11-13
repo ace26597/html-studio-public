@@ -1,0 +1,5 @@
+{
+  "label": "Dashboard",
+  "description": "A grid for numbers and charts. Drop in a CSV or point the assistant at a data source.",
+  "order": 20
+}

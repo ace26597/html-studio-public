@@ -1,0 +1,48 @@
+{
+ "crf": 27,
+ "items": [
+  {
+   "dir": "frames/hands-draw",
+   "phases": {
+    "c_draw": {
+     "speed": 1.25,
+     "caption": "5 \u00b7 Draw: a box for something new, a circle, a note",
+     "right": "real time"
+    },
+    "c_draw_typing": {
+     "speed": 1.5,
+     "caption": "5 \u00b7 Send the drawing with a message",
+     "right": "real time"
+    },
+    "c_draw_sent": {
+     "speed": 1.5,
+     "caption": "6 \u00b7 The agent reads the drawing and builds it",
+     "right": "real time",
+     "clock": "draw"
+    },
+    "c_draw_working": {
+     "speed": 6,
+     "caption": "6 \u00b7 The agent reads the drawing and builds it",
+     "right": "time-lapse",
+     "clock": "draw"
+    },
+    "c_draw_done": {
+     "speed": 1.3,
+     "caption": "6 \u00b7 A calculator and a red deadline, 76 seconds after asking",
+     "right": "real time",
+     "after": 3.0
+    }
+   }
+  },
+  {
+   "dir": "frames/hands-use",
+   "phases": {
+    "u_use": {
+     "speed": 1.2,
+     "caption": "8 \u00b7 What it built works: a calculator on the report's own sourced figures",
+     "right": "real time"
+    }
+   }
+  }
+ ]
+}

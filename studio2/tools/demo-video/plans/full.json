@@ -1,0 +1,294 @@
+{
+ "crf": 27,
+ "items": [
+  {
+   "card": [
+    "Studio",
+    "Three real runs, start to finish",
+    "A real run in the real interface. Waiting is time-lapsed; the clock shows real time."
+   ],
+   "seconds": 2.8
+  },
+  {
+   "card": [
+    "1 \u00b7 A sourced report from one question",
+    "Research, charts, and every figure checked against what it read"
+   ],
+   "seconds": 2.2
+  },
+  {
+   "dir": "frames/report",
+   "phases": {
+    "blank": {
+     "speed": 1.4,
+     "caption": "1 \u00b7 A blank page and a chat",
+     "right": "real time"
+    },
+    "typing": {
+     "speed": 3.0,
+     "caption": "1 \u00b7 Ask a real question, in plain words",
+     "right": "real time"
+    },
+    "sent": {
+     "speed": 1.3,
+     "caption": "2 \u00b7 The agent starts work",
+     "right": "real time",
+     "clock": "run"
+    },
+    "working": {
+     "speed": 30,
+     "caption": "2 \u00b7 It searches, saves what it reads, writes, and checks the figures",
+     "right": "time-lapse",
+     "clock": "run",
+     "still_cap": 0.3
+    },
+    "finished": {
+     "speed": 1.3,
+     "caption": "3 \u00b7 21 minutes later: a sourced report",
+     "right": "real time",
+     "clock": "run",
+     "hold": 1.0
+    }
+   }
+  },
+  {
+   "dir": "frames/report-tour",
+   "phases": {
+    "t_result": {
+     "speed": 1.3,
+     "caption": "3 \u00b7 21 minutes later: a sourced report",
+     "right": "real time"
+    },
+    "t_tour": {
+     "speed": 1.15,
+     "caption": "4 \u00b7 Charts, tables, what it could not confirm, and every source",
+     "right": "real time"
+    },
+    "t_files": {
+     "speed": 1.1,
+     "caption": "5 \u00b7 Everything it read is saved in the project's folder",
+     "right": "real time"
+    },
+    "t_versions": {
+     "speed": 1.1,
+     "caption": "6 \u00b7 And the result is a version you can go back to",
+     "right": "real time"
+    }
+   }
+  },
+  {
+   "card": [
+    "2 \u00b7 Change it by hand",
+    "Edit the text, point at a part, or draw on the page"
+   ],
+   "seconds": 2.2
+  },
+  {
+   "dir": "frames/hands",
+   "phases": {
+    "c_open": {
+     "speed": 1.3,
+     "caption": "1 \u00b7 A finished page: the report from part 1",
+     "right": "real time"
+    },
+    "c_edit": {
+     "speed": 1.15,
+     "caption": "1 \u00b7 Edit: click any text and type",
+     "right": "real time"
+    },
+    "c_edit_saved": {
+     "speed": 1.2,
+     "caption": "2 \u00b7 Saved at once, as a version of its own",
+     "right": "real time"
+    },
+    "c_select": {
+     "speed": 1.2,
+     "caption": "3 \u00b7 Select: point at a part of the page\u2026",
+     "right": "real time"
+    },
+    "c_select_typing": {
+     "speed": 2.0,
+     "caption": "3 \u00b7 \u2026and say what should change",
+     "right": "real time"
+    },
+    "c_select_sent": {
+     "speed": 1.5,
+     "caption": "4 \u00b7 The agent changes just that part",
+     "right": "real time",
+     "clock": "select"
+    },
+    "c_select_working": {
+     "speed": 4,
+     "caption": "4 \u00b7 The agent changes just that part",
+     "right": "time-lapse",
+     "clock": "select"
+    },
+    "c_select_done": {
+     "speed": 1.3,
+     "caption": "4 \u00b7 A checklist with tick boxes, 37 seconds after asking",
+     "right": "real time",
+     "after": 3.0
+    }
+   }
+  },
+  {
+   "dir": "frames/hands-draw",
+   "phases": {
+    "c_draw": {
+     "speed": 1.25,
+     "caption": "5 \u00b7 Draw: a box for something new, a circle, a note",
+     "right": "real time"
+    },
+    "c_draw_typing": {
+     "speed": 1.5,
+     "caption": "5 \u00b7 Send the drawing with a message",
+     "right": "real time"
+    },
+    "c_draw_sent": {
+     "speed": 1.5,
+     "caption": "6 \u00b7 The agent reads the drawing and builds it",
+     "right": "real time",
+     "clock": "draw"
+    },
+    "c_draw_working": {
+     "speed": 6,
+     "caption": "6 \u00b7 The agent reads the drawing and builds it",
+     "right": "time-lapse",
+     "clock": "draw"
+    },
+    "c_draw_done": {
+     "speed": 1.3,
+     "caption": "6 \u00b7 A calculator and a red deadline, 76 seconds after asking",
+     "right": "real time",
+     "after": 3.0
+    },
+    "c_versions": {
+     "speed": 1.1,
+     "caption": "7 \u00b7 Every change is a version you can go back to",
+     "right": "real time"
+    }
+   }
+  },
+  {
+   "dir": "frames/hands-use",
+   "phases": {
+    "u_use": {
+     "speed": 1.2,
+     "caption": "8 \u00b7 What it built works: a calculator on the report's own sourced figures",
+     "right": "real time"
+    },
+    "u_ticks": {
+     "speed": 1.2,
+     "caption": "8 \u00b7 \u2026and a checklist that remembers what you ticked",
+     "right": "real time"
+    }
+   }
+  },
+  {
+   "card": [
+    "3 \u00b7 An app from one request",
+    "A back end of its own, live data, then a change by pointing at it"
+   ],
+   "seconds": 2.2
+  },
+  {
+   "dir": "frames/app",
+   "phases": {
+    "blank": {
+     "speed": 1.4,
+     "caption": "1 \u00b7 A blank page and a chat",
+     "right": "real time"
+    },
+    "typing": {
+     "speed": 2.4,
+     "caption": "1 \u00b7 Say what the app should do, in plain words",
+     "right": "real time"
+    },
+    "sent": {
+     "speed": 1.3,
+     "caption": "2 \u00b7 The agent starts work",
+     "right": "real time",
+     "clock": "build"
+    },
+    "working": {
+     "speed": 9,
+     "caption": "2 \u00b7 It writes a back end and a page, and starts the app",
+     "right": "time-lapse",
+     "clock": "build",
+     "still_cap": 0.4
+    },
+    "finished": {
+     "speed": 1.3,
+     "caption": "3 \u00b7 Under two minutes later: a running app",
+     "right": "real time",
+     "clock": "build",
+     "hold": 1.0
+    }
+   }
+  },
+  {
+   "dir": "frames/app-use",
+   "phases": {
+    "d_result": {
+     "speed": 1.3,
+     "caption": "3 \u00b7 A running app with its own back end",
+     "right": "real time"
+    },
+    "d_use": {
+     "speed": 1.25,
+     "caption": "4 \u00b7 Use it: add a city, switch units. Live data, and the list is saved",
+     "right": "real time"
+    },
+    "d_logs": {
+     "speed": 1.2,
+     "caption": "5 \u00b7 The app's own log is one click away",
+     "right": "real time"
+    },
+    "d_select": {
+     "speed": 1.3,
+     "caption": "6 \u00b7 To change it, point at a part of the page",
+     "right": "real time"
+    },
+    "d_typing": {
+     "speed": 1.9,
+     "caption": "6 \u00b7 \u2026and say what should change",
+     "right": "real time"
+    },
+    "d_sent": {
+     "speed": 1.6,
+     "caption": "7 \u00b7 The agent makes the change while the app keeps running",
+     "right": "real time",
+     "clock": "change"
+    },
+    "d_working": {
+     "speed": 2.5,
+     "caption": "7 \u00b7 The agent makes the change while the app keeps running",
+     "right": "time-lapse",
+     "clock": "change",
+     "until": 21.0
+    },
+    "d_done": {
+     "speed": 1.3,
+     "caption": "8 \u00b7 A second chart, 24 seconds after asking",
+     "right": "real time",
+     "after": 3.3
+    },
+    "d_end": {
+     "speed": 1.2,
+     "caption": "8 \u00b7 A second chart, 24 seconds after asking",
+     "right": "real time",
+     "hold": 1.2
+    }
+   }
+  },
+  {
+   "card": [
+    "Studio",
+    "A page, a chat and a real coding agent",
+    "Recorded 13 November 2026 on Claude Opus.",
+    "Report: 21 minutes. Changes: 37 and 76 seconds. App: 1 minute 49 seconds."
+   ],
+   "seconds": 3.4
+  }
+ ]
+}

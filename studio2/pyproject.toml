@@ -1,0 +1,51 @@
+[project]
+name = "studio2-server"
+version = "0.1.0"
+description = "Studio 2 server: projects, live preview, event log and agent harnesses"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "watchfiles>=0.24",
+    "python-multipart>=0.0.9",
+    "claude-agent-sdk>=0.2.180",
+    "httpx>=0.27",
+    "websockets>=13",
+    "psycopg[binary]>=3.2",
+    "pymysql>=1.1",
+    "keyring>=25",
+    "duckdb>=1.1",
+    "pypdf>=5",
+    "mcp>=1.2",
+    "openpyxl>=3.1",
+    "pypdfium2>=4.30",
+    "pillow>=10",
+]
+
+[project.optional-dependencies]
+# The "look" tool (screenshots for the agent). Pinned to the Chromium build already cached on
+# the Mac; the studio never downloads a browser.
+look = ["playwright==1.62.0"]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "httpx>=0.27"]
+
+[project.scripts]
+# `studio setup | start | stop | status | doctor` (server/studio2_server/cli.py).
+studio = "studio2_server.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "server"}
+
+[tool.setuptools.packages.find]
+where = ["server"]
+
+[tool.setuptools.package-data]
+studio2_server = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

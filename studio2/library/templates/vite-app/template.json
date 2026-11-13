@@ -1,0 +1,5 @@
+{
+  "label": "Web app (React + Vite)",
+  "description": "A React front end with instant reload. For interactive tools and multi-screen apps.",
+  "order": 40
+}

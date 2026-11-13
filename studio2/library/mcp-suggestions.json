@@ -1,0 +1,11 @@
+[
+  {"name": "deepwiki", "label": "DeepWiki", "url": "https://mcp.deepwiki.com/mcp", "description": "Ask questions about any public GitHub repository and read its generated documentation."},
+  {"name": "context7", "label": "Context7", "url": "https://mcp.context7.com/mcp", "description": "Current documentation and code examples for software libraries."},
+  {"name": "huggingface", "label": "Hugging Face", "url": "https://huggingface.co/mcp", "description": "Search models, datasets and Spaces on the Hugging Face Hub (anonymous use is rate-limited)."},
+  {"name": "cloudflare-docs", "label": "Cloudflare docs", "url": "https://docs.mcp.cloudflare.com/mcp", "description": "Search Cloudflare's developer documentation."},
+  {"name": "microsoft-learn", "label": "Microsoft Learn", "url": "https://learn.microsoft.com/api/mcp", "description": "Search and read Microsoft's documentation and code samples."},
+  {"name": "aws-knowledge", "label": "AWS knowledge", "url": "https://knowledge-mcp.global.api.aws", "description": "Search and read AWS documentation and regional availability."},
+  {"name": "gitmcp", "label": "GitMCP", "url": "https://gitmcp.io/docs", "description": "Fetch and search the documentation and code of public GitHub projects."},
+  {"name": "svelte", "label": "Svelte docs", "url": "https://mcp.svelte.dev/mcp", "description": "Svelte and SvelteKit documentation."},
+  {"name": "nuxt", "label": "Nuxt docs", "url": "https://nuxt.com/mcp", "description": "Nuxt documentation, guides and changelog."}
+]

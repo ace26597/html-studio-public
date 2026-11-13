@@ -1,0 +1,24 @@
+{
+ "crf": 27,
+ "items": [
+  {
+   "dir": "frames/checkpage",
+   "phases": {
+    "blank": {"speed": 1.0, "caption": "1 · A weather app built earlier in the studio", "right": "real time"},
+    "typing": {"speed": 0.8, "caption": "1 · Press Check this page", "right": "real time"},
+    "sent": {"speed": 1.5, "caption": "2 · The agent hands the check to a separate checker", "right": "real time", "clock": "run"},
+    "working": {"speed": 30, "caption": "2 · It compares the page with what the app's back end returns", "right": "time-lapse", "clock": "run", "still_cap": 0.4},
+    "finished": {"speed": 1.0, "caption": "3 · Done in 5 min 26 s: 343 checked, 6 fixed, none left wrong", "right": "real time", "clock": "run", "hold": 1.0}
+   }
+  },
+  {
+   "dir": "frames/checkpage-after",
+   "phases": {
+    "result": {"speed": 1.0, "caption": "4 · The page opened again afterwards", "right": "real time"},
+    "card": {"speed": 0.9, "caption": "4 · The result card: counts first", "right": "real time"},
+    "details": {"speed": 1.2, "caption": "5 · Each fix listed: what was wrong, where, and what changed", "right": "real time"},
+    "end": {"speed": 1.0, "caption": "5 · Each fix listed: what was wrong, where, and what changed", "right": "real time", "hold": 1.0}
+   }
+  }
+ ]
+}

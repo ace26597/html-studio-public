@@ -1,0 +1,155 @@
+{
+ "crf": 29,
+ "items": [
+  {
+   "card": [
+    "Deep, with Check the result",
+    "One research question, from a blank page to a checked report",
+    "A real run in the real interface. Waiting is time-lapsed; the clock shows real time."
+   ],
+   "seconds": 2.8
+  },
+  {
+   "dir": "frames/deep",
+   "phases": {
+    "blank": {
+     "speed": 1.2,
+     "caption": "1 · A new page",
+     "right": "real time"
+    },
+    "depth": {
+     "speed": 1.2,
+     "caption": "1 · Choose Deep: plans first, many more sources, a check at the end",
+     "right": "real time"
+    },
+    "verify": {
+     "speed": 1.2,
+     "caption": "1 · Switch on Check the result",
+     "right": "real time"
+    },
+    "typing": {
+     "speed": 3.0,
+     "caption": "2 · Ask: five-year cost of an electric car against a petrol car in the US",
+     "right": "real time"
+    },
+    "sent": {
+     "speed": 1.5,
+     "caption": "3 · It writes a plan first",
+     "right": "real time",
+     "clock": "run"
+    },
+    "working": {
+     "speed": 30,
+     "caption": "3 · It writes a plan first",
+     "right": "time-lapse",
+     "clock": "run",
+     "still_cap": 0.3,
+     "until": 64
+    }
+   }
+  },
+  {
+   "dir": "frames/deep",
+   "phases": {
+    "working": {
+     "speed": 30,
+     "caption": "4 · Six researchers work in parallel and save what they read",
+     "right": "time-lapse",
+     "clock": "run",
+     "still_cap": 0.3,
+     "after": 64,
+     "until": 448
+    }
+   }
+  },
+  {
+   "dir": "frames/deep",
+   "phases": {
+    "working": {
+     "speed": 30,
+     "caption": "5 · It writes the report from their notes and checks the marked figures",
+     "right": "time-lapse",
+     "clock": "run",
+     "still_cap": 0.3,
+     "after": 448,
+     "until": 984
+    }
+   }
+  },
+  {
+   "dir": "frames/deep",
+   "phases": {
+    "working": {
+     "speed": 30,
+     "caption": "6 · A separate checker goes through the page against the saved sources",
+     "right": "time-lapse",
+     "clock": "run",
+     "still_cap": 0.3,
+     "after": 984,
+     "until": 1300
+    }
+   }
+  },
+  {
+   "dir": "frames/deep",
+   "phases": {
+    "working": {
+     "speed": 30,
+     "caption": "7 · It applies the fixes; two commands asked first (1 allowed, 1 denied)",
+     "right": "time-lapse",
+     "clock": "run",
+     "still_cap": 0.3,
+     "after": 1300
+    },
+    "finished": {
+     "speed": 1.0,
+     "caption": "7 · Done after 25 min 38 s",
+     "right": "real time",
+     "clock": "run",
+     "hold": 1.0
+    }
+   }
+  },
+  {
+   "dir": "frames/deep-after",
+   "phases": {
+    "result": {
+     "speed": 1.0,
+     "caption": "8 · The page opened again afterwards",
+     "right": "real time"
+    },
+    "card": {
+     "speed": 0.9,
+     "caption": "8 · The check: 387 items, 373 matched, 13 fixed, 1 could not be checked",
+     "right": "real time"
+    },
+    "details": {
+     "speed": 1.3,
+     "caption": "8 · Each finding says what, where, and what was done",
+     "right": "real time"
+    },
+    "scroll": {
+     "speed": 1.6,
+     "caption": "9 · The report: answer, charts, a calculator, sources, checked numbers",
+     "right": "real time"
+    },
+    "end": {
+     "speed": 1.0,
+     "caption": "9 · The report: answer, charts, a calculator, sources, checked numbers",
+     "right": "real time",
+     "hold": 1.0
+    }
+   }
+  },
+  {
+   "card": [
+    "Studio",
+    "Recorded 13 November 2026 on Claude Opus. 25 min 38 s of agent work.",
+    "Six researchers in parallel; 126 sources saved, 58 cited on the page.",
+    "The check reported 387 items: 373 matched, 13 fixed, 1 not checkable.",
+    "Two approval cards: one allowed; one denied, it deleted files outside."
+   ],
+   "seconds": 3.5
+  }
+ ]
+}

@@ -1,0 +1,88 @@
+{
+ "crf": 26,
+ "items": [
+  {
+   "card": [
+    "A sourced report from one question",
+    "Research, charts, and every figure checked against what it read",
+    "A real run in the real interface. Waiting is time-lapsed; the clock shows real time."
+   ],
+   "seconds": 2.6
+  },
+  {
+   "dir": "frames/report",
+   "phases": {
+    "blank": {
+     "speed": 1.4,
+     "caption": "1 \u00b7 A blank page and a chat",
+     "right": "real time"
+    },
+    "typing": {
+     "speed": 3.0,
+     "caption": "1 \u00b7 Ask a real question, in plain words",
+     "right": "real time"
+    },
+    "sent": {
+     "speed": 1.3,
+     "caption": "2 \u00b7 The agent starts work",
+     "right": "real time",
+     "clock": "run"
+    },
+    "working": {
+     "speed": 30,
+     "caption": "2 \u00b7 It searches, saves what it reads, writes, and checks the figures",
+     "right": "time-lapse",
+     "clock": "run",
+     "still_cap": 0.3
+    },
+    "finished": {
+     "speed": 1.3,
+     "caption": "3 \u00b7 21 minutes later: a sourced report",
+     "right": "real time",
+     "clock": "run",
+     "hold": 1.0
+    }
+   }
+  },
+  {
+   "dir": "frames/report-tour",
+   "phases": {
+    "t_result": {
+     "speed": 1.3,
+     "caption": "3 \u00b7 21 minutes later: a sourced report",
+     "right": "real time"
+    },
+    "t_tour": {
+     "speed": 1.15,
+     "caption": "4 \u00b7 Charts, tables, what it could not confirm, and every source",
+     "right": "real time"
+    },
+    "t_files": {
+     "speed": 1.1,
+     "caption": "5 \u00b7 Everything it read is saved in the project's folder",
+     "right": "real time"
+    },
+    "t_versions": {
+     "speed": 1.1,
+     "caption": "6 \u00b7 And the result is a version you can go back to",
+     "right": "real time"
+    },
+    "t_end": {
+     "speed": 1.2,
+     "caption": "Studio: a page, a chat and a real coding agent",
+     "right": "",
+     "hold": 1.0
+    }
+   }
+  },
+  {
+   "card": [
+    "Studio",
+    "A page, a chat and a real coding agent",
+    "Recorded 13 November 2026 on Claude Opus. 21 minutes of agent work.",
+    "66 documents saved, 39 cited, 168 figures checked against their sources, none failed."
+   ],
+   "seconds": 3.0
+  }
+ ]
+}

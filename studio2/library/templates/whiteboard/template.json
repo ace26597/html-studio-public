@@ -1,0 +1,5 @@
+{
+  "label": "Whiteboard",
+  "description": "An Excalidraw canvas saved into the project, so the assistant can read and change what you draw.",
+  "order": 30
+}

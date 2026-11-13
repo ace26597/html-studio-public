@@ -1,0 +1,5 @@
+:root { color-scheme: light dark; --line: color-mix(in srgb, CanvasText 14%, Canvas); --muted: color-mix(in srgb, CanvasText 60%, Canvas); }
+html { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.55; }
+body { margin: 0; background: Canvas; color: CanvasText; }
+main { max-width: 64rem; margin: 0 auto; padding: 3rem 2rem; }
+.hint { color: var(--muted); border: 1px dashed var(--line); border-radius: 10px; padding: .8rem 1rem; }

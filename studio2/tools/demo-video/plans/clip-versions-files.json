@@ -1,0 +1,30 @@
+{
+ "crf": 27,
+ "items": [
+  {
+   "dir": "frames/report-tour",
+   "phases": {
+    "t_files": {
+     "speed": 1.1,
+     "caption": "5 \u00b7 Everything it read is saved in the project's folder",
+     "right": "real time"
+    },
+    "t_versions": {
+     "speed": 1.1,
+     "caption": "6 \u00b7 And the result is a version you can go back to",
+     "right": "real time"
+    }
+   }
+  },
+  {
+   "dir": "frames/hands-draw",
+   "phases": {
+    "c_versions": {
+     "speed": 1.1,
+     "caption": "7 \u00b7 Every change is a version you can go back to",
+     "right": "real time"
+    }
+   }
+  }
+ ]
+}

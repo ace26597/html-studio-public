@@ -1,0 +1,16 @@
+{
+ "crf": 27,
+ "items": [
+  {
+   "dir": "frames/quick",
+   "phases": {
+    "blank": {"speed": 1.2, "caption": "1 · A new page. Under the chat box: Quick, Standard, Deep", "right": "real time"},
+    "depth": {"speed": 1.2, "caption": "1 · Choose Quick: the smallest thing that answers, few sources", "right": "real time"},
+    "typing": {"speed": 3.0, "caption": "2 · Ask for a short comparison of three ways to heat a home", "right": "real time"},
+    "sent": {"speed": 1.5, "caption": "3 · The agent starts work", "right": "real time", "clock": "run"},
+    "working": {"speed": 20, "caption": "3 · It searches, saves 5 sources and writes one table", "right": "time-lapse", "clock": "run", "still_cap": 0.4},
+    "finished": {"speed": 1.0, "caption": "4 · Done in 3 min 15 s: one short page, 4 figures, each sourced", "right": "real time", "clock": "run", "hold": 2.0}
+   }
+  }
+ ]
+}

@@ -1,0 +1,129 @@
+{
+ "crf": 26,
+ "items": [
+  {
+   "card": [
+    "Change it by hand",
+    "Edit the text, point at a part, or draw on the page",
+    "A real run in the real interface. Waiting is time-lapsed; the clock shows real time."
+   ],
+   "seconds": 2.6
+  },
+  {
+   "dir": "frames/hands",
+   "phases": {
+    "c_open": {
+     "speed": 1.3,
+     "caption": "1 \u00b7 A finished page: the report from the first video",
+     "right": "real time"
+    },
+    "c_edit": {
+     "speed": 1.15,
+     "caption": "1 \u00b7 Edit: click any text and type",
+     "right": "real time"
+    },
+    "c_edit_saved": {
+     "speed": 1.2,
+     "caption": "2 \u00b7 Saved at once, as a version of its own",
+     "right": "real time"
+    },
+    "c_select": {
+     "speed": 1.2,
+     "caption": "3 \u00b7 Select: point at a part of the page\u2026",
+     "right": "real time"
+    },
+    "c_select_typing": {
+     "speed": 2.0,
+     "caption": "3 \u00b7 \u2026and say what should change",
+     "right": "real time"
+    },
+    "c_select_sent": {
+     "speed": 1.5,
+     "caption": "4 \u00b7 The agent changes just that part",
+     "right": "real time",
+     "clock": "select"
+    },
+    "c_select_working": {
+     "speed": 4,
+     "caption": "4 \u00b7 The agent changes just that part",
+     "right": "time-lapse",
+     "clock": "select"
+    },
+    "c_select_done": {
+     "speed": 1.3,
+     "caption": "4 \u00b7 A checklist with tick boxes, 37 seconds after asking",
+     "right": "real time",
+     "after": 3.0
+    }
+   }
+  },
+  {
+   "dir": "frames/hands-draw",
+   "phases": {
+    "c_draw": {
+     "speed": 1.25,
+     "caption": "5 \u00b7 Draw: a box for something new, a circle, a note",
+     "right": "real time"
+    },
+    "c_draw_typing": {
+     "speed": 1.5,
+     "caption": "5 \u00b7 Send the drawing with a message",
+     "right": "real time"
+    },
+    "c_draw_sent": {
+     "speed": 1.5,
+     "caption": "6 \u00b7 The agent reads the drawing and builds it",
+     "right": "real time",
+     "clock": "draw"
+    },
+    "c_draw_working": {
+     "speed": 6,
+     "caption": "6 \u00b7 The agent reads the drawing and builds it",
+     "right": "time-lapse",
+     "clock": "draw"
+    },
+    "c_draw_done": {
+     "speed": 1.3,
+     "caption": "6 \u00b7 A calculator and a red deadline, 76 seconds after asking",
+     "right": "real time",
+     "after": 3.0
+    },
+    "c_versions": {
+     "speed": 1.1,
+     "caption": "7 \u00b7 Every change is a version you can go back to",
+     "right": "real time"
+    }
+   }
+  },
+  {
+   "dir": "frames/hands-use",
+   "phases": {
+    "u_use": {
+     "speed": 1.2,
+     "caption": "8 \u00b7 What it built works: a calculator on the report's own sourced figures",
+     "right": "real time"
+    },
+    "u_ticks": {
+     "speed": 1.2,
+     "caption": "8 \u00b7 \u2026and a checklist that remembers what you ticked",
+     "right": "real time"
+    },
+    "u_end": {
+     "speed": 1.2,
+     "caption": "Studio: a page, a chat and a real coding agent",
+     "right": "",
+     "hold": 1.0
+    }
+   }
+  },
+  {
+   "card": [
+    "Studio",
+    "A page, a chat and a real coding agent",
+    "Recorded 13 November 2026 on Claude Opus.",
+    "The checklist: 37 seconds. The calculator, from a drawing: 76 seconds."
+   ],
+   "seconds": 3.0
+  }
+ ]
+}
