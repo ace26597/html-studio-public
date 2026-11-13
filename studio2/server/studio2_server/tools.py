@@ -72,7 +72,21 @@ async def t_fetch_source(studio, project_id, args):
             if not exc.refused or studio.looker.reason() is not None:
                 raise
             render = True
-    if render:
+    item, by_itself = None, False
+    if not render:
+        data, content_type, final = fetched
+        try:
+            kind, title, text, pages = await asyncio.to_thread(extract, data, content_type, final)
+            item, created = await asyncio.to_thread(
+                sources.save, text=text, title=title, kind=kind, url=final, pages=pages, requested=url,
+                original=data if kind == "pdf" else None, original_ext=".pdf" if kind == "pdf" else "", into=restore)
+        except SourceError as exc:
+            # Nothing readable in what was downloaded: the page is built by scripts. Read it in a browser
+            # straight away instead of sending the agent back to ask for that.
+            if not exc.empty or studio.looker.reason() is not None:
+                raise
+            render = by_itself = True
+    if render and item is None:
         try:
             final, markup = await studio.looker.rendered(url)
         except LookUnavailable as exc:
@@ -82,13 +96,9 @@ async def t_fetch_source(studio, project_id, args):
         title, text = html_to_text(markup)
         item, created = await asyncio.to_thread(sources.save, text=text, title=title, kind="html", url=final,
                                                 requested=url, into=restore)
-    else:
-        data, content_type, final = fetched
-        kind, title, text, pages = await asyncio.to_thread(extract, data, content_type, final)
-        item, created = await asyncio.to_thread(
-            sources.save, text=text, title=title, kind=kind, url=final, pages=pages, requested=url,
-            original=data if kind == "pdf" else None, original_ext=".pdf" if kind == "pdf" else "", into=restore)
     view = _source_view(item, created, sources.text(item["id"]), max_chars)
+    if by_itself:
+        view["rendered"] = True     # read in a browser because the plain download held nothing readable
     if restore and item["id"] == restore:
         view["restored"] = True      # the text was missing and is back under the id the page already cites
     return view

@@ -111,3 +111,38 @@ def test_the_command_lists_saves_and_removes_without_printing_the_key(settings, 
     assert args.run(args) == 0 and services.key(settings, "tavily", {}) is None
     args = cli.build_parser().parse_args(["keys", "set", "nope"])
     assert cli.cmd_keys(args, secret=lambda prompt: "x") == 2
+
+
+async def test_a_page_built_by_scripts_is_read_in_a_browser_without_being_asked(studio, project, monkeypatch):
+    from studio2_server import tools
+
+    async def empty_download(url):
+        return (b"<html><body><div id='root'></div><script src='app.js'></script></body></html>", "text/html", url)
+
+    class Browser:
+        asked = []
+
+        def reason(self):
+            return None
+
+        async def close(self):
+            return None
+
+        async def rendered(self, url):
+            self.asked.append(url)
+            return url, "<html><title>Built</title><body><p>The page says the price is 42 dollars today.</p></body></html>"
+
+    monkeypatch.setattr(tools, "download", empty_download)
+    monkeypatch.setattr(studio, "looker", Browser())
+    answer = await tools.call(studio, project["id"], "fetch_source", {"url": "https://example.org/app"})
+    assert "is_error" not in answer, answer
+    view = __import__("json").loads(answer["content"][0]["text"])
+    assert view["rendered"] is True and "42 dollars" in view["text_start"] and Browser.asked == ["https://example.org/app"]
+
+    class NoBrowser(Browser):
+        def reason(self):
+            return "no browser here"
+
+    monkeypatch.setattr(studio, "looker", NoBrowser())
+    refused = await tools.call(studio, project["id"], "fetch_source", {"url": "https://example.org/other"})
+    assert refused.get("is_error") and "render: true" in refused["content"][0]["text"]      # the old error stands

@@ -381,10 +381,17 @@ class TurnRunner:
             await studio.sync_app(pid, restart=changed_files)
         except Exception:
             log.exception("Could not restart the app of %s", pid)
+        page_errors = 0
+        if status == "completed" and changed_files:
+            try:    # the studio opens the page once itself: a page that is broken when it loads is said, not found later
+                page_errors = await self._look_after(pid, turn_id, workspace)
+            except Exception:  # noqa: BLE001 - the look is an extra; the request still ends properly
+                log.exception("The look at the page after turn %s failed", turn_id)
         if status == "completed":    # chips under the answer; a tap only fills the chat box (nextsteps.py)
             try:
                 steps = nextsteps.compose(
                     {"changed": changed_files, "verify": bool((options or {}).get("verify")), "reported": reported,
+                     "page_errors": page_errors,
                      "has_page": (workspace / "index.html").is_file() or (workspace / "studio.json").is_file(),
                      "failed": report.get("failed", 0), "still_wrong": still_wrong}, proposed)
                 if steps:
@@ -430,6 +437,46 @@ class TurnRunner:
                 studio.ships.from_agent.pop(pid, None)
             await studio.ships.after_turn(pid)   # "make it live" asked for during this turn
             self._start_next(pid)
+
+    LOOK_WAIT = 8.0         # how long an app may take to come back up before the look is skipped
+
+    async def _problems(self, pid: str) -> dict | None:
+        """Open the project's page once in the studio's own browser → {errors, failed} (lists of
+        short strings), or None when it cannot be looked at (no browser, the scripted agent, an app
+        that is not up). Replaced in tests."""
+        studio = self.studio
+        if studio.settings.fake or studio.looker.reason() is not None:
+            return None
+        project = studio.store.get(pid)
+        if (studio.store.workspace(pid) / "studio.json").is_file():
+            deadline = time.monotonic() + self.LOOK_WAIT
+            while studio.app(pid).state != "running":
+                if time.monotonic() > deadline:
+                    return None
+                await asyncio.sleep(0.4)
+        seen = await studio.looker.look(f"http://127.0.0.1:{project['port']}/", studio.store.dir(pid) / "looks",
+                                        width=1280, height=800, full_page=False, wait_ms=1500)
+        errors = [item["text"] for item in seen.get("console") or [] if item.get("level") in ("error", "exception")]
+        failed = [f"{item.get('url')} ({item.get('status') or item.get('error') or 'failed'})"
+                  for item in seen.get("failed_requests") or []]
+        return {"errors": errors, "failed": failed}
+
+    async def _look_after(self, pid: str, turn_id: str, workspace: Path) -> int:
+        """After a request that changed the project: the page's own errors, as one notice. → how many."""
+        if not ((workspace / "index.html").is_file() or (workspace / "studio.json").is_file()):
+            return 0
+        found = await self._problems(pid)
+        if not found:
+            return 0
+        lines = [effort._cut(text, 160) for text in dict.fromkeys([*found["errors"], *found["failed"]])]
+        if not lines:
+            return 0
+        shown = "; ".join(lines[:3]) + (f"; and {len(lines) - 3} more" if len(lines) > 3 else "")
+        self.studio.log(pid).append(
+            "notice", turn_id, level="warning",
+            message=f"The studio opened the page after this request and it shows {len(lines)} "
+                    f"error{'s' if len(lines) != 1 else ''} when it loads: {shown}")
+        return len(lines)
 
     async def _checkpoint(self, pid: str, turn_id: str, text: str, head_before: str | None) -> bool:
         """One `agent` checkpoint when the turn changed files (also when the agent committed itself)."""

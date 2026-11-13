@@ -380,6 +380,9 @@ class Studio:
         if searching:       # a search connector attached to this request is the first way to search
             lines.append(f"- For web search, use the tools of the connector {' or '.join(f'“{name}”' for name in searching)} "
                          "first: the person attached it for this. `search_web` is the fallback when it cannot answer.")
+        lines.append("- After a request that changed the project, the studio opens the page once itself and tells the "
+                     "person about any script error or failed request it shows on loading. Before you finish, look "
+                     "at the page yourself (look_at_page reports the same) and leave it loading clean.")
         lines.append(nextsteps.AGENT_RULE)
         lines.append("- The person takes this project out of the studio themselves, from Export in the page's menu: "
                      "one HTML file with everything inside (a page without a back end), a folder to host or run "

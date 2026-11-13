@@ -29,9 +29,10 @@ VOID = {"br", "hr", "img", "input", "meta", "link", "source", "area", "base", "c
 
 
 class SourceError(Exception):
-    def __init__(self, message: str, refused: bool = False):
+    def __init__(self, message: str, refused: bool = False, empty: bool = False):
         super().__init__(message)
         self.refused = refused   # the site turned a plain download away; a real browser may get in
+        self.empty = empty       # the page came, with nothing readable in it: scripts build it in a browser
 
 
 class _Text(HTMLParser):
@@ -226,7 +227,7 @@ class Sources:
         text = text[:MAX_TEXT]
         if len(text.strip()) < 20:
             raise SourceError("Nothing readable was found there (the page may be built by scripts: "
-                              "try again with render: true).")
+                              "try again with render: true).", empty=True)
         digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
         items = self.list()
         for item in items:

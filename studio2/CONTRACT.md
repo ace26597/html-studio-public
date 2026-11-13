@@ -2338,7 +2338,18 @@ Rules in one function, `nextsteps.studio_steps(facts)`, with no model call. `fac
 | `failed` | `reported`, `failed > 0`, no `fix` | Work through the failed items | Work through the N items the check marked as failed: fix those a better source settles, and tell me which ones need my decision. |
 | `check` | `has_page`, not `reported`, and `changed` or `verify` | Check this page | The check-only text, with `options: {depth: "standard", verify: true, check_only: true}` |
 
-At most one studio step is offered (the first that applies, in this order).
+At most one studio step is offered (the first that applies, in this order). Before these three
+comes `errors` ("Fix the page's errors"), offered when the studio's own look at the page found any
+(`page_errors`, below).
+
+**The studio's own look at the page.** After a request that completed and changed the project, the
+studio opens the project's page once in its own browser (an app once it is running again, up to 8
+seconds) and collects what `look_at_page` reports: script errors and failed requests. When there
+are any it writes one `notice` (`warning`: "The studio opened the page after this request and it
+shows N errors when it loads: …", the first three named) before `next_steps`. No model call. It is
+skipped when there is no browser, on the scripted agent, and when nothing changed. This is the
+independent check an app gets: the page check (`check_page`) sees marked figures only, and an app
+usually has none.
 
 ## The event
 
@@ -2414,6 +2425,9 @@ stays.
 The copy has the page's source list and no source text, so the page check cannot confirm a quote
 until its source is fetched again. Two things make that work:
 
+- `fetch_source` reads a page in the studio's browser by itself when the plain download held nothing
+  readable (a page built by scripts), instead of sending the agent back to ask with `render: true`;
+  the answer then has `rendered: true`. Without a browser the old error stands.
 - `fetch_source` for an address that is saved but whose text file is missing downloads it again
   and writes it **under the same id** (the page's marks keep pointing at it). The answer has
   `restored: true`. This holds in any project, not only a copy of an example.

@@ -168,3 +168,46 @@ def test_the_agent_is_told_how_to_suggest(studio, project):
         assert phrase in nextsteps.AGENT_RULE, phrase
     description = next(d for name, d, _schema, _handler in tools.TOOLS if name == "suggest_next_steps")
     assert "at most three" in description and "closing message" in description
+
+
+# ---- the studio's own look at the page after a request that changed it ------------------------------
+async def test_a_page_that_shows_errors_is_said_and_offered_first(client, studio, project):
+    looked = []
+
+    async def problems(pid):
+        looked.append(pid)
+        return {"errors": ["Uncaught TypeError: chart is undefined", "Uncaught TypeError: chart is undefined"],
+                "failed": ["http://127.0.0.1:9/data/x.json (404)"]}
+
+    studio.turns._problems = problems
+    events = await run_turn(client, studio, project["id"], "Make a page and suggest next steps")
+    notice = next(e for e in events if e["type"] == "notice")
+    assert "shows 2 errors when it loads" in notice["message"] and "chart is undefined" in notice["message"]   # the repeat counts once
+    kinds = [e["type"] for e in events]
+    assert kinds.index("checkpoint") < kinds.index("notice") < kinds.index("next_steps") < kinds.index("turn_finished")
+    steps = steps_of(events)
+    assert [s["id"] for s in steps] == ["errors", "a1", "a2"] and "2 errors" in steps[0]["text"]
+    assert looked == [project["id"]]
+    # A request that changed nothing is not looked at; a clean page says nothing.
+    await run_turn(client, studio, project["id"], "use skill charts")
+    assert len(looked) == 1
+
+    async def clean(pid):
+        return {"errors": [], "failed": []}
+
+    studio.turns._problems = clean
+    events = await run_turn(client, studio, project["id"], "Add a paragraph")
+    assert not [e for e in events if e["type"] == "notice"] and [s["id"] for s in steps_of(events)] == ["check"]
+
+
+async def test_a_look_that_fails_or_cannot_be_taken_changes_nothing(client, studio, project):
+    async def broken(pid):
+        raise RuntimeError("the browser went away")
+
+    studio.turns._problems = broken
+    events = await run_turn(client, studio, project["id"], "Make a page")
+    assert events[-1]["status"] == "completed" and [s["id"] for s in steps_of(events)] == ["check"]
+    del studio.turns._problems                                  # the real one: skipped on the scripted agent
+    assert await studio.turns._problems(project["id"]) is None
+    assert "opens the page once itself" in studio.agent_context(project["id"])
+    assert nextsteps.studio_steps({**FACTS, "page_errors": 1, "still_wrong": 3})[0]["id"] == "errors"

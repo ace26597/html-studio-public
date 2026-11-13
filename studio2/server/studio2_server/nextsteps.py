@@ -65,6 +65,12 @@ def studio_steps(facts: dict) -> list[dict]:
     the table in CONTRACT.md together.
     """
     still_wrong, failed = int(facts.get("still_wrong") or 0), int(facts.get("failed") or 0)
+    page_errors = int(facts.get("page_errors") or 0)
+    if page_errors > 0:     # a page that is broken when it loads comes before any check of its figures
+        return [{"id": "errors", "from": "studio", "label": "Fix the page's errors",
+                 "text": f"The page shows {page_errors} error{'s' if page_errors != 1 else ''} when it loads "
+                         "(listed in the notice above). Find the cause, fix it, and look at the page again to "
+                         "make sure it loads clean."}]
     if still_wrong > 0:
         return [{"id": "fix", "from": "studio", "label": "Fix what the check still finds",
                  "text": f"Fix the {_items(still_wrong)} the studio's own check still finds wrong on this page "
