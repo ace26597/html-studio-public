@@ -102,7 +102,7 @@ On first run, `studio setup` asks three things (also asked on screen if you skip
 Then `studio start` prints the address, normally `http://127.0.0.1:8200/`, and opens the browser.
 Press **New page** and type what you want. When something does not work, run `studio doctor`.
 
-Tested on macOS only; the Linux paths are written but not run.
+Tested on macOS, and installed and running on Red Hat Enterprise Linux (the owner's report, 13 November 2026). Debian and Ubuntu have not been run.
 Full detail, every command and what was tested: [install and first run](studio2/docs/install.md).
 
 ## Model accounts
@@ -136,7 +136,7 @@ Full text: [safety and limits](studio2/docs/safety.md).
 
 ## What it cannot do yet
 
-- Linux has not been run. Phones and tablets have not been tried on a real device.
+- On Linux only Red Hat has been run (by the owner); Debian and Ubuntu have not. Phones and tablets have not been tried on a real device.
 - No accounts, isolation or hosting. It is for one person on their own machine.
 - No request has been made with a real provider key, or on Bedrock, Vertex or Foundry.
 - Only Next.js and Vite apps have been attached for real. No real app has been made live yet.

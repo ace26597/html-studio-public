@@ -55,7 +55,7 @@ uv pip install -e '.[dev,look]'
 - **macOS:** the only system the studio and the installer have run on (12 November 2026: from
   a fresh copy, a user with nothing installed, to a running studio in about 12 seconds).
   `start-tailnet.sh` starts the owner's own copy for their Tailscale devices.
-- **Linux:** written for, not run. The installer covers x86-64 and ARM64 with glibc, prints
+- **Linux:** installed and running on Red Hat Enterprise Linux (the owner's report, 13 November 2026); Debian and Ubuntu not run. The installer covers x86-64 and ARM64 with glibc, prints
   `apt-get`, `dnf`, `yum`, `zypper` or `pacman` commands for what it will not install itself,
   and stops on musl (no Node build from nodejs.org). Keys fall back to the owner-only file
   `~/.config/studio2/secrets.json` when `keyring` finds no keychain. A browser for looking at

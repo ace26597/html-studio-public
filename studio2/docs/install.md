@@ -38,8 +38,8 @@ installer prints the line to add to your shell profile; until then use
 
 **What has been run.** macOS only, in a scratch home folder with nothing but the system's own
 programs on the PATH: the installer finished in 10 seconds and the studio answered within 3
-seconds. A brand-new macOS user account has not been tried. The Linux paths are written but
-have not been run on a Linux machine; expect to find problems there.
+seconds. A brand-new macOS user account has not been tried. On Linux it is installed and running
+on Red Hat Enterprise Linux (the owner's report, 13 November 2026); Debian and Ubuntu have not been run.
 
 ## First run
 
