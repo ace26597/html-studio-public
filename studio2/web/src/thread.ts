@@ -280,6 +280,7 @@ function normalizeUsage(usage: Partial<Usage> | null | undefined): Usage | null 
   if (typeof usage.cost_estimated === "boolean") normalized.cost_estimated = usage.cost_estimated;
   if (usage.cost_pending === true) normalized.cost_pending = true;
   if (typeof usage.cost_basis === "string") normalized.cost_basis = usage.cost_basis;
+  if (usage.backup && typeof usage.backup === "object") normalized.backup = usage.backup;
   const unpriced = num(usage.unpriced_requests);
   if (unpriced !== null) normalized.unpriced_requests = unpriced;
   return normalized;
@@ -603,6 +604,7 @@ function applyEvent(state: ThreadState, event: StudioEvent): ThreadState {
           unpriced_requests: num(event.unpriced) ?? 0,
           cost_source: event.source ?? null,
           cost_basis: event.basis ?? null,
+          backup: event.backup ?? null,
           cost_reason: event.reason ?? null,
         },
       }));

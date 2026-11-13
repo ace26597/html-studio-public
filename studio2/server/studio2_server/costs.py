@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Callable
 
 import httpx
 
+from . import prices
 from .config import connection_key
 
 if TYPE_CHECKING:
@@ -99,11 +100,13 @@ def basis_of(priced: int, reported: int) -> str | None:
     return "reported" if reported == priced else "calculated"
 
 
-def summarise(rows: list[dict], keep: Callable[[dict], bool]) -> dict:
-    """→ {cost_usd, requests, unpriced, basis} over the rows `keep` accepts. A row with a price above
-    zero is priced whatever its status; a successful row with none is unpriced. `cost_usd` is None
-    when nothing was priced: that is "nobody said", not zero."""
+def summarise(rows: list[dict], keep: Callable[[dict], bool], rates: tuple = ()) -> dict:
+    """→ {cost_usd, requests, unpriced, basis, backup} over the rows `keep` accepts. A row with a
+    price above zero is priced whatever its status. A successful row with none is priced by the
+    studio from `rates` when a source is complete for it (the backup, CONTRACT.md), and is unpriced
+    otherwise. `cost_usd` is None when nothing was priced: that is "nobody said", not zero."""
     total, requests, priced, reported = 0.0, 0, 0, 0
+    pricer = prices.Pricer(*rates)
     for row in rows:
         if not keep(row):
             continue
@@ -117,8 +120,28 @@ def summarise(rows: list[dict], keep: Callable[[dict], bool]) -> dict:
             if reported_free(row):      # the provider said this one cost nothing: a price, not a gap
                 priced += 1
                 reported += 1
+            else:
+                worked = pricer.row(row)        # nobody sent a cost: tokens times the model's rate
+                if worked is not None:
+                    total += worked
+                    priced += 1
+    backup = pricer.summary()
     return {"cost_usd": round(total, 6) if priced else None, "requests": requests, "unpriced": requests - priced,
-            "basis": basis_of(priced, reported)}
+            "basis": "backup" if backup else basis_of(priced, reported), "backup": backup}
+
+
+async def fetch_rates(client: httpx.AsyncClient, base_url: str, key: str) -> prices.Rates:
+    """The gateway's own prices for its models, read-only (`GET /model/info`). A gateway that will
+    not say gives an empty list: the shipped list is then the only source."""
+    try:
+        response = await client.get(f"{base_url.rstrip('/')}/model/info", headers={"Authorization": f"Bearer {key}"})
+        return prices.from_gateway(response.json() if response.status_code == 200 else None)
+    except (httpx.HTTPError, ValueError):
+        return prices.from_gateway(None)
+
+
+TOKENS_NOTE = ("Worked out by the studio from this request's own token counts at the rate of its model. "
+               "Requests a helper made on a cheaper model are priced at that rate too, so the figure can be high.")
 
 
 def _stamp(moment: datetime) -> str:
@@ -184,12 +207,18 @@ class Costs:
         self.client_factory: Callable[[], httpx.AsyncClient] = lambda: httpx.AsyncClient(
             timeout=httpx.Timeout(30.0, connect=5.0), trust_env=False)
 
+    @property
+    def shipped(self) -> prices.Rates:
+        """The price list that ships with the studio (read each time: it is small, and tests move it)."""
+        return prices.shipped(self.studio.settings.library_dir)
+
     # -- writing --------------------------------------------------------------------------------
     def _write(self, project_id: str, turn_id: str, cost_usd, requests: int, unpriced: int, source: str,
-               reason: str | None = None, basis: str | None = None) -> None:
+               reason: str | None = None, basis: str | None = None, backup: dict | None = None) -> None:
         try:
             self.studio.log(project_id).append("turn_cost", turn_id, cost_usd=cost_usd, requests=requests,
-                                               unpriced=unpriced, source=source, reason=reason, basis=basis)
+                                               unpriced=unpriced, source=source, reason=reason, basis=basis,
+                                               backup=backup)
         except Exception:    # the project was deleted while the read-back waited
             log.debug("Dropped a turn_cost for %s", project_id)
 
@@ -210,54 +239,98 @@ class Costs:
         task.add_done_callback(lambda _t: self.settling.pop(turn_id, None))
 
     async def _settle(self, project_id: str, turn_id: str, connection: dict, started_at: str | None) -> None:
+        billed = True       # False once the log itself shows that nothing was billed
         try:
-            found, reason = await self._read_tagged(project_id, turn_id, connection, started_at)
+            found, reason, billed = await self._read_tagged(project_id, turn_id, connection, started_at)
         except asyncio.CancelledError:
             raise
         except Exception as exc:    # noqa: BLE001 - a read-back must never take anything else down
             log.exception("Reading the cost of turn %s failed", turn_id)
             found, reason = None, f"Reading the gateway's spend log failed ({exc.__class__.__name__})."
         if found is None:
-            self._write(project_id, turn_id, None, 0, 0, "unavailable", reason)
+            worked = await self._from_tokens(project_id, turn_id, connection) if billed else None
+            if worked is None:
+                self._write(project_id, turn_id, None, 0, 0, "unavailable", reason)
+            else:       # the log could not say: the turn's own token counts at its model's rate
+                self._write(project_id, turn_id, worked["usd"], 0, 0, "tokens", f"{reason} {TOKENS_NOTE}".strip(),
+                            basis="backup", backup=worked)
         else:
             self._write(project_id, turn_id, found["cost_usd"], found["requests"], found["unpriced"], "gateway",
-                        basis=found["basis"])
+                        basis=found["basis"], backup=found.get("backup"))
+
+    async def _from_tokens(self, project_id: str, turn_id: str, connection: dict) -> dict | None:
+        """The backup for a turn whose spend log cannot be read: its own token counts (kept in
+        `turn_finished.usage.tokens`) at the rate of its model. None when either is missing or no
+        source has a complete rate."""
+        model = tokens = None
+        try:
+            for event in self.studio.log(project_id).read():
+                if event.get("turn_id") != turn_id:
+                    continue
+                if event["type"] == "turn_started":
+                    model = event.get("model")
+                elif event["type"] == "turn_finished":
+                    tokens = (event.get("usage") or {}).get("tokens")
+        except Exception:   # noqa: BLE001 - the project is gone
+            return None
+        if not model or not isinstance(tokens, dict):
+            return None
+        counts = {kind: tokens.get(kind) if isinstance(tokens.get(kind), int) and tokens.get(kind) > 0 else 0
+                  for kind in prices.KINDS}
+        counts[prices.LONG_WRITE] = tokens.get(prices.LONG_WRITE) if isinstance(tokens.get(prices.LONG_WRITE), int) else None
+        if not any(counts.values()):
+            return None
+        gateway = prices.from_gateway(None)
+        try:
+            base, key = self._credentials(connection)
+            async with self.client_factory() as client:
+                gateway = await fetch_rates(client, base, key)
+        except Exception:   # noqa: BLE001 - no gateway prices: the shipped list is the only source
+            pass
+        pricer = prices.Pricer(gateway, self.shipped)
+        if pricer.price(model, counts) is None:
+            return None
+        return {**pricer.summary(), "requests": None}       # the turn as a whole, not counted requests
 
     async def _read_tagged(self, project_id: str, turn_id: str, connection: dict,
-                           started_at: str | None) -> tuple[dict | None, str | None]:
+                           started_at: str | None) -> tuple[dict | None, str | None, bool]:
+        """→ (what the log says, why not, whether the turn may still have been billed)."""
         try:
             base, key = self._credentials(connection)
         except SpendLogError as exc:
-            return None, str(exc)
+            return None, str(exc), True
         since = (parse_time(started_at) or datetime.now(timezone.utc) - timedelta(hours=1)) - LOOKBACK
         keep, last, tagged, seen = _has_tag(turn_id), None, 0, 0
         async with self.client_factory() as client:
+            rates = None
             for wait in self.delays:
                 await self.sleep(wait)
                 try:
                     self.studio.store.get(project_id)
                 except Exception:   # noqa: BLE001 - the project is gone; nothing to write to
-                    return None, "The project was deleted."
+                    return None, "The project was deleted.", False
                 try:
                     rows = await fetch_rows(client, base, key, since, datetime.now(timezone.utc) + LOOKAHEAD)
                 except SpendLogError as exc:
                     if last is not None:
                         break       # keep what an earlier read found
-                    return None, str(exc)
-                found = summarise(rows, keep)
+                    return None, str(exc), True
+                if rates is None:   # the gateway's own prices first, then the list the studio ships
+                    rates = (await fetch_rates(client, base, key), self.shipped)
+                found = summarise(rows, keep, rates)
                 tagged = sum(1 for row in rows if keep(row))
                 if (found["requests"] and found == last) or (tagged and tagged == seen):
                     break           # two reads in a row agree (rows that all failed settle the same way)
                 last, seen = found, tagged
         if tagged and (last is None or not last["requests"]):
             return None, (f"The gateway logged {tagged} {'request' if tagged == 1 else 'requests'} for this turn, "
-                          "but none succeeded and none carried a price, so nothing was billed.")
+                          "but none succeeded and none carried a price, so nothing was billed."), False
         if last is None or not last["requests"]:
             return None, ("The gateway's spend log had no request tagged for this turn (it writes the log some "
-                          "seconds late, and a gateway that is not LiteLLM may not record the tag).")
+                          "seconds late, and a gateway that is not LiteLLM may not record the tag)."), True
         if last["cost_usd"] is None:
-            log.info("Turn %s: %d requests, none priced by the gateway", turn_id, last["requests"])
-        return last, None
+            log.info("Turn %s: %d requests, none priced by the gateway or the studio", turn_id, last["requests"])
+        return last, None, True
 
     def pending_turns(self, project_id: str) -> list[dict]:
         """Turns whose read-back never finished (the studio restarted first), oldest first."""
@@ -316,6 +389,7 @@ class Costs:
                 async with self.client_factory() as client:
                     rows = await fetch_rows(client, base, key, min(t["start"] for t in group) - LOOKBACK,
                                             max(t["end"] for t in group) + LOOKAHEAD)
+                    rates = (await fetch_rates(client, base, key), self.shipped)
             except SpendLogError as exc:
                 report["reason"] = str(exc)
                 report["unmatched"] += len(group)
@@ -327,12 +401,12 @@ class Costs:
                     when = parse_time(row.get("startTime"))
                     return row.get("session_id") == turn["session"] and when is not None and low <= when <= high
 
-                found = summarise(rows, keep)
+                found = summarise(rows, keep, rates)
                 if not found["requests"]:
                     report["unmatched"] += 1
                     continue
                 self._write(project_id, turn["turn_id"], found["cost_usd"], found["requests"], found["unpriced"],
-                            "recovered", basis=found["basis"])
+                            "recovered", basis=found["basis"], backup=found.get("backup"))
                 report["recovered"] += 1
                 report["turns"].append({"turn_id": turn["turn_id"], **found})
         return report
@@ -352,7 +426,7 @@ class Costs:
                 turns[turn]["session"] = event.get("session_id")
             elif kind == "turn_cost" and turn in turns:
                 turns[turn]["cost"] = event
-        charged = plan = calculated = 0.0
+        charged = plan = calculated = backed = 0.0
         unpriced_turns = unpriced_requests = pending = 0
         listing = []
         kinds = {c["id"]: c["kind"] for c in self.studio.registry.connections()}
@@ -374,11 +448,11 @@ class Costs:
             if cost is not None:
                 value, estimated, basis = cost.get("cost_usd"), False, cost.get("basis")
                 requests, unpriced = int(cost.get("requests") or 0), int(cost.get("unpriced") or 0)
-                source, reason = cost.get("source"), cost.get("reason")
+                source, reason, backup = cost.get("source"), cost.get("reason"), cost.get("backup")
             else:
                 value, estimated, basis = usage.get("cost_usd"), usage.get("cost_estimated"), usage.get("cost_basis")
                 requests, unpriced = int(usage.get("requests") or 0), int(usage.get("unpriced_requests") or 0)
-                source, reason = None, None
+                source, reason, backup = None, None, usage.get("backup")
                 if basis is None and estimated is False and kinds.get(turn["connection"]) in AGENT_PRICED:
                     basis = "calculated"        # written before turns said so: the agent program's arithmetic
             waiting = cost is None and bool(usage.get("cost_pending"))
@@ -395,6 +469,8 @@ class Costs:
                 kind = "charged"
                 charged += float(value)
                 calculated += float(value) if basis == "calculated" else 0.0
+                if isinstance(backup, dict) and _number(backup.get("usd")):
+                    backed += float(backup["usd"])      # the part the studio worked out itself
                 unpriced_requests += unpriced
             else:
                 kind = "unpriced"
@@ -404,8 +480,10 @@ class Costs:
                             "model": turn["model"], "kind": kind,
                             "cost_usd": value if kind in ("charged", "plan") else None,
                             "basis": "plan" if kind == "plan" else basis if kind == "charged" else None,
-                            "requests": requests, "unpriced_requests": unpriced, "source": source, "reason": reason})
+                            "requests": requests, "unpriced_requests": unpriced, "source": source, "reason": reason,
+                            "backup": backup if kind == "charged" and isinstance(backup, dict) else None})
         return {"charged_usd": round(charged, 6), "calculated_usd": round(calculated, 6),
+                "backup_usd": round(backed, 6),
                 "plan_equivalent_usd": round(plan, 6),
                 "unpriced_turns": unpriced_turns, "unpriced_requests": unpriced_requests,
                 "pending_turns": pending, "turns": listing}

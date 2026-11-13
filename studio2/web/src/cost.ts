@@ -2,7 +2,7 @@
 // A price is only ever one a route reported: nothing here works a figure out from tokens, and a
 // request nobody priced is never shown as free (CONTRACT.md, "Cost per request and per project").
 
-import { CALCULATED_TIP, ESTIMATE_TIP, formatCost, RECOVERED_TIP, UNPRICED_TIP } from "./format";
+import { backupTip, CALCULATED_TIP, ESTIMATE_TIP, formatCost, RECOVERED_TIP, UNPRICED_TIP } from "./format";
 import type { CostRecovery, CostTurn, ProjectCost } from "./types";
 
 export interface CostRow {
@@ -16,6 +16,20 @@ function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
+/** How much of the charged total is not the provider's own figure, and whose arithmetic it is. */
+function chargedNote(cost: ProjectCost): string {
+  const backup = cost.backup_usd ?? 0;
+  const parts: string[] = [];
+  if (cost.calculated_usd > 0) {
+    parts.push(`${formatCost(cost.calculated_usd)} is calculated from token counts and a price list`);
+  }
+  if (backup > 0) {
+    parts.push(`${formatCost(backup)} was worked out by the studio as a backup, for requests that came back with no cost`);
+  }
+  if (parts.length === 0) return "What the routes that bill reported for these requests.";
+  return `Of this, ${parts.join(", and ")}; the rest is what the provider reported.`;
+}
+
 /** The three totals. They are never added together. */
 export function costRows(cost: ProjectCost): CostRow[] {
   const has = (kind: CostTurn["kind"]) => cost.turns.some((turn) => turn.kind === kind);
@@ -25,10 +39,7 @@ export function costRows(cost: ProjectCost): CostRow[] {
       key: "charged",
       label: "Charged",
       value: has("charged") ? formatCost(cost.charged_usd) : "—",
-      note:
-        cost.calculated_usd > 0
-          ? `Of this, ${formatCost(cost.calculated_usd)} is calculated from token counts and a price list; the rest is what the provider reported.`
-          : "What the routes that bill reported for these requests.",
+      note: chargedNote(cost),
     },
     {
       key: "plan",
@@ -63,7 +74,7 @@ export function turnAmount(turn: CostTurn): string {
   if (turn.kind === "plan") return `≈ ${formatCost(turn.cost_usd ?? 0)} at API prices`;
   if (turn.kind === "charged") {
     const more = turn.unpriced_requests > 0 ? ` + ${turn.unpriced_requests} unpriced` : "";
-    const how = turn.basis === "calculated" ? " calculated" : "";
+    const how = turn.basis === "backup" ? " calculated by the studio" : turn.basis === "calculated" ? " calculated" : "";
     return `${formatCost(turn.cost_usd ?? 0)}${how}${more}${turn.source === "recovered" ? " · found by session and time" : ""}`;
   }
   return turn.reason ? `no price · ${turn.reason}` : "no price reported";
@@ -71,6 +82,7 @@ export function turnAmount(turn: CostTurn): string {
 
 export function turnTip(turn: CostTurn): string | null {
   if (turn.kind === "plan") return ESTIMATE_TIP;
+  if (turn.basis === "backup" && turn.backup) return backupTip(turn.backup);
   if (turn.basis === "calculated") return CALCULATED_TIP;
   if (turn.source === "recovered") return RECOVERED_TIP;
   return null;

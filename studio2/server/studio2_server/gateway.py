@@ -84,6 +84,19 @@ def _reported(response):
         return False
 
 
+def _cached(response):
+    """The cache counts of a request ({} when the answer does not say): prompt tokens include them."""
+    try:
+        usage = getattr(response, "usage", None)
+        details = usage.get("prompt_tokens_details") if isinstance(usage, dict) else getattr(usage, "prompt_tokens_details", None)
+        read = lambda name: (details.get(name) if isinstance(details, dict) else getattr(details, name, None)) or 0
+        if details is None:
+            return {}       # the answer does not say: the studio will not price it from a guess
+        return {"cached": int(read("cached_tokens")), "cache_write": int(read("cache_write_tokens") or read("cache_creation_tokens"))}
+    except Exception:
+        return {}
+
+
 class Spend(CustomLogger):
     async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
         try:
@@ -94,7 +107,8 @@ class Spend(CustomLogger):
                    "model": detail.get("model_group") or kwargs.get("model"),
                    "cost": kwargs.get("response_cost"),
                    "reported": _reported(response_obj),
-                   "input": detail.get("prompt_tokens"), "output": detail.get("completion_tokens")}
+                   "input": detail.get("prompt_tokens"), "output": detail.get("completion_tokens"),
+                   **_cached(response_obj)}
             if PATH:
                 with open(PATH, "a", encoding="utf-8") as handle:
                     handle.write(json.dumps(row) + "\\n")
@@ -555,11 +569,15 @@ class Sidecar:
             await self._stop()
 
     # -- what a turn cost ----------------------------------------------------------------------------
-    def spend(self, turn_id: str) -> dict | None:
-        """What LiteLLM reported for one turn's requests: {cost_usd, requests, unpriced}, or None
-        when it logged no request of the turn. `cost_usd` is None when none was priced (a model it
-        has no price for comes out as nothing, never as free); `unpriced` counts the others."""
+    def spend(self, turn_id: str, rates: tuple = ()) -> dict | None:
+        """What LiteLLM reported for one turn's requests: {cost_usd, requests, unpriced, basis, backup},
+        or None when it logged no request of the turn. A request LiteLLM had no price for is priced by
+        the studio from `rates` (the backup, CONTRACT.md) when its row says how many tokens were
+        cached; otherwise it is unpriced, never free. `cost_usd` is None when none was priced."""
+        from . import prices
+
         total, count, priced, reported = 0.0, 0, 0, 0
+        pricer = prices.Pricer(*rates)
         try:
             lines = self.spend_path.read_text("utf-8").splitlines()
         except OSError:
@@ -576,11 +594,20 @@ class Sidecar:
                 total += float(row["cost"])
                 priced += 1
                 reported += row.get("reported") is True
+            elif isinstance(row.get("cached"), int) and isinstance(row.get("input"), int) and isinstance(row.get("output"), int):
+                read, write = row["cached"], row.get("cache_write") or 0
+                worked = pricer.price(row.get("model"), {
+                    "input": max(0, row["input"] - read - write), "cache_read": read, "cache_write": write,
+                    "output": row["output"], "prompt": row["input"]})
+                if worked is not None:
+                    total += worked
+                    priced += 1
         if not count:
             return None
-        basis = None if not priced else "reported" if reported == priced else "calculated"
+        backup = pricer.summary()
+        basis = None if not priced else "backup" if backup else "reported" if reported == priced else "calculated"
         return {"cost_usd": round(total, 6) if priced else None, "requests": count, "unpriced": count - priced,
-                "basis": basis}
+                "basis": basis, "backup": backup}
 
     # -- what the library and the doctor show ----------------------------------------------------------
     def status(self, connections: list[dict]) -> dict:

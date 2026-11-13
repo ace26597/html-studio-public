@@ -43,6 +43,23 @@ export const PENDING_TIP = "The gateway writes its spend log a few seconds after
 export const UNPRICED_TIP = "The route reported no price for these requests. They are not counted as free.";
 export const CALCULATED_TIP =
   "Worked out from token counts and a price list (by LiteLLM or the agent program). This provider does not report a cost per request.";
+/** Whose rates a backup figure used, in words. */
+function backupRates(backup: { rates: string; as_of: string | null }): string {
+  const list = backup.as_of ? `the studio's price list of ${backup.as_of}` : "the studio's price list";
+  if (backup.rates === "gateway") return "the gateway's own price for the model";
+  if (backup.rates === "both") return `the gateway's own prices and ${list}`;
+  return list;
+}
+
+/** Why a figure says "calculated by the studio": the backup calculation, never a bill. */
+export function backupTip(backup: { requests: number | null; rates: string; as_of: string | null }): string {
+  if (backup.requests === null) {
+    return `The gateway's spend log could not be read, so the studio worked this out from the request's own token counts at ${backupRates(backup)}. It can be high when helpers ran on a cheaper model. A backup figure, not a bill.`;
+  }
+  const many = backup.requests === 1 ? "1 request came" : `${backup.requests} requests came`;
+  return `${many} back with no cost, so the studio priced ${backup.requests === 1 ? "it" : "them"} from token counts at ${backupRates(backup)}. A backup figure, not a bill.`;
+}
+
 export const RECOVERED_TIP = "Found in the gateway's spend log by session and time, not by a tag sent with the turn.";
 
 /**
@@ -64,6 +81,7 @@ export function costLabel(
         unpriced_requests?: number;
         cost_source?: string | null;
         cost_basis?: string | null;
+        backup?: { requests: number | null; usd: number; rates: string; as_of: string | null } | null;
       }
     | null
     | undefined,
@@ -84,6 +102,9 @@ export function costLabel(
   if (usage?.cost_estimated === false) {
     const unpriced = usage.unpriced_requests;
     const note = typeof unpriced === "number" && unpriced > 0 ? ` + ${unpriced} unpriced` : "";
+    if (usage.cost_basis === "backup" && usage.backup) {
+      return { text: `${formatCost(usd)} calculated by the studio${note}`, tip: backupTip(usage.backup) };
+    }
     const calculated = usage.cost_basis === "calculated";
     const tip = calculated ? CALCULATED_TIP : usage.cost_source === "recovered" ? RECOVERED_TIP : note ? UNPRICED_TIP : null;
     return { text: `${formatCost(usd)}${calculated ? " calculated" : ""}${note}`, tip };

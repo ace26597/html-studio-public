@@ -79,7 +79,9 @@ def test_streamed_text_is_emitted_once_and_tools_are_mapped(tmp_path):
     outcome = mapper.turn_result()
     assert outcome.status == "completed" and outcome.session_id == "s1" and outcome.error is None
     assert outcome.usage == {"input_tokens": 115, "output_tokens": 50, "cost_usd": 0.0421, "duration_ms": 1200,
-                             "cost_estimated": True}
+                             "cost_estimated": True,
+                             # the split is kept for the backup cost calculation: input without the cached ones
+                             "tokens": {"input": 10, "cache_read": 100, "cache_write": 5, "output": 50, "cache_write_1h": None}}
     assert mapper.activity == 7
 
 

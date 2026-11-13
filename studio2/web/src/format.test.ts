@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { appStateLabel, baseName, costLabel, ESTIMATE_TIP, isImagePath, PENDING_TIP, RECOVERED_TIP, UNPRICED_TIP } from "./format";
+import { appStateLabel, baseName, costLabel, ESTIMATE_TIP, isImagePath, PENDING_TIP, RECOVERED_TIP, UNPRICED_TIP,
+  backupTip,
+} from "./format";
 
 describe("costLabel", () => {
   it("shows nothing when the cost is unknown (gateway)", () => {
@@ -44,6 +46,26 @@ describe("costLabel", () => {
       text: "$0.84 + 2 unpriced",
       tip: UNPRICED_TIP,
     });
+  });
+
+  it("says when the studio worked a figure out itself, and from whose rates", () => {
+    const some = costLabel({
+      cost_usd: 0.27, cost_estimated: false, cost_basis: "backup",
+      backup: { requests: 2, usd: 0.24, rates: "list", as_of: "2026-11-13" },
+    });
+    expect(some?.text).toBe("$0.27 calculated by the studio");
+    expect(some?.tip).toContain("2 requests came back with no cost");
+    expect(some?.tip).toContain("the studio's price list of 2026-11-13");
+    expect(some?.tip).toContain("not a bill");
+    const whole = costLabel({
+      cost_usd: 0.02, cost_estimated: false, cost_basis: "backup", unpriced_requests: 1,
+      backup: { requests: null, usd: 0.02, rates: "gateway", as_of: null },
+    });
+    expect(whole?.text).toBe("$0.02 calculated by the studio + 1 unpriced");
+    expect(whole?.tip).toContain("spend log could not be read");
+    expect(whole?.tip).toContain("the gateway's own price for the model");
+    expect(whole?.tip).toContain("can be high");
+    expect(backupTip({ requests: 1, rates: "both", as_of: "2026-11-13" })).toContain("1 request came back with no cost, so the studio priced it");
   });
 
   it("says when a charge was calculated from a price list, not reported by the provider", () => {

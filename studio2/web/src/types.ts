@@ -662,8 +662,10 @@ export interface Usage {
   session_cost_usd?: number;
   /** A gateway turn whose price is still being read from the gateway's spend log. */
   cost_pending?: boolean;
-  /** Where the figure is from: `reported` by the provider, `calculated` from a price list, or `plan`. */
+  /** Where the figure is from: `reported` by the provider, `calculated` from a price list, `backup` (the studio's own arithmetic), or `plan`. */
   cost_basis?: string | null;
+  /** The part of the figure the studio worked out itself, because the route sent no cost. */
+  backup?: CostBackup | null;
   /** Requests the route reported no price for. */
   unpriced_requests?: number;
   /** Where a gateway turn's price came from (`gateway`, `recovered`) and, when there is none, why. */
@@ -780,6 +782,7 @@ export interface TurnCostEvent extends EventBase {
   source: "gateway" | "recovered" | "unavailable" | string;
   reason: string | null;
   basis?: string | null;
+  backup?: CostBackup | null;
 }
 export interface NoticeEvent extends EventBase {
   type: "notice";
@@ -941,6 +944,17 @@ export interface TextEdit {
 
 export type CostKind = "charged" | "plan" | "unpriced" | "pending";
 
+/** The backup calculation: requests the studio priced itself from token counts and the model's rate. */
+export interface CostBackup {
+  /** How many requests; null when the whole turn was priced from its own token counts. */
+  requests: number | null;
+  usd: number;
+  /** Whose rates: the gateway's own (`gateway`), the list that ships with the studio (`list`), or `both`. */
+  rates: string;
+  /** The date of the shipped list, when it was used. */
+  as_of: string | null;
+}
+
 export interface CostTurn {
   turn_id: string;
   at: string;
@@ -955,10 +969,13 @@ export interface CostTurn {
   unpriced_requests: number;
   source: string | null;
   reason: string | null;
+  backup?: CostBackup | null;
 }
 
 export interface ProjectCost {
   charged_usd: number;
+  /** The part of `charged_usd` the studio worked out itself (the backup calculation). */
+  backup_usd?: number;
   /** The part of `charged_usd` that was calculated from a price list, not reported by the provider. */
   calculated_usd: number;
   plan_equivalent_usd: number;

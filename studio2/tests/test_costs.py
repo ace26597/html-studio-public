@@ -36,14 +36,18 @@ def row(turn=None, spend=0.0, status="success", session="s1", start="2026-11-12T
 class SpendLog:
     """A stand-in for LiteLLM's paginated spend log: what each read returns, in order."""
 
-    def __init__(self, reads, status=200):
+    def __init__(self, reads, status=200, model_info=()):
         self.reads, self.status, self.requests = list(reads), status, []
+        self.model_info, self.price_reads = list(model_info), 0
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
-        self.requests.append(request)
-        assert request.url.path == "/spend/logs/v2"
         assert request.headers["authorization"] == f"Bearer {KEY}"
         assert request.method == "GET"          # read-only
+        if request.url.path == "/model/info":   # the gateway's own prices, for the backup calculation
+            self.price_reads += 1
+            return httpx.Response(200, json={"data": self.model_info})
+        self.requests.append(request)
+        assert request.url.path == "/spend/logs/v2"
         if self.status != 200:
             return httpx.Response(self.status, json={"error": "no"})
         rows = self.reads.pop(0) if len(self.reads) > 1 else self.reads[0]
@@ -84,10 +88,10 @@ def test_summarise_never_turns_missing_prices_into_zero():
             row("t_1", 0.1, status="failure"),        # but a price that was reported is a price
             row("t_2", 9.0)]
     assert summarise(rows, costs._has_tag("t_1")) == {"cost_usd": 0.85, "requests": 5, "unpriced": 2,
-                                                       "basis": "calculated"}
+                                                       "basis": "calculated", "backup": None}
     nothing = summarise([row("t_1", 0.0), row("t_1", None)], costs._has_tag("t_1"))
-    assert nothing == {"cost_usd": None, "requests": 2, "unpriced": 2, "basis": None}       # "nobody said", not "free"
-    assert summarise([], costs._has_tag("t_1")) == {"cost_usd": None, "requests": 0, "unpriced": 0, "basis": None}
+    assert nothing == {"cost_usd": None, "requests": 2, "unpriced": 2, "basis": None, "backup": None}       # "nobody said", not "free"
+    assert summarise([], costs._has_tag("t_1")) == {"cost_usd": None, "requests": 0, "unpriced": 0, "basis": None, "backup": None}
 
 
 def test_a_figure_says_whether_the_provider_reported_it_or_it_was_calculated():
@@ -350,7 +354,7 @@ async def test_the_project_total_keeps_charged_plan_and_unpriced_apart(client, s
 
 async def test_an_empty_project_costs_nothing_and_says_so(client, project):
     total = (await client.get(f"/api/projects/{project['id']}/cost")).json()
-    assert total == {"charged_usd": 0, "calculated_usd": 0, "plan_equivalent_usd": 0, "unpriced_turns": 0,
+    assert total == {"charged_usd": 0, "calculated_usd": 0, "backup_usd": 0, "plan_equivalent_usd": 0, "unpriced_turns": 0,
                      "unpriced_requests": 0, "pending_turns": 0, "turns": []}
 
 
@@ -488,7 +492,7 @@ def test_a_cost_the_provider_reports_as_zero_is_a_price_not_a_gap():
 
     keep = costs._has_tag("t_1")
     found = summarise([sent(0.5, "openrouter", 0.5), sent(0.0, "openrouter", 0)], keep)
-    assert found == {"cost_usd": 0.5, "requests": 2, "unpriced": 0, "basis": "reported"}
-    assert summarise([sent(0.0, "openrouter", 0)], keep) == {"cost_usd": 0.0, "requests": 1, "unpriced": 0, "basis": "reported"}
+    assert found == {"cost_usd": 0.5, "requests": 2, "unpriced": 0, "basis": "reported", "backup": None}
+    assert summarise([sent(0.0, "openrouter", 0)], keep) == {"cost_usd": 0.0, "requests": 1, "unpriced": 0, "basis": "reported", "backup": None}
     # Another provider's 0 is LiteLLM having no price for the model: still unpriced.
-    assert summarise([sent(0.0, "chatgpt", 0)], keep) == {"cost_usd": None, "requests": 1, "unpriced": 1, "basis": None}
+    assert summarise([sent(0.0, "chatgpt", 0)], keep) == {"cost_usd": None, "requests": 1, "unpriced": 1, "basis": None, "backup": None}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canRecover, costRows, pendingNote, recoveryMessage, turnAmount } from "./cost";
+import { canRecover, costRows, pendingNote, recoveryMessage, turnAmount, turnTip } from "./cost";
 import type { CostTurn, ProjectCost } from "./types";
 
 const turn = (extra: Partial<CostTurn>): CostTurn => ({
@@ -58,6 +58,18 @@ describe("costRows", () => {
 });
 
 describe("where a figure is from", () => {
+  it("says how much of the charged total the studio worked out as a backup", () => {
+    const backup = { requests: 1, usd: 0.24, rates: "list", as_of: "2026-11-13" };
+    const priced = turn({ kind: "charged", cost_usd: 0.27, basis: "backup", backup });
+    const rows = costRows({ ...empty, charged_usd: 0.27, backup_usd: 0.24, turns: [priced] });
+    expect(rows[0].note).toContain("$0.24 was worked out by the studio as a backup");
+    expect(turnAmount(priced)).toBe("$0.27 calculated by the studio");
+    expect(turnTip(priced)).toContain("1 request came back with no cost");
+    const mixed = costRows({ ...empty, charged_usd: 5, calculated_usd: 0.84, backup_usd: 0.24, turns: [priced] });
+    expect(mixed[0].note).toContain("$0.84 is calculated");
+    expect(mixed[0].note).toContain("$0.24 was worked out by the studio");
+  });
+
   it("says how much of the charged total was calculated from a price list", () => {
     const rows = costRows({ ...empty, charged_usd: 5, calculated_usd: 0.84, turns: [turn({ kind: "charged", cost_usd: 5 })] });
     expect(rows[0].note).toContain("$0.84 is calculated");

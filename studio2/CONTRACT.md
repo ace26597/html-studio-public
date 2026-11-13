@@ -1962,14 +1962,18 @@ should search and switch on what is missing.
 
 ## Cost per request and per project
 
-The studio never works a cost out from token counts itself, and never shows a request nobody priced
-as free. Every money figure it shows says where it came from (`basis`):
+The studio shows the cost a route reported whenever there is one. When a LiteLLM route sends no cost
+for a request, the studio works one out itself as a **backup** (token counts times the model's rate,
+below) and says so. It never shows a request nobody could price as free. Every money figure says
+where it came from (`basis`):
 
 - `reported`: the provider sent a cost with the answer and the route recorded it. Today only
   OpenRouter does this (LiteLLM keeps its `usage.cost`).
 - `calculated`: token counts times a price list, worked out by LiteLLM (OpenAI, Azure OpenAI,
   Gemini and anything else that returns only tokens) or by the agent program (an Anthropic key,
   Bedrock, Vertex, Foundry). Shown with the word "calculated".
+- `backup`: at least one request of the turn was priced by the studio itself, because the route sent
+  no cost for it. Shown as "calculated by the studio", with how many requests and whose rates.
 - the plan-equivalent below, which is the same arithmetic for a route that is not billed per request.
 
 Response headers are not a source: the agent program makes the model calls, so the studio never sees
@@ -2014,9 +2018,9 @@ the read-back ends, and the interface says "cost pending". A studio that restart
 ended picks it up again at start-up (the tag is in the gateway's log whenever it is read).
 
 `turn_cost` event: `{turn_id, cost_usd (number or null), requests, unpriced, source, reason, basis}`
-(`basis`: `reported`, `calculated`, or null when nothing was priced). `turn_finished.usage` carries
+(`basis`: `reported`, `calculated`, `backup`, or null when nothing was priced). `turn_finished.usage` carries
 `cost_basis` the same way, with `plan` for the subscription.
-`source` is `gateway` (read back by tag), `recovered` (see below) or `unavailable`. When it is
+`source` is `gateway` (read back by tag), `recovered` (see below), `tokens` (the backup, from the turn's own token counts) or `unavailable`. When it is
 `unavailable` `cost_usd` is null and `reason` says why in a sentence for the person: the gateway
 cannot be reached; it answered 401 or 403 (the key cannot read the spend log); it answered 404 (it
 is not LiteLLM, or it keeps no database); it answered something else; or it had no request tagged
@@ -2029,6 +2033,45 @@ the agent program's session id (`turn_finished.session_id`) and the turn's time 
 `turn_started` to five seconds after `turn_finished`). It writes `turn_cost` with `source:
 "recovered"`. The interface says "found by session and time". It adds nothing for a turn it cannot
 match, and never writes a figure for a window in which the log has no row of that session.
+
+**The backup calculation.** It applies to the two LiteLLM kinds (`anthropic-gateway`, `litellm`) and
+never to the plan or to a route whose figure the agent program works out.
+
+- *Rates*, per million tokens, for input, output, cache read and cache write, looked up by the
+  model's name in two places, in this order: the gateway's own price for the model
+  (`GET <base_url>/model/info`, read-only, the same key; an entry whose input and output prices are
+  both 0 is not a price), then the list that ships with the studio, `library/model-prices.json`
+  (`{as_of, source, models: {"<provider>/<model>": {input, output, cache_read, cache_write, above?}}}`,
+  written by `tools/prices/update.py` from OpenRouter's public model list, which carries the
+  providers' list prices; `above: {prompt_tokens, …}` holds a model's higher rate for long prompts).
+  A name is matched whole, then without a leading `openrouter/`, then by its last part with dots as
+  hyphens and without a trailing date (`claude-opus-5-5` is `anthropic/claude-opus-5.5`); a last
+  part that fits two listed models matches neither.
+- *Complete or not at all.* A source is used for a request only when it has a rate for every kind of
+  token the request used (a request that read from the cache needs a cache-read rate). When neither
+  source is complete the request stays **unpriced**. Nothing is ever priced at a guessed rate.
+- *Cache writes have two prices on Anthropic's models:* an entry written with the 1-hour lifetime
+  costs twice the input rate, a 5-minute one 1.25 times (`cache_write_1h` beside `cache_write` in
+  the list; the agent program the studio runs writes 1-hour entries). Where a model has both and
+  they differ, the request must say how many written tokens were of which lifetime
+  (`cache_creation.ephemeral_1h_input_tokens`, kept as `tokens.cache_write_1h`); a request that
+  wrote to the cache without saying so stays unpriced.
+- *One request of a readable spend log* (a successful row with no `spend`, that the provider did not
+  report as free): `prompt_tokens` includes the cached ones, so the cost is
+  (prompt − cache read − cache write) × input + cache read × its rate + cache write × its rate +
+  completion × output, with the cache counts from the row's `usage_object.prompt_tokens_details`.
+- *A turn whose spend log cannot be read* (`source: "unavailable"` before this): the turn's own token
+  counts, which the agent program reports and `turn_finished.usage.tokens` keeps
+  (`{input, cache_read, cache_write, output}`, input without the cached ones), all at the rate of the
+  turn's model. Requests a helper made on a cheaper model are priced at the turn's model too, so this
+  figure can be high; it says so. `turn_cost` then has `source: "tokens"`.
+- *The studio's own LiteLLM* writes each request's token counts beside its cost; a request it could
+  not price is priced the same way from the shipped list.
+
+`turn_cost` and `turn_finished.usage` carry `backup: {requests, usd, rates, as_of} | null`: how many
+requests the studio priced, their part of the figure, whose rates (`gateway`, `list` or `both`) and
+the list's date when it was used. `unpriced` counts only what neither source could price.
+`GET …/cost` adds `backup_usd`, the part of `charged_usd` the studio worked out, and each turn's `backup`.
 
 **Per project.**
 

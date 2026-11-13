@@ -324,9 +324,9 @@ def test_what_litellm_priced_a_turn_at(tmp_path):
     rows = [{"turn": "t_1", "cost": 0.004, "model": "a"}, {"turn": "t_1", "cost": 0.0015}, {"turn": "t_2", "cost": 9},
             {"turn": "t_3", "cost": 0.0}, {"turn": "t_3", "cost": None}]
     side.spend_path.write_text("\n".join(json.dumps(row) for row in rows) + "\nnot json\n")
-    assert side.spend("t_1") == {"cost_usd": 0.0055, "requests": 2, "unpriced": 0, "basis": "calculated"}
+    assert side.spend("t_1") == {"cost_usd": 0.0055, "requests": 2, "unpriced": 0, "basis": "calculated", "backup": None}
     # no price reported is not "free": no figure, and the requests are counted as unpriced
-    assert side.spend("t_3") == {"cost_usd": None, "requests": 2, "unpriced": 2, "basis": None}
+    assert side.spend("t_3") == {"cost_usd": None, "requests": 2, "unpriced": 2, "basis": None, "backup": None}
     side.spend_path.write_text(json.dumps({"turn": "t_r", "cost": 0.2, "reported": True}) + "\n"
                                + json.dumps({"turn": "t_m", "cost": 0.2, "reported": True}) + "\n"
                                + json.dumps({"turn": "t_m", "cost": 0.1}) + "\n")

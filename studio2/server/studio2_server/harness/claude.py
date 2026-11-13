@@ -36,6 +36,7 @@ from .. import costs
 from .. import gateway as managed
 from ..config import STUDIO2_ROOT, TRANSLATED_KINDS, connection_key, outside_python
 from ..risk import risky_command
+from .. import prices
 from .base import Emit, TurnRequest, TurnResult, empty_usage, public_connection
 
 LIBRARY_DIR = STUDIO2_ROOT / "library"
@@ -585,6 +586,14 @@ class EventMapper:
                  "duration_ms": result.duration_ms,
                  "input_tokens": sum(t for t in tokens_in if isinstance(t, int)) if any(
                      isinstance(t, int) for t in tokens_in) else None}
+        split = {"input": raw.get("input_tokens"), "cache_read": raw.get("cache_read_input_tokens"),
+                 "cache_write": raw.get("cache_creation_input_tokens"), "output": raw.get("output_tokens")}
+        if any(isinstance(value, int) for value in split.values()):
+            # Kept apart for the backup cost calculation: input here is without the cached tokens.
+            usage["tokens"] = {kind: value if isinstance(value, int) else 0 for kind, value in split.items()}
+            # How many of the written tokens had the 1-hour lifetime (None when the program does not say):
+            # Anthropic bills those at a higher rate, and the agent program writes them.
+            usage["tokens"]["cache_write_1h"] = prices.long_write(raw)
         if self.gateway:
             usage["cost_usd"] = None        # priced by the gateway, which the CLI cannot know
         else:
@@ -752,11 +761,14 @@ class ClaudeHarness:
                       "message": "The earlier conversation could not be resumed, so a new one was started."})
             result, _ = await self._attempt(request, emit, env, scrub, None)
         if kind == "litellm" and self.sidecar is not None:
-            spent = await asyncio.to_thread(self.sidecar.spend, request.turn_id)
-            if spent:   # what LiteLLM itself priced the turn's requests at; a request it could not price is counted
+            rates = (prices.shipped(self.sidecar.settings.library_dir),)
+            spent = await asyncio.to_thread(self.sidecar.spend, request.turn_id, rates)
+            if spent:   # what LiteLLM itself priced the turn's requests at; one it could not price the studio
+                #         prices from the shipped list (the backup), and what is left is counted as unpriced
                 result.usage.update(requests=spent["requests"], unpriced_requests=spent["unpriced"])
                 if spent["cost_usd"] is not None:
-                    result.usage.update(cost_usd=spent["cost_usd"], cost_estimated=False, cost_basis=spent["basis"])
+                    result.usage.update(cost_usd=spent["cost_usd"], cost_estimated=False, cost_basis=spent["basis"],
+                                        backup=spent.get("backup"))
         return result
 
     async def _attempt(self, request, emit, env, scrub, resume) -> tuple[TurnResult, int]:

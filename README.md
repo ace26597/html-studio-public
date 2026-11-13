@@ -43,7 +43,8 @@ What it makes:
 
 Each request shows what it cost and each page has a running total, kept apart as charged,
 plan-equivalent and unpriced; a charged figure says whether the provider reported it or it was
-calculated from a price list.
+calculated from a price list. When a LiteLLM gateway sends no cost for a request, the studio works
+one out from the token counts and the model's rate and says "calculated by the studio".
 
 Detail: [what you can make, skills and connectors](studio2/docs/features.md) ·
 [bringing an app and making it live](studio2/docs/apps.md).
