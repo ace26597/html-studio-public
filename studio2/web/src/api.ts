@@ -1,3 +1,4 @@
+import type { ExportOptions } from "./exportInfo";
 import type { Example } from "./examples";
 import type { TurnOptions } from "./effort";
 import type {
@@ -257,6 +258,9 @@ export const api = {
     request<AppLogs>("GET", `/projects/${enc(id)}/app/logs?after=${after}`, undefined, signal),
 
   downloadUrl: (id: string) => `/api/projects/${enc(id)}/download`,
+  exportOptions: (id: string) => request<ExportOptions>("GET", `/projects/${enc(id)}/export`),
+  exportPageUrl: (id: string) => `/api/projects/${enc(id)}/export/page`,
+  exportFolderUrl: (id: string) => `/api/projects/${enc(id)}/export/folder`,
 
   saveDrawing: (id: string, drawing: Drawing) => request<DrawingSaved>("POST", `/projects/${enc(id)}/drawings`, drawing),
 

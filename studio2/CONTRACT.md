@@ -2415,3 +2415,72 @@ when there are none): a card per example with its picture, title, summary and on
 line of facts ("Opus · Deep · 31 min · 2 requests · 115 sources · 381 figures checked", each part only
 when the record holds it), and **Open a copy**. Nothing is
 shown when the studio has no examples. At 390 px the cards are one column.
+
+# Export: take a page or an app out of the studio
+
+Three ways out, from **Export…** in the page's menu. None of them needs the studio afterwards,
+and none publishes anything: the person gets a file and decides where it goes.
+
+| Way | For | What it is |
+|---|---|---|
+| **One HTML file** | A page without a back end | The page with its own styles, scripts, pictures and data inside. Opens from a double click, an email or a chat message |
+| **A folder to host or run** (`.zip`) | Any project the studio made | The project's files without working notes, with `EXPORT-README.md` saying how to open, host or run it; for an app also `run.sh` |
+| **Everything** (`.zip`) | Any project | The working folder as it is (`GET …/download`, unchanged): notes, saved sources and all. For keeping, not for sharing |
+
+## One HTML file
+
+Built from one page of the project (`index.html` unless `page` says otherwise):
+
+- a local stylesheet (`<link rel="stylesheet">`) becomes a `<style>`, with the local files its
+  `url(…)` names turned into `data:` addresses;
+- a local script (`<script src>`) becomes an inline script;
+- a local picture, icon, poster, audio or video source (`src`, `href` of an icon, `poster`) becomes
+  a `data:` address;
+- every other data-like file of the project (`.json .csv .tsv .txt .geojson .topojson .ndjson
+  .jsonl .xml .yaml .yml .md .svg .png .jpg .jpeg .gif .webp .avif`) is put inside the file, and a
+  small script at the top answers `fetch()` and `XMLHttpRequest` for it from there, so a page that
+  loads its data keeps working with no server (chart libraries often load a CSV the second way). A
+  request for anything else goes to the network as before.
+
+Left out, here and in the folder: `.git`, `research/`, `attachments/`, `template/`, `notes/`,
+`state/`, `looks/`, dependency folders and caches, any `.env*` file, and the saved text of sources
+(`sources/*` except `sources/index.json`).
+
+What is not inside is said, never hidden. `external`: the other sites the page still loads from
+(a chart library from a CDN, a font): the file needs the internet for those. `notes`: other pages
+of the project it links to (they are not in the file), and a local file it names that does not exist.
+
+It is **not available**, with the reason, when: the project has a back end (`studio.json`: the
+page needs its server; use the folder); a module script, in a file or in the page, imports other
+files of the project (a browser will not load those for a page opened from a file); or the file
+would be over 30 MB.
+
+## A folder to host or run
+
+The project's files, less what is left out above, plus:
+
+- `EXPORT-README.md`: what this is and when it was exported; for a page, how to open it (a page
+  that loads data needs a web server: the one-line command is given) and how to host it (any static
+  host takes the folder as it is); for an app, what it needs installed (read from the first word of
+  its run command), how to start it, and what it used from the studio that will not be there
+  (`needs`: the studio's model address, an attached data source, the project's own address), found
+  by looking for the `STUDIO_*` names in the app's files.
+- for an app, `run.sh`: sets `PORT` (8000 unless given) and runs the `run` command of
+  `studio.json`, unchanged.
+
+Not available for a project brought in from a folder on this computer (it has its own
+repository; **Everything** still works).
+
+## REST
+
+| Route | Answer |
+|---|---|
+| `GET /api/projects/{id}/export?page=index.html` | `{name, app, pages, page, html, folder}`. `html`: `{available, reason, bytes, inlined, embedded: {files, bytes}, external: [host], notes: [string]}`. `folder`: `{available, reason, files, bytes, run, tools: [string], needs: [string]}` |
+| `GET /api/projects/{id}/export/page?page=index.html` | the file, `text/html`, as an attachment named after the project. 409 `export_unavailable` with the reason; 404 `unknown_page` |
+| `GET /api/projects/{id}/export/folder` | `application/zip`, as an attachment `<name>-export.zip`. 409 `export_unavailable` |
+
+## UI
+
+**Export…** in the page's menu (in place of "Download as zip") opens a dialog with the three ways,
+each with its size, what is and is not inside, and a download button; a way that is not available
+is shown with its reason. The project facts tell the agent that the person exports from there.

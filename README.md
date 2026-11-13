@@ -46,6 +46,10 @@ plan-equivalent and unpriced; a charged figure says whether the provider reporte
 calculated from a price list. When a LiteLLM gateway sends no cost for a request, the studio works
 one out from the token counts and the model's rate and says "calculated by the studio".
 
+**Export** (in a page's menu) takes the work out of the studio: one HTML file with its styles,
+scripts, pictures and data inside, which opens from a double click; or a folder with a note on how
+to host it, and for an app a script that starts it. Nothing is published for you.
+
 Detail: [what you can make, skills and connectors](studio2/docs/features.md) ·
 [bringing an app and making it live](studio2/docs/apps.md).
 

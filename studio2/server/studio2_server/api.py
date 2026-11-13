@@ -35,6 +35,7 @@ from .look import LookUnavailable
 from .preview import bind, listen
 from .store import NoFreePort, ProjectNotFound
 from .studio import Studio
+from . import export as exporting
 from .templates import TemplateError
 from .turns import TurnRunning
 from .ship import ShipError, ShipRunning
@@ -778,6 +779,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         name = re.sub(r"[^A-Za-z0-9._ -]+", "", project["name"]).strip() or project_id
         return FileResponse(handle.name, media_type="application/zip", filename=f"{name}.zip",
                             background=BackgroundTask(Path(handle.name).unlink, missing_ok=True))
+
+    # -- export: one HTML file, or a folder to host or run (CONTRACT.md, "Export") ----------------
+    def _export_name(project: dict) -> str:
+        return re.sub(r"[^A-Za-z0-9._ -]+", "", project["name"]).strip() or project["id"]
+
+    @app.get("/api/projects/{project_id}/export")
+    async def export_options(project_id: str, page: str = "index.html"):
+        project = studio.store.get(project_id)
+        return await asyncio.to_thread(exporting.describe, studio.store.workspace(project_id), project, page)
+
+    @app.get("/api/projects/{project_id}/export/page")
+    async def export_page(project_id: str, page: str = "index.html"):
+        project = studio.store.get(project_id)
+        built = await asyncio.to_thread(exporting.one_file, studio.store.workspace(project_id), page)
+        if not built["available"]:
+            unknown = (built["reason"] or "").startswith("There is no page")
+            raise ApiError(404 if unknown else 409, "unknown_page" if unknown else "export_unavailable", built["reason"])
+        return Response(built["html"], media_type="text/html; charset=utf-8", headers={
+            "content-disposition": f'attachment; filename="{_export_name(project)}.html"', "cache-control": "no-store"})
+
+    @app.get("/api/projects/{project_id}/export/folder")
+    async def export_folder(project_id: str):
+        project = studio.store.get(project_id)
+        try:
+            data = await asyncio.to_thread(exporting.folder_zip, studio.store.workspace(project_id), project)
+        except exporting.ExportUnavailable as exc:
+            raise ApiError(409, "export_unavailable", str(exc)) from None
+        return Response(data, media_type="application/zip", headers={
+            "content-disposition": f'attachment; filename="{_export_name(project)}-export.zip"', "cache-control": "no-store"})
 
     @app.delete("/api/projects/{project_id}", status_code=204)
     async def delete_project(project_id: str):

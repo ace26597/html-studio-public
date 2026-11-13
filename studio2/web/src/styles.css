@@ -7323,3 +7323,79 @@ a.attachment:hover {
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+/* Export dialog: three ways out, each with what it holds and what it still needs. */
+.export-lead {
+  color: var(--text-2);
+}
+
+.export-ways {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.export-way {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2, var(--surface));
+}
+
+.export-way.is-unavailable {
+  background: transparent;
+}
+
+.export-way-text {
+  min-width: 0;
+}
+
+.export-way h3 {
+  font-size: 15px;
+  font-weight: 620;
+}
+
+.export-way p {
+  margin: 3px 0 0;
+  color: var(--text-2);
+  font-size: 13.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.export-way .export-facts {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.export-way .export-note,
+.export-way .export-reason {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.export-get {
+  align-self: flex-start;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+@media (min-width: 700px) {
+  .export-way {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .export-get {
+    flex: none;
+  }
+}

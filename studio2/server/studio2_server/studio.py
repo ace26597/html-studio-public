@@ -377,6 +377,10 @@ class Studio:
             "text in the project under an id (s1, s2, …) that the page's figures point to, and check_page then "
             "verifies them.")
         lines.append(nextsteps.AGENT_RULE)
+        lines.append("- The person takes this project out of the studio themselves, from Export in the page's menu: "
+                     "one HTML file with everything inside (a page without a back end), a folder to host or run "
+                     "with a note on how, or the whole working folder. Point them there when they ask to export, "
+                     "share or host it; do not build a copy for export unless they ask for another format.")
         if project.get("from_example"):
             without = Sources(self.store.workspace(project_id)).without_text()
             if without:

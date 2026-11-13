@@ -14,6 +14,7 @@ import { planAttachments } from "./attachments";
 import { dragExpired, DRAG_IDLE_MS } from "./drag";
 import { drawingImages, drawReducer, initialDraw, messageText, turnAttachments } from "./drawing";
 import { CostDialog } from "./CostDialog";
+import { ExportDialog } from "./ExportDialog";
 import { DrawToolbar } from "./DrawToolbar";
 import { appStateLabel, projectFileUrl } from "./format";
 import { Icon, Spinner } from "./icons";
@@ -76,6 +77,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   const [mode, setMode] = useState<Mode>("browse");
   const [filesOpen, setFilesOpen] = useState(false);
   const [costOpen, setCostOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [rightPanel, setRightPanel] = useState<RightPanel>(null);
   const versionsOpen = rightPanel === "versions";
   const logsOpen = rightPanel === "logs";
@@ -781,11 +783,9 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
       onSelect: () => setSavingTemplate(true),
     },
     {
-      label: "Download as zip",
+      label: "Export…",
       icon: "download",
-      onSelect: () => {
-        window.location.href = api.downloadUrl(id);
-      },
+      onSelect: () => setExportOpen(true),
     },
     ...(project
       ? ([{ label: "Open in a new tab", icon: "external", onSelect: () => window.open(project.preview_url, "_blank", "noopener") }] as MenuEntry[])
@@ -1111,11 +1111,9 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
                 onSelect: () => setSavingTemplate(true),
               },
               {
-                label: "Download as zip",
+                label: "Export…",
                 icon: "download",
-                onSelect: () => {
-                  window.location.href = api.downloadUrl(id);
-                },
+                onSelect: () => setExportOpen(true),
               },
             ]}
             trigger={(props) => (
@@ -1263,6 +1261,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
         {logsOpen && <LogsDrawer projectId={id} app={thread.app} onClose={closeRight} />}
 
         {costOpen && <CostDialog projectId={id} running={running} onClose={() => setCostOpen(false)} />}
+        {exportOpen && <ExportDialog projectId={id} onClose={() => setExportOpen(false)} />}
 
         {project && (
           <Chat
