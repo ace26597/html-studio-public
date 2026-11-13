@@ -1,0 +1,16 @@
+{
+ "title": "The inner solar system in 3D",
+ "summary": "The inner solar system as a 3D scene you can turn, with distances and periods from NASA's fact sheets.",
+ "kind": "interactive",
+ "order": 70,
+ "made": {
+  "model": "sonnet",
+  "date": "2026-11-11",
+  "requests": 1,
+  "duration_s": 142,
+  "depth": null,
+  "request": "Build an interactive 3D model of the inner solar system (Sun, Mercury, Venus, Earth with the Moon, Mars) that I can turn, zoom and click.\n\nUse real figures from NASA's planetary fact sheet (https://nssdc.gsfc.nasa.gov/planetary/factsheet/) for diameter, distance from the Sun, orbital period and day length, and say on the page what is not to scale. Planets move on their orbits at their real relative speeds, with a speed control and a pause. Clicking a planet shows its facts with the source.\n\nThen also export a 1200 x 630 picture of the scene I can use as a link preview, and put it on the page with a download link.\n"
+ },
+ "sources": 2,
+ "check": null
+}

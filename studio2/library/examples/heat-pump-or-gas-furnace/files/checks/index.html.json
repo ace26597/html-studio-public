@@ -1,0 +1,2808 @@
+{
+  "page": "index.html",
+  "checked_at": "2026-11-13T14:22:59.196Z",
+  "summary": {
+    "verified": 157,
+    "derived": 21,
+    "failed": 0,
+    "unmarked_numbers": 0,
+    "sources_cited": 39,
+    "sources_unused": 27
+  },
+  "items": [
+    {
+      "n": 1,
+      "text": "\u221215 \u00b0F",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s30"
+      ],
+      "quote": "temperatures (below -15\u2070F)",
+      "reason": null,
+      "found": null,
+      "where": "Should we swap our gas furnace for a heat pump?"
+    },
+    {
+      "n": 2,
+      "text": "\"there is no reason to buy an air conditioner any longer in Xcel Energy territory\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s25"
+      ],
+      "quote": "There is no reason to buy an air conditioner any longer in Xcel Energy territory",
+      "reason": null,
+      "found": null,
+      "where": "Should we swap our gas furnace for a heat pump?"
+    },
+    {
+      "n": 3,
+      "text": "$75",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "Ducted ccHP + $117 (e) + -$192 (g) = -$75",
+      "reason": "$75 is -75 rounded",
+      "found": null,
+      "where": "Should we swap our gas furnace for a heat pump?"
+    },
+    {
+      "n": 4,
+      "text": "$224",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "$0* (e) + -$224 (g) = -$224",
+      "reason": "$224 is -224 rounded",
+      "found": null,
+      "where": "Should we swap our gas furnace for a heat pump?"
+    },
+    {
+      "n": 5,
+      "text": "1.9",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "In the 0 to 5 \u00b0F OAT bin, the median COP was observed to be 1.9.",
+      "reason": null,
+      "found": null,
+      "where": "Should we swap our gas furnace for a heat pump?"
+    },
+    {
+      "n": 6,
+      "text": "$24,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "$9,000, $20,000, and $24,000 for the three ASHP scenarios",
+      "reason": null,
+      "found": null,
+      "where": "Should we swap our gas furnace for a heat pump?"
+    },
+    {
+      "n": 7,
+      "text": "$11,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "The mean reference scenario equipment has a cost of $11,000",
+      "reason": null,
+      "found": null,
+      "where": "Should we swap our gas furnace for a heat pump?"
+    },
+    {
+      "n": 8,
+      "text": "4.2",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s65",
+        "s5",
+        "s14"
+      ],
+      "quote": null,
+      "reason": "15.82\u00a2/kWh = $46.36/MMBtu; $10.98/Mcf \u00f7 10.55 therm/Mcf = $1.04/therm = $10.41/MMBtu, \u00f7 0.95 furnace efficiency = $10.96/MMBtu of heat; 46.36 \u00f7 10.96 = 4.2",
+      "found": null,
+      "where": "Should we swap our gas furnace for a heat pump?"
+    },
+    {
+      "n": 9,
+      "text": "$0",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s15"
+      ],
+      "quote": null,
+      "reason": "25C is not allowed for property placed in service after 31 Dec 2025, so a 2026 install gets $0",
+      "found": null,
+      "where": "Should we swap our gas furnace for a heat pump?"
+    },
+    {
+      "n": 10,
+      "text": "$1,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s31"
+      ],
+      "quote": "$1,500 for Electric Only customers",
+      "reason": null,
+      "found": null,
+      "where": "Should we swap our gas furnace for a heat pump?"
+    },
+    {
+      "n": 11,
+      "text": "$2,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s31"
+      ],
+      "quote": "$2,000 for Combo or",
+      "reason": null,
+      "found": null,
+      "where": "Should we swap our gas furnace for a heat pump?"
+    },
+    {
+      "n": 12,
+      "text": "Install and invoice by 31 Dec 2026",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s34"
+      ],
+      "quote": "Invoices and installations must be completed by Dec. 31, 2026",
+      "reason": null,
+      "found": null,
+      "where": "Should we swap our gas furnace for a heat pump?"
+    },
+    {
+      "n": 13,
+      "text": "1.9",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s30"
+      ],
+      "quote": "The annual COP was 1.9 on average for the all-electric systems",
+      "reason": null,
+      "found": null,
+      "where": "What would a heat pump cost to run for your home?"
+    },
+    {
+      "n": 14,
+      "text": "2.39",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s46"
+      ],
+      "quote": "Total 43 58% 0.69 0.88 2.39 3.22 72%",
+      "reason": null,
+      "found": null,
+      "where": "What would a heat pump cost to run for your home?"
+    },
+    {
+      "n": 15,
+      "text": "2.5",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s41"
+      ],
+      "quote": "across all twelve sites averaged 2.5, ranging from 1.7 (Site 6) to 3.5 (Site 8).",
+      "reason": null,
+      "found": null,
+      "where": "What would a heat pump cost to run for your home?"
+    },
+    {
+      "n": 16,
+      "text": "$0.11137",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "1-period ESH $0.18112 $0.11137",
+      "reason": null,
+      "found": null,
+      "where": "What would a heat pump cost to run for your home?"
+    },
+    {
+      "n": 17,
+      "text": "15.82\u00a2",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s65"
+      ],
+      "quote": "Minnesota 15.82 15.45",
+      "reason": null,
+      "found": null,
+      "where": "What would a heat pump cost to run for your home?"
+    },
+    {
+      "n": 18,
+      "text": "$1.04",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s5",
+        "s14"
+      ],
+      "quote": null,
+      "reason": "$10.98/Mcf \u00f7 10.55 therms per Mcf = $1.04/therm (EIA 2025 Minnesota average, which includes fixed charges)",
+      "found": null,
+      "where": "What would a heat pump cost to run for your home?"
+    },
+    {
+      "n": 19,
+      "text": "100,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s66"
+      ],
+      "quote": "1 therm=100,000 Btu",
+      "reason": null,
+      "found": null,
+      "where": "What would a heat pump cost to run for your home?"
+    },
+    {
+      "n": 20,
+      "text": "3,412",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s66"
+      ],
+      "quote": "1 kilowatthour=3,412 Btu",
+      "reason": null,
+      "found": null,
+      "where": "What would a heat pump cost to run for your home?"
+    },
+    {
+      "n": 21,
+      "text": "$9.50",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s63"
+      ],
+      "quote": "Monthly Basic Charge Delivery Charge Per Therm Cost of Gas Per Therm $9.50",
+      "reason": null,
+      "found": null,
+      "where": "What would a heat pump cost to run for your home?"
+    },
+    {
+      "n": 22,
+      "text": "a COP of at least 1.75 at 5 \u00b0F",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s1"
+      ],
+      "quote": "COP at 5\u00b0F \u2265 1.75 at maximum capacity operation.",
+      "reason": null,
+      "found": null,
+      "where": "What \"cold-climate\" means on paper"
+    },
+    {
+      "n": 23,
+      "text": "\"Do not include the power required for defrost cycling\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s1"
+      ],
+      "quote": "Do not include the power required for defrost cycling or drain pan heater operation in the table.",
+      "reason": null,
+      "found": null,
+      "where": "What \"cold-climate\" means on paper"
+    },
+    {
+      "n": 24,
+      "text": "at least 70% of the 47 \u00b0F capacity",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s26"
+      ],
+      "quote": "Percent of Heating Capacity at 5\u00b0F \u2265 70% of that at 47\u00b0F",
+      "reason": null,
+      "found": null,
+      "where": "What \"cold-climate\" means on paper"
+    },
+    {
+      "n": 25,
+      "text": "all prototypes kept COP above 2.1 or 2.4 at 5 \u00b0F",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "All units maintained COPs above 2.1 or 2.4 at 5 \u00b0F",
+      "reason": null,
+      "found": null,
+      "where": "What \"cold-climate\" means on paper"
+    },
+    {
+      "n": 26,
+      "text": "at least 100% of nominal capacity at 5 \u00b0F",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "Prototypes delivered \u2265100% nominal heating capacity at 5 \u00b0F",
+      "reason": null,
+      "found": null,
+      "where": "What \"cold-climate\" means on paper"
+    },
+    {
+      "n": 27,
+      "text": "22",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "only eight of the 22 sites",
+      "reason": null,
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 28,
+      "text": "median COP at 0\u20135 \u00b0F was 1.9",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "In the 0 to 5 \u00b0F OAT bin, the median COP was observed to be 1.9.",
+      "reason": null,
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 29,
+      "text": "about 11% of heat at 5 \u00b0F",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "the median value decreases from around 11% at 5 \u00b0F to 0%",
+      "reason": null,
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 30,
+      "text": "25% of the time",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "reach 25% of time across all sites with auxiliary elements engaged.",
+      "reason": null,
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 31,
+      "text": "only eight of the 22 sites logging 10 or more hours below 0 \u00b0F",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "only eight of the 22 sites having 10 or more hours of heating data below 0 \u00b0F",
+      "reason": null,
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 32,
+      "text": "a COP of 1.8 at \u221226 \u00b0C",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s50"
+      ],
+      "quote": "achieving COPs of 1.8 at -26\u00b0C",
+      "reason": null,
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 33,
+      "text": "\u221215 \u00b0F",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s50"
+      ],
+      "quote": null,
+      "reason": "\u221226 \u00b0C \u00d7 9/5 + 32 = \u221214.8 \u00b0F",
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 34,
+      "text": "Annual system COP averaged 1.9 for all-electric systems and 1.3 for dual-fuel systems",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s30"
+      ],
+      "quote": "The annual COP was 1.9 on average for the all-electric systems compared to 1.3 for the flex fuel",
+      "reason": null,
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 35,
+      "text": "approximately 20%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s30"
+      ],
+      "quote": "approximately 20% of the rated capacity",
+      "reason": null,
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 36,
+      "text": "\"these units should not be used without backup at extreme\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s30"
+      ],
+      "quote": "the reduction in capacity shows these units should not be used without backup at extreme",
+      "reason": null,
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 37,
+      "text": "43",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s46"
+      ],
+      "quote": "the study sample size (43 homes) is insufficient",
+      "reason": null,
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 38,
+      "text": "2.39, which is 72% of the rated value",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s46"
+      ],
+      "quote": "Total 43 58% 0.69 0.88 2.39 3.22 72%",
+      "reason": null,
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 39,
+      "text": "2.09, 60% of rated",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s46"
+      ],
+      "quote": "Ducted 6 43% 0.54 0.70 2.09 3.16 60%",
+      "reason": null,
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 40,
+      "text": "averaged 2.5 (range 1.7\u20133.5)",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s41"
+      ],
+      "quote": "across all twelve sites averaged 2.5, ranging from 1.7 (Site 6) to 3.5 (Site 8).",
+      "reason": null,
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 41,
+      "text": "the overall system COP by more than 30%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s41"
+      ],
+      "quote": "the overall system COP by more than 30%",
+      "reason": null,
+      "found": null,
+      "where": "What field measurements show"
+    },
+    {
+      "n": 42,
+      "text": "1.75",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s1"
+      ],
+      "quote": "COP at 5\u00b0F \u2265 1.75 at maximum capacity operation.",
+      "reason": null,
+      "found": null,
+      "where": "Efficiency falls as it gets colder and stays below what it takes to beat gas on price"
+    },
+    {
+      "n": 43,
+      "text": "2.1",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "All units maintained COPs above 2.1 or 2.4 at 5 \u00b0F",
+      "reason": null,
+      "found": null,
+      "where": "Efficiency falls as it gets colder and stays below what it takes to beat gas on price"
+    },
+    {
+      "n": 44,
+      "text": "1.9",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "In the 0 to 5 \u00b0F OAT bin, the median COP was observed to be 1.9.",
+      "reason": null,
+      "found": null,
+      "where": "Efficiency falls as it gets colder and stays below what it takes to beat gas on price"
+    },
+    {
+      "n": 45,
+      "text": "\u221215",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s50"
+      ],
+      "quote": null,
+      "reason": "\u221226 \u00b0C \u00d7 9/5 + 32 = \u221214.8 \u00b0F",
+      "found": null,
+      "where": "Efficiency falls as it gets colder and stays below what it takes to beat gas on price"
+    },
+    {
+      "n": 46,
+      "text": "1.8",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s50"
+      ],
+      "quote": "achieving COPs of 1.8 at -26\u00b0C",
+      "reason": null,
+      "found": null,
+      "where": "Efficiency falls as it gets colder and stays below what it takes to beat gas on price"
+    },
+    {
+      "n": 47,
+      "text": "\u22126",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "\u221221.1 \u00b0C \u00d7 9/5 + 32 = \u22126 \u00b0F",
+      "found": null,
+      "where": "Efficiency falls as it gets colder and stays below what it takes to beat gas on price"
+    },
+    {
+      "n": 48,
+      "text": "1.5",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "the COP ranged from an average of 1.5 at -21.1\u00b0C outdoor temperature to 3.0 at +4.9\u00b0C",
+      "reason": null,
+      "found": null,
+      "where": "Efficiency falls as it gets colder and stays below what it takes to beat gas on price"
+    },
+    {
+      "n": 49,
+      "text": "41",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "4.9 \u00b0C \u00d7 9/5 + 32 = 40.8 \u00b0F",
+      "found": null,
+      "where": "Efficiency falls as it gets colder and stays below what it takes to beat gas on price"
+    },
+    {
+      "n": 50,
+      "text": "3.0",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "the COP ranged from an average of 1.5 at -21.1\u00b0C outdoor temperature to 3.0 at +4.9\u00b0C",
+      "reason": null,
+      "found": null,
+      "where": "Efficiency falls as it gets colder and stays below what it takes to beat gas on price"
+    },
+    {
+      "n": 51,
+      "text": "3.8",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s59"
+      ],
+      "quote": null,
+      "reason": "35.0 kBtu/h \u00f7 (2.7 kW \u00d7 3.412) = 3.8, from the catalogue table",
+      "found": null,
+      "where": "Efficiency falls as it gets colder and stays below what it takes to beat gas on price"
+    },
+    {
+      "n": 52,
+      "text": "2.8",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s59"
+      ],
+      "quote": null,
+      "reason": "36.6 kBtu/h \u00f7 (3.8 kW \u00d7 3.412) = 2.8",
+      "found": null,
+      "where": "Efficiency falls as it gets colder and stays below what it takes to beat gas on price"
+    },
+    {
+      "n": 53,
+      "text": "2.4",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s59"
+      ],
+      "quote": null,
+      "reason": "34.1 kBtu/h \u00f7 (4.1 kW \u00d7 3.412) = 2.4",
+      "found": null,
+      "where": "Efficiency falls as it gets colder and stays below what it takes to beat gas on price"
+    },
+    {
+      "n": 54,
+      "text": "2.3",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s59"
+      ],
+      "quote": null,
+      "reason": "27.8 kBtu/h \u00f7 (3.5 kW \u00d7 3.412) = 2.3",
+      "found": null,
+      "where": "Efficiency falls as it gets colder and stays below what it takes to beat gas on price"
+    },
+    {
+      "n": 55,
+      "text": "operation down to \u221213 \u00b0F",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s59"
+      ],
+      "quote": "Operation down to -13 *F",
+      "reason": null,
+      "found": null,
+      "where": "Capacity in deep cold"
+    },
+    {
+      "n": 56,
+      "text": "35.0",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s59"
+      ],
+      "quote": "TC 33.9 34.6 35.4 34.4 35.1 35.9 35.0 35.3 36.4 36.2 37.2 37.2 36.6 35.3 34.1 33.1 30.3 27.8",
+      "reason": null,
+      "found": null,
+      "where": "Capacity in deep cold"
+    },
+    {
+      "n": 57,
+      "text": "27.8",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s59"
+      ],
+      "quote": "TC 33.9 34.6 35.4 34.4 35.1 35.9 35.0 35.3 36.4 36.2 37.2 37.2 36.6 35.3 34.1 33.1 30.3 27.8",
+      "reason": null,
+      "found": null,
+      "where": "Capacity in deep cold"
+    },
+    {
+      "n": 58,
+      "text": "79%",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s59"
+      ],
+      "quote": null,
+      "reason": "27.8 \u00f7 35.0 = 0.79",
+      "found": null,
+      "where": "Capacity in deep cold"
+    },
+    {
+      "n": 59,
+      "text": "31%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s30"
+      ],
+      "quote": "a 31% reduction in the necessary load",
+      "reason": null,
+      "found": null,
+      "where": "Capacity in deep cold"
+    },
+    {
+      "n": 60,
+      "text": "rose from 3.61 to 3.88",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "satisfaction rating increased from 3.61 to 3.88",
+      "reason": null,
+      "found": null,
+      "where": "Capacity in deep cold"
+    },
+    {
+      "n": 61,
+      "text": "30-35 \u00b0F",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "switchover temperatures were observed to be around 30-35",
+      "reason": null,
+      "found": null,
+      "where": "Capacity in deep cold"
+    },
+    {
+      "n": 62,
+      "text": "mean $24,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "$9,000, $20,000, and $24,000 for the three ASHP scenarios",
+      "reason": null,
+      "found": null,
+      "where": "2. What it costs to install"
+    },
+    {
+      "n": 63,
+      "text": "$11,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "The mean reference scenario equipment has a cost of $11,000",
+      "reason": null,
+      "found": null,
+      "where": "2. What it costs to install"
+    },
+    {
+      "n": 64,
+      "text": "\"implicitly included in an unknown portion of the cost data\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "Electrical upgrade costs are implicitly included in an unknown portion of the cost data",
+      "reason": null,
+      "found": null,
+      "where": "2. What it costs to install"
+    },
+    {
+      "n": 65,
+      "text": "fossil systems plus AC averaged $10,000\u2013$13,000, against $12,000\u2013$23,000 for heat pumps",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s27"
+      ],
+      "quote": "Average fossil fuel system plus AC total installation cost ranged from $10,000-$13,000, whereas ASHP total installation cost ranged from $12,000-$23,000.",
+      "reason": null,
+      "found": null,
+      "where": "2. What it costs to install"
+    },
+    {
+      "n": 66,
+      "text": "1,500\u20132,500 sq ft home is $17,000\u2013$23,000 (median $19,500)",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s55"
+      ],
+      "quote": "1,500 to 2,500 square foot home: $17,000 - $23,000 (median $19,500)",
+      "reason": null,
+      "found": null,
+      "where": "2. What it costs to install"
+    },
+    {
+      "n": 67,
+      "text": "$14,529 for a ducted heat pump",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s54"
+      ],
+      "quote": "Ducted heat pump $14,529",
+      "reason": null,
+      "found": null,
+      "where": "2. What it costs to install"
+    },
+    {
+      "n": 68,
+      "text": "$14,353 for a hybrid",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s54"
+      ],
+      "quote": "Hybrid (heat pump + furnace) $14,353",
+      "reason": null,
+      "found": null,
+      "where": "2. What it costs to install"
+    },
+    {
+      "n": 69,
+      "text": "most of its quotes come from Massachusetts",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s54"
+      ],
+      "quote": "Most of our quotes come from Massachusetts",
+      "reason": null,
+      "found": null,
+      "where": "2. What it costs to install"
+    },
+    {
+      "n": 70,
+      "text": "costs $10,200 to $19,500 installed",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s9"
+      ],
+      "quote": "A ducted cold-climate system for a typical Twin Cities home costs $10,200 to $19,500 installed",
+      "reason": null,
+      "found": null,
+      "where": "2. What it costs to install"
+    },
+    {
+      "n": 71,
+      "text": "runs $6,500 to $16,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s9"
+      ],
+      "quote": "Installed cost typically runs $6,500 to $16,000 in Minnesota",
+      "reason": null,
+      "found": null,
+      "where": "2. What it costs to install"
+    },
+    {
+      "n": 72,
+      "text": "quotes vary 20-30% for the same job",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s9"
+      ],
+      "quote": "Contractor quotes vary 20-30% in the Twin Cities for the same job.",
+      "reason": null,
+      "found": null,
+      "where": "2. What it costs to install"
+    },
+    {
+      "n": 73,
+      "text": "$3,800",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s60"
+      ],
+      "quote": "$3,800 to $10,000",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 74,
+      "text": "$10,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s60"
+      ],
+      "quote": "$3,800 to $10,000",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 75,
+      "text": "$10,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s27"
+      ],
+      "quote": "Average fossil fuel system plus AC total installation cost ranged from $10,000-$13,000",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 76,
+      "text": "$13,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s27"
+      ],
+      "quote": "Average fossil fuel system plus AC total installation cost ranged from $10,000-$13,000",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 77,
+      "text": "$11,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "The mean reference scenario equipment has a cost of $11,000",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 78,
+      "text": "$6,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s9"
+      ],
+      "quote": "Installed cost typically runs $6,500 to $16,000 in Minnesota",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 79,
+      "text": "$16,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s9"
+      ],
+      "quote": "Installed cost typically runs $6,500 to $16,000 in Minnesota",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 80,
+      "text": "$14,353",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s54"
+      ],
+      "quote": "Hybrid (heat pump + furnace) $14,353",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 81,
+      "text": "$7,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s61"
+      ],
+      "quote": "Most Minnesota homeowners pay $7,500 to $14,000 for a new cold-climate heat pump",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 82,
+      "text": "$14,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s61"
+      ],
+      "quote": "Most Minnesota homeowners pay $7,500 to $14,000 for a new cold-climate heat pump",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 83,
+      "text": "$10,200",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s9"
+      ],
+      "quote": "costs $10,200 to $19,500 installed",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 84,
+      "text": "$19,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s9"
+      ],
+      "quote": "costs $10,200 to $19,500 installed",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 85,
+      "text": "$14,529",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s54"
+      ],
+      "quote": "Ducted heat pump $14,529",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 86,
+      "text": "$12,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s27"
+      ],
+      "quote": "ASHP total installation cost ranged from $12,000-$23,000",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 87,
+      "text": "$23,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s27"
+      ],
+      "quote": "ASHP total installation cost ranged from $12,000-$23,000",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 88,
+      "text": "$17,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s55"
+      ],
+      "quote": "1,500 to 2,500 square foot home: $17,000 - $23,000 (median $19,500)",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 89,
+      "text": "$23,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s55"
+      ],
+      "quote": "1,500 to 2,500 square foot home: $17,000 - $23,000 (median $19,500)",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 90,
+      "text": "$24,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "$9,000, $20,000, and $24,000 for the three ASHP scenarios",
+      "reason": null,
+      "found": null,
+      "where": "Heat pumps cost more up front in most estimates"
+    },
+    {
+      "n": 91,
+      "text": "about $4,500 in material",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s27"
+      ],
+      "quote": "added about $4,500 in material cost",
+      "reason": null,
+      "found": null,
+      "where": "Extras that often come with a heat pump"
+    },
+    {
+      "n": 92,
+      "text": "$7,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "mated cost of $7,000",
+      "reason": null,
+      "found": null,
+      "where": "Extras that often come with a heat pump"
+    },
+    {
+      "n": 93,
+      "text": "an average of $2,400",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s27"
+      ],
+      "quote": "increase heat pump installation costs by an average of $2,400.",
+      "reason": null,
+      "found": null,
+      "where": "Extras that often come with a heat pump"
+    },
+    {
+      "n": 94,
+      "text": "\"usually\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s57"
+      ],
+      "quote": "Can I electrify my home without upgrading my electrical panel?",
+      "reason": null,
+      "found": null,
+      "where": "Extras that often come with a heat pump"
+    },
+    {
+      "n": 95,
+      "text": "$9,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "the envelope upgrades come at a mean additional upfront cost of $9,000 per dwelling unit",
+      "reason": null,
+      "found": null,
+      "where": "Extras that often come with a heat pump"
+    },
+    {
+      "n": 96,
+      "text": "15.82\u00a2 per kWh",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s65"
+      ],
+      "quote": "Minnesota 15.82 15.45",
+      "reason": null,
+      "found": null,
+      "where": "The price gap"
+    },
+    {
+      "n": 97,
+      "text": "$10.98 per thousand cubic feet",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s5"
+      ],
+      "quote": "2020's 8.04 9.40 12.12 11.95 10.65 10.98",
+      "reason": null,
+      "found": null,
+      "where": "The price gap"
+    },
+    {
+      "n": 98,
+      "text": "1,055 Btu per cubic foot",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "Minnesota 1,058 1,058 1,054 1,061 1,068 1,055",
+      "reason": null,
+      "found": null,
+      "where": "The price gap"
+    },
+    {
+      "n": 99,
+      "text": "$1.04 per therm",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s5",
+        "s14"
+      ],
+      "quote": null,
+      "reason": "$10.98 \u00f7 10.55 therms per Mcf = $1.04/therm",
+      "found": null,
+      "where": "The price gap"
+    },
+    {
+      "n": 100,
+      "text": "4.45 times",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s65",
+        "s5",
+        "s14"
+      ],
+      "quote": null,
+      "reason": "15.82\u00a2/kWh \u00d7 293.07 kWh/MMBtu = $46.36/MMBtu; $1.04/therm \u00d7 10 = $10.41/MMBtu; 46.36 \u00f7 10.41 = 4.45",
+      "found": null,
+      "where": "The price gap"
+    },
+    {
+      "n": 101,
+      "text": "3.42",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s65",
+        "s8",
+        "s14"
+      ],
+      "quote": null,
+      "reason": "17.30\u00a2 \u00d7 293.07 = $50.70/MMBtu; $15.34 \u00f7 10.36 therms = $1.48/therm = $14.81/MMBtu; 50.70 \u00f7 14.81 = 3.42",
+      "found": null,
+      "where": "The price gap"
+    },
+    {
+      "n": 102,
+      "text": "$15.34",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s8"
+      ],
+      "quote": "2020's 10.78 12.18 14.75 15.40 14.50 15.34",
+      "reason": null,
+      "found": null,
+      "where": "The price gap"
+    },
+    {
+      "n": 103,
+      "text": "air-source heat pumps that heat at least 50% of the home",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s23"
+      ],
+      "quote": "air source heat pumps that heat at least 50% of your home",
+      "reason": null,
+      "found": null,
+      "where": "The price gap"
+    },
+    {
+      "n": 104,
+      "text": "\"a hybrid system consisting of an ASHP paired with a natural gas or propane furnace\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s25"
+      ],
+      "quote": "This could mean a hybrid system consisting of an ASHP paired with a natural gas or propane furnace",
+      "reason": null,
+      "found": null,
+      "where": "The price gap"
+    },
+    {
+      "n": 105,
+      "text": "6.537\u00a2/kWh from October to May",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s23"
+      ],
+      "quote": "customers will pay 6.537\u00a2/kWh during October through May each year",
+      "reason": null,
+      "found": null,
+      "where": "The price gap"
+    },
+    {
+      "n": 106,
+      "text": "$0.11137",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "1-period ESH $0.18112 $0.11137",
+      "reason": null,
+      "found": null,
+      "where": "The price gap"
+    },
+    {
+      "n": 107,
+      "text": "11.1\u00a2",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s24"
+      ],
+      "quote": null,
+      "reason": "$0.11137 \u00d7 100 = 11.1\u00a2",
+      "found": null,
+      "where": "The price gap"
+    },
+    {
+      "n": 108,
+      "text": "$0.16011",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "1-period standard $0.18112 $0.16011",
+      "reason": null,
+      "found": null,
+      "where": "The price gap"
+    },
+    {
+      "n": 109,
+      "text": "42% savings against the standard winter rate",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s25"
+      ],
+      "quote": "The new electric space heating rate offers 42% savings compared to the standard winter rate.",
+      "reason": null,
+      "found": null,
+      "where": "The price gap"
+    },
+    {
+      "n": 110,
+      "text": "15.82\u00a2/kWh",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s65"
+      ],
+      "quote": "Minnesota 15.82 15.45",
+      "reason": null,
+      "found": null,
+      "where": "On Xcel's heating rate, a heat pump with seasonal COP of about 3 matches gas; at average prices it needs over 4"
+    },
+    {
+      "n": 111,
+      "text": "$46.36 \u00f7 COP",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s65",
+        "s66"
+      ],
+      "quote": null,
+      "reason": "0.1582 \u00d7 293.07 kWh per MMBtu (1 kWh = 3,412 Btu) = $46.36, divided by COP",
+      "found": null,
+      "where": "On Xcel's heating rate, a heat pump with seasonal COP of about 3 matches gas; at average prices it needs over 4"
+    },
+    {
+      "n": 112,
+      "text": "$0.11137/kWh",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "1-period ESH $0.18112 $0.11137",
+      "reason": null,
+      "found": null,
+      "where": "On Xcel's heating rate, a heat pump with seasonal COP of about 3 matches gas; at average prices it needs over 4"
+    },
+    {
+      "n": 113,
+      "text": "$32.64 \u00f7 COP",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s24",
+        "s66"
+      ],
+      "quote": null,
+      "reason": "0.11137 \u00d7 293.07 = $32.64, divided by COP",
+      "found": null,
+      "where": "On Xcel's heating rate, a heat pump with seasonal COP of about 3 matches gas; at average prices it needs over 4"
+    },
+    {
+      "n": 114,
+      "text": "$10.98/Mcf",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s5"
+      ],
+      "quote": "2020's 8.04 9.40 12.12 11.95 10.65 10.98",
+      "reason": null,
+      "found": null,
+      "where": "On Xcel's heating rate, a heat pump with seasonal COP of about 3 matches gas; at average prices it needs over 4"
+    },
+    {
+      "n": 115,
+      "text": "$10.96",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s5",
+        "s14"
+      ],
+      "quote": null,
+      "reason": "$10.98 \u00f7 1.055 MMBtu per Mcf = $10.41 per MMBtu of fuel \u00f7 0.95 = $10.96 per MMBtu of heat",
+      "found": null,
+      "where": "On Xcel's heating rate, a heat pump with seasonal COP of about 3 matches gas; at average prices it needs over 4"
+    },
+    {
+      "n": 116,
+      "text": "4.2",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s65",
+        "s5",
+        "s14"
+      ],
+      "quote": null,
+      "reason": "46.36 \u00f7 10.96 = 4.23",
+      "found": null,
+      "where": "On Xcel's heating rate, a heat pump with seasonal COP of about 3 matches gas; at average prices it needs over 4"
+    },
+    {
+      "n": 117,
+      "text": "3.0",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s24",
+        "s5",
+        "s14"
+      ],
+      "quote": null,
+      "reason": "32.64 \u00f7 10.96 = 2.98",
+      "found": null,
+      "where": "On Xcel's heating rate, a heat pump with seasonal COP of about 3 matches gas; at average prices it needs over 4"
+    },
+    {
+      "n": 118,
+      "text": "$9.50 a month",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s63"
+      ],
+      "quote": "Monthly Basic Charge Delivery Charge Per Therm Cost of Gas Per Therm $9.50",
+      "reason": null,
+      "found": null,
+      "where": "On Xcel's heating rate, a heat pump with seasonal COP of about 3 matches gas; at average prices it needs over 4"
+    },
+    {
+      "n": 119,
+      "text": "$0.82/therm",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "which came to $0.82 per therm",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 120,
+      "text": "28% more on the heating rate vs 69% on the standard rate",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "on the ESH the increase is much smaller at 28% vs 69%",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 121,
+      "text": "$1.06/therm",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "which came to $1.06 per therm",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 122,
+      "text": "nine to 45% more",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "with modeled operating costs between nine and 45 percent higher than the base case",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 123,
+      "text": "$0.82/therm",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "which came to $0.82 per therm",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 124,
+      "text": "4\u201318% more",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "The modeled annual operating costs for the ccASHP systems are between 4 and 18 percent higher than the base case.",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 125,
+      "text": "$1.06/therm",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "which came to $1.06 per therm",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 126,
+      "text": "lower or similar",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "all dual-fuel systems have lower or similar annual operating costs compared to the base case",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 127,
+      "text": "+$36/yr, +2.6%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "the increase is modest at $36/year, or about 2.6%",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 128,
+      "text": "$75/yr lower",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "Ducted ccHP + $117 (e) + -$192 (g) = -$75",
+      "reason": "$75 is -75 rounded",
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 129,
+      "text": "$224/yr lower",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "$0* (e) + -$224 (g) = -$224",
+      "reason": "$224 is -224 rounded",
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 130,
+      "text": "$182/yr saving",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s42"
+      ],
+      "quote": "the median bill savings in Minnesota is $182/year",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 131,
+      "text": "$96/yr increase",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s42"
+      ],
+      "quote": "median bills increase by $96/year when sized for the cooling load",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 132,
+      "text": "\u2212$262",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s46"
+      ],
+      "quote": "Gas 5 2,200 $19,686 $8.95 -$262 -$0.15",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 133,
+      "text": "\u2212$153",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s46"
+      ],
+      "quote": "Gas 10 1,968 $17,142 $9.18 -$153",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 134,
+      "text": "38%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s42"
+      ],
+      "quote": "ranging from 38% positive",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 135,
+      "text": "99%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s42"
+      ],
+      "quote": "to 99% positive ($380 per year median savings)",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 136,
+      "text": "\"hybrid-heat systems offer the lowest operational costs \u2026 while all-electric systems may increase bills for natural gas customers\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s52"
+      ],
+      "quote": "hybrid-heat systems offer the lowest operational costs for both propane and natural gas customers, while all-electric systems may increase bills for natural gas customers",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 137,
+      "text": "30 \u00b0F",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s52"
+      ],
+      "quote": "has a 30\u00b0F switchover temperature",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 138,
+      "text": "64% of heating hours",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s52"
+      ],
+      "quote": "can deliver heat for 64% of the total heating hours in a typical year",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 139,
+      "text": "95\u2013100%, with median savings of $300\u2013$650 a year",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s42"
+      ],
+      "quote": "95%\u2013100% nationally and median savings of $300\u2013$650 per year",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 140,
+      "text": "\"in all cases \u2026 are more than offset by the reductions in gas-related emissions\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "in all cases these increases are more than offset by the reductions in gas-related emissions",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 141,
+      "text": "766 lb CO\u2082 per MWh",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s64"
+      ],
+      "quote": "Carbon dioxide (lbs/MWh) 766",
+      "reason": null,
+      "found": null,
+      "where": "What studies of real and modelled bills found"
+    },
+    {
+      "n": 142,
+      "text": "$2,000/yr",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s11"
+      ],
+      "quote": "$2,000 per year for qualified heat pumps",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 143,
+      "text": "Not allowed for property placed in service after 31 Dec 2025",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s15"
+      ],
+      "quote": "The credit will not be allowed for any property placed in service after December 31, 2025.",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 144,
+      "text": "up to $8,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s40"
+      ],
+      "quote": "Below 80% AMI | Up to $8,000 | $14,000",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 145,
+      "text": "80%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s40"
+      ],
+      "quote": "Below 80% AMI",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 146,
+      "text": "\"Save Energy Minnesota has not launched\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s40"
+      ],
+      "quote": "Save Energy Minnesota has not launched",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 147,
+      "text": "\"removing program allowances for upgrades for fuel-switching\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s39"
+      ],
+      "quote": "Removing program allowances for upgrades for fuel-switching",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 148,
+      "text": "$1,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s31"
+      ],
+      "quote": "$1,500 for Electric Only customers",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 149,
+      "text": "$2,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s31"
+      ],
+      "quote": "$2,000 for Combo or",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 150,
+      "text": "COP \u2265 1.75 at 5 \u00b0F",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s31"
+      ],
+      "quote": "COP at 5 oF \u2265 1.75",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 151,
+      "text": "Installation and invoice by 31 Dec 2026",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s34"
+      ],
+      "quote": "Invoices and installations must be completed by Dec. 31, 2026",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 152,
+      "text": "$600",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s31"
+      ],
+      "quote": "There is a bonus rebate of $600 available to customers who install Xcel Energy rebate-qualifying insulation and air sealing measures",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 153,
+      "text": "$1,100",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s35"
+      ],
+      "quote": "$1,100 Existing home Installed in a home with a natural gas furnace with an AFUE of 92% or higher",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 154,
+      "text": "92%+",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s35"
+      ],
+      "quote": "natural gas furnace with an AFUE of 92% or higher",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 155,
+      "text": "$5,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s45"
+      ],
+      "quote": "$5,000 | $1,000",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 156,
+      "text": "$1,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s45"
+      ],
+      "quote": "$5,000 | $1,000",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 157,
+      "text": "generally at or below 200% of the federal poverty level",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s40"
+      ],
+      "quote": "Eligibility is generally at or below 200% of the federal poverty level.",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 158,
+      "text": "$1,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s31"
+      ],
+      "quote": "$1,500 for Electric Only customers",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 159,
+      "text": "$1,100",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s35"
+      ],
+      "quote": "$1,100 Existing home",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 160,
+      "text": "$1,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s45"
+      ],
+      "quote": "$5,000 | $1,000",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 161,
+      "text": "stack on a qualifying dual-fuel system",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s40"
+      ],
+      "quote": "stack both utility rebates on a qualifying dual-fuel system",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 162,
+      "text": "nearly $193 million",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s48"
+      ],
+      "quote": "nearly $193 million in combined electric and gas efficient fuel-switching investments",
+      "reason": null,
+      "found": null,
+      "where": "4. Which incentives exist right now ()"
+    },
+    {
+      "n": 163,
+      "text": "28%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "on the ESH the increase is much smaller at 28% vs 69%",
+      "reason": null,
+      "found": null,
+      "where": "5. When a heat pump does not make sense"
+    },
+    {
+      "n": 164,
+      "text": "$0.82/therm",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "which came to $0.82 per therm",
+      "reason": null,
+      "found": null,
+      "where": "5. When a heat pump does not make sense"
+    },
+    {
+      "n": 165,
+      "text": "nine to 45%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "with modeled operating costs between nine and 45 percent higher than the base case",
+      "reason": null,
+      "found": null,
+      "where": "5. When a heat pump does not make sense"
+    },
+    {
+      "n": 166,
+      "text": "$1.06/therm",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "which came to $1.06 per therm",
+      "reason": null,
+      "found": null,
+      "where": "5. When a heat pump does not make sense"
+    },
+    {
+      "n": 167,
+      "text": "an $11,000 furnace-plus-AC replacement",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "The mean reference scenario equipment has a cost of $11,000",
+      "reason": null,
+      "found": null,
+      "where": "5. When a heat pump does not make sense"
+    },
+    {
+      "n": 168,
+      "text": "$96/yr increase",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s42"
+      ],
+      "quote": "median bills increase by $96/year when sized for the cooling load",
+      "reason": null,
+      "found": null,
+      "where": "5. When a heat pump does not make sense"
+    },
+    {
+      "n": 169,
+      "text": "$4,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s27"
+      ],
+      "quote": "added about $4,500 in material cost",
+      "reason": null,
+      "found": null,
+      "where": "5. When a heat pump does not make sense"
+    },
+    {
+      "n": 170,
+      "text": "$7,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "mated cost of $7,000",
+      "reason": null,
+      "found": null,
+      "where": "5. When a heat pump does not make sense"
+    },
+    {
+      "n": 171,
+      "text": "$600",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s31"
+      ],
+      "quote": "There is a bonus rebate of $600",
+      "reason": null,
+      "found": null,
+      "where": "5. When a heat pump does not make sense"
+    },
+    {
+      "n": 172,
+      "text": "$1,100 gas",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s45"
+      ],
+      "quote": "Gas: $1,100",
+      "reason": null,
+      "found": null,
+      "where": "7. What could not be confirmed"
+    },
+    {
+      "n": 173,
+      "text": "$900 electric",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s45"
+      ],
+      "quote": "Elec.: $900",
+      "reason": null,
+      "found": null,
+      "where": "7. What could not be confirmed"
+    },
+    {
+      "n": 174,
+      "text": "$1,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s31"
+      ],
+      "quote": "$1,500 for Electric Only customers",
+      "reason": null,
+      "found": null,
+      "where": "7. What could not be confirmed"
+    },
+    {
+      "n": 175,
+      "text": "$2,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s31"
+      ],
+      "quote": "$2,000 for Combo or",
+      "reason": null,
+      "found": null,
+      "where": "7. What could not be confirmed"
+    },
+    {
+      "n": 176,
+      "text": "$20,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s45"
+      ],
+      "quote": "Green Zone residents: $20,000",
+      "reason": null,
+      "found": null,
+      "where": "7. What could not be confirmed"
+    },
+    {
+      "n": 177,
+      "text": "$14,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s44"
+      ],
+      "quote": "you can receive up to $14,000 if you live in a Green Zone",
+      "reason": null,
+      "found": null,
+      "where": "7. What could not be confirmed"
+    },
+    {
+      "n": 178,
+      "text": "$0.11137",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s24"
+      ],
+      "quote": "1-period ESH $0.18112 $0.11137",
+      "reason": null,
+      "found": null,
+      "where": "7. What could not be confirmed"
+    }
+  ],
+  "unmarked": [],
+  "sources": [
+    {
+      "id": "s1",
+      "title": "Acknowledgement Title (Trebuchet MS Bold 15 pt)",
+      "url": "https://neep.org/sites/default/files/media-files/cold_climate_air_source_heat_pump_specification_-_version_4.0_final.pdf",
+      "fetched_at": "2026-11-13T13:55:42.690Z",
+      "cited": 3
+    },
+    {
+      "id": "s2",
+      "title": "EM&V Forum Spring Public Meeting",
+      "url": "https://neea.org/wp-content/uploads/2025/03/NEEP-Cold-Climate-Air-Source-Heat-Pump-Product-List-Refresher-and-Update-NEEA-Product-Council.pdf",
+      "fetched_at": "2026-11-13T13:55:43.512Z",
+      "cited": 0
+    },
+    {
+      "id": "s3",
+      "title": "Heat Pumps for All? Distributions of the Costs and Benefits of Residential Air-Source Heat Pumps in the United States",
+      "url": "https://docs.nlr.gov/docs/fy24osti/84775.pdf",
+      "fetched_at": "2026-11-13T13:56:04.134Z",
+      "cited": 11
+    },
+    {
+      "id": "s4",
+      "title": "Electric Power Monthly - U.S. Energy Information Administration (EIA)SAS Output",
+      "url": "https://www.eia.gov/electricity/monthly/epm_table_grapher.php?t=epmt_5_6_a",
+      "fetched_at": "2026-11-13T13:56:04.364Z",
+      "cited": 0
+    },
+    {
+      "id": "s5",
+      "title": "Minnesota Price of Natural Gas Delivered to Residential Consumers (Dollars per Thousand Cubic Feet)",
+      "url": "https://www.eia.gov/dnav/ng/hist/n3010mn3a.htm",
+      "fetched_at": "2026-11-13T13:56:04.646Z",
+      "cited": 9
+    },
+    {
+      "id": "s6",
+      "title": "Federal Tax Credits for Energy Efficiency | ENERGY STARLockMagnifying Glass IconBack to top",
+      "url": "https://www.energystar.gov/about/federal-tax-credits",
+      "fetched_at": "2026-11-13T13:56:05.167Z",
+      "cited": 0
+    },
+    {
+      "id": "s7",
+      "title": "Title",
+      "url": "https://www.pnnl.gov/main/publications/external/technical_reports/PNNL-37127.pdf",
+      "fetched_at": "2026-11-13T13:56:05.274Z",
+      "cited": 12
+    },
+    {
+      "id": "s8",
+      "title": "U.S. Price of Natural Gas Delivered to Residential Consumers (Dollars per Thousand Cubic Feet)",
+      "url": "https://www.eia.gov/dnav/ng/hist/n3010us3a.htm",
+      "fetched_at": "2026-11-13T13:56:05.400Z",
+      "cited": 2
+    },
+    {
+      "id": "s9",
+      "title": "Heat Pump Installation Cost in Minnesota: 2026 Real Ranges",
+      "url": "https://northernonehour.com/blog/heat-pump-installation-cost-minnesota/",
+      "fetched_at": "2026-11-13T13:56:05.462Z",
+      "cited": 7
+    },
+    {
+      "id": "s10",
+      "title": "Residential Cold Climate Heat Pump Challenge | Department of EnergyLock",
+      "url": "https://www.energy.gov/cmei/buildings/residential-cold-climate-heat-pump-challenge",
+      "fetched_at": "2026-11-13T13:56:05.482Z",
+      "cited": 0
+    },
+    {
+      "id": "s11",
+      "title": "Energy Efficient Home Improvement Credit | Internal Revenue Service",
+      "url": "https://www.irs.gov/credits-deductions/energy-efficient-home-improvement-credit",
+      "fetched_at": "2026-11-13T13:56:05.612Z",
+      "cited": 1
+    },
+    {
+      "id": "s12",
+      "title": "Electric Power Monthly - U.S. Energy Information Administration (EIA)SAS Output",
+      "url": "https://www.eia.gov/electricity/monthly/epm_table_grapher.php?t=epmt_5_6_b",
+      "fetched_at": "2026-11-13T13:56:09.811Z",
+      "cited": 0
+    },
+    {
+      "id": "s13",
+      "title": "Minnesota Price of Natural Gas Delivered to Residential Consumers (Dollars per Thousand Cubic Feet)",
+      "url": "https://www.eia.gov/dnav/ng/hist/n3010mn3m.htm",
+      "fetched_at": "2026-11-13T13:56:09.919Z",
+      "cited": 0
+    },
+    {
+      "id": "s14",
+      "title": "Heat Content of Natural Gas Delivered to Consumers",
+      "url": "https://www.eia.gov/dnav/ng/ng_cons_heat_a_EPG0_VGTH_btucf_a.htm",
+      "fetched_at": "2026-11-13T13:56:10.491Z",
+      "cited": 9
+    },
+    {
+      "id": "s15",
+      "title": "FAQs for modification of sections 25C, 25D, 25E, 30C, 30D, 45L, 45W, AND 179D under Public Law 119-21, 139 Stat. 72 (July 4, 2025), commonly known as the One, Big, Beautiful Bill (OBBB) | Internal Revenue Service",
+      "url": "https://www.irs.gov/newsroom/faqs-for-modification-of-sections-25c-25d-25e-30c-30d-45l-45w-and-179d-under-public-law-119-21-139-stat-72-july-4-2025-commonly-known-as-the-one-big-beautiful-bill-obbb",
+      "fetched_at": "2026-11-13T13:56:16.286Z",
+      "cited": 2
+    },
+    {
+      "id": "s16",
+      "title": "Home Energy Rebates Program | Department of EnergyLock",
+      "url": "https://www.energy.gov/cmei/scep/home-energy-rebates-program",
+      "fetched_at": "2026-11-13T13:56:17.473Z",
+      "cited": 0
+    },
+    {
+      "id": "s17",
+      "title": "Title slide w/color backgrounds",
+      "url": "https://homes.lbl.gov/sites/default/files/2022-09/ACEEE%20-%20COSTS%202022.08.25.pdf",
+      "fetched_at": "2026-11-13T13:56:21.241Z",
+      "cited": 0
+    },
+    {
+      "id": "s18",
+      "title": "Residential Cold-Climate Heat Pump Technology Challenge Specification and Supporting Documents",
+      "url": "https://www.energy.gov/sites/default/files/2021-10/bto-cchp-tech-challenge-spec-102521.pdf",
+      "fetched_at": "2026-11-13T13:56:22.402Z",
+      "cited": 0
+    },
+    {
+      "id": "s19",
+      "title": "Residential Plan | Billing & Payment | Xcel Energy",
+      "url": "https://mn.my.xcelenergy.com/s/billing-payment/residential-rates/residential-plan",
+      "fetched_at": "2026-11-13T13:56:23.630Z",
+      "cited": 0
+    },
+    {
+      "id": "s20",
+      "title": "Radware Bot Manager CaptchaState of MN Logo",
+      "url": "http://validate.perfdrive.com/d5bd5333eafe8b0ccd6023ba818d1aa6/?ssa=e6176799-6eea-424c-9518-427cad8274f5&ssb=89752223875&ssc=https%3A%2F%2Fmn.gov%2Fcommerce%2Fenergy%2Fconsumer%2Fenergy-programs%2Fhear.jsp&ssi=0645a75f-bf56-46fe-bd6e-2639d1279284&ssk=support@shieldsquare.com&ssm=02553062591412510102197528509184&ssn=dc85cd434bef6c32ef0a1c9a18d1dcbaf831f1e62b9a-3638-4b51-84c1f5&sso=024f5691-879b4c753a9ae90cba41e86fa87ab2f6733e7778dfd44c75&ssp=37580178561794522918179459761684538&ssq=11398117818601430107378186647889729913454&ssr=NzEuMTg3LjExNi4xNjY=&sst=Mozilla/5.0%20(Macintosh;%20Intel%20Mac%20OS%20X%2010_15_7)%20AppleWebKit/537.36%20(KHTML,%20like%20Gecko)%20Chrome/126.0%20Safari/537.36&ssu=&ssv=&ssw=&ssx=W10=",
+      "fetched_at": "2026-11-13T13:56:26.683Z",
+      "cited": 0
+    },
+    {
+      "id": "s21",
+      "title": "Radware Bot Manager CaptchaState of MN Logo",
+      "url": "http://validate.perfdrive.com/d5bd5333eafe8b0ccd6023ba818d1aa6/?ssa=e31e438c-f9ac-480e-86eb-408bfaf6d121&ssb=89752223875&ssc=https%3A%2F%2Fmn.gov%2Fcommerce%2Fenergy%2Fconsumer%2Fenergy-programs%2Fheat-pump.jsp&ssi=8bc034b8-bf56-42f8-bc08-91745cb8dd81&ssk=support@shieldsquare.com&ssm=02553062591412510102197528509184&ssn=dc85cd43c4840ae2c934869c028fdcbaf831a5b44c62-1438-4ac7-84c1f5&sso=024f55a0-08f5c6d267d0e90cba41820f93ddfca00060a837dfd44c75&ssp=37580178561794522918179459761684538&ssq=11398117818601430107378186647889729913454&ssr=NzEuMTg3LjExNi4xNjY=&sst=Mozilla/5.0%20(Macintosh;%20Intel%20Mac%20OS%20X%2010_15_7)%20AppleWebKit/537.36%20(KHTML,%20like%20Gecko)%20Chrome/126.0%20Safari/537.36&ssu=&ssv=&ssw=&ssx=W10=",
+      "fetched_at": "2026-11-13T13:56:26.965Z",
+      "cited": 0
+    },
+    {
+      "id": "s22",
+      "title": "The Cost of Decarbonization and Energy Upgrade Retrofits for US Homes (Technical Report) | OSTI.GOVOSTI.GOV",
+      "url": "https://www.osti.gov/biblio/1834578",
+      "fetched_at": "2026-11-13T13:56:29.418Z",
+      "cited": 0
+    },
+    {
+      "id": "s23",
+      "title": "Sign-up for Xcel\u2019s new electric space heating rate to see savings on your winter energy bills | Citizens Utility Board",
+      "url": "https://cubminnesota.org/sign-xcels-new-electric-space-heating-rate-see-savings-your-winter-energy-bills",
+      "fetched_at": "2026-11-13T13:56:29.826Z",
+      "cited": 2
+    },
+    {
+      "id": "s24",
+      "title": "Title (Use \u201cTitle\u201d style here)",
+      "url": "https://www.aceee.org/wp-content/uploads/2026/08/xcel-energys-electric-space-heating-rate-using.pdf",
+      "fetched_at": "2026-11-13T13:56:30.582Z",
+      "cited": 26
+    },
+    {
+      "id": "s25",
+      "title": "Xcel Energy\u2019s new electric space heating rate reduces operating costs for Minnesota ASHP owners | Air Source Heat Pump Collaborative",
+      "url": "https://www.mnashp.org/xcel-energys-new-electric-space-heating-rate-reduces-operating-costs-minnesota-ashp-owners",
+      "fetched_at": "2026-11-13T13:56:30.868Z",
+      "cited": 3
+    },
+    {
+      "id": "s26",
+      "title": "Heat Pump Equipment Key Product Criteria | ENERGY STARLockMagnifying Glass IconBack to top",
+      "url": "https://www.energystar.gov/products/air_source_heat_pumps/key-product-criteria",
+      "fetched_at": "2026-11-13T13:56:35.225Z",
+      "cited": 1
+    },
+    {
+      "id": "s27",
+      "title": "https://www.nescaum.org/documents/Heat-Pumps-in-the-Northeast-and-Mid-Atlantic---Costs-and-Market-Trends.pdf",
+      "url": "https://www.nescaum.org/documents/Heat-Pumps-in-the-Northeast-and-Mid-Atlantic---Costs-and-Market-Trends.pdf",
+      "fetched_at": "2026-11-13T13:56:36.661Z",
+      "cited": 8
+    },
+    {
+      "id": "s28",
+      "title": "Radware Bot Manager CaptchaState of MN Logo",
+      "url": "http://validate.perfdrive.com/d5bd5333eafe8b0ccd6023ba818d1aa6/?ssa=d0f6a665-5bab-4706-ac0c-635496e0ebb6&ssb=06957200576&ssc=https%3A%2F%2Fmn.gov%2Fcommerce%2Fenergy%2Fconsumer%2Fenergy-programs%2Fheat-pump.jsp&ssi=62d519dd-bf56-4e34-b70f-83aaade2f588&ssk=support@shieldsquare.com&ssm=99261636808072571107690796117848&ssn=dded4cbaed21f4f51bf0a512a1eaeb924baee08cf610-166d-446c-95c588&sso=fd766aa5-824efbc1dc19381e4be2af63714be345cc6a34014ba6e236&ssp=96813205951794504962179455709984819&ssq=77606507819071417307578190285711891821810&ssr=NzEuMTg3LjExNi4xNjY=&sst=Mozilla/5.0%20(Macintosh;%20Intel%20Mac%20OS%20X%2010_15_7)%20AppleWebKit/537.36%20(KHTML,%20like%20Gecko)%20HeadlessChrome/151.0.7922.34%20Safari/537.36&ssu=&ssv=&ssw=&ssx=W10=",
+      "fetched_at": "2026-11-13T13:56:38.687Z",
+      "cited": 0
+    },
+    {
+      "id": "s29",
+      "title": "https://es-static-prod.s3.amazonaws.com/assets/data/EnergySage_Electrification_Contractor_Survey_2024.pdf",
+      "url": "https://es-static-prod.s3.amazonaws.com/assets/data/EnergySage_Electrification_Contractor_Survey_2024.pdf",
+      "fetched_at": "2026-11-13T13:56:39.720Z",
+      "cited": 0
+    },
+    {
+      "id": "s30",
+      "title": "Field Assessment of Ducted and Ductless Cold Climate Air Source Heat Pumps",
+      "url": "https://www.mncee.org/sites/default/files/report-files/Field-Assessment-of-Ducted-and-Ductless-Cold-Climate-Air-Source-Heat-Pumps.pdf",
+      "fetched_at": "2026-11-13T13:56:41.586Z",
+      "cited": 6
+    },
+    {
+      "id": "s31",
+      "title": "https://www.xcelenergy.com/staticfiles/xe-responsive/Working%20With%20Us/24-1-201%20MN%20Res%20Rebate%20Summary%20Information%20Sheet.pdf",
+      "url": "https://www.xcelenergy.com/staticfiles/xe-responsive/Working%20With%20Us/24-1-201%20MN%20Res%20Rebate%20Summary%20Information%20Sheet.pdf",
+      "fetched_at": "2026-11-13T13:56:46.202Z",
+      "cited": 10
+    },
+    {
+      "id": "s32",
+      "title": "NREL Field Validation of Air-Source Heat Pumps for Cold Climates 2021-2023 | Heat Pump DatabaseLock",
+      "url": "https://heatpumpdata.energy.gov/data/studies/nrel-field-validation-air-source-heat-pumps-cold-climates-2021-2023",
+      "fetched_at": "2026-11-13T13:56:51.740Z",
+      "cited": 0
+    },
+    {
+      "id": "s33",
+      "title": "PowerPoint Presentation",
+      "url": "https://www.otpco.com/media/ldzlhbz3/getting-the-most-out-of-ashps-in-our-cold-climate-spring-2024-edition.pdf",
+      "fetched_at": "2026-11-13T13:56:54.991Z",
+      "cited": 0
+    },
+    {
+      "id": "s34",
+      "title": "Heat Pumps | Residential Services | Xcel Energy",
+      "url": "https://mn.my.xcelenergy.com/s/residential/heating-cooling/heat-pumps",
+      "fetched_at": "2026-11-13T13:56:56.462Z",
+      "cited": 2
+    },
+    {
+      "id": "s35",
+      "title": "https://assets.centerpointenergy.com/api/public/content/2026-mn-residential-air-source-heat-pump-rebate-form-2026-mn-residential-air-source-heat-pump-rebate-form?v=038746d4",
+      "url": "https://assets.centerpointenergy.com/api/public/content/2026-mn-residential-air-source-heat-pump-rebate-form-2026-mn-residential-air-source-heat-pump-rebate-form?v=038746d4",
+      "fetched_at": "2026-11-13T13:57:02.833Z",
+      "cited": 3
+    },
+    {
+      "id": "s36",
+      "title": "Minnesota Heat Pump Rebates (2026) | Heat Pump Network",
+      "url": "https://heatpumpnetwork.com/incentives/minnesota",
+      "fetched_at": "2026-11-13T13:57:03.080Z",
+      "cited": 0
+    },
+    {
+      "id": "s37",
+      "title": "Cold Climate Heat Pumps: Cost and Carbon Calculator | Center for Energy and Environment",
+      "url": "https://www.mncee.org/cold-climate-heat-pumps-cost-and-carbon-calculator",
+      "fetched_at": "2026-11-13T13:57:05.771Z",
+      "cited": 0
+    },
+    {
+      "id": "s38",
+      "title": "Field Assessment of Ducted and Ductless Cold Climate Air Source Heat Pumps | Center for Energy and Environment",
+      "url": "https://www.mncee.org/field-assessment-ducted-and-ductless-cold-climate-air-source-heat-pumps",
+      "fetched_at": "2026-11-13T13:57:06.217Z",
+      "cited": 0
+    },
+    {
+      "id": "s39",
+      "title": "https://www.energy.gov/documents/program-notice-26-2",
+      "url": "https://www.energy.gov/documents/program-notice-26-2",
+      "fetched_at": "2026-11-13T13:57:06.372Z",
+      "cited": 1
+    },
+    {
+      "id": "s40",
+      "title": "Minnesota Heat Pump Rebates 2026: $2,000\u2013$14,000+ Xcel + CenterPoint + HEAR | Home Energy Basics",
+      "url": "https://homeenergybasics.com/heat-pumps/states/mn",
+      "fetched_at": "2026-11-13T13:57:06.597Z",
+      "cited": 5
+    },
+    {
+      "id": "s41",
+      "title": "Field Validation of Air-Source Heat Pumps for Cold Climates",
+      "url": "https://docs.nlr.gov/docs/fy23osti/84745.pdf",
+      "fetched_at": "2026-11-13T13:57:14.344Z",
+      "cited": 3
+    },
+    {
+      "id": "s42",
+      "title": "Heat pumps for all? Distributions of the costs and benefits of residential air-source heat pumps in the United States",
+      "url": "https://icc.illinois.gov/api/web-management/documents/downloads/public/future-of-gas/Wilson%202024%20Heat%20Pumps%20for%20All%20Report.pdf",
+      "fetched_at": "2026-11-13T13:57:15.786Z",
+      "cited": 6
+    },
+    {
+      "id": "s43",
+      "title": "ASHP Rebates - Minnesota Power is an ALLETE Company",
+      "url": "https://www.mnpower.com/ProgramsRebates/ASHPRebates",
+      "fetched_at": "2026-11-13T13:57:18.689Z",
+      "cited": 0
+    },
+    {
+      "id": "s44",
+      "title": "Residential Energy Efficiency Rebates - City of MinneapolisEligibility Check",
+      "url": "https://www.minneapolismn.gov/government/programs-initiatives/environmental-programs/green-cost-share/energy-efficiency/energy-rebates/",
+      "fetched_at": "2026-11-13T13:57:22.031Z",
+      "cited": 1
+    },
+    {
+      "id": "s45",
+      "title": "Minneapolis Bonus Rebates | Efficiency Funds Available | CEE",
+      "url": "https://www.mncee.org/minneapolis-bonus-rebate-program",
+      "fetched_at": "2026-11-13T13:57:22.240Z",
+      "cited": 6
+    },
+    {
+      "id": "s46",
+      "title": "2nd Advisory Committee Meeting",
+      "url": "https://neep.org/sites/default/files/media-files/residential_ccashp_building_electrification_study_cadmus_final_031022_public.pdf",
+      "fetched_at": "2026-11-13T13:57:24.353Z",
+      "cited": 6
+    },
+    {
+      "id": "s47",
+      "title": "Radware Bot Manager CaptchaState of MN Logo",
+      "url": "http://validate.perfdrive.com/d5bd5333eafe8b0ccd6023ba818d1aa6/?ssa=925c9f27-ba24-44d5-97d0-e2416624e5f9&ssb=40343252080&ssc=https%3A%2F%2Fmn.gov%2Fcommerce%2Fenergy%2Fconsumer%2Fenergy-assistance%2Fweatherization%2F&ssi=e2822420-bf56-46ca-8e39-42b756c2f854&ssk=support@shieldsquare.com&ssm=95131501030784651108941008353370&ssn=99a727e00c5b61325c09d74f4ca1ef8044ba4cb0e1fc-dd75-43d0-8b4241&sso=65a16ee6-c21d186068bdb35e0e73b6ba3701281b75a719e2072984ec&ssp=64484850941794531350179457161721566&ssq=99339437825512897551878255874375994233490&ssr=NzEuMTg3LjExNi4xNjY=&sst=Mozilla/5.0%20(Macintosh;%20Intel%20Mac%20OS%20X%2010_15_7)%20AppleWebKit/537.36%20(KHTML,%20like%20Gecko)%20Chrome/126.0%20Safari/537.36&ssu=&ssv=&ssw=&ssx=W10=",
+      "fetched_at": "2026-11-13T13:57:36.099Z",
+      "cited": 0
+    },
+    {
+      "id": "s48",
+      "title": "Advocating for energy efficiency, equity, electrification in 2027-2029 ECO Triennials - Fresh Energy",
+      "url": "https://fresh-energy.org/advocating-for-energy-efficiency-equity-electrification-in-2027-2029-eco-triennials",
+      "fetched_at": "2026-11-13T13:57:40.119Z",
+      "cited": 1
+    },
+    {
+      "id": "s49",
+      "title": "Energy Wise Rebates \u2013 Dakota Electric Association\u00ae",
+      "url": "https://www.dakotaelectric.com/member-services/programs-rebates/for-your-home/energy-wise-rebates/",
+      "fetched_at": "2026-11-13T13:57:40.829Z",
+      "cited": 0
+    },
+    {
+      "id": "s50",
+      "title": "NullObject",
+      "url": "https://etkhpcorderapi.extweb.sp.se/api/file/3187",
+      "fetched_at": "2026-11-13T13:57:45.722Z",
+      "cited": 4
+    },
+    {
+      "id": "s51",
+      "title": "Cooling and Heating Season Performance Assessment of a cold climate air source heat pump at the Canadian Centre for Housing Technology - Natural Resources Canada",
+      "url": "https://natural-resources.canada.ca/maps-tools-publications/publications/cooling-heating-season-performance-assessment-cold-climate-air-source-heat-pump-canadian-centre-housing-technology",
+      "fetched_at": "2026-11-13T13:57:45.934Z",
+      "cited": 4
+    },
+    {
+      "id": "s52",
+      "title": "Cost of Heat Comparison | Air Source Heat Pump Collaborative",
+      "url": "https://www.mnashp.org/cost-of-heat-comparison-2",
+      "fetched_at": "2026-11-13T13:57:46.821Z",
+      "cited": 3
+    },
+    {
+      "id": "s53",
+      "title": "Costs and Emissions Calculator: Heat pumps as an alternative for Minnesotans | Center for Energy and Environment",
+      "url": "https://www.mncee.org/costs-and-emissions-calculator-heat-pumps-alternative-minnesotans",
+      "fetched_at": "2026-11-13T13:57:47.188Z",
+      "cited": 0
+    },
+    {
+      "id": "s54",
+      "title": "How Much Does a Heat Pump Cost in 2025? | EnergySageEnergySageEnergySage",
+      "url": "https://www.energysage.com/heat-pumps/costs-and-benefits-air-source-heat-pumps/",
+      "fetched_at": "2026-11-13T13:57:48.381Z",
+      "cited": 5
+    },
+    {
+      "id": "s55",
+      "title": "Upfront Cost of Home Electrification | Rewiring America",
+      "url": "https://www.rewiringamerica.org/research/home-electrification-cost-estimates",
+      "fetched_at": "2026-11-13T13:58:07.049Z",
+      "cited": 3
+    },
+    {
+      "id": "s56",
+      "title": "Residential Heating and Cooling | Air Source Heat Pumps | Ground Source Heat Pumps | Wi-Fi Thermostats | Dual Fuel | Off Peak Programs",
+      "url": "https://www.connexusenergy.com/residential/save-money-and-energy/rebates-and-programs/heating-and-cooling",
+      "fetched_at": "2026-11-13T13:58:07.132Z",
+      "cited": 0
+    },
+    {
+      "id": "s57",
+      "title": "Electrical Panel Home Electrification - Rewiring America | Rewiring America Electrification Planner",
+      "url": "https://homes.rewiringamerica.org/projects/electrical-panel-homeowner",
+      "fetched_at": "2026-11-13T13:58:08.130Z",
+      "cited": 1
+    },
+    {
+      "id": "s58",
+      "title": "Residential Rates | Electric Rate Book | Connexus Energy | Ramsey, MN",
+      "url": "https://www.connexusenergy.com/residential/billing-and-rates/rates-and-conditions",
+      "fetched_at": "2026-11-13T13:58:08.843Z",
+      "cited": 0
+    },
+    {
+      "id": "s59",
+      "title": "Bosch IDS Ultra Series Condensing Unit Product Specifications",
+      "url": "https://www.sidharvey.com/documents/BOVA-SERIES-Spec.pdf",
+      "fetched_at": "2026-11-13T13:58:15.085Z",
+      "cited": 8
+    },
+    {
+      "id": "s60",
+      "title": "2026 Furnace Replacement Cost Guide: Updated Prices by Size & Brand",
+      "url": "https://modernize.com/hvac/furnace",
+      "fetched_at": "2026-11-13T13:58:17.822Z",
+      "cited": 2
+    },
+    {
+      "id": "s61",
+      "title": "How Much Does a Heat Pump in Minnesota Cost? 2026 Prices",
+      "url": "https://modernize.com/hvac/heating-repair-installation/heat-pump/minnesota",
+      "fetched_at": "2026-11-13T13:58:17.938Z",
+      "cited": 2
+    },
+    {
+      "id": "s62",
+      "title": "Minnesota gas rates and tariffs | CenterPoint Energyclose icon",
+      "url": "https://www.centerpointenergy.com/en-us/our-services/rates-tariffs/minnesota",
+      "fetched_at": "2026-11-13T13:58:29.571Z",
+      "cited": 0
+    },
+    {
+      "id": "s63",
+      "title": "https://assets.centerpointenergy.com/api/public/content/2026-mn-rates-rights-tariff-book.pdf?v=0d580891",
+      "url": "https://assets.centerpointenergy.com/api/public/content/2026-mn-rates-rights-tariff-book.pdf?v=0d580891",
+      "fetched_at": "2026-11-13T13:58:37.193Z",
+      "cited": 2
+    },
+    {
+      "id": "s64",
+      "title": "Minnesota Electricity Profile 2024 - U.S. Energy Information Administration (EIA)",
+      "url": "https://www.eia.gov/electricity/state/minnesota/",
+      "fetched_at": "2026-11-13T13:58:43.744Z",
+      "cited": 1
+    },
+    {
+      "id": "s65",
+      "title": "Electric Power Monthly with data for December 2025",
+      "url": "https://www.eia.gov/electricity/monthly/archive/february2026.pdf",
+      "fetched_at": "2026-11-13T13:59:06.156Z",
+      "cited": 8
+    },
+    {
+      "id": "s66",
+      "title": "British thermal units (Btu) - U.S. Energy Information Administration (EIA)",
+      "url": "https://www.eia.gov/energyexplained/units-and-calculators/british-thermal-units.php",
+      "fetched_at": "2026-11-13T13:59:18.594Z",
+      "cited": 4
+    }
+  ]
+}

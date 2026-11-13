@@ -54,6 +54,10 @@ async def t_fetch_source(studio, project_id, args):
     sources = Sources(_workspace(studio, project_id))
     render, fetched = bool(args.get("render")), None
     saved = None if args.get("refresh") else await asyncio.to_thread(sources.by_url, url)
+    # Listed, but its text is not in the project (a copy of an example): fetch it again under its own id.
+    restore = saved["id"] if saved is not None and not sources.has_text(saved) else None
+    if restore:
+        saved = None
     if saved is not None:  # no download and no text again: the agent already has this one
         return {"id": saved["id"], "title": saved["title"], "url": saved.get("url"), "kind": saved["kind"],
                 "chars": saved["chars"], "saved": saved["path"], "already_saved": True,
@@ -76,14 +80,17 @@ async def t_fetch_source(studio, project_id, args):
             raise ToolError(f"The browser could not load {url} ({' '.join(str(exc).split())[:200]}).") from None
         title, text = html_to_text(markup)
         item, created = await asyncio.to_thread(sources.save, text=text, title=title, kind="html", url=final,
-                                                requested=url)
+                                                requested=url, into=restore)
     else:
         data, content_type, final = fetched
         kind, title, text, pages = await asyncio.to_thread(extract, data, content_type, final)
         item, created = await asyncio.to_thread(
             sources.save, text=text, title=title, kind=kind, url=final, pages=pages, requested=url,
-            original=data if kind == "pdf" else None, original_ext=".pdf" if kind == "pdf" else "")
-    return _source_view(item, created, sources.text(item["id"]), max_chars)
+            original=data if kind == "pdf" else None, original_ext=".pdf" if kind == "pdf" else "", into=restore)
+    view = _source_view(item, created, sources.text(item["id"]), max_chars)
+    if restore and item["id"] == restore:
+        view["restored"] = True      # the text was missing and is back under the id the page already cites
+    return view
 
 
 async def t_read_source(studio, project_id, args):

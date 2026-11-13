@@ -1,0 +1,119 @@
+{
+  "page": "index.html",
+  "checked_at": "2026-11-13T15:57:27.359Z",
+  "summary": {
+    "verified": 4,
+    "derived": 0,
+    "failed": 0,
+    "unmarked_numbers": 2,
+    "sources_cited": 3,
+    "sources_unused": 2
+  },
+  "items": [
+    {
+      "n": 1,
+      "text": "95%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "Rating of 95% AFUE or greater for U.S. South gas furnaces",
+      "reason": null,
+      "found": null,
+      "where": "Side by side"
+    },
+    {
+      "n": 2,
+      "text": "97%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "Rating of 97% AFUE or greater for U.S. North gas furnaces",
+      "reason": null,
+      "found": null,
+      "where": "Side by side"
+    },
+    {
+      "n": 3,
+      "text": "75%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s5"
+      ],
+      "quote": "reduce your electricity use for heating by up to 75% compared to electric resistance heating",
+      "reason": null,
+      "found": null,
+      "where": "Side by side"
+    },
+    {
+      "n": 4,
+      "text": "\u201cabout half\u201d the energy",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s1"
+      ],
+      "quote": "A heat pump typically uses about half the energy of other electric home-heating sources",
+      "reason": null,
+      "found": null,
+      "where": "Side by side"
+    }
+  ],
+  "unmarked": [
+    {
+      "text": "November 2026 \u00b7 United States figures",
+      "numbers": [
+        "26"
+      ],
+      "where": "Heating a home: gas furnace, heat pump or electric baseboard"
+    },
+    {
+      "text": "U.S. Department of Energy, \u201cHeat Pump Systems\u201d (Energy Saver; archived copy, Dec 2024). web.archive.org \u00b7 saved 13 Nov 2026",
+      "numbers": [
+        "24"
+      ],
+      "where": "Sources"
+    }
+  ],
+  "sources": [
+    {
+      "id": "s1",
+      "title": "Heat Pumps | US EPALockPrimary navigationOpen Sidenav MenuClose Sidenav Menu",
+      "url": "https://www.epa.gov/burnwise/heat-pumps",
+      "fetched_at": "2026-11-13T15:55:10.144Z",
+      "cited": 1
+    },
+    {
+      "id": "s2",
+      "title": "Furnaces Key Product Criteria | ENERGY STARLockMagnifying Glass IconBack to top",
+      "url": "https://www.energystar.gov/products/furnaces/key_product_criteria",
+      "fetched_at": "2026-11-13T15:55:16.298Z",
+      "cited": 2
+    },
+    {
+      "id": "s3",
+      "title": "Department of EnergyLock",
+      "url": "https://www.energy.gov/energysaver/electric-resistance-heating",
+      "fetched_at": "2026-11-13T15:55:22.060Z",
+      "cited": 0
+    },
+    {
+      "id": "s4",
+      "title": "ERROR: The request could not be satisfied",
+      "url": "https://web.archive.org/web/20241230195214/https://www.energy.gov/energysaver/electric-resistance-heating",
+      "fetched_at": "2026-11-13T15:55:39.668Z",
+      "cited": 0
+    },
+    {
+      "id": "s5",
+      "title": "Heat Pump Systems | Department of EnergyLock(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)",
+      "url": "https://web.archive.org/web/20241231180018/https://www.energy.gov/energysaver/heat-pump-systems",
+      "fetched_at": "2026-11-13T15:56:17.400Z",
+      "cited": 1
+    }
+  ]
+}

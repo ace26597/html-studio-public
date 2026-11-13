@@ -1,0 +1,160 @@
+{
+  "sources": [
+    {
+      "id": "s1",
+      "url": "https://openai.com/index/unrolling-the-codex-agent-loop/",
+      "path": "sources/s1.txt",
+      "original": null,
+      "title": "Just a moment...",
+      "kind": "html",
+      "fetched_at": "2026-11-11T21:52:13.269Z",
+      "chars": 58,
+      "sha256": "f0bd01791d8dd4e543fa47ec34791c1fa81362296cdec13269c455f4557a9642",
+      "pages": null
+    },
+    {
+      "id": "s2",
+      "url": "https://code.claude.com/docs/en/agent-sdk/agent-loop",
+      "path": "sources/s2.txt",
+      "original": null,
+      "title": "How the agent loop works - Claude Code Docs",
+      "kind": "html",
+      "fetched_at": "2026-11-11T21:52:13.508Z",
+      "chars": 34401,
+      "sha256": "3cd5c30849df49ad745138aa340ce70b233bedd700d688cb4da493beea7f7f0c",
+      "pages": null
+    },
+    {
+      "id": "s3",
+      "url": "https://github.com/can1357/oh-my-pi",
+      "path": "sources/s3.txt",
+      "original": null,
+      "title": "GitHub - can1357/oh-my-pi: \u2325 Coding agent with the IDE wired in. Built by Stencil Labs. \u00b7 GitHub",
+      "kind": "html",
+      "fetched_at": "2026-11-11T21:52:14.210Z",
+      "chars": 38011,
+      "sha256": "bb8e362ae8c48a53ad7da88ff9e1cef5a9c682c1e9e6e990e08cb40dfd50812f",
+      "pages": null
+    },
+    {
+      "id": "s4",
+      "url": "https://api-docs.deepseek.com/guides/anthropic_api/",
+      "path": "sources/s4.txt",
+      "original": null,
+      "title": "Using the Anthropic API | DeepSeek API Docs",
+      "kind": "html",
+      "fetched_at": "2026-11-11T21:52:15.258Z",
+      "chars": 11027,
+      "sha256": "b20e31075b0eb690643b4ceafda7f94fb63bc03755980906c862c11670c84d71",
+      "pages": null
+    },
+    {
+      "id": "s5",
+      "url": "https://www.anthropic.com/research/building-effective-agents",
+      "path": "sources/s5.txt",
+      "original": null,
+      "title": "Building effective AI agents \\ Anthropic",
+      "kind": "html",
+      "fetched_at": "2026-11-11T21:52:15.513Z",
+      "chars": 18925,
+      "sha256": "3abc9c29103d7d54cb54e1bfce5e28958cd98f32ee32bbec6eafba3287847a34",
+      "pages": null
+    },
+    {
+      "id": "s6",
+      "url": "https://mariozechner.at/posts/2025-11-30-pi-coding-agent/",
+      "path": "sources/s6.txt",
+      "original": null,
+      "title": "What I learned building an opinionated and minimal coding agent",
+      "kind": "html",
+      "fetched_at": "2026-11-11T21:52:31.484Z",
+      "chars": 41335,
+      "sha256": "4d86bc15c435e9f4f72c2bb6617cfdb5b9dee7f150f42e99bc0681ec1e613d20",
+      "pages": null
+    },
+    {
+      "id": "s7",
+      "url": "https://github.com/openai/codex",
+      "path": "sources/s7.txt",
+      "original": null,
+      "title": "GitHub - openai/codex: Lightweight coding agent that runs in your terminal \u00b7 GitHub",
+      "kind": "html",
+      "fetched_at": "2026-11-11T21:52:31.922Z",
+      "chars": 6707,
+      "sha256": "7569bcbaffb91cddaea52d4c3d6b14f5b8a75110db9a90a0b6c0424af4beab30",
+      "pages": null
+    },
+    {
+      "id": "s8",
+      "url": "https://ampcode.com/notes/how-to-build-an-agent",
+      "path": "sources/s8.txt",
+      "original": null,
+      "title": "How to Build an Agent - Amp",
+      "kind": "html",
+      "fetched_at": "2026-11-11T21:52:32.155Z",
+      "chars": 35094,
+      "sha256": "d482ff1e2ded90dd2ba8955d4be80aeca5f7bc6fed930a62d89fa7d4102eaf79",
+      "pages": null
+    },
+    {
+      "id": "s9",
+      "url": "https://modelcontextprotocol.io/docs/2026-07-28/getting-started/intro",
+      "path": "sources/s9.txt",
+      "original": null,
+      "title": "What is the Model Context Protocol (MCP)? - Model Context Protocol",
+      "kind": "html",
+      "fetched_at": "2026-11-11T21:52:32.487Z",
+      "chars": 3106,
+      "sha256": "6f5ed39ac622e30dbcc7097e2fe06d1b300dac50cac84a85c52ab99ebbd1dc91",
+      "pages": null
+    },
+    {
+      "id": "s10",
+      "url": "https://www.engineering.fyi/article/unrolling-the-codex-agent-loop",
+      "path": "sources/s10.txt",
+      "original": null,
+      "title": "Unrolling the Codex agent loop | OpenAI Engineering Blog | Engineering.fyi",
+      "kind": "html",
+      "fetched_at": "2026-11-11T21:52:38.841Z",
+      "chars": 13859,
+      "sha256": "f2d9ba5648bfcbd2a94bdeff72bdeabf6c8ad57304c8722978fbb019aa6d636a",
+      "pages": null
+    },
+    {
+      "id": "s11",
+      "url": "https://www.anthropic.com/research/effective-harnesses-for-long-running-agents",
+      "path": "sources/s11.txt",
+      "original": null,
+      "title": "Effective harnesses for long-running agents \\ Anthropic",
+      "kind": "html",
+      "fetched_at": "2026-11-11T21:52:39.192Z",
+      "chars": 13609,
+      "sha256": "15f5cde0646ed88f78721f4d3294803b6a221b3418db256022caed1b6e691398",
+      "pages": null
+    },
+    {
+      "id": "s12",
+      "url": "https://learn.chatgpt.com/docs/security",
+      "path": "sources/s12.txt",
+      "original": null,
+      "title": "Codex Security | ChatGPT Learn",
+      "kind": "html",
+      "fetched_at": "2026-11-11T21:52:39.437Z",
+      "chars": 16026,
+      "sha256": "812ec7ffef29fd7d6df68e3dde833ebd9e9309867a3c57deddef685c336e34b9",
+      "pages": null
+    },
+    {
+      "id": "s13",
+      "url": "https://api-docs.deepseek.com/guides/tool_calls/",
+      "path": "sources/s13.txt",
+      "original": null,
+      "title": "Tool Calls | DeepSeek API Docs",
+      "kind": "html",
+      "fetched_at": "2026-11-11T21:52:40.947Z",
+      "chars": 8542,
+      "sha256": "640ff659c904a962f8acb76f7c86b8dbace2da0d1d3a97167b4a7269b76ee690",
+      "pages": null
+    }
+  ]
+}

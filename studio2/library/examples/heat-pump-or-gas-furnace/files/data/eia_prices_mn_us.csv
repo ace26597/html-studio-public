@@ -1,0 +1,31 @@
+series,geography,period,value,unit,status,source_id,source_table
+residential_electricity_price,Minnesota,2025 annual (YTD through Dec 2025),15.82,cents/kWh,preliminary (Feb 2026 EPM),s65,EPM Table 5.6.B Feb 2026 issue
+residential_electricity_price,Minnesota,2024 annual,15.45,cents/kWh,final,s65,EPM Table 5.6.B Feb 2026 issue
+residential_electricity_price,US,2025 annual (YTD through Dec 2025),17.30,cents/kWh,preliminary (Feb 2026 EPM),s65,EPM Table 5.6.B Feb 2026 issue
+residential_electricity_price,US,2024 annual,16.48,cents/kWh,final,s65,EPM Table 5.6.B Feb 2026 issue
+residential_electricity_price,Minnesota,YTD Jan-Aug 2026,16.44,cents/kWh,preliminary,s12,EPM Table 5.6.B Oct 2026 issue
+residential_electricity_price,Minnesota,YTD Jan-Aug 2025,15.78,cents/kWh,final,s12,EPM Table 5.6.B Oct 2026 issue
+residential_electricity_price,US,YTD Jan-Aug 2026,18.19,cents/kWh,preliminary,s12,EPM Table 5.6.B Oct 2026 issue
+residential_electricity_price,US,YTD Jan-Aug 2025,17.03,cents/kWh,final,s12,EPM Table 5.6.B Oct 2026 issue
+residential_electricity_price,Minnesota,Aug 2026,17.20,cents/kWh,preliminary,s4,EPM Table 5.6.A Oct 2026 issue
+residential_electricity_price,US,Aug 2026,18.16,cents/kWh,preliminary,s4,EPM Table 5.6.A Oct 2026 issue
+residential_natural_gas_price,Minnesota,2025 annual,10.98,$/Mcf,EIA release 10/30/2026,s5,N3010MN3 annual
+residential_natural_gas_price,Minnesota,2024 annual,10.65,$/Mcf,EIA release 10/30/2026,s5,N3010MN3 annual
+residential_natural_gas_price,Minnesota,2023 annual,11.95,$/Mcf,EIA release 10/30/2026,s5,N3010MN3 annual
+residential_natural_gas_price,Minnesota,2022 annual,12.12,$/Mcf,EIA release 10/30/2026,s5,N3010MN3 annual
+residential_natural_gas_price,US,2025 annual,15.34,$/Mcf,EIA release 10/30/2026,s8,N3010US3 annual
+residential_natural_gas_price,US,2024 annual,14.50,$/Mcf,EIA release 10/30/2026,s8,N3010US3 annual
+residential_natural_gas_price,Minnesota,Sep 2025,16.07,$/Mcf,monthly,s13,N3010MN3 monthly
+residential_natural_gas_price,Minnesota,Oct 2025,10.04,$/Mcf,monthly,s13,N3010MN3 monthly
+residential_natural_gas_price,Minnesota,Nov 2025,7.99,$/Mcf,monthly,s13,N3010MN3 monthly
+residential_natural_gas_price,Minnesota,Dec 2025,9.43,$/Mcf,monthly,s13,N3010MN3 monthly
+residential_natural_gas_price,Minnesota,Jan 2026,11.17,$/Mcf,monthly,s13,N3010MN3 monthly
+residential_natural_gas_price,Minnesota,Feb 2026,13.03,$/Mcf,monthly,s13,N3010MN3 monthly
+residential_natural_gas_price,Minnesota,Mar 2026,12.24,$/Mcf,monthly,s13,N3010MN3 monthly
+residential_natural_gas_price,Minnesota,Apr 2026,10.70,$/Mcf,monthly,s13,N3010MN3 monthly
+residential_natural_gas_price,Minnesota,May 2026,12.13,$/Mcf,monthly,s13,N3010MN3 monthly
+residential_natural_gas_price,Minnesota,Jun 2026,14.79,$/Mcf,monthly,s13,N3010MN3 monthly
+residential_natural_gas_price,Minnesota,Jul 2026,17.28,$/Mcf,monthly,s13,N3010MN3 monthly
+residential_natural_gas_price,Minnesota,Aug 2026,18.06,$/Mcf,monthly,s13,N3010MN3 monthly
+heat_content_natural_gas_consumed,Minnesota,2025,1055,Btu/cf,annual,s14,Heat Content of Natural Gas Consumed
+heat_content_natural_gas_consumed,US,2025,1036,Btu/cf,annual,s14,Heat Content of Natural Gas Consumed

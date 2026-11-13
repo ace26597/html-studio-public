@@ -1,0 +1,73 @@
+{
+  "sources": [
+    {
+      "id": "s1",
+      "url": "https://www.epa.gov/burnwise/heat-pumps",
+      "path": "sources/s1.txt",
+      "original": null,
+      "title": "Heat Pumps | US EPALockPrimary navigationOpen Sidenav MenuClose Sidenav Menu",
+      "kind": "html",
+      "fetched_at": "2026-11-13T15:55:10.144Z",
+      "chars": 6432,
+      "sha256": "492779aceb7f834aa844324cd3082dff21e4e4e4e9b990137bac432dd8db7995",
+      "pages": null
+    },
+    {
+      "id": "s2",
+      "url": "https://www.energystar.gov/products/furnaces/key_product_criteria",
+      "path": "sources/s2.txt",
+      "original": null,
+      "title": "Furnaces Key Product Criteria | ENERGY STARLockMagnifying Glass IconBack to top",
+      "kind": "html",
+      "fetched_at": "2026-11-13T15:55:16.298Z",
+      "chars": 3905,
+      "sha256": "f5f99f96b3df5415e6a8abe608d2bc9f8ba35baab6cf81d7d45ca2e3f12f7b54",
+      "pages": null
+    },
+    {
+      "id": "s3",
+      "url": "https://www.energy.gov/energysaver/electric-resistance-heating",
+      "path": "sources/s3.txt",
+      "original": null,
+      "title": "Department of EnergyLock",
+      "kind": "html",
+      "fetched_at": "2026-11-13T15:55:22.060Z",
+      "chars": 4935,
+      "sha256": "ce0c27cdaf68d8292afdaefaa8ef9fe7f6e0b0cbc9592cb7371c101abcc94e42",
+      "pages": null,
+      "asked": [
+        "https://www.energy.gov/energysaver/articles/electric-resistance-heating"
+      ]
+    },
+    {
+      "id": "s4",
+      "url": "https://web.archive.org/web/20241230195214/https://www.energy.gov/energysaver/electric-resistance-heating",
+      "path": "sources/s4.txt",
+      "original": null,
+      "title": "ERROR: The request could not be satisfied",
+      "kind": "html",
+      "fetched_at": "2026-11-13T15:55:39.668Z",
+      "chars": 644,
+      "sha256": "49f925beda2129f09568fdde0f659933c0e084f8624f62da81eb62befc585f33",
+      "pages": null,
+      "asked": [
+        "https://web.archive.org/web/2024/https://www.energy.gov/energysaver/electric-resistance-heating"
+      ]
+    },
+    {
+      "id": "s5",
+      "url": "https://web.archive.org/web/20241231180018/https://www.energy.gov/energysaver/heat-pump-systems",
+      "path": "sources/s5.txt",
+      "original": null,
+      "title": "Heat Pump Systems | Department of EnergyLock(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)(link is external)",
+      "kind": "html",
+      "fetched_at": "2026-11-13T15:56:17.400Z",
+      "chars": 12620,
+      "sha256": "e9d1428b7771c585b6cb17655e76c86eef436cab903bf4fdd67f5bcba937e515",
+      "pages": null,
+      "asked": [
+        "https://web.archive.org/web/2024/https://www.energy.gov/energysaver/heat-pump-systems"
+      ]
+    }
+  ]
+}

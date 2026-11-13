@@ -24,6 +24,8 @@ export interface Project {
   data_sources?: string[];
   /** The template this project follows (its files are in `template/`), or null. */
   uses_template?: { id: string; label: string; kind: string } | null;
+  /** The example that comes with the studio this project is a copy of. */
+  from_example?: string | null;
   /** Step 3: only the person's deviations from the default skills / MCP servers. */
   library?: { skills: Record<string, boolean>; mcp_servers: Record<string, boolean> };
   /** Step 3k: where an app brought in by its folder came from; null otherwise. */

@@ -1,0 +1,16 @@
+{
+ "title": "Home heating compared (Quick)",
+ "summary": "The same kind of question answered on Quick: a short page comparing three ways to heat a home, from a handful of sources.",
+ "kind": "report",
+ "order": 30,
+ "made": {
+  "model": "opus",
+  "date": "2026-11-13",
+  "requests": 1,
+  "duration_s": 195,
+  "depth": "quick",
+  "request": "A one-page comparison of the three main ways to heat a home: gas furnace, heat pump, electric baseboard. Short."
+ },
+ "sources": 5,
+ "check": null
+}

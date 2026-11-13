@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Earthquakes M2.5+ — past week (USGS)</title>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f7f5; --card: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --line: #e3e3e0;
+    --accent: #c2410c; --grid: #ececea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121214; --card: #1c1c1f; --text: #ececee; --muted: #9a9aa2; --line: #2c2c30;
+            --accent: #fb923c; --grid: #2a2a2e; }
+  }
+  html { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.5; }
+  body { margin: 0; background: var(--bg); color: var(--text); }
+  main { max-width: 76rem; margin: 0 auto; padding: 2.5rem 2rem 4rem; }
+  h1 { font-size: 1.9rem; margin: 0 0 .3rem; letter-spacing: -.01em; }
+  h2 { font-size: 1.05rem; margin: 0 0 .2rem; }
+  .sub { color: var(--muted); margin: 0 0 1.5rem; max-width: 60rem; }
+  .note { color: var(--muted); font-size: .85rem; margin: 0 0 .6rem; }
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1rem; margin-bottom: 1rem; }
+  .kpi, .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+  .kpi { padding: 1rem 1.1rem; }
+  .kpi .v { font-size: 1.75rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .kpi .l { color: var(--muted); font-size: .85rem; }
+  .card { padding: 1.1rem 1.2rem; margin-bottom: 1rem; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .grid2 .card { margin-bottom: 0; }
+  .row { margin-bottom: 1rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: .45rem .5rem; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
+  td.num, th.num { text-align: right; }
+  a { color: var(--accent); }
+  .bar { display: inline-block; height: .55rem; background: var(--accent); border-radius: 3px; vertical-align: middle; opacity: .8; }
+  footer { color: var(--muted); font-size: .85rem; margin-top: 2rem; }
+  #err { display: none; color: #b91c1c; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Earthquakes of magnitude 2.5+ — past week</h1>
+  <p class="sub" id="summary">Loading…</p>
+  <p id="err"></p>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="card">
+    <h2>Where they happened</h2>
+    <p class="note">Each circle is one event; size and colour scale with magnitude. Hover for details.</p>
+    <div id="map" style="height:500px"></div>
+  </section>
+
+  <div class="grid2 row">
+    <section class="card">
+      <h2>Events per day (UTC)</h2>
+      <p class="note">Stacked by magnitude band. First and last days are partial.</p>
+      <div id="daily" style="height:320px"></div>
+    </section>
+    <section class="card">
+      <h2>Magnitude distribution</h2>
+      <p class="note">Count of events in 0.2-magnitude bins.</p>
+      <div id="hist" style="height:320px"></div>
+    </section>
+  </div>
+
+  <div class="grid2 row">
+    <section class="card">
+      <h2>Depth vs. magnitude</h2>
+      <p class="note">Depth in km below surface (log scale). Deep events cluster in subduction zones.</p>
+      <div id="depth" style="height:340px"></div>
+    </section>
+    <section class="card">
+      <h2>Most active regions</h2>
+      <p class="note">Region = last part of the USGS place name (e.g. state or country); “CA” is merged into California and “Fiji region” / “the Fiji Islands” into Fiji.</p>
+      <table id="regions"></table>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Largest events</h2>
+    <p class="note">Top 10 by magnitude. Links open the USGS event page.</p>
+    <table id="top"></table>
+  </section>
+
+  <footer>
+    Source: <a href="usgs_2.5_week.csv">usgs_2.5_week.csv</a>, the USGS
+    <a href="https://earthquake.usgs.gov/earthquakes/feed/v1.0/csv.php" target="_blank" rel="noopener">“M2.5+ Earthquakes, Past Week” feed</a>
+    (uploaded file). <span id="statusNote"></span>
+  </footer>
+</main>
+
+<script>
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmt = (d) => d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' UTC';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MAGSCALE = [[0,'#fde68a'],[0.35,'#f59e0b'],[0.65,'#dc2626'],[1,'#7f1d1d']];
+const BANDS = [
+  { name: '2.5–3.9', lo: 0, hi: 4, color: '#f5c065' },
+  { name: '4.0–4.9', lo: 4, hi: 5, color: '#e8803a' },
+  { name: '5.0+',    lo: 5, hi: 99, color: '#c0392b' },
+];
+
+function baseLayout(extra = {}) {
+  return Object.assign({
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { family: 'system-ui, -apple-system, Segoe UI, sans-serif', color: css('--text'), size: 12 },
+    margin: { l: 52, r: 12, t: 8, b: 48 },
+    xaxis: { gridcolor: css('--grid'), zerolinecolor: css('--line'), linecolor: css('--line') },
+    yaxis: { gridcolor: css('--grid'), zerolinecolor: css('--line'), linecolor: css('--line') },
+    hoverlabel: { font: { family: 'system-ui' } },
+  }, extra);
+}
+const cfg = { displayModeBar: false, responsive: true };
+
+Papa.parse('usgs_2.5_week.csv', {
+  download: true, header: true, dynamicTyping: true, skipEmptyLines: true,
+  complete: ({ data }) => render(data.filter(r => r.time && r.mag != null)),
+  error: (e) => { const el = document.getElementById('err'); el.style.display = 'block'; el.textContent = 'Could not load the CSV: ' + e; }
+});
+
+function render(rows) {
+  rows.forEach(r => {
+    r.date = new Date(r.time);
+    const p = String(r.place || '');
+    let reg = (p.includes(',') ? p.split(',').pop() : p.replace(/^.*\bof\s+/, '')).trim()
+      .replace(/^the\s+/i, '').replace(/\s+region$/i, '');
+    reg = ({ CA: 'California', MX: 'Mexico', 'Fiji Islands': 'Fiji' })[reg] || reg;
+    r.region = reg || 'Unknown';
+    r.url = `https://earthquake.usgs.gov/earthquakes/eventpage/${r.id}`;
+  });
+  rows.sort((a, b) => a.date - b.date);
+  const n = rows.length;
+  const first = rows[0].date, last = rows[n - 1].date;
+  const mags = rows.map(r => r.mag);
+  const maxR = rows.reduce((a, b) => (b.mag > a.mag ? b : a));
+  const m5 = rows.filter(r => r.mag >= 5).length;
+  const m4 = rows.filter(r => r.mag >= 4).length;
+  const median = [...mags].sort((a, b) => a - b)[Math.floor(n / 2)];
+  const nonQuake = rows.filter(r => r.type !== 'earthquake');
+  const auto = rows.filter(r => r.status === 'automatic').length;
+
+  document.getElementById('summary').innerHTML =
+    `${n} seismic events of magnitude 2.5 or greater were recorded worldwide between ${fmt(first)} and ${fmt(last)}. ` +
+    `The largest was a <strong>M${maxR.mag}</strong> ${esc(maxR.place)} on ${fmt(maxR.date)}. ` +
+    `${m5} events reached M5.0+, and the median magnitude was ${median.toFixed(1)}.`;
+
+  const kpis = [
+    [n, 'Total events'],
+    ['M' + maxR.mag.toFixed(1), 'Largest magnitude'],
+    [m4, 'M4.0 or greater'],
+    [m5, 'M5.0 or greater'],
+    [(n / ((last - first) / 864e5)).toFixed(0), 'Events per day (avg)'],
+  ];
+  document.getElementById('kpis').innerHTML = kpis.map(([v, l]) => `<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+
+  document.getElementById('statusNote').textContent =
+    `${auto} of ${n} events are still “automatic” (not yet reviewed by a seismologist), so locations and magnitudes may change. ` +
+    (nonQuake.length ? `Includes ${nonQuake.length} non-earthquake event(s): ${[...new Set(nonQuake.map(r => r.type))].join(', ')}.` : '');
+
+  // Map
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const byMag = [...rows].sort((a, b) => a.mag - b.mag); // big ones drawn on top
+  Plotly.newPlot('map', [{
+    type: 'scattergeo', mode: 'markers',
+    lon: byMag.map(r => r.longitude), lat: byMag.map(r => r.latitude),
+    text: byMag.map(r => `<b>M${r.mag} ${r.magType}</b><br>${esc(r.place)}<br>${fmt(r.date)}<br>Depth ${r.depth.toFixed(1)} km`),
+    hoverinfo: 'text',
+    marker: {
+      size: byMag.map(r => 3 + Math.pow(r.mag - 2, 1.7) * 2.2),
+      color: byMag.map(r => r.mag), colorscale: MAGSCALE, cmin: 2.5, cmax: 6.5,
+      line: { width: 0.5, color: dark ? '#000' : '#fff' }, opacity: 0.85,
+      colorbar: { title: { text: 'Magnitude', side: 'right' }, thickness: 10, len: 0.7, outlinewidth: 0, tickfont: { color: css('--muted') } },
+    },
+  }], baseLayout({
+    margin: { l: 0, r: 0, t: 0, b: 0 },
+    geo: {
+      projection: { type: 'natural earth' }, showframe: false, bgcolor: 'rgba(0,0,0,0)',
+      showland: true, landcolor: dark ? '#2a2a2e' : '#e9e7e1',
+      showocean: true, oceancolor: dark ? '#17171a' : '#f4f6f8',
+      lataxis: { range: [-80, 90] },
+      showcountries: true, countrycolor: dark ? '#3a3a3f' : '#cfccc4', coastlinecolor: dark ? '#3a3a3f' : '#cfccc4',
+    },
+  }), cfg);
+
+  // Daily stacked
+  const days = [];
+  for (let d = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), first.getUTCDate())); d <= last; d = new Date(d.getTime() + 864e5)) days.push(d.toISOString().slice(0, 10));
+  Plotly.newPlot('daily', BANDS.map(b => ({
+    type: 'bar', name: 'M' + b.name, x: days,
+    y: days.map(day => rows.filter(r => r.date.toISOString().slice(0, 10) === day && r.mag >= b.lo && r.mag < b.hi).length),
+    marker: { color: b.color }, hovertemplate: '%{x}<br>%{y} events<extra>M' + b.name + '</extra>',
+  })), baseLayout({
+    barmode: 'stack', legend: { orientation: 'h', y: 1.12, x: 0 },
+    margin: { l: 48, r: 12, t: 28, b: 40 },
+    xaxis: { ...baseLayout().xaxis, type: 'category',
+             ticktext: days.map(d => new Date(d + 'T00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })), tickvals: days },
+    yaxis: { ...baseLayout().yaxis, title: 'Events' },
+  }), cfg);
+
+  // Histogram
+  Plotly.newPlot('hist', [{
+    type: 'histogram', x: mags, xbins: { start: 2.5, end: 7, size: 0.2 },
+    marker: { color: css('--accent'), line: { color: css('--card'), width: 1 } },
+    hovertemplate: 'M%{x}<br>%{y} events<extra></extra>',
+  }], baseLayout({
+    xaxis: { ...baseLayout().xaxis, title: 'Magnitude', dtick: 0.5 },
+    yaxis: { ...baseLayout().yaxis, title: 'Events' }, bargap: 0.02,
+  }), cfg);
+
+  // Depth vs mag
+  Plotly.newPlot('depth', [{
+    type: 'scatter', mode: 'markers',
+    x: rows.map(r => r.mag), y: rows.map(r => Math.max(r.depth, 0.1)),
+    text: rows.map(r => `${esc(r.place)}<br>M${r.mag}, ${r.depth.toFixed(1)} km`), hoverinfo: 'text',
+    marker: { size: 7, color: rows.map(r => r.mag), colorscale: MAGSCALE, cmin: 2.5, cmax: 6.5, opacity: 0.75, line: { width: 0 } },
+  }], baseLayout({
+    xaxis: { ...baseLayout().xaxis, title: 'Magnitude' },
+    yaxis: { ...baseLayout().yaxis, title: 'Depth (km, log)', type: 'log', autorange: 'reversed',
+             tickvals: [0.1, 1, 10, 100, 1000], ticktext: ['≤0.1', '1', '10', '100', '1000'] },
+  }), cfg);
+
+  // Regions
+  const reg = {};
+  rows.forEach(r => { (reg[r.region] ??= { n: 0, max: 0 }); reg[r.region].n++; reg[r.region].max = Math.max(reg[r.region].max, r.mag); });
+  const topReg = Object.entries(reg).sort((a, b) => b[1].n - a[1].n).slice(0, 12);
+  const maxN = topReg[0][1].n;
+  document.getElementById('regions').innerHTML =
+    `<tr><th>Region</th><th class="num">Events</th><th style="width:35%"></th><th class="num">Max M</th></tr>` +
+    topReg.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v.n}</td><td><span class="bar" style="width:${(v.n / maxN * 100).toFixed(0)}%"></span></td><td class="num">${v.max.toFixed(1)}</td></tr>`).join('');
+
+  // Top events
+  const top = [...rows].sort((a, b) => b.mag - a.mag).slice(0, 10);
+  document.getElementById('top').innerHTML =
+    `<tr><th class="num">Mag</th><th>Type</th><th>Location</th><th>Time</th><th class="num">Depth (km)</th><th>Status</th></tr>` +
+    top.map(r => `<tr><td class="num"><strong>${r.mag.toFixed(1)}</strong></td><td>${esc(r.magType)}</td><td><a href="${r.url}" target="_blank" rel="noopener">${esc(r.place)}</a></td><td>${fmt(r.date)}</td><td class="num">${r.depth.toFixed(1)}</td><td>${esc(r.status)}</td></tr>`).join('');
+}
+</script>
+</body>
+</html>

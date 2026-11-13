@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Tides, in plain words</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f5f7f4; --surface: #fff; --text: #163735; --muted: #526563; --line: #d7e2dc; --accent: #176a61; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 16px; line-height: 1.65; }
+  main { width: min(100%, 46rem); margin: 0 auto; padding: 3rem 1.25rem; }
+  .eyebrow { margin: 0 0 1rem; color: var(--accent); font-size: .75rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+  h1 { font-size: clamp(1.8rem, 5vw, 2rem); line-height: 1.2; letter-spacing: -.035em; margin: 0 0 1.25rem; }
+  p { margin: 0 0 2rem; max-width: 64ch; }
+  h2 { margin: 0 0 1rem; font-size: 1.2rem; letter-spacing: -.02em; }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); }
+  th, td { padding: 1rem .8rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+  thead th { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .09em; }
+  tbody th { width: 32%; font-weight: 650; line-height: 1.5; }
+  [data-src] { text-decoration: underline dotted var(--line); text-underline-offset: .2em; }
+  a { color: var(--accent); text-underline-offset: .2em; }
+  .ref { font-size: .7em; text-decoration: none; white-space: nowrap; }
+  .footnotes { margin-top: 2rem; border-top: 1px solid var(--line); padding-top: 1rem; font-size: .8rem; color: var(--muted); }
+  summary { cursor: pointer; color: var(--accent); }
+  .footnotes h2 { font-size: .95rem; margin: 1.25rem 0 .5rem; }
+  .footnotes ol { padding-left: 1.3rem; }
+  .footnotes li { margin-bottom: .55rem; }
+  .footnotes p { margin: .5rem 0; }
+  .check-item { margin: .5rem 0; }
+  .check-item small { display: block; }
+  @media (min-width: 600px) { main { padding: 5.5rem 2rem; } th, td { padding: 1.1rem 1.25rem; } }
+  @media (prefers-color-scheme: dark) { :root { --bg: #101e1d; --surface: #172927; --text: #e2eeea; --muted: #a9bdb7; --line: #344a45; --accent: #89cec0; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">A little ocean science</div>
+    <h1>Tides, in plain words</h1>
+  </header>
+  <p><span data-src="s1" data-quote="The gravitational attraction between the Earth and the moon is strongest on the side of the Earth that happens to be facing the moon, simply because it is closer." title="NOAA: Gravity, Inertia, and the Two Bulges">The Moon’s gravity pulls more strongly on the side of Earth nearest to it than on the far side.</span> <span data-src="s1" data-quote="In this way the combination of gravity and inertia create two bulges of water. One forms where the Earth and moon are closest, and the other forms where they are furthest apart." title="NOAA: Gravity, Inertia, and the Two Bulges">Together with the motion of Earth and the Moon, this creates two broad bulges of ocean water on opposite sides of Earth.</span> <a class="ref" href="#src-s1" aria-label="Source 1">[1]</a> <span data-src="s3" data-quote="Because the Earth rotates through two tidal “bulges” every lunar day, coastal areas experience two high and two low tides every 24 hours and 50 minutes." title="NOAA: Frequency of Tides — The Lunar Day">As Earth turns through these bulges, most coasts get roughly two high tides a day.</span> <span data-src="s3" data-quote="Most coastal areas, with some exceptions, experience two high tides and two low tides every day." title="NOAA: Frequency of Tides — The Lunar Day">Not every coast follows this pattern.</span> <a class="ref" href="#src-s3" aria-label="Source 2">[2]</a></p>
+  <section aria-labelledby="terms">
+    <h2 id="terms">Three terms to know</h2>
+    <table>
+      <thead><tr><th scope="col">Term</th><th scope="col">Meaning</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Spring tide</th><td><span data-src="s2" data-quote="During full or new moons—which occur when the Earth, sun, and moon are nearly in alignment—average tidal ranges are slightly larger." title="NOAA: What are spring and neap tides?">A bigger gap between high and low tide, around a new or full moon.</span> <a class="ref" href="#src-s2" aria-label="Source 3">[3]</a></td></tr>
+        <tr><th scope="row">Neap tide</th><td><span data-src="s2" data-quote="This produces moderate tides known as neap tides, meaning that high tides are a little lower and low tides are a little higher than average." title="NOAA: What are spring and neap tides?">A smaller gap between high and low tide,</span> <span data-src="s2" data-quote="Neap tides occur during the first and third quarter moon, when the moon appears &quot;half full.&quot;" title="NOAA: What are spring and neap tides?">around a half moon.</span> <a class="ref" href="#src-s2" aria-label="Source 3">[3]</a></td></tr>
+        <tr><th scope="row">Tidal range</th><td><span data-src="s4" data-quote="The difference in height between the high tide and the low tide is called the tidal range." title="NOAA: What are Tides?">The difference in water height between high tide and low tide.</span> <a class="ref" href="#src-s4" aria-label="Source 4">[4]</a></td></tr>
+      </tbody>
+    </table>
+  </section>
+  <details class="footnotes">
+    <summary>Sources &amp; fact check</summary>
+    <section aria-labelledby="sources-heading">
+      <h2 id="sources-heading">Sources</h2>
+      <p>NOAA National Ocean Service · saved <span data-nocheck>12 November 2026</span>.</p>
+      <ol>
+        <li id="src-s1"><a href="https://oceanservice.noaa.gov/education/tutorial_tides/tides03_gravity.html">Gravity, Inertia, and the Two Bulges</a></li>
+        <li id="src-s3"><a href="https://oceanservice.noaa.gov/education/tutorial_tides/tides05_lunarday.html">Frequency of Tides — The Lunar Day</a></li>
+        <li id="src-s2"><a href="https://oceanservice.noaa.gov/facts/springtide.html">What are spring and neap tides?</a></li>
+        <li id="src-s4"><a href="https://oceanservice.noaa.gov/education/tutorial_tides/tides01_intro.html">What are Tides?</a></li>
+      </ol>
+    </section>
+    <section id="checked-numbers">
+      <h2>Checked numbers</h2>
+      <p>Marked statements are compared with saved source text. A match confirms the passage is in the saved source, not that the source is right.</p>
+      <div id="checked-list" data-nocheck>Loading the check…</div>
+    </section>
+  </details>
+</main>
+<script>
+  const sourceLabels = { s1: 'NOAA: Gravity, Inertia, and the Two Bulges', s2: 'NOAA: Spring and neap tides', s3: 'NOAA: The Lunar Day', s4: 'NOAA: What are Tides?' };
+  fetch('checks/index.html.json').then(r => { if (!r.ok) throw new Error('Check unavailable'); return r.json(); }).then(c => {
+    const container = document.getElementById('checked-list');
+    const summary = document.createElement('p');
+    summary.textContent = `${c.summary.verified} verified · ${c.summary.derived} derived · ${c.summary.failed} failed · checked ${new Date(c.checked_at).toLocaleString()}`;
+    container.replaceChildren(summary);
+    c.items.forEach(i => {
+      const detail = document.createElement('details');
+      detail.className = 'check-item';
+      const label = document.createElement('summary');
+      label.textContent = `${i.text} — ${i.status}`;
+      const evidence = document.createElement('p');
+      evidence.textContent = i.status === 'derived' ? i.reason : i.quote;
+      const source = document.createElement('small');
+      source.textContent = i.sources.map(s => sourceLabels[s] || s).join('; ');
+      detail.append(label, evidence, source);
+      if (i.status === 'failed') {
+        const reason = document.createElement('p');
+        reason.textContent = i.reason;
+        detail.append(reason);
+      }
+      container.append(detail);
+    });
+  }).catch(() => { document.getElementById('checked-list').textContent = 'The check is not available.'; });
+</script>
+</body>
+</html>

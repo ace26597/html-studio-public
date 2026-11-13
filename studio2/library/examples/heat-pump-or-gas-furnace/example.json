@@ -1,0 +1,16 @@
+{
+ "title": "Heat pump or gas furnace",
+ "summary": "Whether a heat pump or a gas furnace costs less to run through a Minneapolis winter, from one question, with a calculator added later by drawing on the page.",
+ "kind": "report",
+ "order": 20,
+ "made": {
+  "model": "opus",
+  "date": "2026-11-13",
+  "requests": 3,
+  "duration_s": 1370,
+  "depth": null,
+  "request": "I am deciding whether to replace a gas furnace with a heat pump in a cold-climate home (think Minneapolis winters). Research it properly and write me a sourced report: how well today's cold-climate heat pumps really perform below freezing, what they cost to install and to run compared with gas, which US incentives exist right now, and when a heat pump does not make sense. Use charts where numbers help, check every figure against its source, and tell me plainly what you could not confirm."
+ },
+ "sources": 66,
+ "check": null
+}

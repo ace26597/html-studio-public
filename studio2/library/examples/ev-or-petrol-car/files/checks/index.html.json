@@ -1,0 +1,5938 @@
+{
+  "page": "index.html",
+  "checked_at": "2026-11-13T17:11:00.463Z",
+  "summary": {
+    "verified": 273,
+    "derived": 87,
+    "failed": 0,
+    "unmarked_numbers": 8,
+    "sources_cited": 57,
+    "sources_unused": 58,
+    "cited_not_listed": 0
+  },
+  "source_list": true,
+  "not_listed": [],
+  "items": [
+    {
+      "n": 1,
+      "text": "66\u201370% cheaper",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s21"
+      ],
+      "quote": "charging costs for EVs about 66%\u201370% lower than fuel costs for traditional gas vehicles",
+      "reason": null,
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 2,
+      "text": "$15,400",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 ($13,662 \u2212 $10,582)",
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 3,
+      "text": "$3,940",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 ($17,414 \u2212 $16,626)",
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 4,
+      "text": "$1,160 dearer",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 ($11,888 \u2212 $11,656) from s51 cost per year, compact SUV",
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 5,
+      "text": "$495 cheaper",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 ($14,431 \u2212 $14,332) from s51 cost per year, medium SUV",
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 6,
+      "text": "not allowed for any vehicle acquired after 30 September 2025",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s9"
+      ],
+      "quote": "The credit will not be allowed for any vehicle acquired after September 30, 2025.",
+      "reason": null,
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 7,
+      "text": "$3,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s87"
+      ],
+      "quote": "MOR-EV Standard (New vehicles) | $3,500",
+      "reason": null,
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 8,
+      "text": "$3,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s111"
+      ],
+      "quote": "$3,500 off new electric vehicles with an MSRP up to $50,000",
+      "reason": null,
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 9,
+      "text": "$56,220",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s1"
+      ],
+      "quote": "the average transaction price for a new EV was $56,220",
+      "reason": null,
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 10,
+      "text": "$51,109",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s1"
+      ],
+      "quote": "The Kelley Blue Book new-vehicle ATP was $51,109 in October",
+      "reason": null,
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 11,
+      "text": "57.2%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "Electric vehicles lose the most value after purchase, falling 57.2% in 5 years.",
+      "reason": null,
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 12,
+      "text": "41.8%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "average 5-year depreciation improved to 41.8% in 2026",
+      "reason": null,
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 13,
+      "text": "$700 vs $2,200",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s53"
+      ],
+      "quote": "Annual Fuel Cost* | $700 | $2,200 | $700 | $2,150",
+      "reason": null,
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 14,
+      "text": "15,000 miles",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s59"
+      ],
+      "quote": "you travel 15,000 miles per year",
+      "reason": null,
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 15,
+      "text": "6.1\u00a2 vs 10.1\u00a2",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s13"
+      ],
+      "quote": "6.1 cents per mile, while a conventional internal combustion engine vehicle (ICEV) totals 10.1 cents per mile",
+      "reason": null,
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 16,
+      "text": "+$501/yr",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s15"
+      ],
+      "quote": "For newer vehicles, the difference drops to 18%, but EV owners still pay about $501 more per year on average.",
+      "reason": null,
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 17,
+      "text": "18%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s15"
+      ],
+      "quote": "For newer vehicles, the difference drops to 18%",
+      "reason": null,
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 18,
+      "text": "42 states",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s80"
+      ],
+      "quote": "at least 42 states now require a special registration fee for EVs",
+      "reason": null,
+      "found": null,
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "n": 19,
+      "text": "15,000 miles a year",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s59"
+      ],
+      "quote": "you travel 15,000 miles per year",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 20,
+      "text": "$4.15 a gallon and 18 cents per kWh",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s21"
+      ],
+      "quote": "gas prices averaged $4.15 per gallon, while EV prices averaged 18 cents per kilowatt hour",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 21,
+      "text": "$15,400",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 ($13,662 \u2212 $10,582) from s51",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 22,
+      "text": "$1,160",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 ($11,888 \u2212 $11,656) from s51",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 23,
+      "text": "$495",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 ($14,431 \u2212 $14,332) from s51",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 24,
+      "text": "\"were often outweighed by higher depreciation, fees and finance costs\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s21"
+      ],
+      "quote": "those savings were often outweighed by higher depreciation, fees and finance costs",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 25,
+      "text": "$712.50",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "fuel $712.50 $2,215 $1,436 $771 $2,382 $1,731",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 26,
+      "text": "$1,602",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "maintenance $1,602 $1,827 $1,619 $1,402 $1,954 $1,506",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 27,
+      "text": "$6,786",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "depreciation $6,786 $3,330 $3,739 $5,298 $3,568 $3,845",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 28,
+      "text": "$2,070",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $1,704 $1,706 $2,277 $2,188 $2,294",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 29,
+      "text": "$1,051",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "license, registration, taxes $1,051 $609 $689 $931 $631 $739",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 30,
+      "text": "$1,441",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "finance charges $1,441 $897 $1,016 $1,208 $933 $1,087",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 31,
+      "text": "$13,662",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "cost per year $13,662 $10,582 $10,204 $11,888 $11,656 $11,201",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 32,
+      "text": "$68,310",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $13,662",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 33,
+      "text": "$2,215",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "fuel $712.50 $2,215 $1,436 $771 $2,382 $1,731",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 34,
+      "text": "$1,827",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "maintenance $1,602 $1,827 $1,619 $1,402 $1,954 $1,506",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 35,
+      "text": "$3,330",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "depreciation $6,786 $3,330 $3,739 $5,298 $3,568 $3,845",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 36,
+      "text": "$1,704",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $1,704 $1,706 $2,277 $2,188 $2,294",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 37,
+      "text": "$609",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "license, registration, taxes $1,051 $609 $689 $931 $631 $739",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 38,
+      "text": "$897",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "finance charges $1,441 $897 $1,016 $1,208 $933 $1,087",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 39,
+      "text": "$10,582",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "cost per year $13,662 $10,582 $10,204",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 40,
+      "text": "$52,910",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $10,582",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 41,
+      "text": "$1,436",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "fuel $712.50 $2,215 $1,436 $771 $2,382 $1,731",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 42,
+      "text": "$1,619",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "maintenance $1,602 $1,827 $1,619 $1,402 $1,954 $1,506",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 43,
+      "text": "$3,739",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "depreciation $6,786 $3,330 $3,739 $5,298 $3,568 $3,845",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 44,
+      "text": "$1,706",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $1,704 $1,706 $2,277 $2,188 $2,294",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 45,
+      "text": "$689",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "license, registration, taxes $1,051 $609 $689 $931 $631 $739",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 46,
+      "text": "$1,016",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "finance charges $1,441 $897 $1,016 $1,208 $933 $1,087",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 47,
+      "text": "$10,204",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "cost per year $13,662 $10,582 $10,204",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 48,
+      "text": "$51,020",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $10,204",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 49,
+      "text": "$771",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "fuel $712.50 $2,215 $1,436 $771 $2,382 $1,731",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 50,
+      "text": "$1,402",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "maintenance $1,602 $1,827 $1,619 $1,402 $1,954 $1,506",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 51,
+      "text": "$5,298",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "depreciation $6,786 $3,330 $3,739 $5,298 $3,568 $3,845",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 52,
+      "text": "$2,277",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $1,704 $1,706 $2,277 $2,188 $2,294",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 53,
+      "text": "$931",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "license, registration, taxes $1,051 $609 $689 $931 $631 $739",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 54,
+      "text": "$1,208",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "finance charges $1,441 $897 $1,016 $1,208 $933 $1,087",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 55,
+      "text": "$11,888",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "$11,888 $11,656 $11,201",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 56,
+      "text": "$59,440",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $11,888",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 57,
+      "text": "$2,382",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "fuel $712.50 $2,215 $1,436 $771 $2,382 $1,731",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 58,
+      "text": "$1,954",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "maintenance $1,602 $1,827 $1,619 $1,402 $1,954 $1,506",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 59,
+      "text": "$3,568",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "depreciation $6,786 $3,330 $3,739 $5,298 $3,568 $3,845",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 60,
+      "text": "$2,188",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $1,704 $1,706 $2,277 $2,188 $2,294",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 61,
+      "text": "$631",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "license, registration, taxes $1,051 $609 $689 $931 $631 $739",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 62,
+      "text": "$933",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "finance charges $1,441 $897 $1,016 $1,208 $933 $1,087",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 63,
+      "text": "$11,656",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "$11,888 $11,656 $11,201",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 64,
+      "text": "$58,280",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $11,656",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 65,
+      "text": "$1,731",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "fuel $712.50 $2,215 $1,436 $771 $2,382 $1,731",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 66,
+      "text": "$1,506",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "maintenance $1,602 $1,827 $1,619 $1,402 $1,954 $1,506",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 67,
+      "text": "$3,845",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "depreciation $6,786 $3,330 $3,739 $5,298 $3,568 $3,845",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 68,
+      "text": "$2,294",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $1,704 $1,706 $2,277 $2,188 $2,294",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 69,
+      "text": "$739",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "license, registration, taxes $1,051 $609 $689 $931 $631 $739",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 70,
+      "text": "$1,087",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "finance charges $1,441 $897 $1,016 $1,208 $933 $1,087",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 71,
+      "text": "$11,201",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "$11,888 $11,656 $11,201",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 72,
+      "text": "$56,005",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $11,201",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 73,
+      "text": "$909",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "fuel $909 $3,066 $2,087 $1,222 $3,598 $3,153",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 74,
+      "text": "$1,784",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "maintenance $1,784 $1,829 $1,902 $1,618 $1,788 $1,539",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 75,
+      "text": "$7,077",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "depreciation $7,077 $5,052 $4,822 $8,624 $6,446 $6,370",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 76,
+      "text": "$2,070",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $2,423 $2,534 $2,294 $2,139 $2,178",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 77,
+      "text": "$1,052",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "license, registration, taxes $1,052 $827 $940 $1,507 $1,054 $1,148",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 78,
+      "text": "$1,440",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "finance charges $1,440 $1,235 $1,412 $2,149 $1,601 $1,730",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 79,
+      "text": "$14,332",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "cost per year $14,332 $14,431 $13,698 $17,414 $16,626 $16,117",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 80,
+      "text": "$71,660",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $14,332",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 81,
+      "text": "$3,066",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "fuel $909 $3,066 $2,087 $1,222 $3,598 $3,153",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 82,
+      "text": "$1,829",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "maintenance $1,784 $1,829 $1,902 $1,618 $1,788 $1,539",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 83,
+      "text": "$5,052",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "depreciation $7,077 $5,052 $4,822 $8,624 $6,446 $6,370",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 84,
+      "text": "$2,423",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $2,423 $2,534 $2,294 $2,139 $2,178",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 85,
+      "text": "$827",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "license, registration, taxes $1,052 $827 $940 $1,507 $1,054 $1,148",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 86,
+      "text": "$1,235",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "finance charges $1,440 $1,235 $1,412 $2,149 $1,601 $1,730",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 87,
+      "text": "$14,431",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "cost per year $14,332 $14,431 $13,698",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 88,
+      "text": "$72,155",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $14,431",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 89,
+      "text": "$2,087",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "fuel $909 $3,066 $2,087 $1,222 $3,598 $3,153",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 90,
+      "text": "$1,902",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "maintenance $1,784 $1,829 $1,902 $1,618 $1,788 $1,539",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 91,
+      "text": "$4,822",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "depreciation $7,077 $5,052 $4,822 $8,624 $6,446 $6,370",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 92,
+      "text": "$2,534",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $2,423 $2,534 $2,294 $2,139 $2,178",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 93,
+      "text": "$940",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "license, registration, taxes $1,052 $827 $940 $1,507 $1,054 $1,148",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 94,
+      "text": "$1,412",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "finance charges $1,440 $1,235 $1,412 $2,149 $1,601 $1,730",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 95,
+      "text": "$13,698",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "cost per year $14,332 $14,431 $13,698",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 96,
+      "text": "$68,490",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $13,698",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 97,
+      "text": "$1,222",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "fuel $909 $3,066 $2,087 $1,222 $3,598 $3,153",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 98,
+      "text": "$1,618",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "maintenance $1,784 $1,829 $1,902 $1,618 $1,788 $1,539",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 99,
+      "text": "$8,624",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "depreciation $7,077 $5,052 $4,822 $8,624 $6,446 $6,370",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 100,
+      "text": "$2,294",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $2,423 $2,534 $2,294 $2,139 $2,178",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 101,
+      "text": "$1,507",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "license, registration, taxes $1,052 $827 $940 $1,507 $1,054 $1,148",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 102,
+      "text": "$2,149",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "finance charges $1,440 $1,235 $1,412 $2,149 $1,601 $1,730",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 103,
+      "text": "$17,414",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "$17,414 $16,626 $16,117",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 104,
+      "text": "$87,070",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $17,414",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 105,
+      "text": "$3,598",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "fuel $909 $3,066 $2,087 $1,222 $3,598 $3,153",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 106,
+      "text": "$1,788",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "maintenance $1,784 $1,829 $1,902 $1,618 $1,788 $1,539",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 107,
+      "text": "$6,446",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "depreciation $7,077 $5,052 $4,822 $8,624 $6,446 $6,370",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 108,
+      "text": "$2,139",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $2,423 $2,534 $2,294 $2,139 $2,178",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 109,
+      "text": "$1,054",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "license, registration, taxes $1,052 $827 $940 $1,507 $1,054 $1,148",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 110,
+      "text": "$1,601",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "finance charges $1,440 $1,235 $1,412 $2,149 $1,601 $1,730",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 111,
+      "text": "$16,626",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "$17,414 $16,626 $16,117",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 112,
+      "text": "$83,130",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $16,626",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 113,
+      "text": "$3,153",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "fuel $909 $3,066 $2,087 $1,222 $3,598 $3,153",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 114,
+      "text": "$1,539",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "maintenance $1,784 $1,829 $1,902 $1,618 $1,788 $1,539",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 115,
+      "text": "$6,370",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "depreciation $7,077 $5,052 $4,822 $8,624 $6,446 $6,370",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 116,
+      "text": "$2,178",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $2,423 $2,534 $2,294 $2,139 $2,178",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 117,
+      "text": "$1,148",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "license, registration, taxes $1,052 $827 $940 $1,507 $1,054 $1,148",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 118,
+      "text": "$1,730",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "finance charges $1,440 $1,235 $1,412 $2,149 $1,601 $1,730",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 119,
+      "text": "$16,117",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "$17,414 $16,626 $16,117",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 120,
+      "text": "$80,585",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $16,117",
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 121,
+      "text": "\"fuel $712.50 $2,215 $1,436 $771 $2,382 $1,731\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "fuel $712.50 $2,215 $1,436 $771 $2,382 $1,731",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 122,
+      "text": "\"depreciation $6,786 $3,330 $3,739 $5,298 $3,568 $3,845\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "depreciation $6,786 $3,330 $3,739 $5,298 $3,568 $3,845",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 123,
+      "text": "\"fuel $909 $3,066 $2,087 $1,222 $3,598 $3,153\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "fuel $909 $3,066 $2,087 $1,222 $3,598 $3,153",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 124,
+      "text": "\"depreciation $7,077 $5,052 $4,822 $8,624 $6,446 $6,370\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "depreciation $7,077 $5,052 $4,822 $8,624 $6,446 $6,370",
+      "reason": null,
+      "found": null,
+      "where": "The five-year total: AAA's 2026 side-by-side"
+    },
+    {
+      "n": 125,
+      "text": "$37,195",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s69"
+      ],
+      "quote": "STARTING AT: $37,195",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 126,
+      "text": "$31,695",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s70"
+      ],
+      "quote": "STARTING AT: $31,695",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 127,
+      "text": "$37,195",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s69"
+      ],
+      "quote": "STARTING AT: $37,195",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 128,
+      "text": "$31,695",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s70"
+      ],
+      "quote": "STARTING AT: $31,695",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 129,
+      "text": "57.2%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "falling 57.2% in 5 years",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 130,
+      "text": "41.8%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "average 5-year depreciation improved to 41.8% in 2026",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 131,
+      "text": "15,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s59"
+      ],
+      "quote": "you travel 15,000 miles per year",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 132,
+      "text": "31 kWh/100 mi",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s53"
+      ],
+      "quote": "31 kWh/100 mi 3.7 gal/100mi 30 kWh/100 mi 3.6 gal/100mi",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 133,
+      "text": "27 mpg",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s53"
+      ],
+      "quote": "Combined MPG:27 MPG",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 134,
+      "text": "18.2\u00a2/kWh",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s17"
+      ],
+      "quote": "Residential electricity price (cents per Kilowatthour) 16.5 | 17.2 | 18.2 | 18.7",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 135,
+      "text": "$0.540/kWh",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s81"
+      ],
+      "quote": "The national average reached $0.540/kWh in Q3",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 136,
+      "text": "$3.89/gal",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s10"
+      ],
+      "quote": "Gasoline retail price (dollars per gallon) 3.31 | 3.10 | 3.89 | 3.73",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 137,
+      "text": "20%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s91"
+      ],
+      "quote": "DC fast charging infrastructure is expected to support 20% of EV charging needs",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 138,
+      "text": "6.1\u00a2/mi",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s13"
+      ],
+      "quote": "totals 6.1 cents per mile",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 139,
+      "text": "10.1\u00a2/mi",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s13"
+      ],
+      "quote": "totals 10.1 cents per mile",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 140,
+      "text": "$2,277",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $1,704 $1,706 $2,277 $2,188 $2,294",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 141,
+      "text": "$2,188",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $1,704 $1,706 $2,277 $2,188 $2,294",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 142,
+      "text": "$200",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s80"
+      ],
+      "quote": "$200 annual registration fee for EVs",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 143,
+      "text": "$1,560",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "$44,132 \u2212 $42,569 = $1,563, from the worked-example table",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 144,
+      "text": "$21,276",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s14"
+      ],
+      "quote": null,
+      "reason": "$37,195 \u00d7 57.2%",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 145,
+      "text": "$13,249",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s70",
+        "s14"
+      ],
+      "quote": null,
+      "reason": "$31,695 \u00d7 41.8%",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 146,
+      "text": "+$8,027",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14"
+      ],
+      "quote": null,
+      "reason": "$21,276 \u2212 $13,249",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 147,
+      "text": "$5,896",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s53",
+        "s17",
+        "s81",
+        "s91"
+      ],
+      "quote": null,
+      "reason": "75,000 mi \u00d7 31 kWh/100 mi = 23,250 kWh; 80% \u00d7 $0.182 + 20% \u00d7 $0.540 = $0.2536/kWh; 23,250 \u00d7 0.2536",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 148,
+      "text": "$10,806",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s53",
+        "s10"
+      ],
+      "quote": null,
+      "reason": "75,000 mi \u00f7 27 mpg \u00d7 $3.89",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 149,
+      "text": "\u2212$4,909",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s53",
+        "s17",
+        "s81",
+        "s10"
+      ],
+      "quote": null,
+      "reason": "$5,896.20 \u2212 $10,805.56 (unrounded)",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 150,
+      "text": "$4,575",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s13"
+      ],
+      "quote": null,
+      "reason": "75,000 \u00d7 $0.061",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 151,
+      "text": "$7,575",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s13"
+      ],
+      "quote": null,
+      "reason": "75,000 \u00d7 $0.101",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 152,
+      "text": "\u2212$3,000",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s13"
+      ],
+      "quote": null,
+      "reason": "$4,575 \u2212 $7,575",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 153,
+      "text": "$11,385",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $2,277",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 154,
+      "text": "$10,940",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $2,188",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 155,
+      "text": "+$445",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "$11,385 \u2212 $10,940",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 156,
+      "text": "$1,000",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s80"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $200",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 157,
+      "text": "+$1,000",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s80"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 $200",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 158,
+      "text": "$44,132",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "21,276 + 5,896 + 4,575 + 11,385 + 1,000",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 159,
+      "text": "$42,569",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s70",
+        "s14",
+        "s53",
+        "s10",
+        "s13",
+        "s51"
+      ],
+      "quote": null,
+      "reason": "13,248.51 + 10,805.56 + 7,575 + 10,940 (unrounded)",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 160,
+      "text": "+$1,563",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "$44,132 \u2212 $42,569",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 161,
+      "text": "$8,000",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14"
+      ],
+      "quote": null,
+      "reason": "$21,276 \u2212 $13,249",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 162,
+      "text": "$7,900",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13"
+      ],
+      "quote": null,
+      "reason": "$4,910 + $3,000",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 163,
+      "text": "18,000 miles a year",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80",
+        "s14"
+      ],
+      "quote": null,
+      "reason": "miles per year where the five-year difference reaches zero; computed in scripts/model.py",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 164,
+      "text": "roughly zero",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s53",
+        "s17",
+        "s13",
+        "s51",
+        "s80",
+        "s14",
+        "s10"
+      ],
+      "quote": null,
+      "reason": "same model with 0% fast charging: 23,250 kWh \u00d7 $0.182 = $4,232 energy; total difference \u2248 \u2212$102",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 165,
+      "text": "41.8%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "average 5-year depreciation improved to 41.8% in 2026",
+      "reason": null,
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 166,
+      "text": "$4,200 cheaper",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "same model with EV depreciation 41.8%: EV total $38,404 vs $42,569",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 167,
+      "text": "$1,560",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "$44,132 \u2212 $42,569 = $1,563, from the worked-example table",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 168,
+      "text": "$6,836",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 169,
+      "text": "$6,281",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 170,
+      "text": "$1,108",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 171,
+      "text": "$5,517",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 172,
+      "text": "$4,685",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 173,
+      "text": "\u2212$211",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 174,
+      "text": "$4,199",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 175,
+      "text": "$3,089",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 176,
+      "text": "\u2212$1,529",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 177,
+      "text": "$2,881",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 178,
+      "text": "$1,494",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 179,
+      "text": "\u2212$2,847",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 180,
+      "text": "$1,563",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 181,
+      "text": "\u2212$102",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 182,
+      "text": "\u2212$4,165",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 183,
+      "text": "$244",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 184,
+      "text": "\u2212$1,698",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 185,
+      "text": "\u2212$5,484",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 186,
+      "text": "\u2212$1,074",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 187,
+      "text": "\u2212$3,293",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 188,
+      "text": "\u2212$6,802",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 189,
+      "text": "\u2212$2,392",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 190,
+      "text": "\u2212$4,889",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 191,
+      "text": "\u2212$8,120",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 192,
+      "text": "\u2212$3,710",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 193,
+      "text": "\u2212$6,485",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 194,
+      "text": "\u2212$9,438",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "scripts/model.py five_year() with the worked-example inputs; data/model.json sensitivity",
+      "found": null,
+      "where": "Worked example: Chevrolet Equinox EV vs petrol Equinox"
+    },
+    {
+      "n": 195,
+      "text": "$56,220",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s1"
+      ],
+      "quote": "the average transaction price for a new EV was $56,220",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 196,
+      "text": "$51,109",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s1"
+      ],
+      "quote": "The Kelley Blue Book new-vehicle ATP was $51,109 in October",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 197,
+      "text": "$5,611",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s33"
+      ],
+      "quote": "The EV price premium over ICE+ vehicles increased to $5,611",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 198,
+      "text": "2025 average of $8,665",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s33"
+      ],
+      "quote": "remained well below the 2025 average premium of $8,665",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 199,
+      "text": "do not include consumer incentives",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "Kelley Blue Book average transaction prices do not include applied consumer incentives",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 200,
+      "text": "11.3% of the price",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s1"
+      ],
+      "quote": "the average EV incentive was equal to 11.3% of ATP",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 201,
+      "text": "6.8%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s1"
+      ],
+      "quote": "New-vehicle incentives averaged 6.8% of ATP in October",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 202,
+      "text": "$37,195",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s69"
+      ],
+      "quote": "STARTING AT: $37,195",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 203,
+      "text": "$31,695",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s70"
+      ],
+      "quote": "STARTING AT: $31,695",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 204,
+      "text": "$5,500",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70"
+      ],
+      "quote": null,
+      "reason": "$37,195 \u2212 $31,695",
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 205,
+      "text": "$36,900",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s78"
+      ],
+      "quote": "STARTING AT: $36,900",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 206,
+      "text": "~$32,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s79"
+      ],
+      "quote": "$32,000\u2013$43,000",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 207,
+      "text": "~$4,900",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s78",
+        "s79"
+      ],
+      "quote": null,
+      "reason": "$36,900 \u2212 $32,000",
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 208,
+      "text": "$41,630",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s76"
+      ],
+      "quote": "STARTING AT: $41,630",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 209,
+      "text": "$33,895",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s77"
+      ],
+      "quote": "STARTING AT: $33,895",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 210,
+      "text": "$7,735",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s76",
+        "s77"
+      ],
+      "quote": null,
+      "reason": "$41,630 \u2212 $33,895",
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 211,
+      "text": "$38,630",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s85"
+      ],
+      "quote": "STARTING AT: $38,630",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 212,
+      "text": "~$30,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s86"
+      ],
+      "quote": "Starting at $30,000 est",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 213,
+      "text": "~$8,630",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s85",
+        "s86"
+      ],
+      "quote": null,
+      "reason": "$38,630 \u2212 $30,000",
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 214,
+      "text": "the RAV4 \"dropped its nonhybrid powertrain\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s77"
+      ],
+      "quote": "When the RAV4 was redesigned for the 2026 model year, it dropped its nonhybrid powertrain",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 215,
+      "text": "57.2%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "falling 57.2% in 5 years",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 216,
+      "text": "41.8%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "average 5-year depreciation improved to 41.8% in 2026",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 217,
+      "text": "35.4%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "hybrids now sit at 35.4%",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 218,
+      "text": "57.2%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "falling 57.2% in 5 years",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 219,
+      "text": "41.8%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "average 5-year depreciation improved to 41.8% in 2026",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 220,
+      "text": "35.4%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "hybrids now sit at 35.4%",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 221,
+      "text": "57.8%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "Tesla Model Y 57.8% $26,020",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 222,
+      "text": "54.6%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "Tesla Model 3 54.6% $20,213",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 223,
+      "text": "30.5%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "Honda Accord Sedan 30.5% $8,654",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 224,
+      "text": "25.2%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "Toyota RAV4/RAV4 Hybrid SUV/Hybrid 25.2% $7,731",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 225,
+      "text": "$36,767",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s33"
+      ],
+      "quote": "The average listing price for a used EV declined to $36,767",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 226,
+      "text": "6.2% above",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s33"
+      ],
+      "quote": "The premium over ICE+ vehicles narrowed to $2,137, or 6.2%",
+      "reason": null,
+      "found": null,
+      "where": "Purchase price and resale value"
+    },
+    {
+      "n": 227,
+      "text": "$3.995 a gallon",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s4"
+      ],
+      "quote": "U.S. 4.269 4.153 3.995",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 228,
+      "text": "$3.87",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s6"
+      ],
+      "quote": "Today\u2019s AAA National Average $3.8724",
+      "reason": "$3.87 is 3.8724 rounded",
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 229,
+      "text": "$3.89 for 2026 as a whole and $3.73 in 2027",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s10"
+      ],
+      "quote": "Gasoline retail price (dollars per gallon) 3.31 | 3.10 | 3.89 | 3.73",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 230,
+      "text": "18.2\u00a2 per kWh in 2026",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s17"
+      ],
+      "quote": "Residential electricity price (cents per Kilowatthour) 16.5 | 17.2 | 18.2 | 18.7",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 231,
+      "text": "12.72\u00a2 in Nevada",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s5"
+      ],
+      "quote": "Nevada 12.72",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 232,
+      "text": "29.75\u00a2 in California",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s5"
+      ],
+      "quote": "California 29.75",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 233,
+      "text": "47.18\u00a2 in Hawaii",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s5"
+      ],
+      "quote": "Hawaii 47.18",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 234,
+      "text": "$0.540 per kWh",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s81"
+      ],
+      "quote": "The national average reached $0.540/kWh in Q3",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 235,
+      "text": "40%",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s53",
+        "s17",
+        "s10"
+      ],
+      "quote": null,
+      "reason": "5.6\u00a2 \u00f7 14.4\u00a2 \u2248 39%",
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 236,
+      "text": "5.6\u00a2",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s53",
+        "s17"
+      ],
+      "quote": null,
+      "reason": "0.31 kWh/mi \u00d7 18.2\u00a2",
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 237,
+      "text": "7.9\u00a2",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s53",
+        "s17",
+        "s81",
+        "s91"
+      ],
+      "quote": null,
+      "reason": "0.31 \u00d7 (0.8 \u00d7 18.2 + 0.2 \u00d7 54.0)",
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 238,
+      "text": "14.4\u00a2",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s53",
+        "s10"
+      ],
+      "quote": null,
+      "reason": "$3.89 \u00f7 27 mpg",
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 239,
+      "text": "16.7\u00a2",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s53",
+        "s81"
+      ],
+      "quote": null,
+      "reason": "0.31 kWh/mi \u00d7 54.0\u00a2",
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 240,
+      "text": "15,000 miles",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s59"
+      ],
+      "quote": "you travel 15,000 miles per year",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 241,
+      "text": "$4.00 gasoline",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s59"
+      ],
+      "quote": "fuel costs $4.00/gallon for regular unleaded gasoline",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 242,
+      "text": "$0.15/kWh electricity",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s59"
+      ],
+      "quote": "$0.15/kWh for electricity",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 243,
+      "text": "108 MPGe",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s53"
+      ],
+      "quote": "Combined MPG:108 MPGe",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 244,
+      "text": "$700",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s53"
+      ],
+      "quote": "Annual Fuel Cost* | $700 | $2,200",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 245,
+      "text": "27 mpg",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s53"
+      ],
+      "quote": "Combined MPG:27 MPG",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 246,
+      "text": "$2,200",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s53"
+      ],
+      "quote": "Annual Fuel Cost* | $700 | $2,200",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 247,
+      "text": "114 MPGe",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s53"
+      ],
+      "quote": "Combined MPG:114",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 248,
+      "text": "$700",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s53"
+      ],
+      "quote": "$700 | $2,200 | $700 | $2,150",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 249,
+      "text": "28 mpg",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s53"
+      ],
+      "quote": "Combined MPG:28",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 250,
+      "text": "$2,150",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s53"
+      ],
+      "quote": "$700 | $2,200 | $700 | $2,150",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 251,
+      "text": "134 MPGe",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s55"
+      ],
+      "quote": "Combined MPG:134",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 252,
+      "text": "$550",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s55"
+      ],
+      "quote": "Annual Fuel Cost* | $550 | $1,400",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 253,
+      "text": "43 mpg",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s55"
+      ],
+      "quote": "Combined MPG:43",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 254,
+      "text": "$1,400",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s55"
+      ],
+      "quote": "Annual Fuel Cost* | $550 | $1,400",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 255,
+      "text": "137 MPGe",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s55"
+      ],
+      "quote": "Combined MPG:137",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 256,
+      "text": "$550",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s55"
+      ],
+      "quote": "$550 | $1,400 | $550 | $1,200",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 257,
+      "text": "51 mpg",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s55"
+      ],
+      "quote": "Combined MPG:51",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 258,
+      "text": "$1,200",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s55"
+      ],
+      "quote": "$550 | $1,400 | $550 | $1,200",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 259,
+      "text": "64%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s91"
+      ],
+      "quote": "The majority (64%) of EV charging is estimated to take place at single family homes",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 260,
+      "text": "20%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s91"
+      ],
+      "quote": "DC fast charging infrastructure is expected to support 20% of EV charging needs",
+      "reason": null,
+      "found": null,
+      "where": "Fuel vs electricity"
+    },
+    {
+      "n": 261,
+      "text": "6.1\u00a2 a mile",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s13"
+      ],
+      "quote": "totals 6.1 cents per mile",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 262,
+      "text": "10.1\u00a2",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s13"
+      ],
+      "quote": "totals 10.1 cents per mile",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 263,
+      "text": "\"saving an average of 50% on maintenance and repair\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s35"
+      ],
+      "quote": "saving an average of 50% on maintenance and repair over the life of a vehicle",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 264,
+      "text": "includes an extended warranty, wear-and-tear repairs and a set of tyres",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s27"
+      ],
+      "quote": "a comprehensive extended warranty, repairs to wear-and-tear items that require service during 5 years of operation & one set of replacement tires",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 265,
+      "text": "$1,402 a year for the EV and $1,954 for petrol",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "maintenance $1,602 $1,827 $1,619 $1,402 $1,954 $1,506",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 266,
+      "text": "can wear up to 20% faster",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s109"
+      ],
+      "quote": "EV tires can wear up to 20% faster than tires on internal-combustion cars and trucks, according to tire supplier Michelin",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 267,
+      "text": "30%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "If BEV tire life is reduced by 30%",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 268,
+      "text": "about 7%, from $0.060 to $0.064 per mile",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "BEV maintenance cost per mile would increase by about 7%, from $0.060 to $0.064 per mile",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 269,
+      "text": "$5,684",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s101"
+      ],
+      "quote": "average severity was $5,684 for BEVs",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 270,
+      "text": "$4,955",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s101"
+      ],
+      "quote": "$4,955 for vehicles with an internal combustion engine (ICE)",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 271,
+      "text": "more than 30,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s90"
+      ],
+      "quote": "30,000+ electric cars",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 272,
+      "text": "under 4%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s90"
+      ],
+      "quote": "under 4% have been replaced -- including 10+ year old cars",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 273,
+      "text": "0.3%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s90"
+      ],
+      "quote": "For modern EVs, from 2022 and onwards, the replacement rate is 0.3%.",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 274,
+      "text": "2.3% of capacity a year",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s92"
+      ],
+      "quote": "the average capacity loss had returned to 2.3% per year",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 275,
+      "text": "8-year/100,000-mile",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s65"
+      ],
+      "quote": "many manufacturers offer 8-year/100,000-mile warranties for their EV batteries",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 276,
+      "text": "$5,000 to $16,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s100"
+      ],
+      "quote": "typically range from $5,000 to $16,000",
+      "reason": null,
+      "found": null,
+      "where": "Maintenance, repairs, tyres and the battery"
+    },
+    {
+      "n": 277,
+      "text": "$3,159 a year",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s16"
+      ],
+      "quote": "the national average insurance premium for an EV is $3,159 per year",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 278,
+      "text": "$2,218",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s16"
+      ],
+      "quote": "compared to $2,218 per year, or $185 per month, for gas-powered vehicles",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 279,
+      "text": "18%, about $501 a year",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s15"
+      ],
+      "quote": "For newer vehicles, the difference drops to 18%, but EV owners still pay about $501 more per year on average.",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 280,
+      "text": "the same to insure as petrol cars",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s38"
+      ],
+      "quote": "cost an average of $282 per month. That's the exact same price per month as the average price among the top 10 gas cars nationwide",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 281,
+      "text": "$2,070 vs $1,704",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $1,704",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 282,
+      "text": "$2,070 vs $2,423",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $2,423",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 283,
+      "text": "$3,159/yr",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s16"
+      ],
+      "quote": "the national average insurance premium for an EV is $3,159 per year",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 284,
+      "text": "$2,218/yr",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s16"
+      ],
+      "quote": "$2,218 per year, or $185 per month, for gas-powered vehicles",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 285,
+      "text": "$1,000 deductibles",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s16"
+      ],
+      "quote": "$1,000 collision deductible; and a $1,000 comprehensive deductible",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 286,
+      "text": "$337/mo",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s38"
+      ],
+      "quote": "car insurance for an electric car is about $337 per month",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 287,
+      "text": "$281/mo",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s38"
+      ],
+      "quote": "Gas cars | $281",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 288,
+      "text": "$500 deductibles",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s38"
+      ],
+      "quote": "$500 comprehensive and collision deductibles",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 289,
+      "text": "$354/mo",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s71"
+      ],
+      "quote": "Tesla | Model Y | Small SUV | $354",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 290,
+      "text": "$214/mo",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s71"
+      ],
+      "quote": "Toyota | RAV4 | Small SUV | $214",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 291,
+      "text": "30-year-old",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s71"
+      ],
+      "quote": "for a 30-year-old with good credit",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 292,
+      "text": "$2,277/yr",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $1,704 $1,706 $2,277 $2,188 $2,294",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 293,
+      "text": "$2,188/yr",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s51"
+      ],
+      "quote": "full-coverage insurance $2,070 $1,704 $1,706 $2,277 $2,188 $2,294",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 294,
+      "text": "$281",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s38"
+      ],
+      "quote": "Gas cars | $281",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 295,
+      "text": "42 states",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s80"
+      ],
+      "quote": "at least 42 states now require a special registration fee for EVs",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 296,
+      "text": "$75 in Minnesota",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s80"
+      ],
+      "quote": "$75 in Minnesota",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 297,
+      "text": "$242 in Indiana",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s80"
+      ],
+      "quote": "a high of $242 in Indiana",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 298,
+      "text": "$270",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s80"
+      ],
+      "quote": "$270 (July 1, 2026 - June 30, 2027)",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 299,
+      "text": "$290",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s80"
+      ],
+      "quote": "$290 in New Jersey (starting in 2028)",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 300,
+      "text": "\"$400 registration for a new EV. $200 annual registration fee for EVs.\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s80"
+      ],
+      "quote": "$400 registration for a new EV. $200 annual registration fee for EVs.",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 301,
+      "text": "$1,000\u2013$1,200",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s80"
+      ],
+      "quote": null,
+      "reason": "$400 + 3 \u00d7 $200 = $1,000 if the $400 covers the first two years; $400 + 4 \u00d7 $200 = $1,200 if it covers one",
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 302,
+      "text": "$400",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s80"
+      ],
+      "quote": "$400 registration for a new EV",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 303,
+      "text": "$130 a year",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s88"
+      ],
+      "quote": "you will be required to pay a $130 federal registration fee to drive an EV",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 304,
+      "text": "had not been approved by the full House or Senate",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s93"
+      ],
+      "quote": "it has not been approved by the full House or Senate",
+      "reason": null,
+      "found": null,
+      "where": "Insurance and registration fees"
+    },
+    {
+      "n": 305,
+      "text": "\"will not be allowed for any vehicle acquired after September 30, 2025\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s9"
+      ],
+      "quote": "The credit will not be allowed for any vehicle acquired after September 30, 2025.",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 306,
+      "text": "placed in service after June 30, 2026",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s9"
+      ],
+      "quote": "The credit will not be allowed for any property placed in service after June 30, 2026.",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 307,
+      "text": "worth up to $7,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s105"
+      ],
+      "quote": "the Clean Vehicle Tax credit worth up to $7,500 for new vehicles",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 308,
+      "text": "$10,000 a year",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s26"
+      ],
+      "quote": "The maximum annual deduction is $10,000 and phases out for taxpayers with modified adjusted gross income over $100,000 ($200,000 for joint filers).",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 309,
+      "text": "\"has undergone final assembly in the United States\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s26"
+      ],
+      "quote": "has undergone final assembly in the United States",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 310,
+      "text": "11.3% of the price",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s1"
+      ],
+      "quote": "the average EV incentive was equal to 11.3% of ATP",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 311,
+      "text": "6.8%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s1"
+      ],
+      "quote": "New-vehicle incentives averaged 6.8% of ATP in October",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 312,
+      "text": "$3,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s87"
+      ],
+      "quote": "MOR-EV Standard (New vehicles) | $3,500",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 313,
+      "text": "$1,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s87"
+      ],
+      "quote": "MOR-EV+ (New & used vehicles) | $1,500",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 314,
+      "text": "$1,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s87"
+      ],
+      "quote": "MOR-EV Trade-In | $1,000",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 315,
+      "text": "$3,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s111"
+      ],
+      "quote": "$3,500 off new electric vehicles with an MSRP up to $50,000",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 316,
+      "text": "$50,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s111"
+      ],
+      "quote": "with an MSRP up to $50,000",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 317,
+      "text": "first come, first served",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s111"
+      ],
+      "quote": "first-come, first-served and the funding will be available until it runs out",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 318,
+      "text": "$750",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s47"
+      ],
+      "quote": "a state tax credit of $750 for the purchase or lease of a new qualifying light-duty",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 319,
+      "text": "$2,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s47"
+      ],
+      "quote": "and an additional tax credit of $2,500",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 320,
+      "text": "$750",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s47"
+      ],
+      "quote": "a state tax credit of $750",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 321,
+      "text": "$80,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s47"
+      ],
+      "quote": "manufacturer\u2019s suggested retail price (MSRP) up to $80,000",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 322,
+      "text": "$2,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s47"
+      ],
+      "quote": "an additional tax credit of $2,500",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 323,
+      "text": "$35,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s47"
+      ],
+      "quote": "new qualifying light-duty EV with an MSRP up to $35,000",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 324,
+      "text": "$2,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s47"
+      ],
+      "quote": "The state EV tax credit will increase to $2,000 for new EVs with an MSRP up to $50,000",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 325,
+      "text": "$2,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s47"
+      ],
+      "quote": "the additional $2,500 tax credit will be available for qualifying vehicles with an MSRP under $40,000",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 326,
+      "text": "under $40,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s47"
+      ],
+      "quote": "the additional $2,500 tax credit will be available for qualifying vehicles with an MSRP under $40,000",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 327,
+      "text": "$2,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s72"
+      ],
+      "quote": "Greater than 200-mile range: $2,000 rebate",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 328,
+      "text": "$500\u2013$2,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s72"
+      ],
+      "quote": "can range from $500 to $2,000 based on the model\u2019s manufacturer\u2019s suggested retail price (MSRP) and all-electric range",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 329,
+      "text": "$2,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s115"
+      ],
+      "quote": "The rebate is $2,000 for an eligible new or used electric vehicle.",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 330,
+      "text": "$4,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s115"
+      ],
+      "quote": "Low-income applicants, defined below, are eligible to receive an additional $2,000 ($4,000 total rebate).",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 331,
+      "text": "$1,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s68"
+      ],
+      "quote": "The Charge Up incentive provides $1,500 to eligible New Jersey residents",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 332,
+      "text": "$4,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s68"
+      ],
+      "quote": "an additional $2,500 for income-qualifying applicants, for a total incentive of $4,000",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 333,
+      "text": "$30 million",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s68"
+      ],
+      "quote": "2027 ($30 million)",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 334,
+      "text": "$1,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s96"
+      ],
+      "quote": "increasing the standard incentive for new battery electric vehicles from $1,000 to $1,500",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 335,
+      "text": "$4,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s96"
+      ],
+      "quote": "the new total incentive will be $4,500",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 336,
+      "text": "cars bought after 4 November 2026 are not eligible",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s112"
+      ],
+      "quote": "any vehicles purchased or leased before Aug. 25, 2026, or after Nov. 4, 2026 are not eligible",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 337,
+      "text": "Ended for sales after 31 July 2025",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s113"
+      ],
+      "quote": "Sales of vehicles after July 31, 2025, do not qualify for the exemption.",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 338,
+      "text": "$50 to enrol plus $150 a year",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s114"
+      ],
+      "quote": "$50 bill credit for enrolling, plus an additional $150 bill credit for each year you participate",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 339,
+      "text": "$1,560",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "$44,132 \u2212 $42,569 = $1,563, from the worked-example table",
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 340,
+      "text": "$3,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s87"
+      ],
+      "quote": "MOR-EV Standard (New vehicles) | $3,500",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 341,
+      "text": "$1,940 cheaper",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s87",
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "$3,500 \u2212 $1,563",
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 342,
+      "text": "$2,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s72"
+      ],
+      "quote": "Greater than 200-mile range: $2,000 rebate",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 343,
+      "text": "$440",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s72",
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "$2,000 \u2212 $1,563",
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 344,
+      "text": "$35,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s47"
+      ],
+      "quote": "new qualifying light-duty EV with an MSRP up to $35,000",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 345,
+      "text": "$750",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s47"
+      ],
+      "quote": "a state tax credit of $750",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 346,
+      "text": "$810",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s47",
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "$1,563 \u2212 $750",
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 347,
+      "text": "$2,500",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s47"
+      ],
+      "quote": "the additional $2,500 tax credit will be available for qualifying vehicles with an MSRP under $40,000",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 348,
+      "text": "under $40,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s47"
+      ],
+      "quote": "the additional $2,500 tax credit will be available for qualifying vehicles with an MSRP under $40,000",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 349,
+      "text": "$4,500",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s47"
+      ],
+      "quote": null,
+      "reason": "$2,000 + $2,500",
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 350,
+      "text": "$2,940",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s47",
+        "s69",
+        "s70",
+        "s14",
+        "s53",
+        "s17",
+        "s81",
+        "s10",
+        "s13",
+        "s51",
+        "s80"
+      ],
+      "quote": null,
+      "reason": "$4,500 \u2212 $1,563",
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 351,
+      "text": "$200",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s80"
+      ],
+      "quote": "$200 annual registration fee for EVs",
+      "reason": null,
+      "found": null,
+      "where": "Incentives available today"
+    },
+    {
+      "n": 352,
+      "text": "$495",
+      "status": "derived",
+      "kind": "derived",
+      "sources": [
+        "s51"
+      ],
+      "quote": null,
+      "reason": "5 \u00d7 ($14,431 \u2212 $14,332)",
+      "found": null,
+      "where": "What other cost studies found"
+    },
+    {
+      "n": 353,
+      "text": "24 of 54 EVs (44%)",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s104"
+      ],
+      "quote": "24 of 54 EVs (44%) had lower total ownership costs than their gasoline counterparts",
+      "reason": null,
+      "found": null,
+      "where": "What other cost studies found"
+    },
+    {
+      "n": 354,
+      "text": "\"a BEV held for only 5 years is nearly always the most expensive\"",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "a BEV held for only 5 years is nearly always the most expensive of the three powertrains, unless is it driven much farther than average",
+      "reason": null,
+      "found": null,
+      "where": "What other cost studies found"
+    },
+    {
+      "n": 355,
+      "text": "up to 300 miles",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s105"
+      ],
+      "quote": "new BEV with up to 300 miles of range",
+      "reason": null,
+      "found": null,
+      "where": "What other cost studies found"
+    },
+    {
+      "n": 356,
+      "text": "$6,600\u2013$11,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s105"
+      ],
+      "quote": "savings of $6,600\u2013$11,000 (depending on the type) on fuel and maintenance costs alone",
+      "reason": null,
+      "found": null,
+      "where": "What other cost studies found"
+    },
+    {
+      "n": 357,
+      "text": "$6,000\u2013$12,000",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s97"
+      ],
+      "quote": "save the typical driver $6,000 to $12,000 over the life of the vehicle",
+      "reason": null,
+      "found": null,
+      "where": "What other cost studies found"
+    },
+    {
+      "n": 358,
+      "text": "Competitive in most US locations",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s107"
+      ],
+      "quote": "in most places across the U.S., EVs are competitive with comparable combustion-engine vehicles in terms of lifetime ownership cost, even without clean vehicle tax credits",
+      "reason": null,
+      "found": null,
+      "where": "What other cost studies found"
+    },
+    {
+      "n": 359,
+      "text": "57.2%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s14"
+      ],
+      "quote": "falling 57.2% in 5 years",
+      "reason": null,
+      "found": null,
+      "where": "What could not be confirmed, and the limits of this estimate"
+    },
+    {
+      "n": 360,
+      "text": "20%",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s91"
+      ],
+      "quote": "DC fast charging infrastructure is expected to support 20% of EV charging needs",
+      "reason": null,
+      "found": null,
+      "where": "What could not be confirmed, and the limits of this estimate"
+    }
+  ],
+  "unmarked": [
+    {
+      "text": "average price paid for a new EV, October 2026, against \u2063 for all new vehicles",
+      "numbers": [
+        "26"
+      ],
+      "where": "Electric or petrol? What a new car really costs over five years in the US"
+    },
+    {
+      "text": "EVs still cost more to buy, but the gap has narrowed. Kelley Blue Book puts the average price paid for a new EV in October 2026 at \u2063 . The average for all new vehicles was \u2063 . In September, Cox put the EV premium over the rest of the market (which it calls \"IC",
+      "numbers": [
+        "26"
+      ],
+      "where": "Purchase price and resale value"
+    },
+    {
+      "text": "Resale value is the EV's biggest cost. iSeeCars studied five-year-old cars sold between March 2025 and February 2026. EVs had lost \u2063 of their value, against \u2063 for the average vehicle and \u2063 for hybrids. The cars in this study were bought around 2021. The large ",
+      "numbers": [
+        "25",
+        "26"
+      ],
+      "where": "Purchase price and resale value"
+    },
+    {
+      "text": "Charging at home costs well under half as much per mile as gasoline. Fast charging does not. Gasoline averaged \u2063 in EIA's survey for the week of 9 November 2026. AAA showed \u2063 on 13 November. EIA expects \u2063 . Home electricity averages \u2063 . State prices range wide",
+      "numbers": [
+        "26"
+      ],
+      "where": "Fuel vs electricity"
+    },
+    {
+      "text": "Most states add an EV fee. At least \u2063 charge an extra yearly registration fee for EVs, to make up for the gas tax EV drivers don't pay. NCSL lists fees from \u2063 to \u2063 and, in New Jersey, \u2063 for the year to June 2027, rising to \u2063 in 2028. Texas lists \u2063 Over five ye",
+      "numbers": [
+        "27"
+      ],
+      "where": "Insurance and registration fees"
+    },
+    {
+      "text": "EVs carry bigger incentives. In October 2026 the average EV incentive was \u2063 , against \u2063 for all new vehicles. Negotiate.",
+      "numbers": [
+        "26"
+      ],
+      "where": "Incentives available today"
+    },
+    {
+      "text": "Plus \u2063 for income-qualified buyers and \u2063 for trading in a petrol car. Lower price caps were proposed in July 2026; whether they apply now is unconfirmed",
+      "numbers": [
+        "26"
+      ],
+      "where": "Incentives available today"
+    }
+  ],
+  "sources": [
+    {
+      "id": "s1",
+      "title": "Kelley Blue Book Report: Average New-Vehicle Prices Top $51,000, Reach Record High in October - Cox Automotive Inc.icon-brandingEvents IconInventory Iconicon-mail-hovericon-mailMarketing Iconicon-operationsicon-phone-hovericon-phoneProduct Training IconSales IconService Iconicon-social-fb-hovericon-",
+      "url": "https://www.coxautoinc.com/insights/oct-2026-atp-report/",
+      "fetched_at": "2026-11-13T16:00:14.268Z",
+      "cited": 8
+    },
+    {
+      "id": "s2",
+      "title": "October 2026 Kelley Blue Book Average Transaction Price tables",
+      "url": "https://www.coxautoinc.com/wp-content/uploads/2026/11/October-2026-Kelley-Blue-Book-Average-Transaction-Price-tables.pdf",
+      "fetched_at": "2026-11-13T16:00:14.912Z",
+      "cited": 1
+    },
+    {
+      "id": "s3",
+      "title": "Kelley Blue Book Report: New-Vehicle Average Transaction Price Declines in October as EV Sales Stall and Incentives Drop - Cox Automotive Inc.icon-brandingEvents IconInventory Iconicon-mail-hovericon-mailMarketing Iconicon-operationsicon-phone-hovericon-phoneProduct Training IconSales IconService Ic",
+      "url": "https://www.coxautoinc.com/insights/oct-2025-atp-report/",
+      "fetched_at": "2026-11-13T16:00:26.216Z",
+      "cited": 0
+    },
+    {
+      "id": "s4",
+      "title": "Gasoline and Diesel Fuel Update - U.S. Energy Information Administration (EIA)",
+      "url": "https://www.eia.gov/petroleum/gasdiesel/",
+      "fetched_at": "2026-11-13T16:00:26.903Z",
+      "cited": 1
+    },
+    {
+      "id": "s5",
+      "title": "Electric Power Monthly - U.S. Energy Information Administration (EIA)SAS Output",
+      "url": "https://www.eia.gov/electricity/monthly/epm_table_grapher.php?t=epmt_5_6_a",
+      "fetched_at": "2026-11-13T16:00:27.920Z",
+      "cited": 3
+    },
+    {
+      "id": "s6",
+      "title": "AAA Fuel Prices",
+      "url": "https://gasprices.aaa.com/",
+      "fetched_at": "2026-11-13T16:00:28.290Z",
+      "cited": 1
+    },
+    {
+      "id": "s7",
+      "title": "Comprehensive Total Cost of Ownership Quantification for Vehicles with Different Size Classes and Powertrains",
+      "url": "https://publications.anl.gov/anlpubs/2021/05/167399.pdf",
+      "fetched_at": "2026-11-13T16:00:33.552Z",
+      "cited": 3
+    },
+    {
+      "id": "s8",
+      "title": "Short-Term Energy Outlook - U.S. Energy Information Administration (EIA)U.S. Energy Information Administration - EIA - Independent Statistics and Analysis",
+      "url": "https://www.eia.gov/outlooks/steo/index.php",
+      "fetched_at": "2026-11-13T16:00:33.843Z",
+      "cited": 0
+    },
+    {
+      "id": "s9",
+      "title": "FAQs for modification of sections 25C, 25D, 25E, 30C, 30D, 45L, 45W, AND 179D under Public Law 119-21, 139 Stat. 72 (July 4, 2025), commonly known as the One, Big, Beautiful Bill (OBBB) | Internal Revenue Service",
+      "url": "https://www.irs.gov/newsroom/faqs-for-modification-of-sections-25c-25d-25e-30c-30d-45l-45w-and-179d-under-public-law-119-21-139-stat-72-july-4-2025-commonly-known-as-the-one-big-beautiful-bill-obbb",
+      "fetched_at": "2026-11-13T16:00:33.859Z",
+      "cited": 3
+    },
+    {
+      "id": "s10",
+      "title": "Short-Term Energy Outlook - U.S. Energy Information Administration (EIA)U.S. Energy Information Administration - EIA - Independent Statistics and Analysis",
+      "url": "https://www.eia.gov/outlooks/steo/",
+      "fetched_at": "2026-11-13T16:00:34.183Z",
+      "cited": 46
+    },
+    {
+      "id": "s11",
+      "title": "AAA Fuel Prices",
+      "url": "https://gasprices.aaa.com/ev-charging-prices/",
+      "fetched_at": "2026-11-13T16:00:34.277Z",
+      "cited": 0
+    },
+    {
+      "id": "s12",
+      "title": "Learn More About the Fuel Economy Label for Electric Vehicles",
+      "url": "https://www.fueleconomy.gov/feg/label/learn-more-electric-label.shtml",
+      "fetched_at": "2026-11-13T16:00:34.780Z",
+      "cited": 0
+    },
+    {
+      "id": "s13",
+      "title": "FOTW #1190, June 14, 2021: Battery-Electric Vehicles Have Lower Scheduled Maintenance Costs than Other Light-Duty Vehicles | Department of EnergyLock",
+      "url": "https://www.energy.gov/cmei/vehicles/articles/fotw-1190-june-14-2021-battery-electric-vehicles-have-lower-scheduled",
+      "fetched_at": "2026-11-13T16:00:38.868Z",
+      "cited": 49
+    },
+    {
+      "id": "s14",
+      "title": "The Top 25 Cars That Hold Their Value Best - and the 25 Worst - iSeeCars.com",
+      "url": "https://www.iseecars.com/cars-that-hold-their-value-study",
+      "fetched_at": "2026-11-13T16:00:39.871Z",
+      "cited": 60
+    },
+    {
+      "id": "s15",
+      "title": "The Hidden EV Cost Nobody Talks About: Insurance | Insurify",
+      "url": "https://insurify.com/car-insurance/news/ev-insurance-costs/",
+      "fetched_at": "2026-11-13T16:00:41.388Z",
+      "cited": 3
+    },
+    {
+      "id": "s16",
+      "title": "EV Insurance: Costs, Coverage, and Cheap Quotes | Insurify",
+      "url": "https://insurify.com/car-insurance/vehicle/vehicle-type/electric-vehicles/",
+      "fetched_at": "2026-11-13T16:00:42.266Z",
+      "cited": 5
+    },
+    {
+      "id": "s17",
+      "title": "Short-Term Energy Outlook - U.S. Energy Information Administration (EIA)U.S. Energy Information Administration - EIA - Independent Statistics and Analysis",
+      "url": "https://www.eia.gov/outlooks/steo/report/elec_coal_renew.php",
+      "fetched_at": "2026-11-13T16:00:43.289Z",
+      "cited": 47
+    },
+    {
+      "id": "s18",
+      "title": "Information about the Greenhouse Gas Emission Calculations",
+      "url": "https://www.fueleconomy.gov/feg/label/calculations-information.shtml",
+      "fetched_at": "2026-11-13T16:00:43.603Z",
+      "cited": 0
+    },
+    {
+      "id": "s19",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Chevrolet&model=Equinox%20EV",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Chevrolet&model=Equinox%20EV",
+      "fetched_at": "2026-11-13T16:00:44.040Z",
+      "cited": 0
+    },
+    {
+      "id": "s20",
+      "title": "Treasury, IRS provide guidance on the new deduction for car loan interest under the One, Big, Beautiful Bill | Internal Revenue Service",
+      "url": "https://www.irs.gov/newsroom/treasury-irs-provide-guidance-on-the-new-deduction-for-car-loan-interest-under-the-one-big-beautiful-bill",
+      "fetched_at": "2026-11-13T16:00:45.686Z",
+      "cited": 0
+    },
+    {
+      "id": "s21",
+      "title": "AAA: New Vehicle Ownership Costs Top $12,000 Annually",
+      "url": "https://mwg.aaa.com/news/press-release/september-15-2026",
+      "fetched_at": "2026-11-13T16:00:48.549Z",
+      "cited": 3
+    },
+    {
+      "id": "s22",
+      "title": "https://newsroom.aaa.com/wp-content/uploads/2025/09/AAA-Brochure-Your-Driving-Cost-9.2025.pdf",
+      "url": "https://newsroom.aaa.com/wp-content/uploads/2025/09/AAA-Brochure-Your-Driving-Cost-9.2025.pdf",
+      "fetched_at": "2026-11-13T16:00:48.916Z",
+      "cited": 0
+    },
+    {
+      "id": "s23",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/model?year=2026&make=Toyota",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/model?year=2026&make=Toyota",
+      "fetched_at": "2026-11-13T16:00:49.448Z",
+      "cited": 0
+    },
+    {
+      "id": "s24",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/model?year=2026&make=Hyundai",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/model?year=2026&make=Hyundai",
+      "fetched_at": "2026-11-13T16:00:49.952Z",
+      "cited": 0
+    },
+    {
+      "id": "s25",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/model?year=2026&make=Tesla",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/model?year=2026&make=Tesla",
+      "fetched_at": "2026-11-13T16:00:50.448Z",
+      "cited": 0
+    },
+    {
+      "id": "s26",
+      "title": "Publication 6126 (1-2026)",
+      "url": "https://www.irs.gov/pub/irs-access/p6126_accessible.pdf",
+      "fetched_at": "2026-11-13T16:00:52.323Z",
+      "cited": 2
+    },
+    {
+      "id": "s27",
+      "title": "https://newsroom.aaa.com/wp-content/uploads/2025/09/UPDATE-AAA-Fact-Sheet-Your-Driving-Cost-9.2025-1.pdf",
+      "url": "https://newsroom.aaa.com/wp-content/uploads/2025/09/UPDATE-AAA-Fact-Sheet-Your-Driving-Cost-9.2025-1.pdf",
+      "fetched_at": "2026-11-13T16:00:52.466Z",
+      "cited": 1
+    },
+    {
+      "id": "s28",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/model?year=2026&make=Chevrolet",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/model?year=2026&make=Chevrolet",
+      "fetched_at": "2026-11-13T16:00:59.100Z",
+      "cited": 0
+    },
+    {
+      "id": "s29",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Hyundai&model=Ioniq%205%20RWD",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Hyundai&model=Ioniq%205%20RWD",
+      "fetched_at": "2026-11-13T16:00:59.825Z",
+      "cited": 0
+    },
+    {
+      "id": "s30",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Hyundai&model=Tucson%20FWD",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Hyundai&model=Tucson%20FWD",
+      "fetched_at": "2026-11-13T16:01:00.423Z",
+      "cited": 0
+    },
+    {
+      "id": "s31",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Toyota&model=RAV4",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Toyota&model=RAV4",
+      "fetched_at": "2026-11-13T16:01:01.022Z",
+      "cited": 0
+    },
+    {
+      "id": "s32",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Tesla&model=Model%20Y%20Long%20Range%20RWD",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Tesla&model=Model%20Y%20Long%20Range%20RWD",
+      "fetched_at": "2026-11-13T16:01:01.840Z",
+      "cited": 0
+    },
+    {
+      "id": "s33",
+      "title": "EV Market Monitor \u2013 September 2026 - Cox Automotive Inc.icon-brandingEvents IconInventory Iconicon-mail-hovericon-mailMarketing Iconicon-operationsicon-phone-hovericon-phoneProduct Training IconSales IconService Iconicon-social-fb-hovericon-social-fbicon-social-google-hovericon-social-googleicon-soc",
+      "url": "https://www.coxautoinc.com/insights/ev-market-monitor-september-2026/",
+      "fetched_at": "2026-11-13T16:01:01.875Z",
+      "cited": 4
+    },
+    {
+      "id": "s34",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Tesla&model=Model%203%20Premium%20RWD",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Tesla&model=Model%203%20Premium%20RWD",
+      "fetched_at": "2026-11-13T16:01:02.400Z",
+      "cited": 0
+    },
+    {
+      "id": "s35",
+      "title": "Electric vehicle owners spending half as much on maintenance compared to gas-powered vehicle owners, finds new CR analysisConsumer Reports LogoFacebookInstagramThreadsXBlueSkyLinkedInTikTokYouTube",
+      "url": "https://advocacy.consumerreports.org/press_release/electric-vehicle-owners-spending-half-as-much-on-maintenance-compared-to-gas-powered-vehicle-owners-finds-new-cr-analysis/",
+      "fetched_at": "2026-11-13T16:01:07.220Z",
+      "cited": 1
+    },
+    {
+      "id": "s36",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Chevrolet&model=Equinox%20EV%20FWD",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Chevrolet&model=Equinox%20EV%20FWD",
+      "fetched_at": "2026-11-13T16:01:07.315Z",
+      "cited": 0
+    },
+    {
+      "id": "s37",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Chevrolet&model=Equinox%20FWD",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Chevrolet&model=Equinox%20FWD",
+      "fetched_at": "2026-11-13T16:01:08.133Z",
+      "cited": 0
+    },
+    {
+      "id": "s38",
+      "title": "How Much Does Electric Car Insurance Cost? - ValuePenguinYour Privacy Choices",
+      "url": "https://www.valuepenguin.com/how-having-electric-car-affects-your-auto-insurance-rates",
+      "fetched_at": "2026-11-13T16:01:08.690Z",
+      "cited": 5
+    },
+    {
+      "id": "s39",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Toyota&model=Camry%20HEV%20FF%20LE",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=2026&make=Toyota&model=Camry%20HEV%20FF%20LE",
+      "fetched_at": "2026-11-13T16:01:08.771Z",
+      "cited": 0
+    },
+    {
+      "id": "s40",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/49960",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/49960",
+      "fetched_at": "2026-11-13T16:01:09.271Z",
+      "cited": 0
+    },
+    {
+      "id": "s41",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/49453",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/49453",
+      "fetched_at": "2026-11-13T16:01:09.743Z",
+      "cited": 0
+    },
+    {
+      "id": "s42",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/50285",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/50285",
+      "fetched_at": "2026-11-13T16:01:10.301Z",
+      "cited": 0
+    },
+    {
+      "id": "s43",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/49743",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/49743",
+      "fetched_at": "2026-11-13T16:01:10.789Z",
+      "cited": 0
+    },
+    {
+      "id": "s44",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/50038",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/50038",
+      "fetched_at": "2026-11-13T16:01:11.080Z",
+      "cited": 0
+    },
+    {
+      "id": "s45",
+      "title": "Access Denied",
+      "url": "https://www.chevrolet.com/electric/equinox-ev",
+      "fetched_at": "2026-11-13T16:01:14.556Z",
+      "cited": 0
+    },
+    {
+      "id": "s46",
+      "title": "Access Denied",
+      "url": "https://www.chevrolet.com/suvs/equinox",
+      "fetched_at": "2026-11-13T16:01:15.357Z",
+      "cited": 0
+    },
+    {
+      "id": "s47",
+      "title": "Electric Vehicle Tax Credits | Colorado Energy Office",
+      "url": "https://energyoffice.colorado.gov/transportation/grants-incentives/electric-vehicle-tax-credits",
+      "fetched_at": "2026-11-13T16:01:15.376Z",
+      "cited": 16
+    },
+    {
+      "id": "s48",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/49953",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/49953",
+      "fetched_at": "2026-11-13T16:01:15.701Z",
+      "cited": 0
+    },
+    {
+      "id": "s49",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/49442",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/49442",
+      "fetched_at": "2026-11-13T16:01:16.041Z",
+      "cited": 0
+    },
+    {
+      "id": "s50",
+      "title": "Alternative Fuels Data Center: State Laws and Incentives",
+      "url": "https://afdc.energy.gov/laws/state",
+      "fetched_at": "2026-11-13T16:01:16.070Z",
+      "cited": 0
+    },
+    {
+      "id": "s51",
+      "title": "https://newsroom.aaa.com/wp-content/uploads/2026/09/8-YDC-Brochure_2026-1.pdf",
+      "url": "https://newsroom.aaa.com/wp-content/uploads/2026/09/8-YDC-Brochure_2026-1.pdf",
+      "fetched_at": "2026-11-13T16:01:16.268Z",
+      "cited": 158
+    },
+    {
+      "id": "s52",
+      "title": "https://www.fueleconomy.gov/ws/rest/vehicle/49823",
+      "url": "https://www.fueleconomy.gov/ws/rest/vehicle/49823",
+      "fetched_at": "2026-11-13T16:01:16.562Z",
+      "cited": 0
+    },
+    {
+      "id": "s53",
+      "title": "Compare Side-by-Side",
+      "url": "https://www.fueleconomy.gov/feg/Find.do?action=sbs&id=49953&id=49442&id=49960&id=49453",
+      "fetched_at": "2026-11-13T16:01:17.586Z",
+      "cited": 60
+    },
+    {
+      "id": "s54",
+      "title": "All-Electric Vehicles",
+      "url": "https://www.fueleconomy.gov/feg/evtech.shtml",
+      "fetched_at": "2026-11-13T16:01:21.764Z",
+      "cited": 0
+    },
+    {
+      "id": "s55",
+      "title": "Compare Side-by-Side",
+      "url": "https://www.fueleconomy.gov/feg/Find.do?action=sbs&id=49743&id=50285&id=50038&id=49823",
+      "fetched_at": "2026-11-13T16:01:23.498Z",
+      "cited": 8
+    },
+    {
+      "id": "s56",
+      "title": "How Much Does Tesla Car Insurance Cost? - NerdWallet",
+      "url": "https://www.nerdwallet.com/insurance/auto/learn/tesla-insurance",
+      "fetched_at": "2026-11-13T16:01:26.583Z",
+      "cited": 0
+    },
+    {
+      "id": "s57",
+      "title": "Just a moment...",
+      "url": "https://gmauthority.com/blog/2026/10/these-2027-chevy-equinox-ev-trim-levels-received-a-price-increase-in-october/",
+      "fetched_at": "2026-11-13T16:01:27.244Z",
+      "cited": 0
+    },
+    {
+      "id": "s58",
+      "title": "Alternative Fuels Data Center: Batteries for Electric Vehicles",
+      "url": "https://afdc.energy.gov/vehicles/electric-batteries",
+      "fetched_at": "2026-11-13T16:01:31.900Z",
+      "cited": 0
+    },
+    {
+      "id": "s59",
+      "title": "2026 Fuel Economy Guide",
+      "url": "https://www.fueleconomy.gov/feg/pdfs/guides/FEG2026.pdf?pubDate=20260402",
+      "fetched_at": "2026-11-13T16:01:36.491Z",
+      "cited": 6
+    },
+    {
+      "id": "s60",
+      "title": "Alternative Fuels Data Center: Maps and Data - Average Annual Vehicle Miles Traveled by Major Vehicle Category",
+      "url": "https://afdc.energy.gov/data/10309",
+      "fetched_at": "2026-11-13T16:01:38.105Z",
+      "cited": 0
+    },
+    {
+      "id": "s61",
+      "title": "Access Denied",
+      "url": "https://www.kbb.com/chevrolet/equinox/2027/lt/",
+      "fetched_at": "2026-11-13T16:01:38.525Z",
+      "cited": 0
+    },
+    {
+      "id": "s62",
+      "title": "Access Denied",
+      "url": "https://www.kbb.com/tesla/model-y/2026/cost-to-own/",
+      "fetched_at": "2026-11-13T16:01:39.200Z",
+      "cited": 0
+    },
+    {
+      "id": "s63",
+      "title": "Access Denied",
+      "url": "https://www.kbb.com/chevrolet/equinox-ev/2027/",
+      "fetched_at": "2026-11-13T16:01:39.903Z",
+      "cited": 0
+    },
+    {
+      "id": "s64",
+      "title": "EV Charging Cost and Pricing Plans | Electrify AmericaBack ButtonSearch IconFilter Icon",
+      "url": "https://www.electrifyamerica.com/pricing/",
+      "fetched_at": "2026-11-13T16:01:40.821Z",
+      "cited": 0
+    },
+    {
+      "id": "s65",
+      "title": "Alternative Fuels Data Center: Maintenance and Safety of Electric Vehicles",
+      "url": "https://afdc.energy.gov/vehicles/electric-maintenance",
+      "fetched_at": "2026-11-13T16:01:42.540Z",
+      "cited": 1
+    },
+    {
+      "id": "s66",
+      "title": "403 - Access Denied | Edmunds",
+      "url": "https://www.edmunds.com/tesla/model-y/2026/cost-to-own/",
+      "fetched_at": "2026-11-13T16:01:42.912Z",
+      "cited": 0
+    },
+    {
+      "id": "s67",
+      "title": "About Charge Up New Jersey | Charge Up New Jersey",
+      "url": "https://chargeup.njcleanenergy.com/about",
+      "fetched_at": "2026-11-13T16:01:44.008Z",
+      "cited": 0
+    },
+    {
+      "id": "s68",
+      "title": "Home | Charge Up New Jersey",
+      "url": "https://chargeup.njcleanenergy.com",
+      "fetched_at": "2026-11-13T16:01:44.425Z",
+      "cited": 3
+    },
+    {
+      "id": "s69",
+      "title": "2027 Chevrolet Equinox EV Review, Pricing, and Specs",
+      "url": "https://www.caranddriver.com/chevrolet/equinox-ev",
+      "fetched_at": "2026-11-13T16:01:45.003Z",
+      "cited": 44
+    },
+    {
+      "id": "s70",
+      "title": "2027 Chevrolet Equinox Review, Pricing, and Specs",
+      "url": "https://www.caranddriver.com/chevrolet/equinox",
+      "fetched_at": "2026-11-13T16:01:45.266Z",
+      "cited": 44
+    },
+    {
+      "id": "s71",
+      "title": "The Cheapest Cars to Insure in 2026 - ValuePenguinYour Privacy Choices",
+      "url": "https://www.valuepenguin.com/best-and-cheapest-cars-insure",
+      "fetched_at": "2026-11-13T16:01:48.920Z",
+      "cited": 3
+    },
+    {
+      "id": "s72",
+      "title": "Drive Clean Rebate for Electric Cars Program | NYSERDA",
+      "url": "https://www.nyserda.ny.gov/All-Programs/Drive-Clean-Rebate-For-Electric-Cars-Program",
+      "fetched_at": "2026-11-13T16:01:57.963Z",
+      "cited": 4
+    },
+    {
+      "id": "s73",
+      "title": "Home page | MOR-EV.org",
+      "url": "https://mor-ev.org/",
+      "fetched_at": "2026-11-13T16:01:58.306Z",
+      "cited": 0
+    },
+    {
+      "id": "s74",
+      "title": "Alternative Fuels Data Center: Battery Durability and Warranty Requirements for Model Years 2027 and Later",
+      "url": "https://afdc.energy.gov/laws/14222",
+      "fetched_at": "2026-11-13T16:01:59.704Z",
+      "cited": 0
+    },
+    {
+      "id": "s75",
+      "title": "40 CFR \u00a7 86.1815-27 - Battery-related requirements for battery electric vehicles and plug-in hybrid electric vehicles. | Electronic Code of Federal Regulations (e-CFR) | US Law | LII / Legal Information Institute",
+      "url": "https://www.law.cornell.edu/cfr/text/40/86.1815-27",
+      "fetched_at": "2026-11-13T16:02:00.142Z",
+      "cited": 0
+    },
+    {
+      "id": "s76",
+      "title": "2027 Tesla Model Y Review, Pricing, and Specs",
+      "url": "https://www.caranddriver.com/tesla/model-y",
+      "fetched_at": "2026-11-13T16:02:01.235Z",
+      "cited": 2
+    },
+    {
+      "id": "s77",
+      "title": "2027 Toyota RAV4 Review, Pricing, and Specs",
+      "url": "https://www.caranddriver.com/toyota/rav4",
+      "fetched_at": "2026-11-13T16:02:01.646Z",
+      "cited": 3
+    },
+    {
+      "id": "s78",
+      "title": "2027 Hyundai Ioniq 5 Review, Pricing, and Specs",
+      "url": "https://www.caranddriver.com/hyundai/ioniq-5",
+      "fetched_at": "2026-11-13T16:02:02.056Z",
+      "cited": 2
+    },
+    {
+      "id": "s79",
+      "title": "2027 Hyundai Tucson: What We Know So Far",
+      "url": "https://www.caranddriver.com/hyundai/tucson",
+      "fetched_at": "2026-11-13T16:02:02.303Z",
+      "cited": 2
+    },
+    {
+      "id": "s80",
+      "title": "Special Fees on Plug-In Hybrid and Electric Vehicles",
+      "url": "https://www.ncsl.org/transportation/special-registration-fees-for-electric-and-hybrid-vehicles",
+      "fetched_at": "2026-11-13T16:02:06.367Z",
+      "cited": 52
+    },
+    {
+      "id": "s81",
+      "title": "Paren | US EV Fast Charging \u2014 Q3 2026Guest Perspective - Tom Moloughney",
+      "url": "https://www.paren.app/reports/us-ev-fast-charging-q3-2026",
+      "fetched_at": "2026-11-13T16:02:08.149Z",
+      "cited": 45
+    },
+    {
+      "id": "s82",
+      "title": "Alternative Fuels Data Center: Charging Electric Vehicles at Home",
+      "url": "https://afdc.energy.gov/fuels/electricity-charging-home",
+      "fetched_at": "2026-11-13T16:02:08.528Z",
+      "cited": 0
+    },
+    {
+      "id": "s83",
+      "title": "Average Annual Miles per Driver by Age Group",
+      "url": "https://www.fhwa.dot.gov/ohim/onh00/bar8.htm",
+      "fetched_at": "2026-11-13T16:02:09.249Z",
+      "cited": 0
+    },
+    {
+      "id": "s84",
+      "title": "MOR-EV Rebate Program | Mass.gov",
+      "url": "https://www.mass.gov/info-details/mor-ev-rebate-program",
+      "fetched_at": "2026-11-13T16:02:13.800Z",
+      "cited": 0
+    },
+    {
+      "id": "s85",
+      "title": "2027 Tesla Model 3 Review, Pricing, and Specs",
+      "url": "https://www.caranddriver.com/tesla/model-3",
+      "fetched_at": "2026-11-13T16:02:15.537Z",
+      "cited": 2
+    },
+    {
+      "id": "s86",
+      "title": "2027 Toyota Camry Review, Pricing, and Specs",
+      "url": "https://www.caranddriver.com/toyota/camry",
+      "fetched_at": "2026-11-13T16:02:15.707Z",
+      "cited": 2
+    },
+    {
+      "id": "s87",
+      "title": "Overview | MOR-EV.org",
+      "url": "https://mor-ev.org/cars-overview",
+      "fetched_at": "2026-11-13T16:02:19.073Z",
+      "cited": 6
+    },
+    {
+      "id": "s88",
+      "title": "EV drivers will pay $130 a year under Congress' 2026 transportation bill - Ars Technica",
+      "url": "https://arstechnica.com/cars/2026/05/bipartisan-bill-in-congress-includes-130-annual-ev-registration-fee/",
+      "fetched_at": "2026-11-13T16:02:21.702Z",
+      "cited": 1
+    },
+    {
+      "id": "s89",
+      "title": "FOTW #1339, April 22, 2024: Plug-in Electric Vehicle Battery Replacements Due to Failure Have Been Very Rare Since Model Year 2015 | Department of EnergyLock",
+      "url": "https://www.energy.gov/cmei/vehicles/articles/fotw-1339-april-22-2024-plug-electric-vehicle-battery-replacements-due",
+      "fetched_at": "2026-11-13T16:02:21.805Z",
+      "cited": 0
+    },
+    {
+      "id": "s90",
+      "title": "New Data: How Long Do Electric Car Batteries Last?",
+      "url": "https://www.recurrentauto.com/research/how-long-do-ev-batteries-last",
+      "fetched_at": "2026-11-13T16:02:22.219Z",
+      "cited": 3
+    },
+    {
+      "id": "s91",
+      "title": "FOTW #1335, March 25, 2024: Level 1 and Level 2 EV Charging is Expected to Account for 80% of all EV Charging in 2030 | Department of EnergyLock",
+      "url": "https://www.energy.gov/cmei/vehicles/articles/fotw-1335-march-25-2024-level-1-and-level-2-ev-charging-expected-account-80",
+      "fetched_at": "2026-11-13T16:02:35.224Z",
+      "cited": 6
+    },
+    {
+      "id": "s92",
+      "title": "EV Battery Health: Key Findings from 22,700 Vehicle Data Analysis | Geotab",
+      "url": "https://www.geotab.com/blog/ev-battery-health/",
+      "fetched_at": "2026-11-13T16:02:35.403Z",
+      "cited": 1
+    },
+    {
+      "id": "s93",
+      "title": "Congress considers $130 annual federal EV fee: What drivers should know",
+      "url": "https://www.usatoday.com/story/cars/technology/electric-vehicles/2026/11/11/congress-ev-fee/92723183007/",
+      "fetched_at": "2026-11-13T16:02:36.318Z",
+      "cited": 1
+    },
+    {
+      "id": "s94",
+      "title": "Incorporating Residential Smart Electric Vehicle Charging in Home Energy Management Systems: Preprint",
+      "url": "https://docs.nlr.gov/docs/fy21osti/78540.pdf",
+      "fetched_at": "2026-11-13T16:02:38.316Z",
+      "cited": 0
+    },
+    {
+      "id": "s95",
+      "title": "New analysis from CR finds that the most popular electric vehicles cost less to own than the best-selling gas-powered vehicles in their classConsumer Reports LogoFacebookInstagramThreadsXBlueSkyLinkedInTikTokYouTube",
+      "url": "https://advocacy.consumerreports.org/press_release/new-analysis-from-cr-finds-that-the-most-popular-electric-vehicles-cost-less-to-own-than-the-best-selling-gas-powered-vehicles-in-their-class/",
+      "fetched_at": "2026-11-13T16:02:38.499Z",
+      "cited": 0
+    },
+    {
+      "id": "s96",
+      "title": "DEEP Announces Increased Incentive Levels For CHEAPR Program Effective October 15th",
+      "url": "https://portal.ct.gov/deep/news-releases/news-releases---2026/deep-announces-increased-incentive-levels-for-cheapr-program-effective-october-15th",
+      "fetched_at": "2026-11-13T16:02:38.741Z",
+      "cited": 2
+    },
+    {
+      "id": "s97",
+      "title": "https://3cenergy.org/wp-content/uploads/2023/07/CR_EVSavings_FACTSHEET_6.2023.pdf",
+      "url": "https://3cenergy.org/wp-content/uploads/2023/07/CR_EVSavings_FACTSHEET_6.2023.pdf",
+      "fetched_at": "2026-11-13T16:02:38.842Z",
+      "cited": 1
+    },
+    {
+      "id": "s98",
+      "title": "EV Ownership Cost Final Report",
+      "url": "https://advocacy.consumerreports.org/wp-content/uploads/2020/10/EV-Ownership-Cost-Final-Report-1.pdf",
+      "fetched_at": "2026-11-13T16:02:44.388Z",
+      "cited": 0
+    },
+    {
+      "id": "s99",
+      "title": "Electric vehicle tax breaks will expire on Sept. 30 as Big Beautiful Bill passes",
+      "url": "https://nypost.com/2025/07/03/business/electric-vehicle-tax-breaks-will-expire-on-sept-30-after-big-beautiful-bill-passes/",
+      "fetched_at": "2026-11-13T16:02:45.811Z",
+      "cited": 0
+    },
+    {
+      "id": "s100",
+      "title": "Electric Car Battery Replacement Costs in 2024 / 2025",
+      "url": "https://www.recurrentauto.com/research/costs-ev-battery-replacement",
+      "fetched_at": "2026-11-13T16:02:46.858Z",
+      "cited": 1
+    },
+    {
+      "id": "s101",
+      "title": "Mitchell EV Collision Insights Report Finds Repairable Severity Gap Between BEVs and ICE Vehicles Drops to Record Low | Fender Bender",
+      "url": "https://www.fenderbender.com/news/latest-news/news/55399492/mitchell-international-mitchell-ev-collision-insights-report-finds-repairable-severity-gap-between-bevs-and-ice-vehicles-drops-to-record-low",
+      "fetched_at": "2026-11-13T16:02:59.339Z",
+      "cited": 2
+    },
+    {
+      "id": "s102",
+      "title": "CCC Crash Course Report Highlights the Forces Reshaping the U.S. Vehicle Fleet and Implications for the Auto Claims and Repair Ecosystem - CCCIS",
+      "url": "https://www.cccis.com/news-and-insights/posts/ccc-crash-course-q1-2025-release",
+      "fetched_at": "2026-11-13T16:02:59.518Z",
+      "cited": 0
+    },
+    {
+      "id": "s103",
+      "title": "AAA: New Vehicle Ownership Costs Hit $12,863 Annually \u2013 AAA NewsroomNewsroom-LogoNewsroom-Logo-WhiteNewsroom-Logo-White",
+      "url": "https://newsroom.aaa.com/2026/09/aaa-new-vehicle-ownership-costs-hit-12863-annually/",
+      "fetched_at": "2026-11-13T16:03:02.538Z",
+      "cited": 0
+    },
+    {
+      "id": "s104",
+      "title": "https://vincentric.com/Portals/0/Market%20Analyses/2025%20US%20EV%20Analysis/Summary%20Report%20-%202025%20Vincentric%20US%20EV%20Cost%20of%20Ownership%20Analysis.pdf",
+      "url": "https://vincentric.com/Portals/0/Market%20Analyses/2025%20US%20EV%20Analysis/Summary%20Report%20-%202025%20Vincentric%20US%20EV%20Cost%20of%20Ownership%20Analysis.pdf",
+      "fetched_at": "2026-11-13T16:03:05.110Z",
+      "cited": 1
+    },
+    {
+      "id": "s105",
+      "title": "Tax credits or no tax credits, EV costs are projected to keep dropping - International Council on Clean Transportation",
+      "url": "https://theicct.org/tax-credits-or-no-tax-credits-ev-costs-are-projected-to-keep-dropping-jul25/",
+      "fetched_at": "2026-11-13T16:03:05.459Z",
+      "cited": 3
+    },
+    {
+      "id": "s106",
+      "title": "EV Cost of Ownership Analysis",
+      "url": "https://vincentric.com/Home/Industry-Reports/US-Industry-Reports/EV-Cost-of-Ownership-Analysis-NEW",
+      "fetched_at": "2026-11-13T16:03:18.511Z",
+      "cited": 0
+    },
+    {
+      "id": "s107",
+      "title": "For most US drivers, EVs offer emissions benefits and cost savings | MIT News | Massachusetts Institute of Technology",
+      "url": "https://news.mit.edu/2026/us-drivers-electric-vehicles-offer-emissions-benefits-cost-savings-0512",
+      "fetched_at": "2026-11-13T16:03:18.786Z",
+      "cited": 1
+    },
+    {
+      "id": "s108",
+      "title": "403 - Access Denied | Edmunds",
+      "url": "https://www.edmunds.com/tco.html",
+      "fetched_at": "2026-11-13T16:03:36.504Z",
+      "cited": 0
+    },
+    {
+      "id": "s109",
+      "title": "Satisfaction gap widens between EV and ICE tires | WardsAuto<!----><!---->",
+      "url": "https://www.wardsauto.com/news/archive-auto-jd-power-tire-satisfaction-survey-electric-vehicles/711590/",
+      "fetched_at": "2026-11-13T16:03:43.877Z",
+      "cited": 1
+    },
+    {
+      "id": "s110",
+      "title": "Governor Newsom secures 13 automakers to offer instant rebates for first-time ZEV buyers | Governor of California",
+      "url": "https://www.gov.ca.gov/2026/07/16/governor-newsom-secures-13-automakers-to-offer-instant-rebates-for-first-time-zev-buyers/",
+      "fetched_at": "2026-11-13T16:03:58.768Z",
+      "cited": 0
+    },
+    {
+      "id": "s111",
+      "title": "California launches MyFirstEV instant rebate program for first-time buyers",
+      "url": "https://ww2.arb.ca.gov/news/california-launches-myfirstev-instant-rebate-program-first-time-buyers/printable/print",
+      "fetched_at": "2026-11-13T16:03:59.653Z",
+      "cited": 4
+    },
+    {
+      "id": "s112",
+      "title": "Oregon Clean Vehicle Rebate Program Now Reopen Through November 4, 2026 \u2014 Go Electric Oregon",
+      "url": "https://goelectric.oregon.gov/blog/2026/8/26/oregon-clean-vehicle-rebate-program-now-reopen-through-november-4-2026",
+      "fetched_at": "2026-11-13T16:04:37.858Z",
+      "cited": 1
+    },
+    {
+      "id": "s113",
+      "title": "https://lawfilesext.leg.wa.gov/Law/WACArchive/2024/htm/WAC%20458%20-%2020%20%20CHAPTER/WAC%20458%20-%2020%20-27901.htm",
+      "url": "https://lawfilesext.leg.wa.gov/Law/WACArchive/2024/htm/WAC%20458%20-%2020%20%20CHAPTER/WAC%20458%20-%2020%20-27901.htm",
+      "fetched_at": "2026-11-13T16:05:00.993Z",
+      "cited": 1
+    },
+    {
+      "id": "s114",
+      "title": "Xcel Energy EV Charging Rebates & Incentives | WeaveGrid",
+      "url": "https://charge.weavegrid.com/xcelenergy/",
+      "fetched_at": "2026-11-13T16:05:32.907Z",
+      "cited": 1
+    },
+    {
+      "id": "s115",
+      "title": "Illinois Electric Vehicle Rebate Program application cycle now open | NPR Illinois",
+      "url": "https://www.nprillinois.org/illinois/2026-07-22/illinois-electric-vehicle-rebate-program-application-cycle-to-open-august-1",
+      "fetched_at": "2026-11-13T16:05:46.345Z",
+      "cited": 2
+    }
+  ]
+}

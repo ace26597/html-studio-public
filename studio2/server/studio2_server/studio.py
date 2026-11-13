@@ -21,6 +21,7 @@ from .config import REPO_ROOT, Settings, model_gateway, now_iso
 from .datasources import KINDS as DATA_KINDS
 from .datasources import DataSources, KeychainSecrets, MemorySecrets, driver_available
 from .events import EventHub, EventLog
+from .examples import Examples
 from .harness import Registry, empty_usage
 from . import generate, media, nextsteps, office, ship as shipping, tools
 from .modelcheck import ModelChecks
@@ -29,6 +30,7 @@ from .library import KeychainJson, Library, MemoryJson
 from .look import Looker
 from .picker import Picker
 from .preview import Previews
+from .sources import Sources
 from .store import ProjectNotFound, Store
 from .templates import TemplateError, Templates
 from .turns import TurnRunner
@@ -48,6 +50,7 @@ class Studio:
         self.watchers = Watchers(self._files_changed)
         self.turns = TurnRunner(self)
         self.saved = Templates(settings)
+        self.examples = Examples(lambda: self.settings.library_dir)
         self.apps = Apps(self._app_status)
         self.looker = Looker()
         self.ships = shipping.Shipper(self)
@@ -162,6 +165,7 @@ class Studio:
                 "data_sources": [i for i in project.get("data_sources") or [] if i in known],
                 "library": project.get("library") or {"skills": {}, "mcp_servers": {}},
                 "uses_template": project.get("uses_template") or None,
+                "from_example": project.get("from_example") or None,
                 "attach": project.get("attach") or None, "app_config": project.get("app_config"),
                 "ship": self.ships.view(project) if project.get("attach") else None,
                 "app": {"configured": bool(app and (app.run or app.address)), "state": app.state if app else "none"}}
@@ -373,6 +377,18 @@ class Studio:
             "text in the project under an id (s1, s2, …) that the page's figures point to, and check_page then "
             "verifies them.")
         lines.append(nextsteps.AGENT_RULE)
+        if project.get("from_example"):
+            without = Sources(self.store.workspace(project_id)).without_text()
+            if without:
+                shipped = self.examples.get(project["from_example"]) or {}
+                lines.append(
+                    f"- This project is a copy of the example “{shipped.get('title') or project['from_example']}” "
+                    f"that comes with the studio. The saved text of its sources was not included ({len(without)} "
+                    "of them: it is other people's writing), only the list in sources/index.json with each "
+                    "address. check_page cannot confirm a quote from a source without its text: before checking, "
+                    "call fetch_source with the address of each source the page cites; the text comes back under "
+                    "the same id, so the page's marks stay right. Say so plainly if a source can no longer be "
+                    "fetched or no longer says what the page quotes.")
         if model_gateway(self.settings):
             lines.append(
                 "- A back end you write for this project can call language models through the studio. It speaks "
@@ -698,7 +714,18 @@ class Studio:
         return project
 
     # -- projects ---------------------------------------------------------------------------
-    async def create_project(self, name: str, template: str = "blank") -> dict:
+    async def create_project(self, name: str, template: str = "blank", example: str | None = None) -> dict:
+        if example:    # a copy of an example that comes with the studio: its files as they are
+            shipped = self.examples.get(example)
+            if shipped is None:
+                raise KeyError(example)
+            project = self.store.create(name, self.registry.connections()[0]["id"], "blank", from_example=example)
+            pid = project["id"]
+            first = await asyncio.to_thread(ws.init_workspace, self.store.workspace(pid), name,
+                                            self.examples.files(example), f"From the example “{shipped['title']}”",
+                                            True)
+            self.store.update(pid, head=first["sha"])
+            return await self.open_preview(self.store.get(pid))
         known = {item["id"]: item for item in self.templates()}
         if template != "blank" and template not in known:
             raise KeyError(template)

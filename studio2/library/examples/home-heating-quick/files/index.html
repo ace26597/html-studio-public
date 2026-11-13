@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gas furnace vs heat pump vs electric baseboard</title>
+<style>
+  :root { --bg:#fbfaf7; --fg:#1d1f22; --muted:#5d636b; --line:#dedad2; --card:#fff; --accent:#2f6f5e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#16181b; --fg:#e8e6e1; --muted:#a2a7ad; --line:#33373c; --card:#1e2125; --accent:#7cc4ad; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 28px 18px 48px; }
+  h1 { font-size: 1.7rem; line-height: 1.2; margin: 0 0 6px; }
+  h2 { font-size: 1.15rem; margin: 32px 0 10px; }
+  .date, .note { color: var(--muted); font-size: .9rem; }
+  .summary { font-size: 1.05rem; max-width: 68ch; }
+  .table-wrap { overflow-x: auto; border:1px solid var(--line); border-radius:10px; background:var(--card); }
+  table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  thead th { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  tbody th { font-weight: 600; white-space: nowrap; }
+  tr:last-child th, tr:last-child td { border-bottom: 0; }
+  @media (max-width: 640px) {
+    .compare thead { display: none; }
+    .compare tr { display: block; border-bottom: 1px solid var(--line); padding: 4px 0 8px; }
+    .compare tr:last-child { border-bottom: 0; }
+    .compare th, .compare td { display: block; border: 0; padding: 4px 12px; }
+    .compare td { position: relative; padding-left: calc(12px + 7.5em); }
+    .compare tbody th { padding-top: 10px; color: var(--accent); }
+    .compare td::before { position: absolute; left: 12px; top: 5px; width: 7em; font-weight: 600; color: var(--muted); font-size: .85rem; }
+    .compare td:nth-of-type(1)::before { content: "Gas furnace"; }
+    .compare td:nth-of-type(2)::before { content: "Heat pump"; }
+    .compare td:nth-of-type(3)::before { content: "Baseboard"; }
+  }
+  .cards { display:grid; gap:12px; grid-template-columns: 1fr; }
+  @media (min-width: 720px) { .cards { grid-template-columns: repeat(3, 1fr); } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .card h3 { margin:0 0 6px; font-size:1rem; color:var(--accent); }
+  .card p { margin:0; font-size:.95rem; }
+  [data-src] { text-decoration: underline dotted; text-underline-offset: 3px; }
+  a { color: var(--accent); }
+  sup a { text-decoration: none; font-size: .75em; }
+  ol.sources li { margin-bottom: 6px; font-size: .9rem; word-break: break-word; }
+  details summary { cursor: pointer; color: var(--accent); }
+  #checked-list table { font-size: .82rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Heating a home: gas furnace, heat pump or electric baseboard</h1>
+  <p class="date">November 2026 · United States figures</p>
+  <p class="summary">A <strong>heat pump</strong> moves heat instead of making it, so it usually needs the least energy and also cools in summer. A <strong>gas furnace</strong> burns fuel; new efficient models turn almost all of it into heat but need a gas line and a flue. <strong>Electric baseboard</strong> is cheapest to install but uses the most electricity for the same warmth. Which is cheapest to run depends on your local gas and power prices.</p>
+
+  <h2>Side by side</h2>
+  <div class="table-wrap">
+  <table class="compare">
+    <thead><tr><th></th><th>Gas furnace</th><th>Heat pump</th><th>Electric baseboard</th></tr></thead>
+    <tbody>
+      <tr><th>How it heats</th><td>Burns natural gas, blows warm air through ducts</td><td>Moves heat from outside air (or ground) indoors<sup><a href="#src-s5">[2]</a></sup></td><td>Electric resistance heating in each room</td></tr>
+      <tr><th>Efficiency</th><td>ENERGY STAR gas furnaces: <span data-src="s2" data-quote="Rating of 95% AFUE or greater for U.S. South gas furnaces" title="ENERGY STAR furnace criteria">95%</span>–<span data-src="s2" data-quote="Rating of 97% AFUE or greater for U.S. North gas furnaces" title="ENERGY STAR furnace criteria">97%</span> AFUE or more<sup><a href="#src-s2">[1]</a></sup></td><td>Up to <span data-src="s5" data-quote="reduce your electricity use for heating by up to 75% compared to electric resistance heating" title="DOE Heat Pump Systems">75%</span> less electricity than resistance heat<sup><a href="#src-s5">[2]</a></sup>; EPA says <span data-src="s1" data-quote="A heat pump typically uses about half the energy of other electric home-heating sources" title="EPA Heat Pumps">“about half” the energy</span><sup><a href="#src-s1">[3]</a></sup></td><td>The baseline the heat pump figures compare against</td></tr>
+      <tr><th>Cooling too?</th><td>No (needs a separate AC)</td><td>Yes, runs in reverse<sup><a href="#src-s1">[3]</a></sup></td><td>No</td></tr>
+      <tr><th>Needs ducts?</th><td>Yes</td><td>Ducted or ductless (mini-split)<sup><a href="#src-s5">[2]</a></sup></td><td>No</td></tr>
+      <tr><th>Install cost</th><td>Moderate; needs gas line and venting</td><td>Varies by type; ground-source costs more to install<sup><a href="#src-s1">[3]</a></sup></td><td>Lowest</td></tr>
+      <tr><th>Running cost</th><td>Often low where gas is cheap</td><td>Low; geothermal has low operating costs<sup><a href="#src-s1">[3]</a></sup></td><td>Highest of the three for whole-home heat</td></tr>
+      <tr><th>Cold climates</th><td>Works in any cold</td><td>Newer models work in cold climates<sup><a href="#src-s1">[3]</a></sup></td><td>Works in any cold</td></tr>
+      <tr><th>Burns fuel at home</th><td>Yes</td><td>No</td><td>No</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Which fits</h2>
+  <div class="cards">
+    <div class="card"><h3>Gas furnace</h3><p>You already have ducts and a gas line, gas is cheap where you live, and you only need heat.</p></div>
+    <div class="card"><h3>Heat pump</h3><p>You want heating and cooling from one system and lower energy use. Ductless mini-splits suit homes without ducts.<sup><a href="#src-s5">[2]</a></sup></p></div>
+    <div class="card"><h3>Electric baseboard</h3><p>A small space, an addition or a mild climate where low install cost matters more than the power bill.</p></div>
+  </div>
+
+  <p class="note">Install and running costs above are relative, not dollar amounts: they vary too much by region and home to quote one figure. Get local quotes and compare against your gas and electricity rates.</p>
+
+  <h2>Sources</h2>
+  <ol class="sources">
+    <li id="src-s2">ENERGY STAR, “Furnaces Key Product Criteria.” <a href="https://www.energystar.gov/products/furnaces/key_product_criteria">energystar.gov</a> · saved 13 Nov 2026</li>
+    <li id="src-s5">U.S. Department of Energy, “Heat Pump Systems” (Energy Saver; archived copy, Dec 2024). <a href="https://web.archive.org/web/20241231180018/https://www.energy.gov/energysaver/heat-pump-systems">web.archive.org</a> · saved 13 Nov 2026</li>
+    <li id="src-s1">U.S. EPA Burn Wise, “Heat Pumps.” <a href="https://www.epa.gov/burnwise/heat-pumps">epa.gov</a> · saved 13 Nov 2026</li>
+  </ol>
+
+  <section id="checked-numbers">
+    <h2>Checked numbers</h2>
+    <p class="note">Each figure was compared with the saved text of its source. A match means the words are in the source as saved on the date shown; it does not prove the source is right.</p>
+    <div id="checked-list">Loading the check…</div>
+  </section>
+</main>
+<script>
+fetch('checks/index.html.json').then(r => r.json()).then(c => {
+  const s = c.summary, esc = t => String(t ?? '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  document.getElementById('checked-list').innerHTML =
+    `<p><strong>${s.verified}</strong> verified · <strong>${s.derived}</strong> derived · <strong>${s.failed}</strong> failed · checked ${new Date(c.checked_at).toLocaleString()}</p>` +
+    '<details><summary>Show every checked figure</summary><div class="table-wrap"><table><thead><tr><th>#</th><th>Figure</th><th>Status</th><th>Source</th><th>Evidence</th></tr></thead><tbody>' +
+    c.items.map(i => `<tr class="st-${i.status}"><td>${i.n}</td><td>${esc(i.text)}</td><td>${i.status}</td><td>${i.sources.map(esc).join(', ')}</td><td>${esc(i.status === 'derived' ? i.reason : i.quote)}${i.status === 'failed' ? '<br><em>' + esc(i.reason) + '</em>' : ''}</td></tr>`).join('') +
+    '</tbody></table></div></details>';
+}).catch(() => { document.getElementById('checked-list').textContent = 'The check has not been run for this page.'; });
+</script>
+</body>
+</html>

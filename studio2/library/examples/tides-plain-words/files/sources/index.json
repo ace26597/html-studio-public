@@ -1,0 +1,52 @@
+{
+  "sources": [
+    {
+      "id": "s1",
+      "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides03_gravity.html",
+      "path": "sources/s1.txt",
+      "original": null,
+      "title": "Gravity, Inertia, and the Two Bulges - Tides and water levels: NOAA's National Ocean Service Educationdot gov iconhttps icon",
+      "kind": "html",
+      "fetched_at": "2026-11-12T15:42:19.128Z",
+      "chars": 3690,
+      "sha256": "ce6f70b539b1dfc67a9894995426c2a2013224865f4e1be57498c2e2e4879cf6",
+      "pages": null
+    },
+    {
+      "id": "s2",
+      "url": "https://oceanservice.noaa.gov/facts/springtide.html",
+      "path": "sources/s2.txt",
+      "original": null,
+      "title": "What are spring and neap tides?dot gov iconhttps icon",
+      "kind": "html",
+      "fetched_at": "2026-11-12T15:42:19.319Z",
+      "chars": 3545,
+      "sha256": "a6ad1330b8209a1c17d4e759eff5e64fbff047f5a9299e6090dfb17184a7f679",
+      "pages": null
+    },
+    {
+      "id": "s3",
+      "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides05_lunarday.html",
+      "path": "sources/s3.txt",
+      "original": null,
+      "title": "Frequency of Tides - The Lunar Day - Tides and water levels: NOAA's National Ocean Service Educationdot gov iconhttps icon",
+      "kind": "html",
+      "fetched_at": "2026-11-12T15:42:24.166Z",
+      "chars": 3709,
+      "sha256": "72cdc3024d4892a310566abd78c1412ccaa166d265dbeb731a739b88d8e595a7",
+      "pages": null
+    },
+    {
+      "id": "s4",
+      "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides01_intro.html",
+      "path": "sources/s4.txt",
+      "original": null,
+      "title": "What are Tides - Tides and Water Levels: NOAA's National Ocean Service Educationdot gov iconhttps icon",
+      "kind": "html",
+      "fetched_at": "2026-11-12T15:42:24.274Z",
+      "chars": 3657,
+      "sha256": "71d3fc2fa68a422d255c764340bc38f0fcbccd1b56af3c696a9748a35b46f963",
+      "pages": null
+    }
+  ]
+}

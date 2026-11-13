@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="studio-reload" content="off">
+<title>The inner solar system in 3D</title>
+<meta property="og:title" content="The inner solar system in 3D">
+<meta property="og:description" content="Turn, zoom and click the Sun, Mercury, Venus, Earth, the Moon and Mars, moving at their real relative speeds.">
+<meta property="og:image" content="media/solar-system-card.png">
+<style>
+:root{--bg:#f6f7fb;--fg:#161a26;--mut:#5b6377;--card:#fff;--line:#dde1ec;--acc:#b45309;--stage:#03050c}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1019;--fg:#e8ebf4;--mut:#9aa3ba;--card:#151927;--line:#262c40;--acc:#fbbf24}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:1180px;margin:0 auto;padding:28px 24px 60px}
+h1{font-size:2rem;margin:0 0 6px}h2{margin:36px 0 10px;font-size:1.3rem}
+.lead{max-width:70ch;color:var(--mut);margin:0 0 18px}
+.wrap{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
+.stage{position:relative;height:68vh;min-height:460px;background:var(--stage);border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.stage canvas{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+.lbl{position:absolute;left:0;top:0;color:#fff;font-size:12px;padding:1px 6px;border-radius:9px;background:rgba(0,0,0,.45);pointer-events:none;white-space:nowrap;will-change:transform}
+.lbl.on{background:#fbbf24;color:#111;font-weight:600}
+.hint{position:absolute;left:12px;bottom:10px;color:#aab;font-size:12px;pointer-events:none}
+.bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:12px 0}
+button{font:inherit;font-size:14px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+button:hover{border-color:var(--acc)}button[aria-pressed=true]{background:var(--acc);color:#111;border-color:var(--acc)}
+.bar label{font-size:14px;color:var(--mut);display:flex;gap:8px;align-items:center}
+input[type=range]{width:200px}
+#clock{font-variant-numeric:tabular-nums;font-size:14px;color:var(--mut);margin-left:auto}
+aside{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;min-height:300px}
+aside h3{margin:0 0 4px;font-size:1.25rem}
+aside dl{margin:12px 0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:14px}
+aside dt{color:var(--mut)}aside dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.src{font-size:13px;color:var(--mut)}.src a,a{color:var(--acc)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.warn{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:8px;padding:12px 16px;max-width:80ch}
+.warn ul{margin:6px 0 0;padding-left:20px}
+table{border-collapse:collapse;width:100%;font-size:14px;background:var(--card);border:1px solid var(--line);border-radius:8px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right}th:first-child,td:first-child{text-align:left}
+th{color:var(--mut);font-weight:600}
+.share{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+.share img{width:420px;height:auto;max-width:100%;border-radius:10px;border:1px solid var(--line)}
+@media(max-width:900px){.wrap{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<h1>The inner solar system in 3D</h1>
+<p class="lead">The Sun, Mercury, Venus, Earth with the Moon, and Mars, orbiting at their real relative speeds. Drag to turn, scroll to zoom, click a planet for its NASA figures.</p>
+
+<div class="wrap">
+  <div>
+    <div class="stage" id="stage"><div class="hint">Drag to turn · scroll to zoom · right-drag to pan · click a body</div></div>
+    <div class="bar">
+      <button id="pause" aria-pressed="false">⏸ Pause</button>
+      <label>Speed <input type="range" id="speed" min="0" max="2.7" step="0.05" value="1.3" aria-label="Simulation speed"> <span id="spv"></span></label>
+      <button id="vtop">Top view</button><button id="vside">Side view</button><button id="vhome">Reset</button>
+      <button id="lbls" aria-pressed="true">Labels</button>
+      <span id="clock"></span>
+    </div>
+  </div>
+  <aside id="panel" aria-live="polite"></aside>
+</div>
+
+<h2>What is not to scale</h2>
+<div class="warn">
+  <b>Distances and speeds are true to scale; sizes are not.</b>
+  <ul>
+    <li><b>Planet and Sun sizes are exaggerated.</b> At true scale against these orbits the planets would be invisible specks. Here the Sun is drawn smaller than its true size relative to the orbits and the planets much larger. Planets keep their size order, but the differences between them are compressed.</li>
+    <li><b>The Moon's orbit is drawn roughly 35 times farther from Earth than the planets' distance scale would put it,</b> so that it can be told apart from Earth. Its period (27.3 days) is real.</li>
+    <li><b>Orbits are drawn as circles in one flat plane.</b> Real orbits are slightly elliptical and tilted; distances use the fact sheet's mean distance from the Sun.</li>
+    <li><b>Starting positions are arbitrary</b> (not today's date). Planet colours are simplified, with no surface detail, axial tilt or day/night spin.</li>
+  </ul>
+</div>
+
+<h2>Figures used</h2>
+<table id="tbl"><thead><tr><th>Body</th><th>Diameter (km)</th><th>Distance from Sun (10⁶ km)</th><th>Orbital period (days)</th><th>Length of day (hours)</th></tr></thead><tbody></tbody></table>
+<p class="src">Source: NASA Goddard Space Flight Center, <a href="https://nssdc.gsfc.nasa.gov/planetary/factsheet/">Planetary Fact Sheet</a> (updated 18 March 2025) and <a href="https://nssdc.gsfc.nasa.gov/planetary/factsheet/sunfact.html">Sun Fact Sheet</a> (updated 9 May 2024). The Sun's diameter is twice its volumetric mean radius of 695,700 km. The Moon's distance is from Earth. “Length of day” is the solar day (sunrise to sunrise), which differs from the rotation period for Mercury and Venus.</p>
+
+<h2>Link preview picture</h2>
+<div class="share">
+  <img src="media/solar-system-card.png" alt="Link preview picture of the inner solar system" width="1200" height="630">
+  <div>
+    <p>1200 × 630 px PNG, made from the same 3D scene, for use as a link preview.</p>
+    <p><a href="media/solar-system-card.png" download><button>⬇ Download solar-system-card.png</button></a></p>
+  </div>
+</div>
+</main>
+
+<script type="importmap">{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+<script type="module">
+import { createScene, BODIES } from "./scene.js";
+const $ = id => document.getElementById(id);
+const fmt = n => n.toLocaleString("en-US");
+const stage = $("stage");
+const SRC = { s1: ["NASA Planetary Fact Sheet", "https://nssdc.gsfc.nasa.gov/planetary/factsheet/"],
+              s2: ["NASA Sun Fact Sheet", "https://nssdc.gsfc.nasa.gov/planetary/factsheet/sunfact.html"] };
+
+$("tbl").tBodies[0].innerHTML = BODIES.map(b => `<tr><td>${b.name}</td><td>${fmt(b.diameter)}</td>
+ <td>${b.distance == null ? "—" : (b.id === "moon" ? "0.384 (from Earth)" : b.distance)}</td>
+ <td>${b.period ?? "—"}</td><td>${b.day == null ? (b.id === "sun" ? "609.12 (rotation)" : "—") : fmt(b.day)}</td></tr>`).join("");
+
+let S;
+try { S = createScene(stage); } catch (e) {
+  stage.insertAdjacentHTML("beforeend", `<img src="media/solar-system-card.png" alt="Picture of the scene" style="width:100%;height:100%;object-fit:cover">`);
+  throw e;
+}
+function panel(id) {
+  const p = $("panel");
+  if (!id) { p.innerHTML = `<h3>Click a body</h3><p class="src">Select the Sun, a planet or the Moon in the scene, or pick one here.</p>`; }
+  else {
+    const b = BODIES.find(x => x.id === id), [sn, su] = SRC[b.src];
+    const row = (k, v) => v == null ? "" : `<dt>${k}</dt><dd>${v}</dd>`;
+    p.innerHTML = `<h3>${b.name}</h3><dl>
+      ${row("Diameter", fmt(b.diameter) + " km")}
+      ${row(id === "moon" ? "Distance from Earth" : "Distance from Sun", b.distance == null ? null : (id === "moon" ? "0.384 × 10⁶ km" : b.distance + " × 10⁶ km"))}
+      ${row("Orbital period", b.period == null ? null : b.period + " days")}
+      ${row("Length of day", b.day == null ? null : fmt(b.day) + " hours")}
+      ${id === "sun" ? row("Rotation period", "609.12 hours") : ""}
+      </dl>${b.note ? `<p class="src">${b.note}</p>` : ""}
+      <p class="src">Source: <a href="${su}" target="_blank" rel="noopener">${sn}</a></p>`;
+  }
+  p.insertAdjacentHTML("beforeend", `<div class="chips">${BODIES.map(b => `<button data-id="${b.id}">${b.name}</button>`).join("")}</div>`);
+  p.querySelectorAll("[data-id]").forEach(btn => btn.onclick = () => S.select(btn.dataset.id));
+}
+panel(null);
+S.on("select", panel);
+
+const sp = () => Math.pow(10, +$("speed").value);
+const upd = () => { S.state.speed = sp(); $("spv").textContent = sp() < 10 ? sp().toFixed(1) + " days/s" : Math.round(sp()) + " days/s"; };
+$("speed").oninput = upd; upd();
+$("pause").onclick = e => { S.state.paused = !S.state.paused; e.target.setAttribute("aria-pressed", S.state.paused); e.target.textContent = S.state.paused ? "▶ Play" : "⏸ Pause"; };
+$("lbls").onclick = e => { S.state.labels = !S.state.labels; e.target.setAttribute("aria-pressed", S.state.labels); };
+$("vtop").onclick = () => S.view("top"); $("vside").onclick = () => S.view("side"); $("vhome").onclick = () => S.reset();
+setInterval(() => { const d = S.getDays(); $("clock").textContent = `Simulated time: ${fmt(Math.floor(d))} days (${(d / 365.2).toFixed(2)} Earth years)`; }, 200);
+</script>
+</body>
+</html>

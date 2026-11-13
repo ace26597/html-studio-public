@@ -1,0 +1,206 @@
+{
+ "aaa5": {
+  "Medium sedan": {
+   "ev": {
+    "fuel": 3562.5,
+    "maintenance": 8010,
+    "depreciation": 33930,
+    "insurance": 10350,
+    "lrt": 5255,
+    "finance": 7205,
+    "total": 68312.5
+   },
+   "gas": {
+    "fuel": 11075,
+    "maintenance": 9135,
+    "depreciation": 16650,
+    "insurance": 8520,
+    "lrt": 3045,
+    "finance": 4485,
+    "total": 52910
+   },
+   "hybrid": {
+    "fuel": 7180,
+    "maintenance": 8095,
+    "depreciation": 18695,
+    "insurance": 8530,
+    "lrt": 3445,
+    "finance": 5080,
+    "total": 51025
+   },
+   "ev_minus_gas": 15402.5
+  },
+  "Compact SUV": {
+   "ev": {
+    "fuel": 3855,
+    "maintenance": 7010,
+    "depreciation": 26490,
+    "insurance": 11385,
+    "lrt": 4655,
+    "finance": 6040,
+    "total": 59435
+   },
+   "gas": {
+    "fuel": 11910,
+    "maintenance": 9770,
+    "depreciation": 17840,
+    "insurance": 10940,
+    "lrt": 3155,
+    "finance": 4665,
+    "total": 58280
+   },
+   "hybrid": {
+    "fuel": 8655,
+    "maintenance": 7530,
+    "depreciation": 19225,
+    "insurance": 11470,
+    "lrt": 3695,
+    "finance": 5435,
+    "total": 56010
+   },
+   "ev_minus_gas": 1155
+  },
+  "Medium SUV": {
+   "ev": {
+    "fuel": 4545,
+    "maintenance": 8920,
+    "depreciation": 35385,
+    "insurance": 10350,
+    "lrt": 5260,
+    "finance": 7200,
+    "total": 71660
+   },
+   "gas": {
+    "fuel": 15330,
+    "maintenance": 9145,
+    "depreciation": 25260,
+    "insurance": 12115,
+    "lrt": 4135,
+    "finance": 6175,
+    "total": 72160
+   },
+   "hybrid": {
+    "fuel": 10435,
+    "maintenance": 9510,
+    "depreciation": 24110,
+    "insurance": 12670,
+    "lrt": 4700,
+    "finance": 7060,
+    "total": 68485
+   },
+   "ev_minus_gas": -500
+  },
+  "Pickup": {
+   "ev": {
+    "fuel": 6110,
+    "maintenance": 8090,
+    "depreciation": 43120,
+    "insurance": 11470,
+    "lrt": 7535,
+    "finance": 10745,
+    "total": 87070
+   },
+   "gas": {
+    "fuel": 17990,
+    "maintenance": 8940,
+    "depreciation": 32230,
+    "insurance": 10695,
+    "lrt": 5270,
+    "finance": 8005,
+    "total": 83130
+   },
+   "hybrid": {
+    "fuel": 15765,
+    "maintenance": 7695,
+    "depreciation": 31850,
+    "insurance": 10890,
+    "lrt": 5740,
+    "finance": 8650,
+    "total": 80590
+   },
+   "ev_minus_gas": 3940
+  }
+ },
+ "example": {
+  "ev": {
+   "depreciation": 21275.54,
+   "energy": 5896.200000000001,
+   "maintenance": 4575.0,
+   "insurance": 11385,
+   "ev_fee": 1000,
+   "total": 44131.740000000005
+  },
+  "gas": {
+   "depreciation": 13248.51,
+   "energy": 10805.555555555557,
+   "maintenance": 7575.000000000001,
+   "insurance": 10940,
+   "ev_fee": 0,
+   "total": 42569.06555555556
+  },
+  "diff": 1562.6744444444485,
+  "kwh": 23250.0,
+  "gallons": 2777.777777777778
+ },
+ "sensitivity": [
+  {
+   "miles": 5000,
+   "base": 6836,
+   "home_only": 6281,
+   "same_dep": 1108
+  },
+  {
+   "miles": 7500,
+   "base": 5517,
+   "home_only": 4685,
+   "same_dep": -211
+  },
+  {
+   "miles": 10000,
+   "base": 4199,
+   "home_only": 3089,
+   "same_dep": -1529
+  },
+  {
+   "miles": 12500,
+   "base": 2881,
+   "home_only": 1494,
+   "same_dep": -2847
+  },
+  {
+   "miles": 15000,
+   "base": 1563,
+   "home_only": -102,
+   "same_dep": -4165
+  },
+  {
+   "miles": 17500,
+   "base": 244,
+   "home_only": -1698,
+   "same_dep": -5484
+  },
+  {
+   "miles": 20000,
+   "base": -1074,
+   "home_only": -3293,
+   "same_dep": -6802
+  },
+  {
+   "miles": 22500,
+   "base": -2392,
+   "home_only": -4889,
+   "same_dep": -8120
+  },
+  {
+   "miles": 25000,
+   "base": -3710,
+   "home_only": -6485,
+   "same_dep": -9438
+  }
+ ],
+ "breakeven_miles_per_year": 17963.593746926977,
+ "per_mile": {
+  "ev_energy": 0.078616,
+  "gas_energy": 0.14407407407407408
+ }
+}

@@ -1,0 +1,5123 @@
+{
+ "uvpi-gqnh": {
+  "id": "uvpi-gqnh",
+  "name": "2015 Street Tree Census - Tree Data",
+  "desc": "Street tree data from the TreesCount! 2015 Street Tree Census, conducted by volunteers and staff organized by NYC Parks & Recreation and partner organizations. Tree data collected includes tree species, diameter and perception of health. Accompanying blockface data is available indicating status of data collection and data release citywide.\n\nThe 2015 tree census was the third decadal street tree census and largest citizen science initiative in NYC Parks\u2019 history. Data collection ran from May 2015 to October 2016 and the results of the census show that there are 666,134 trees planted along NYC's streets. The data collected as part of the census represents a snapshot in time of trees under NYC Parks' jurisdiction.\n\nThe census data formed the basis of our operational database, the Forestry Management System (ForMS) which is used daily by our foresters and other staff for inventory and asset management: https://data.cityofnewyork.us/browse?sortBy=most_accessed&utf8=%E2%9C%93&Data-Collection_Data-Collection=Forestry+Management+System+%28ForMS%29\n\nTo learn more about the data collected and managed in ForMS, please refer to this user guide:\nhttps://docs.google.com/document/d/1PVPWFi-WExkG3rvnagQDoBbqfsGzxCKNmR6n678nUeU/edit. For information on the city's current tree population, use the ForMS datasets.",
+  "agency": "Department of Parks and Recreation (DPR)",
+  "category": "Environment",
+  "updated": 1507124486,
+  "freq": "Historical data",
+  "rows": 683788,
+  "columns": [
+   {
+    "field": "tree_id",
+    "name": "tree_id",
+    "type": "number",
+    "desc": "Unique identification number for each tree point."
+   },
+   {
+    "field": "block_id",
+    "name": "block_id",
+    "type": "number",
+    "desc": "Identifier linking each tree to the block in the blockface table/shapefile that it is mapped on."
+   },
+   {
+    "field": "created_at",
+    "name": "created_at",
+    "type": "calendar_date",
+    "desc": "The date tree points were collected in the census software."
+   },
+   {
+    "field": "tree_dbh",
+    "name": "tree_dbh",
+    "type": "number",
+    "desc": "Diameter of the tree, measured at approximately 54\" / 137cm above the ground. Data was collected for both living and dead trees; for stumps, use stump_diam"
+   },
+   {
+    "field": "stump_diam",
+    "name": "stump_diam",
+    "type": "number",
+    "desc": "Diameter of stump measured through the center, rounded to the nearest inch."
+   },
+   {
+    "field": "curb_loc",
+    "name": "curb_loc",
+    "type": "text",
+    "desc": "Location of tree bed in relationship to the curb; trees are either along the curb (OnCurb) or offset from the curb (OffsetFromCurb)"
+   },
+   {
+    "field": "status",
+    "name": "status",
+    "type": "text",
+    "desc": "Indicates whether the tree is alive, standing dead, or a stump."
+   },
+   {
+    "field": "health",
+    "name": "health",
+    "type": "text",
+    "desc": "Indicates the user's perception of tree health."
+   },
+   {
+    "field": "spc_latin",
+    "name": "spc_latin",
+    "type": "text",
+    "desc": "Scientific name for species, e.g. \"Acer rubrum\""
+   },
+   {
+    "field": "spc_common",
+    "name": "spc_common",
+    "type": "text",
+    "desc": "Common name for species, e.g. \"red maple\""
+   },
+   {
+    "field": "steward",
+    "name": "steward",
+    "type": "text",
+    "desc": "Indicates the number of unique signs of stewardship observed for this tree. Not recorded for stumps or dead trees."
+   },
+   {
+    "field": "guards",
+    "name": "guards",
+    "type": "text",
+    "desc": "Indicates whether a guard is present, and if the user felt it was a helpful or harmful guard. Not recorded for dead trees and stumps."
+   },
+   {
+    "field": "sidewalk",
+    "name": "sidewalk",
+    "type": "text",
+    "desc": "Indicates whether one of the sidewalk flags immediately adjacent to the tree was damaged, cracked, or lifted. Not recorded for dead trees and stumps."
+   },
+   {
+    "field": "user_type",
+    "name": "user_type",
+    "type": "text",
+    "desc": "This field describes the category of user who collected this tree point's data."
+   },
+   {
+    "field": "problems",
+    "name": "problems",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "root_stone",
+    "name": "root_stone",
+    "type": "text",
+    "desc": "Indicates the presence of a root problem caused by paving stones in tree bed"
+   },
+   {
+    "field": "root_grate",
+    "name": "root_grate",
+    "type": "text",
+    "desc": "Indicates the presence of a root problem caused by metal grates in tree bed"
+   },
+   {
+    "field": "root_other",
+    "name": "root_other",
+    "type": "text",
+    "desc": "Indicates the presence of other root problems"
+   },
+   {
+    "field": "trunk_wire",
+    "name": "trunk_wire",
+    "type": "text",
+    "desc": "Indicates the presence of a trunk problem caused by wires or rope wrapped around the trunk"
+   },
+   {
+    "field": "trnk_light",
+    "name": "trnk_light",
+    "type": "text",
+    "desc": "Indicates the presence of a trunk problem caused by lighting installed on the tree"
+   },
+   {
+    "field": "trnk_other",
+    "name": "trnk_other",
+    "type": "text",
+    "desc": "Indicates the presence of other trunk problems"
+   },
+   {
+    "field": "brch_light",
+    "name": "brch_light",
+    "type": "text",
+    "desc": "Indicates the presence of a branch problem caused by lights (usually string lights) or wires in the branches"
+   },
+   {
+    "field": "brch_shoe",
+    "name": "brch_shoe",
+    "type": "text",
+    "desc": "Indicates the presence of a branch problem caused by sneakers in the branches"
+   },
+   {
+    "field": "brch_other",
+    "name": "brch_other",
+    "type": "text",
+    "desc": "Indicates the presence of other branch problems"
+   },
+   {
+    "field": "address",
+    "name": "address",
+    "type": "text",
+    "desc": "Nearest estimated address to tree"
+   },
+   {
+    "field": "zipcode",
+    "name": "postcode",
+    "type": "number",
+    "desc": "Five-digit zipcode in which tree is located"
+   },
+   {
+    "field": "zip_city",
+    "name": "zip_city",
+    "type": "text",
+    "desc": "City as derived from zipcode. This is often (but not always) the same as borough."
+   },
+   {
+    "field": "cb_num",
+    "name": "community board",
+    "type": "number",
+    "desc": "Community board in which tree point is located"
+   },
+   {
+    "field": "borocode",
+    "name": "borocode",
+    "type": "number",
+    "desc": "Code for borough in which tree point is located:\n1 (Manhattan), 2 (Bronx), 3 (Brooklyn), 4 (Queens), 5 (Staten Island)\n"
+   },
+   {
+    "field": "boroname",
+    "name": "borough",
+    "type": "text",
+    "desc": "Name of borough in which tree point is located"
+   },
+   {
+    "field": "cncldist",
+    "name": "cncldist",
+    "type": "number",
+    "desc": "Council district in which tree point is located"
+   },
+   {
+    "field": "st_assem",
+    "name": "st_assem",
+    "type": "number",
+    "desc": "State Assembly District in which tree point is located"
+   },
+   {
+    "field": "st_senate",
+    "name": "st_senate",
+    "type": "number",
+    "desc": "State Senate District in which tree point is located"
+   },
+   {
+    "field": "nta",
+    "name": "nta",
+    "type": "text",
+    "desc": "This is the NTA Code corresponding to the neighborhood tabulation area from the 2010 US Census that the tree point falls into."
+   },
+   {
+    "field": "nta_name",
+    "name": "nta_name",
+    "type": "text",
+    "desc": "This is the NTA name corresponding to the neighborhood tabulation area from the 2010 US Census that the tree point falls into."
+   },
+   {
+    "field": "boro_ct",
+    "name": "boro_ct",
+    "type": "number",
+    "desc": "This is the boro_ct identifyer for the census tract that the tree point falls into."
+   },
+   {
+    "field": "state",
+    "name": "state",
+    "type": "text",
+    "desc": "All features given value 'New York'"
+   },
+   {
+    "field": "latitude",
+    "name": "latitude",
+    "type": "number",
+    "desc": "Latitude of point, in decimal degrees"
+   },
+   {
+    "field": "longitude",
+    "name": "longitude",
+    "type": "number",
+    "desc": "Longitude of point, in decimal degrees"
+   },
+   {
+    "field": "x_sp",
+    "name": "x_sp",
+    "type": "number",
+    "desc": "X coordinate, in state plane. Units are feet."
+   },
+   {
+    "field": "y_sp",
+    "name": "y_sp",
+    "type": "number",
+    "desc": "Y coordinate, in state plane. Units are feet"
+   },
+   {
+    "field": "council_district",
+    "name": "council district",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "census_tract",
+    "name": "census tract",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "bin",
+    "name": "bin",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "bbl",
+    "name": "bbl",
+    "type": "number",
+    "desc": ""
+   }
+  ],
+  "license": null
+ },
+ "erm2-nwe9": {
+  "id": "erm2-nwe9",
+  "name": "311 Service Requests from 2020 to Present",
+  "desc": "<b>NOTE:</b> Learn more about the latest changes to this dataset: https://opendata.cityofnewyork.us/311-service-requests-from-2010-to-present-updates/\n\n311 responds to thousands of inquiries, comments and requests from customers every single day. This dataset represents only service requests that can be directed to specific agencies.\n\nThis dataset is updated daily and expected values for many fields will change over time. The lists of expected values associated with each column are not exhaustive.\n\nEach row of data contains information about the service request, including complaint type, responding agency, and geographic location. However the data does not reveal any personally identifying information about the customer who made the request.\n\nFor data from 2010-2019 see: https://data.cityofnewyork.us/Social-Services/311-Service-Requests-from-2010-to-2019/76ig-c548/about_data",
+  "agency": "311",
+  "category": "Social Services",
+  "updated": 1794450961,
+  "freq": "Daily",
+  "rows": 23115363,
+  "columns": [
+   {
+    "field": "unique_key",
+    "name": "Unique Key",
+    "type": "text",
+    "desc": "Unique identifier of a Service Request (SR) in the open data set\n"
+   },
+   {
+    "field": "created_date",
+    "name": "Created Date",
+    "type": "calendar_date",
+    "desc": "Date SR  was created\n"
+   },
+   {
+    "field": "closed_date",
+    "name": "Closed Date",
+    "type": "calendar_date",
+    "desc": "Date SR was closed by responding agency\n"
+   },
+   {
+    "field": "agency",
+    "name": "Agency",
+    "type": "text",
+    "desc": "Acronym of responding City Government Agency\n"
+   },
+   {
+    "field": "agency_name",
+    "name": "Agency Name",
+    "type": "text",
+    "desc": "Full Agency name of responding City Government Agency"
+   },
+   {
+    "field": "complaint_type",
+    "name": "Problem (formerly Complaint Type)",
+    "type": "text",
+    "desc": "This is the first level of a hierarchy identifying the topic of the incident or condition.  Problem (formerly Complaint Type) broadly describes the topic of the incident or condition and are defined b"
+   },
+   {
+    "field": "descriptor",
+    "name": "Problem Detail (formerly Descriptor)",
+    "type": "text",
+    "desc": "This is associated to the Problem (formerly Complaint Type), and provides further detail on the incident or condition. Problem Detail (formerly Descriptor) values are dependent on the Problem, and are"
+   },
+   {
+    "field": "descriptor_2",
+    "name": "Additional Details",
+    "type": "text",
+    "desc": "A third level of detail about the Problem (formerly Complaint Type) beyond the Problem Detail (formerly Descriptor). This is not used by every category of issue."
+   },
+   {
+    "field": "location_type",
+    "name": "Location Type",
+    "type": "text",
+    "desc": "Describes the type of location used in the address information \n"
+   },
+   {
+    "field": "incident_zip",
+    "name": "Incident Zip",
+    "type": "text",
+    "desc": "Incident location zip code, provided by geo validation.\n"
+   },
+   {
+    "field": "incident_address",
+    "name": "Incident Address",
+    "type": "text",
+    "desc": "House number of incident address provided by submitter.\n"
+   },
+   {
+    "field": "street_name",
+    "name": "Street Name",
+    "type": "text",
+    "desc": "Street name of incident address provided by the submitter\n"
+   },
+   {
+    "field": "cross_street_1",
+    "name": "Cross Street 1",
+    "type": "text",
+    "desc": "First Cross street based on the geo validated incident location\n"
+   },
+   {
+    "field": "cross_street_2",
+    "name": "Cross Street 2",
+    "type": "text",
+    "desc": "Second Cross Street based on the geo validated incident location\n"
+   },
+   {
+    "field": "intersection_street_1",
+    "name": "Intersection Street 1",
+    "type": "text",
+    "desc": "First intersecting street based on geo validated incident location\n"
+   },
+   {
+    "field": "intersection_street_2",
+    "name": "Intersection Street 2",
+    "type": "text",
+    "desc": "Second intersecting street based on geo validated incident location\n"
+   },
+   {
+    "field": "address_type",
+    "name": "Address Type",
+    "type": "text",
+    "desc": "Type of incident location information available.\n"
+   },
+   {
+    "field": "city",
+    "name": "City",
+    "type": "text",
+    "desc": "City of the incident location provided by geovalidation.\n"
+   },
+   {
+    "field": "landmark",
+    "name": "Landmark",
+    "type": "text",
+    "desc": "If the incident location is identified as a Landmark the name of the landmark will display here\n"
+   },
+   {
+    "field": "facility_type",
+    "name": "Facility Type",
+    "type": "text",
+    "desc": "If available, this field describes the type of city facility associated to the SR\n"
+   },
+   {
+    "field": "status",
+    "name": "Status",
+    "type": "text",
+    "desc": "Status of SR submitted \n"
+   },
+   {
+    "field": "due_date",
+    "name": "Due Date",
+    "type": "calendar_date",
+    "desc": "Date when responding agency is expected to update the SR.  This is based on the Complaint Type and internal Service Level Agreements (SLAs).\n"
+   },
+   {
+    "field": "resolution_description",
+    "name": "Resolution Description",
+    "type": "text",
+    "desc": "Describes the last action taken on the SR by the responding agency.  May describe next or future steps. \n"
+   },
+   {
+    "field": "resolution_action_updated_date",
+    "name": "Resolution Action Updated Date",
+    "type": "calendar_date",
+    "desc": "Date when responding agency last updated the SR.\n"
+   },
+   {
+    "field": "community_board",
+    "name": "Community Board",
+    "type": "text",
+    "desc": "Provided by geovalidation.\n"
+   },
+   {
+    "field": "council_district",
+    "name": "Council District",
+    "type": "text",
+    "desc": "The City Council district where the service request is located."
+   },
+   {
+    "field": "police_precinct",
+    "name": "Police Precinct",
+    "type": "text",
+    "desc": "The NYPD precinct where the service request is located."
+   },
+   {
+    "field": "bbl",
+    "name": "BBL",
+    "type": "text",
+    "desc": "Borough Block and Lot, provided by geovalidation. Parcel number to identify the location of location of buildings and properties in NYC."
+   },
+   {
+    "field": "borough",
+    "name": "Borough",
+    "type": "text",
+    "desc": "Provided by the submitter and confirmed by geovalidation.\n"
+   },
+   {
+    "field": "x_coordinate_state_plane",
+    "name": "X Coordinate (State Plane)",
+    "type": "number",
+    "desc": "Geo validated, X coordinate of the incident location. \n"
+   },
+   {
+    "field": "y_coordinate_state_plane",
+    "name": "Y Coordinate (State Plane)",
+    "type": "number",
+    "desc": "Geo validated,  Y coordinate of the incident location. \n"
+   },
+   {
+    "field": "open_data_channel_type",
+    "name": "Open Data Channel Type",
+    "type": "text",
+    "desc": "Indicates how the SR was submitted to 311.  i.e. By Phone, Online, Mobile, Other or Unknown."
+   },
+   {
+    "field": "park_facility_name",
+    "name": "Park Facility Name",
+    "type": "text",
+    "desc": "If the incident location is a Parks Dept facility, the Name of the facility will appear here\n"
+   },
+   {
+    "field": "park_borough",
+    "name": "Park Borough",
+    "type": "text",
+    "desc": "The borough of incident if it is a Parks Dept facility\n"
+   },
+   {
+    "field": "vehicle_type",
+    "name": "Vehicle Type",
+    "type": "text",
+    "desc": "If the incident is a taxi, this field describes the type of TLC vehicle. \n"
+   },
+   {
+    "field": "taxi_company_borough",
+    "name": "Taxi Company Borough",
+    "type": "text",
+    "desc": "If the incident is identified as a taxi, this field will display the borough of the taxi company. \n"
+   },
+   {
+    "field": "taxi_pick_up_location",
+    "name": "Taxi Pick Up Location",
+    "type": "text",
+    "desc": "If the incident is identified as a taxi, this field displays the taxi pick up location\n"
+   },
+   {
+    "field": "bridge_highway_name",
+    "name": "Bridge Highway Name",
+    "type": "text",
+    "desc": "If the incident is identified as a Bridge/Highway, the name will be displayed here.\n"
+   },
+   {
+    "field": "bridge_highway_direction",
+    "name": "Bridge Highway Direction",
+    "type": "text",
+    "desc": "If the incident is identified as a Bridge/Highway, the direction where the issue took place would be displayed here.\n"
+   },
+   {
+    "field": "road_ramp",
+    "name": "Road Ramp",
+    "type": "text",
+    "desc": "If the incident location was Bridge/Highway this column differentiates if the issue was on the Road or the Ramp.\n"
+   },
+   {
+    "field": "bridge_highway_segment",
+    "name": "Bridge Highway Segment",
+    "type": "text",
+    "desc": "Additional information on the section of the Bridge/Highway were the incident took place.\n"
+   },
+   {
+    "field": "latitude",
+    "name": "Latitude",
+    "type": "number",
+    "desc": "Geo based Lat of the incident location\n"
+   },
+   {
+    "field": "longitude",
+    "name": "Longitude",
+    "type": "number",
+    "desc": "Geo based Long of the incident location\n"
+   },
+   {
+    "field": "location",
+    "name": "Location",
+    "type": "point",
+    "desc": "Combination of the geo based lat & long of the incident location\n"
+   }
+  ],
+  "license": null
+ },
+ "nc67-uf89": {
+  "id": "nc67-uf89",
+  "name": "Open Parking and Camera Violations",
+  "desc": "The Open Parking and Camera Violations dataset was initially loaded with all violations contained in the mainframe database as of May 2016. Subsequent new violation issuance and updates to existing violations are applied to this data set on the following schedule:\r\n</p>\r\n\tNew or open violations will be updated weekly (Sunday).\r\nViolations satisfied by having been paid, dismissed via hearing, statutorily expired, or had other changes to its status, will be updated daily (Tuesday through Sunday).\r\nViolations that have been written-off because they have statutorily expired and are no longer valid are indicated with blank financials.\r\nSummons images will not be available during scheduled downtime on Sundays from 5:00 am to 10:00 am.\r\n\r\n</p>* Initial dataset loaded 05/14/2016.",
+  "agency": "Department of Finance (DOF)",
+  "category": "City Government",
+  "updated": 1794392275,
+  "freq": "Daily",
+  "rows": 153689505,
+  "columns": [
+   {
+    "field": "plate",
+    "name": "Plate",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "state",
+    "name": "State",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "license_type",
+    "name": "License Type",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "summons_number",
+    "name": "Summons Number",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "issue_date",
+    "name": "Issue Date",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "violation_time",
+    "name": "Violation Time",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "violation",
+    "name": "Violation",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "judgment_entry_date",
+    "name": "Judgment Entry Date",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "fine_amount",
+    "name": "Fine Amount",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "penalty_amount",
+    "name": "Penalty Amount",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "interest_amount",
+    "name": "Interest Amount",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "reduction_amount",
+    "name": "Reduction Amount",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "payment_amount",
+    "name": "Payment Amount",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "amount_due",
+    "name": "Amount Due",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "precinct",
+    "name": "Precinct",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "county",
+    "name": "County",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "issuing_agency",
+    "name": "Issuing Agency",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "violation_status",
+    "name": "Violation Status",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "summons_image",
+    "name": "Summons Image",
+    "type": "url",
+    "desc": ""
+   }
+  ],
+  "license": null
+ },
+ "pvqr-7yc4": {
+  "id": "pvqr-7yc4",
+  "name": "Parking Violations Issued - Fiscal Year 2027",
+  "desc": "This dataset provides data on Parking Violations Issued between July 1, 2026 to June 30, 2027.  In New York City, the fiscal year begins on July 1st of one calendar year and ends on June 30th of the following calendar year.  <a target=\"_blank\" href=\"https://www.nyc.gov/site/omb/faq/frequently-asked-questions.page#:~:text=our%20Careers%20page.-,The%20Expense%20Budget,-What%20is%20the\">Click here</a> to find out more about the NYC Fiscal Year.\n<br>Parking Violations Issuance datasets contain violations issued during the respective fiscal year. The Issuance datasets are not updated to reflect violation status, the information only represents the violation(s) at the time they are issued. Since appearing on an issuance dataset, a violation may have been paid, dismissed via a hearing, statutorily expired, or had other changes to its status. To see the current status of outstanding parking violations, please look at the <a target=\"_blank\" href=\"https://data.cityofnewyork.us/City-Government/Open-Parking-and-Camera-Violations/nc67-uf89\">Open Parking & Camera Violations</a> dataset.\n<br>You may find all of the Parking Violations Issued since fiscal year 2014 in this <a target=\"_blank\" href=\"https://data.cityofnewyork.us/browse?Data-Collection_Data-Collection=DOF+Parking+Violations+Issued&q=&sortBy=alpha&utf8=%E2%9C%93\">dataset collection</a>.",
+  "agency": "Department of Finance (DOF)",
+  "category": "City Government",
+  "updated": 1792073012,
+  "freq": "Monthly",
+  "rows": 4236171,
+  "columns": [
+   {
+    "field": "summons_number",
+    "name": "Summons Number",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "plate_id",
+    "name": "Plate ID",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "registration_state",
+    "name": "Registration State",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "plate_type",
+    "name": "Plate Type",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "issue_date",
+    "name": "Issue Date",
+    "type": "calendar_date",
+    "desc": ""
+   },
+   {
+    "field": "violation_code",
+    "name": "Violation Code",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "vehicle_body_type",
+    "name": "Vehicle Body Type",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "vehicle_make",
+    "name": "Vehicle Make",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "issuing_agency",
+    "name": "Issuing Agency",
+    "type": "text",
+    "desc": "A-PORT AUTHORITY,\nB-TRIBOROUGH BRIDGE AND TUNNEL POLICE,\nC-CON RAIL,\nD-DEPARTMENT OF BUSINESS SERVICES,\nE-BOARD OF ESTIMATE,\nF-FIRE DEPARTMENT,\nG-TAXI AND LIMOUSINE COMMISSION,\nH-HOUSING AUTHORITY,\nI-"
+   },
+   {
+    "field": "street_code1",
+    "name": "Street Code1",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "street_code2",
+    "name": "Street Code2",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "street_code3",
+    "name": "Street Code3",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "vehicle_expiration_date",
+    "name": "Vehicle Expiration Date",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "violation_location",
+    "name": "Violation Location",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "violation_precinct",
+    "name": "Violation Precinct",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "issuer_precinct",
+    "name": "Issuer Precinct",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "issuer_code",
+    "name": "Issuer Code",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "issuer_command",
+    "name": "Issuer Command",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "issuer_squad",
+    "name": "Issuer Squad",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "violation_time",
+    "name": "Violation Time",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "time_first_observed",
+    "name": "Time First Observed",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "violation_county",
+    "name": "Violation County",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "violation_in_front_of_or_opposite",
+    "name": "Violation In Front Of Or Opposite",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "house_number",
+    "name": "House Number",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "street_name",
+    "name": "Street Name",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "intersecting_street",
+    "name": "Intersecting Street",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "date_first_observed",
+    "name": "Date First Observed",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "law_section",
+    "name": "Law Section",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "sub_division",
+    "name": "Sub Division",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "violation_legal_code",
+    "name": "Violation Legal Code",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "days_parking_in_effect",
+    "name": "Days Parking In Effect    ",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "from_hours_in_effect",
+    "name": "From Hours In Effect",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "to_hours_in_effect",
+    "name": "To Hours In Effect",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "vehicle_color",
+    "name": "Vehicle Color",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "unregistered_vehicle",
+    "name": "Unregistered Vehicle?",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "vehicle_year",
+    "name": "Vehicle Year",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "meter_number",
+    "name": "Meter Number",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "feet_from_curb",
+    "name": "Feet From Curb",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "violation_post_code",
+    "name": "Violation Post Code",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "violation_description",
+    "name": "Violation Description",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "no_standing_or_stopping_violation",
+    "name": "No Standing or Stopping Violation",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "hydrant_violation",
+    "name": "Hydrant Violation",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "double_parking_violation",
+    "name": "Double Parking Violation",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "fiscal_year",
+    "name": "Fiscal Year",
+    "type": "number",
+    "desc": ""
+   }
+  ],
+  "license": null
+ },
+ "693u-uax6": {
+  "id": "693u-uax6",
+  "name": "Parking Meters Locations and Status",
+  "desc": "Multiple space muni-meters located along streets and municipal parking facilities where metered parking are available. For any parking meter complaint, please visit the <a href=\"https://portal.311.nyc.gov/article/?kanumber=KA-01239\">311 website</a>.",
+  "agency": "Department of Transportation (DOT)",
+  "category": "Transportation",
+  "updated": 1794230196,
+  "freq": "Weekly",
+  "rows": 15598,
+  "columns": [
+   {
+    "field": "objectid",
+    "name": "ObjectID",
+    "type": "text",
+    "desc": "A sequential count of the parking munimeters. "
+   },
+   {
+    "field": "meter_number",
+    "name": "Meter Number",
+    "type": "text",
+    "desc": "The seven (7) digit unique identifier assigned to each parking meter."
+   },
+   {
+    "field": "status",
+    "name": "Status",
+    "type": "text",
+    "desc": "The latest condition of the parking meter."
+   },
+   {
+    "field": "pay_by_cell_number",
+    "name": "Pay By Cell Number",
+    "type": "text",
+    "desc": "The unique number assigned to each metered blockface for mobile payment. "
+   },
+   {
+    "field": "meter_hours",
+    "name": "Meter_Hours",
+    "type": "text",
+    "desc": "The parking time limit and the hours the meters are active. "
+   },
+   {
+    "field": "parking_facility_name",
+    "name": "Parking_Facility_Name",
+    "type": "text",
+    "desc": "Name of the parking garage or field/lot the parking meter is located in. "
+   },
+   {
+    "field": "facility",
+    "name": "Facility",
+    "type": "text",
+    "desc": "The facility location of the parking meter."
+   },
+   {
+    "field": "borough",
+    "name": "Borough",
+    "type": "text",
+    "desc": "The borough which the meter is located in."
+   },
+   {
+    "field": "on_street",
+    "name": "On_Street",
+    "type": "text",
+    "desc": "The street the parking meter is located on."
+   },
+   {
+    "field": "side_of_street",
+    "name": "Side_of_Street",
+    "type": "text",
+    "desc": "The relative compass direction of the side of the street that the parking meter is located on. "
+   },
+   {
+    "field": "from_street",
+    "name": "From_Street",
+    "type": "text",
+    "desc": "In the direction of traffic, the intersecting cross street at the start of the blockface with the parking meter. "
+   },
+   {
+    "field": "to_street",
+    "name": "To_Street",
+    "type": "text",
+    "desc": "In the direction of traffic, the intersecting cross street at the end of the blockface with the parking meter."
+   },
+   {
+    "field": "lat",
+    "name": "Latitude",
+    "type": "number",
+    "desc": "The latitude for the meter location."
+   },
+   {
+    "field": "long",
+    "name": "Longitude",
+    "type": "number",
+    "desc": "The longitude for the meter location."
+   },
+   {
+    "field": "x",
+    "name": "X",
+    "type": "number",
+    "desc": "The x coordinate for the meter location."
+   },
+   {
+    "field": "y",
+    "name": "Y",
+    "type": "number",
+    "desc": "The y coordinate for the meter location."
+   },
+   {
+    "field": "location",
+    "name": "Location",
+    "type": "point",
+    "desc": "Geospatial column for mapping."
+   }
+  ],
+  "license": null
+ },
+ "h9gi-nx95": {
+  "id": "h9gi-nx95",
+  "name": "Motor Vehicle Collisions - Crashes",
+  "desc": "The Motor Vehicle Collisions crash table contains details on the crash event. Each row represents a crash event. The Motor Vehicle Collisions data tables contain information from all police reported motor vehicle collisions in NYC. <a href=\"https://data.cityofnewyork.us/browse?sortBy=relevance&pageSize=20&Data-Collection_Data-Collection=Motor+Vehicle+Collisions\">View all Motor Vehicle Collisions data.</a> </p>\n\nThe police report (MV104-AN) is required to be filled out for collisions where someone is injured or killed, or where there is at least $1000 worth of damage (https://www.nhtsa.gov/sites/nhtsa.dot.gov/files/documents/ny_overlay_mv-104an_rev05_2004.pdf).  It should be noted that the data is preliminary and subject to change when the MV-104AN forms are amended based on revised crash details.For the most accurate, up to date statistics on traffic fatalities, please refer to the <a href=\"https://www1.nyc.gov/site/nypd/stats/traffic-data/traffic-data-collision.page\" style=\"color:#187bcd;\">NYPD Motor Vehicle Collisions page</a> (updated weekly) or <a href=\"http://www.nycvzv.info/\" style=\"color:#187bcd;\">Vision Zero View</a> (updated monthly).\n\n</p>\nDue to success of the CompStat program, NYPD began to ask how to apply the CompStat principles  to other problems.  Other than homicides, the fatal incidents with which police have the most contact with the public are fatal traffic collisions.  Therefore in April 1998, the Department implemented TrafficStat, which uses the CompStat model to work towards improving traffic safety.  Police officers complete form MV-104AN  for all vehicle collisions.  The MV-104AN is a New York State form that has all of the details of a traffic collision.  Before implementing Trafficstat, there was no uniform traffic safety data collection procedure for all of the NYPD precincts.  Therefore, the Police Department implemented the Traffic Accident Management System (TAMS) in July 1999 in order to collect traffic data in a uniform method across the City.  TAMS required the precincts manually enter a few selected MV-104AN fields to collect very basic intersection traffic crash statistics which included the number of accidents, injuries and fatalities. As the years progressed, there grew a need for additional traffic data so that more detailed analyses could be conducted. The Citywide traffic safety initiative, Vision Zero started in the year 2014.  Vision Zero further emphasized the need for the collection of more traffic data in order to work towards the Vision Zero goal, which is to eliminate traffic fatalities.  Therefore, the Department in March 2016 replaced the TAMS with the new Finest Online Records Management System (FORMS).  FORMS enables the police officers to electronically, using a Department cellphone or computer, enter all of the MV-104AN data fields and stores all of the MV-104AN data fields in the Department\u2019s crime data warehouse.  Since all of the MV-104AN data fields are now stored for each traffic collision, detailed traffic safety analyses can be conducted as applicable.",
+  "agency": "Police Department (NYPD)",
+  "category": "Public Safety",
+  "updated": 1794408537,
+  "freq": "Daily",
+  "rows": 2304731,
+  "columns": [
+   {
+    "field": "crash_date",
+    "name": "CRASH DATE",
+    "type": "calendar_date",
+    "desc": "Occurrence date of collision"
+   },
+   {
+    "field": "crash_time",
+    "name": "CRASH TIME",
+    "type": "text",
+    "desc": "Occurrence time of collision"
+   },
+   {
+    "field": "borough",
+    "name": "BOROUGH",
+    "type": "text",
+    "desc": "Borough where collision occurred"
+   },
+   {
+    "field": "zip_code",
+    "name": "ZIP CODE",
+    "type": "text",
+    "desc": "Postal code of incident occurrence"
+   },
+   {
+    "field": "latitude",
+    "name": "LATITUDE",
+    "type": "number",
+    "desc": "Latitude coordinate for Global Coordinate System, WGS 1984, decimal degrees (EPSG 4326) "
+   },
+   {
+    "field": "longitude",
+    "name": "LONGITUDE",
+    "type": "number",
+    "desc": "Longitude coordinate for Global Coordinate System, WGS 1984, decimal degrees (EPSG 4326)"
+   },
+   {
+    "field": "location",
+    "name": "LOCATION",
+    "type": "location",
+    "desc": "Latitude , Longitude pair"
+   },
+   {
+    "field": "on_street_name",
+    "name": "ON STREET NAME",
+    "type": "text",
+    "desc": "Street on which the collision occurred"
+   },
+   {
+    "field": "off_street_name",
+    "name": "CROSS STREET NAME",
+    "type": "text",
+    "desc": "Nearest cross street to the collision"
+   },
+   {
+    "field": "cross_street_name",
+    "name": "OFF STREET NAME",
+    "type": "text",
+    "desc": "Street address if known"
+   },
+   {
+    "field": "number_of_persons_injured",
+    "name": "NUMBER OF PERSONS INJURED",
+    "type": "number",
+    "desc": "Number of persons injured"
+   },
+   {
+    "field": "number_of_persons_killed",
+    "name": "NUMBER OF PERSONS KILLED",
+    "type": "number",
+    "desc": "Number of persons killed"
+   },
+   {
+    "field": "number_of_pedestrians_injured",
+    "name": "NUMBER OF PEDESTRIANS INJURED",
+    "type": "number",
+    "desc": "Number of pedestrians injured"
+   },
+   {
+    "field": "number_of_pedestrians_killed",
+    "name": "NUMBER OF PEDESTRIANS KILLED",
+    "type": "number",
+    "desc": "Number of pedestrians killed"
+   },
+   {
+    "field": "number_of_cyclist_injured",
+    "name": "NUMBER OF CYCLIST INJURED",
+    "type": "number",
+    "desc": "Number of cyclists injured"
+   },
+   {
+    "field": "number_of_cyclist_killed",
+    "name": "NUMBER OF CYCLIST KILLED",
+    "type": "number",
+    "desc": "Number of cyclists killed"
+   },
+   {
+    "field": "number_of_motorist_injured",
+    "name": "NUMBER OF MOTORIST INJURED",
+    "type": "number",
+    "desc": "Number of vehicle occupants injured"
+   },
+   {
+    "field": "number_of_motorist_killed",
+    "name": "NUMBER OF MOTORIST KILLED",
+    "type": "number",
+    "desc": "Number of vehicle occupants killed"
+   },
+   {
+    "field": "contributing_factor_vehicle_1",
+    "name": "CONTRIBUTING FACTOR VEHICLE 1",
+    "type": "text",
+    "desc": "Factors contributing to the collision for designated vehicle"
+   },
+   {
+    "field": "contributing_factor_vehicle_2",
+    "name": "CONTRIBUTING FACTOR VEHICLE 2",
+    "type": "text",
+    "desc": "Factors contributing to the collision for designated vehicle"
+   },
+   {
+    "field": "contributing_factor_vehicle_3",
+    "name": "CONTRIBUTING FACTOR VEHICLE 3",
+    "type": "text",
+    "desc": "Factors contributing to the collision for designated vehicle"
+   },
+   {
+    "field": "contributing_factor_vehicle_4",
+    "name": "CONTRIBUTING FACTOR VEHICLE 4",
+    "type": "text",
+    "desc": "Factors contributing to the collision for designated vehicle"
+   },
+   {
+    "field": "contributing_factor_vehicle_5",
+    "name": "CONTRIBUTING FACTOR VEHICLE 5",
+    "type": "text",
+    "desc": "Factors contributing to the collision for designated vehicle"
+   },
+   {
+    "field": "collision_id",
+    "name": "COLLISION_ID",
+    "type": "text",
+    "desc": "Unique record code generated by system. Primary Key for Crash table."
+   },
+   {
+    "field": "vehicle_type_code1",
+    "name": "VEHICLE TYPE CODE 1",
+    "type": "text",
+    "desc": "Type of vehicle based on the selected vehicle category (ATV, bicycle, car/suv, ebike, escooter, truck/bus, motorcycle, other)"
+   },
+   {
+    "field": "vehicle_type_code2",
+    "name": "VEHICLE TYPE CODE 2",
+    "type": "text",
+    "desc": "Type of vehicle based on the selected vehicle category (ATV, bicycle, car/suv, ebike, escooter, truck/bus, motorcycle, other)"
+   },
+   {
+    "field": "vehicle_type_code_3",
+    "name": "VEHICLE TYPE CODE 3",
+    "type": "text",
+    "desc": "Type of vehicle based on the selected vehicle category (ATV, bicycle, car/suv, ebike, escooter, truck/bus, motorcycle, other)"
+   },
+   {
+    "field": "vehicle_type_code_4",
+    "name": "VEHICLE TYPE CODE 4",
+    "type": "text",
+    "desc": "Type of vehicle based on the selected vehicle category (ATV, bicycle, car/suv, ebike, escooter, truck/bus, motorcycle, other)"
+   },
+   {
+    "field": "vehicle_type_code_5",
+    "name": "VEHICLE TYPE CODE 5",
+    "type": "text",
+    "desc": "Type of vehicle based on the selected vehicle category (ATV, bicycle, car/suv, ebike, escooter, truck/bus, motorcycle, other)"
+   }
+  ],
+  "license": null
+ },
+ "5uac-w243": {
+  "id": "5uac-w243",
+  "name": "NYPD Complaint Data Current (Year To Date)",
+  "desc": "This dataset includes all valid felony, misdemeanor, and violation crimes reported to the New York City Police Department (NYPD) for all complete quarters so far this year (2019). For additional details, please see the attached data dictionary in the \u2018About\u2019 section.",
+  "agency": "Police Department (NYPD)",
+  "category": "Public Safety",
+  "updated": 1793913650,
+  "freq": "Quarterly",
+  "rows": 427038,
+  "columns": [
+   {
+    "field": "cmplnt_num",
+    "name": "CMPLNT_NUM",
+    "type": "text",
+    "desc": "Randomly generated persistent ID for each complaint "
+   },
+   {
+    "field": "addr_pct_cd",
+    "name": "ADDR_PCT_CD",
+    "type": "number",
+    "desc": "The precinct in which the incident occurred"
+   },
+   {
+    "field": "boro_nm",
+    "name": "BORO_NM",
+    "type": "text",
+    "desc": "The name of the borough in which the incident occurred"
+   },
+   {
+    "field": "cmplnt_fr_dt",
+    "name": "CMPLNT_FR_DT",
+    "type": "calendar_date",
+    "desc": "Exact date of occurrence for the reported event (or starting date of occurrence, if CMPLNT_TO_DT exists)"
+   },
+   {
+    "field": "cmplnt_fr_tm",
+    "name": "CMPLNT_FR_TM",
+    "type": "text",
+    "desc": "Exact time of occurrence for the reported event (or starting time of occurrence, if CMPLNT_TO_TM exists)"
+   },
+   {
+    "field": "cmplnt_to_dt",
+    "name": "CMPLNT_TO_DT",
+    "type": "calendar_date",
+    "desc": "Ending date of occurrence for the reported event, if exact time of occurrence is unknown"
+   },
+   {
+    "field": "cmplnt_to_tm",
+    "name": "CMPLNT_TO_TM",
+    "type": "text",
+    "desc": "Ending time of occurrence for the reported event, if exact time of occurrence is unknown"
+   },
+   {
+    "field": "crm_atpt_cptd_cd",
+    "name": "CRM_ATPT_CPTD_CD",
+    "type": "text",
+    "desc": "Indicator of whether crime was successfully completed or attempted, but failed or was interrupted prematurely"
+   },
+   {
+    "field": "hadevelopt",
+    "name": "HADEVELOPT",
+    "type": "text",
+    "desc": "Name of NYCHA housing development of occurrence, if applicable"
+   },
+   {
+    "field": "housing_psa",
+    "name": "HOUSING_PSA",
+    "type": "number",
+    "desc": "Development Level Code"
+   },
+   {
+    "field": "jurisdiction_code",
+    "name": "JURISDICTION_CODE",
+    "type": "number",
+    "desc": "Jurisdiction responsible for incident. Either internal, like Police(0), Transit(1), and Housing(2); or external(3), like Correction, Port Authority, etc."
+   },
+   {
+    "field": "juris_desc",
+    "name": "JURIS_DESC",
+    "type": "text",
+    "desc": "Description of the jurisdiction code"
+   },
+   {
+    "field": "ky_cd",
+    "name": "KY_CD",
+    "type": "number",
+    "desc": "Three digit offense classification code"
+   },
+   {
+    "field": "law_cat_cd",
+    "name": "LAW_CAT_CD",
+    "type": "text",
+    "desc": "Level of offense: felony, misdemeanor, violation "
+   },
+   {
+    "field": "loc_of_occur_desc",
+    "name": "LOC_OF_OCCUR_DESC",
+    "type": "text",
+    "desc": "Specific location of occurrence in or around the premises; inside, opposite of, front of, rear of"
+   },
+   {
+    "field": "ofns_desc",
+    "name": "OFNS_DESC",
+    "type": "text",
+    "desc": "Description of offense corresponding with key code"
+   },
+   {
+    "field": "parks_nm",
+    "name": "PARKS_NM",
+    "type": "text",
+    "desc": "Name of NYC park, playground or greenspace of occurrence, if applicable (state parks are not included)"
+   },
+   {
+    "field": "patrol_boro",
+    "name": "PATROL_BORO",
+    "type": "text",
+    "desc": "The name of the patrol borough in which the incident occurred"
+   },
+   {
+    "field": "pd_cd",
+    "name": "PD_CD",
+    "type": "number",
+    "desc": "Three digit internal classification code (more granular than Key Code)"
+   },
+   {
+    "field": "pd_desc",
+    "name": "PD_DESC",
+    "type": "text",
+    "desc": "Description of internal classification corresponding with PD code (more granular than Offense Description)"
+   },
+   {
+    "field": "prem_typ_desc",
+    "name": "PREM_TYP_DESC",
+    "type": "text",
+    "desc": "Specific description of premises; grocery store, residence, street, etc."
+   },
+   {
+    "field": "rpt_dt",
+    "name": "RPT_DT",
+    "type": "calendar_date",
+    "desc": "Date event was reported to police "
+   },
+   {
+    "field": "station_name",
+    "name": "STATION_NAME",
+    "type": "text",
+    "desc": "Transit station name"
+   },
+   {
+    "field": "susp_age_group",
+    "name": "SUSP_AGE_GROUP",
+    "type": "text",
+    "desc": "Suspect\u2019s Age Group"
+   },
+   {
+    "field": "susp_race",
+    "name": "SUSP_RACE",
+    "type": "text",
+    "desc": "Suspect\u2019s Race Description"
+   },
+   {
+    "field": "susp_sex",
+    "name": "SUSP_SEX",
+    "type": "text",
+    "desc": "Suspect\u2019s Sex Description\n"
+   },
+   {
+    "field": "transit_district",
+    "name": "TRANSIT_DISTRICT",
+    "type": "number",
+    "desc": "Transit district in which the offense occurred.\n"
+   },
+   {
+    "field": "vic_age_group",
+    "name": "VIC_AGE_GROUP",
+    "type": "text",
+    "desc": "Victim\u2019s Age Group"
+   },
+   {
+    "field": "vic_race",
+    "name": "VIC_RACE",
+    "type": "text",
+    "desc": "Victim\u2019s Race Description"
+   },
+   {
+    "field": "vic_sex",
+    "name": "VIC_SEX",
+    "type": "text",
+    "desc": "Victim\u2019s Sex Description"
+   },
+   {
+    "field": "x_coord_cd",
+    "name": "X_COORD_CD",
+    "type": "number",
+    "desc": "X-coordinate for New York State Plane Coordinate System, Long Island Zone, NAD 83, units feet (FIPS 3104)"
+   },
+   {
+    "field": "y_coord_cd",
+    "name": "Y_COORD_CD",
+    "type": "number",
+    "desc": "Y-coordinate for New York State Plane Coordinate System, Long Island Zone, NAD 83, units feet (FIPS 3104)"
+   },
+   {
+    "field": "latitude",
+    "name": "Latitude",
+    "type": "number",
+    "desc": "Midblock Latitude coordinate for Global Coordinate System, WGS 1984, decimal degrees (EPSG 4326) "
+   },
+   {
+    "field": "longitude",
+    "name": "Longitude",
+    "type": "number",
+    "desc": "Midblock Longitude coordinate for Global Coordinate System, WGS 1984, decimal degrees (EPSG 4326)"
+   },
+   {
+    "field": "lat_lon",
+    "name": "Lat_Lon",
+    "type": "location",
+    "desc": ""
+   },
+   {
+    "field": "geocoded_column",
+    "name": "New Georeferenced Column",
+    "type": "point",
+    "desc": ""
+   }
+  ],
+  "license": null
+ },
+ "uip8-fykc": {
+  "id": "uip8-fykc",
+  "name": "NYPD Arrest Data (Year to Date)",
+  "desc": "This is a breakdown of every arrest effected in NYC by the NYPD during the current year.\n This data is manually extracted every quarter and reviewed by the Office of Management Analysis and Planning. \n Each record represents an arrest effected in NYC by the NYPD and includes information about the type of crime, the location and time of enforcement. \nIn addition, information related to suspect demographics is also included. \nThis data can be used by the public to explore the nature of police enforcement activity. \nPlease refer to the attached data footnotes for additional information about this dataset.",
+  "agency": "Police Department (NYPD)",
+  "category": "Public Safety",
+  "updated": 1793912885,
+  "freq": "Quarterly",
+  "rows": 213982,
+  "columns": [
+   {
+    "field": "arrest_key",
+    "name": "ARREST_KEY",
+    "type": "text",
+    "desc": "Randomly generated persistent ID for each arrest "
+   },
+   {
+    "field": "arrest_date",
+    "name": "ARREST_DATE",
+    "type": "calendar_date",
+    "desc": "Exact date of arrest for the reported event"
+   },
+   {
+    "field": "pd_cd",
+    "name": "PD_CD",
+    "type": "number",
+    "desc": "Three digit internal classification code (more granular than Key Code)"
+   },
+   {
+    "field": "pd_desc",
+    "name": "PD_DESC",
+    "type": "text",
+    "desc": "Description of internal classification corresponding with PD code (more granular than Offense Description)"
+   },
+   {
+    "field": "ky_cd",
+    "name": "KY_CD",
+    "type": "number",
+    "desc": "Three digit internal classification code (more general category than PD code)"
+   },
+   {
+    "field": "ofns_desc",
+    "name": "OFNS_DESC",
+    "type": "text",
+    "desc": "Description of internal classification corresponding with KY code (more general category than PD description)"
+   },
+   {
+    "field": "law_code",
+    "name": "LAW_CODE",
+    "type": "text",
+    "desc": "Law code charges corresponding to the NYS Penal Law, VTL and other various local laws"
+   },
+   {
+    "field": "law_cat_cd",
+    "name": "LAW_CAT_CD",
+    "type": "text",
+    "desc": "Level of offense: felony, misdemeanor, violation "
+   },
+   {
+    "field": "arrest_boro",
+    "name": "ARREST_BORO",
+    "type": "text",
+    "desc": "Borough of arrest. B(Bronx), S(Staten Island), K(Brooklyn), M(Manhattan), Q(Queens)"
+   },
+   {
+    "field": "arrest_precinct",
+    "name": "ARREST_PRECINCT",
+    "type": "number",
+    "desc": "Precinct where the arrest occurred"
+   },
+   {
+    "field": "jurisdiction_code",
+    "name": "JURISDICTION_CODE",
+    "type": "number",
+    "desc": "Jurisdiction responsible for arrest. Jurisdiction codes 0(Patrol), 1(Transit) and 2(Housing) represent NYPD whilst codes 3 and more represent non NYPD jurisdictions"
+   },
+   {
+    "field": "age_group",
+    "name": "AGE_GROUP",
+    "type": "text",
+    "desc": "Perpetrator\u2019s age within a category"
+   },
+   {
+    "field": "perp_sex",
+    "name": "PERP_SEX",
+    "type": "text",
+    "desc": "Perpetrator\u2019s sex description"
+   },
+   {
+    "field": "perp_race",
+    "name": "PERP_RACE",
+    "type": "text",
+    "desc": "Perpetrator\u2019s race description"
+   },
+   {
+    "field": "x_coord_cd",
+    "name": "X_COORD_CD",
+    "type": "number",
+    "desc": "Midblock X-coordinate for New York State Plane Coordinate System, Long Island Zone, NAD 83, units feet (FIPS 3104)"
+   },
+   {
+    "field": "y_coord_cd",
+    "name": "Y_COORD_CD",
+    "type": "number",
+    "desc": "Midblock Y-coordinate for New York State Plane Coordinate System, Long Island Zone, NAD 83, units feet (FIPS 3104)"
+   },
+   {
+    "field": "latitude",
+    "name": "Latitude",
+    "type": "number",
+    "desc": "Latitude coordinate for Global Coordinate System, WGS 1984, decimal degrees (EPSG 4326) "
+   },
+   {
+    "field": "longitude",
+    "name": "Longitude",
+    "type": "number",
+    "desc": "Longitude coordinate for Global Coordinate System, WGS 1984, decimal degrees (EPSG 4326)"
+   },
+   {
+    "field": "geocoded_column",
+    "name": "Location",
+    "type": "point",
+    "desc": ""
+   }
+  ],
+  "license": null
+ },
+ "5ucz-vwe8": {
+  "id": "5ucz-vwe8",
+  "name": "Shootings (2006-Present)",
+  "desc": "This dataset is part of a data collection that includes three related datasets covering shootings, shooting victims, and shooting offenders. For the complete data collection, please follow <a href=\"https://data.cityofnewyork.us/browse?q=&sortBy=relevance&utf8=%E2%9C%93&pageSize=20&Data-Collection_Data-Collection=NYPD+Shootings&page=1\">this link</a>.\n\nThis dataset identifies every shooting incident that occurred in NYC since 2006.",
+  "agency": "Police Department (NYPD)",
+  "category": "Public Safety",
+  "updated": 1793912379,
+  "freq": "Quarterly",
+  "rows": 24477,
+  "columns": [
+   {
+    "field": "incident_key",
+    "name": "INCIDENT_KEY",
+    "type": "text",
+    "desc": "Randomly generated persistent ID for each incident"
+   },
+   {
+    "field": "occur_date",
+    "name": "OCCUR_DATE",
+    "type": "calendar_date",
+    "desc": "Exact date of the shooting incident"
+   },
+   {
+    "field": "occur_time",
+    "name": "OCCUR_TIME",
+    "type": "text",
+    "desc": "Exact time of the shooting incident"
+   },
+   {
+    "field": "boro",
+    "name": "BORO",
+    "type": "text",
+    "desc": "Borough where the shooting incident occurred"
+   },
+   {
+    "field": "loc_of_occur_desc",
+    "name": "LOC_OF_OCCUR_DESC",
+    "type": "text",
+    "desc": "Flag indicating where incident occurred"
+   },
+   {
+    "field": "precinct",
+    "name": "PRECINCT",
+    "type": "number",
+    "desc": "Precinct where the shooting incident occurred"
+   },
+   {
+    "field": "jurisdiction_code",
+    "name": "JURISDICTION_CODE",
+    "type": "number",
+    "desc": "\"Jurisdiction where the shooting incident occurred. Jurisdiction codes 0(Patrol), 1(Transit) and 2(Housing) represent NYPD Codes 3 and above represent non NYPD jurisdictions\""
+   },
+   {
+    "field": "loc_classfctn_desc",
+    "name": "LOC_CLASSFCTN_DESC",
+    "type": "text",
+    "desc": "Category describing type of location"
+   },
+   {
+    "field": "location_desc",
+    "name": "LOCATION_DESC",
+    "type": "text",
+    "desc": "Category for specific type of location of the shooting incident"
+   },
+   {
+    "field": "x_coord_cd",
+    "name": "X_COORD_CD",
+    "type": "number",
+    "desc": "Midblock X-coordinate for New York State Plane Coordinate System, Long Island Zone, NAD 83, units feet (FIPS 3104)"
+   },
+   {
+    "field": "y_coord_cd",
+    "name": "Y_COORD_CD",
+    "type": "number",
+    "desc": "Midblock Y-coordinate for New York State Plane Coordinate System, Long Island Zone, NAD 83, units feet (FIPS 3104)"
+   },
+   {
+    "field": "latitude",
+    "name": "Latitude",
+    "type": "number",
+    "desc": "Midblock Latitude coordinate for Global Coordinate System, WGS 1984, decimal degrees (EPSG 4326)"
+   },
+   {
+    "field": "longitude",
+    "name": "Longitude",
+    "type": "number",
+    "desc": "Midblock Longitude coordinate for Global Coordinate System, WGS 1984, decimal degrees (EPSG 4326)"
+   }
+  ],
+  "license": null
+ },
+ "43nn-pn8j": {
+  "id": "43nn-pn8j",
+  "name": "DOHMH New York City Restaurant Inspection Results",
+  "desc": "The dataset contains every sustained or not yet adjudicated violation citation from every full or special program inspection conducted up to three years prior to the most recent inspection for restaurants and college cafeterias in an active status on the RECORD DATE (date of the data pull). When an inspection results in more than one violation, values for associated fields are repeated for each additional violation record.  Establishments are uniquely identified by their CAMIS (record ID) number. Keep in mind that thousands of restaurants start business and go out of business every year; only restaurants in an active status are included in the dataset. \r\nRecords are also included for each restaurant that has applied for a permit but has not yet been inspected and for inspections resulting in no violations. Establishments with inspection date of 1/1/1900 are new establishments that have not yet received an inspection. Restaurants that received no violations are represented by a single row and coded as having no violations using the ACTION field. \r\nBecause this dataset is compiled from several large administrative data systems, it contains some illogical values that could be a result of data entry or transfer errors. Data may also be missing. \r\nThis dataset and the information on the Health Department\u2019s Restaurant Grading website come from the same data source.  The Health Department\u2019s Restaurant Grading website is here: \r\nhttp://www1.nyc.gov/site/doh/services/restaurant-grades.page\r\nSee the data dictionary file in the Attachments section of the OpenData website for a summary of data fields and allowable values.",
+  "agency": "Department of Health and Mental Hygiene (DOHMH)",
+  "category": "Health",
+  "updated": 1794438592,
+  "freq": "Daily",
+  "rows": 294642,
+  "columns": [
+   {
+    "field": "camis",
+    "name": "CAMIS",
+    "type": "text",
+    "desc": "This is an unique identifier for the entity (restaurant); 10-digit integer, static per restaurant permit"
+   },
+   {
+    "field": "dba",
+    "name": "DBA",
+    "type": "text",
+    "desc": "This field represents the name (doing business as) of the entity (restaurant); Public business name, may change at discretion of restaurant owner"
+   },
+   {
+    "field": "boro",
+    "name": "BORO",
+    "type": "text",
+    "desc": "Borough in which the entity (restaurant) is located.;\u2022 1 = MANHATTAN \u2022 2 = BRONX \u2022 3 = BROOKLYN \u2022 4 = QUEENS \u2022 5 = STATEN ISLAND \u2022 Missing; NOTE: There may be discrepancies between zip code and listed"
+   },
+   {
+    "field": "building",
+    "name": "BUILDING",
+    "type": "text",
+    "desc": "Building number for establishment (restaurant) location"
+   },
+   {
+    "field": "street",
+    "name": "STREET",
+    "type": "text",
+    "desc": "Street name for establishment (restaurant) location"
+   },
+   {
+    "field": "zipcode",
+    "name": "ZIPCODE",
+    "type": "text",
+    "desc": "Zip code of establishment (restaurant) location"
+   },
+   {
+    "field": "phone",
+    "name": "PHONE",
+    "type": "text",
+    "desc": "Phone Number; Phone number provided by restaurant owner/manager"
+   },
+   {
+    "field": "cuisine_description",
+    "name": "CUISINE DESCRIPTION",
+    "type": "text",
+    "desc": "This field describes the entity (restaurant) cuisine. ; Optional field provided by provided by restaurant owner/manager"
+   },
+   {
+    "field": "inspection_date",
+    "name": "INSPECTION DATE",
+    "type": "calendar_date",
+    "desc": "This field represents the date of inspection; NOTE: Inspection dates of 1/1/1900 mean an establishment has not yet had an inspection"
+   },
+   {
+    "field": "action",
+    "name": "ACTION",
+    "type": "text",
+    "desc": "This field represents the actions that is associated with each restaurant inspection. ; \u2022 Violations were cited in the following area(s). \u2022 No violations were recorded at the time of this inspection. "
+   },
+   {
+    "field": "violation_code",
+    "name": "VIOLATION CODE",
+    "type": "text",
+    "desc": "Violation code associated with an establishment (restaurant) inspection"
+   },
+   {
+    "field": "violation_description",
+    "name": "VIOLATION DESCRIPTION",
+    "type": "text",
+    "desc": "Violation description associated with an establishment  (restaurant) inspection"
+   },
+   {
+    "field": "critical_flag",
+    "name": "CRITICAL FLAG",
+    "type": "text",
+    "desc": "Indicator of critical violation;  \"\u2022 Critical \u2022 Not Critical \u2022 Not Applicable\"; Critical violations are those most likely to contribute to food-borne illness"
+   },
+   {
+    "field": "score",
+    "name": "SCORE",
+    "type": "number",
+    "desc": "Total score for a particular inspection; Scores are updated based on adjudication results"
+   },
+   {
+    "field": "grade",
+    "name": "GRADE",
+    "type": "text",
+    "desc": "Grade associated with the inspection; \u2022 N = Not Yet Graded\u2022 A = Grade A\u2022 B = Grade B\u2022 C = Grade C\u2022 Z = Grade Pending\u2022 P= Grade Pending issued on re-opening following an initial inspection that resulte"
+   },
+   {
+    "field": "grade_date",
+    "name": "GRADE DATE",
+    "type": "calendar_date",
+    "desc": "The date when the current grade was issued to the entity (restaurant)"
+   },
+   {
+    "field": "record_date",
+    "name": "RECORD DATE",
+    "type": "calendar_date",
+    "desc": "The date when the extract was run to produce this data set"
+   },
+   {
+    "field": "inspection_type",
+    "name": "INSPECTION TYPE",
+    "type": "text",
+    "desc": "A combination of the inspection program and the type of inspection performed; See Data Dictionary for full list of expected values"
+   },
+   {
+    "field": "latitude",
+    "name": "Latitude",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "longitude",
+    "name": "Longitude",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "community_board",
+    "name": "Community Board",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "council_district",
+    "name": "Council District",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "census_tract",
+    "name": "Census Tract",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "bin",
+    "name": "BIN",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "bbl",
+    "name": "BBL",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "nta",
+    "name": "NTA",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "location",
+    "name": "Location",
+    "type": "point",
+    "desc": ""
+   }
+  ],
+  "license": null
+ },
+ "p937-wjvj": {
+  "id": "p937-wjvj",
+  "name": "Rodent Inspection",
+  "desc": "Dataset contains information on rat inspections.\n\nRat Information Portal Data Release Notes        April 20, 2015\n\nThe Rat Information Portal (RIP) is a web-based mapping application where users can view rat inspection data. \n\nData sources: NYC Department of Health and Mental Hygiene (DOHMH), Division of Environmental Health Pest Control Database\n\nNotes on data limitations: Please note that if a property/taxlot does not appear in the file, that does not indicate an absence of rats - rather just that it has not been inspected. Similarly, neighborhoods with higher numbers properties with active rat signs may not actually have higher rat populations but simply have more inspections. \n\nSee our Data Disclaimer:\nhttp://www.nyc.gov/rats",
+  "agency": "Department of Health and Mental Hygiene (DOHMH)",
+  "category": "Health",
+  "updated": 1794478373,
+  "freq": "Daily",
+  "rows": 3152427,
+  "columns": [
+   {
+    "field": "job_id",
+    "name": "JOB ID / CASE ID",
+    "type": "text",
+    "desc": "Internal DOHMH administrative number to identify a job, Case ID"
+   },
+   {
+    "field": "inspection_date",
+    "name": "INSPECTION DATE",
+    "type": "calendar_date",
+    "desc": "Date of the inspection.\n"
+   },
+   {
+    "field": "inspection_type",
+    "name": "INSPECTION TYPE",
+    "type": "text",
+    "desc": "Includes the types of inspections and health department actions: Initial Inspection - Inspection conducted in response to a 311 complaint, or a proactive inspection conducted through our neighborhood "
+   },
+   {
+    "field": "house_number",
+    "name": "HOUSE NUMBER",
+    "type": "text",
+    "desc": "The address number of a building on the tax lot that was inspected."
+   },
+   {
+    "field": "street_name",
+    "name": "STREET NAME",
+    "type": "text",
+    "desc": "The street name portion of the address of the tax lot that was inspected."
+   },
+   {
+    "field": "zip_code",
+    "name": "ZIP CODE",
+    "type": "text",
+    "desc": "The postal zipcode of the tax lot that was inspected."
+   },
+   {
+    "field": "borough",
+    "name": "BOROUGH",
+    "type": "text",
+    "desc": "The name of the NYC borough."
+   },
+   {
+    "field": "result",
+    "name": "RESULT",
+    "type": "text",
+    "desc": "Result of the inspection, including: Active Rat Signs (ARS) - ARS include any of six different signs: 1) fresh tracks, 2) fresh droppings, 3) active burrows, 4) active runways and rub marks, 5) fresh "
+   },
+   {
+    "field": "letter_type",
+    "name": "LETTER TYPE",
+    "type": "text",
+    "desc": "Records any violation notices or orders to address rat conditions that were issued following an inspection."
+   },
+   {
+    "field": "observations",
+    "name": "OBSERVATIONS",
+    "type": "text",
+    "desc": "All inspector observations of rat activity or conditions that attract rats, from the inspection."
+   },
+   {
+    "field": "bbl",
+    "name": "BBL",
+    "type": "number",
+    "desc": "Borough, Block, and Lot code, which is a unique identifier of NYC Taxlots. Every NYC property has its own BBL code, and inspections are conducted at the taxlot level. This dataset can be mapped by joi"
+   },
+   {
+    "field": "boro_code",
+    "name": "BORO CODE",
+    "type": "number",
+    "desc": "The code assigned to the NYC borough, this code can also be found as the first digit in the BBL tax lot code above. "
+   },
+   {
+    "field": "block",
+    "name": "BLOCK",
+    "type": "text",
+    "desc": "The block number for the inspected tax lot; block numbers repeat in different boroughs."
+   },
+   {
+    "field": "lot",
+    "name": "LOT",
+    "type": "text",
+    "desc": "The lot number for the inspected tax lot; lot numbers can repeat in different blocks."
+   },
+   {
+    "field": "x_coord",
+    "name": "X COORD",
+    "type": "number",
+    "desc": "X coordinate of the inspected tax lot in NY State Plane Long Island Coordinate system."
+   },
+   {
+    "field": "y_coord",
+    "name": "Y COORD",
+    "type": "number",
+    "desc": "Y coordinate of the inspected tax lot in NY State Plane Long Island Coordinate system."
+   },
+   {
+    "field": "latitude",
+    "name": "LATITUDE",
+    "type": "number",
+    "desc": "Latitude in decimal degrees of the inspected tax lot (WGS 1984)."
+   },
+   {
+    "field": "longitude",
+    "name": "LONGITUDE",
+    "type": "number",
+    "desc": "Longitude in decimal degrees of the inspected tax lot (WGS 1984)."
+   },
+   {
+    "field": "location",
+    "name": "LOCATION",
+    "type": "location",
+    "desc": "Coordinates (latitude, longitude) of the inspected tax lot (WGS 1984)."
+   },
+   {
+    "field": "community_board",
+    "name": "COMMUNITY BOARD",
+    "type": "text",
+    "desc": "Community Board of the location."
+   },
+   {
+    "field": "council_district",
+    "name": "COUNCIL DISTRICT",
+    "type": "text",
+    "desc": "Council District of the location."
+   },
+   {
+    "field": "census_tract",
+    "name": "CENSUS TRACT",
+    "type": "text",
+    "desc": "Census Tract of the location."
+   },
+   {
+    "field": "bin",
+    "name": "BIN",
+    "type": "text",
+    "desc": "Department of Buildings (DOB) Building Identification Number."
+   },
+   {
+    "field": "nta",
+    "name": "NTA",
+    "type": "text",
+    "desc": "NTA (Neighborhood Tabulation Area) code of the location."
+   }
+  ],
+  "license": null
+ },
+ "vfnx-vebw": {
+  "id": "vfnx-vebw",
+  "name": "2018 Central Park Squirrel Census - Squirrel Data",
+  "desc": "The Squirrel Census (https://www.thesquirrelcensus.com/) is a multimedia science, design, and storytelling project focusing on the Eastern gray (Sciurus carolinensis). They count squirrels and present their findings to the public. This table contains squirrel data for each of the 3,023 sightings, including location coordinates, age, primary and secondary fur color, elevation, activities, communications, and interactions between squirrels and with humans.",
+  "agency": "The Squirrel Census",
+  "category": "Environment",
+  "updated": 1571421291,
+  "freq": "Historical data",
+  "rows": 3023,
+  "columns": [
+   {
+    "field": "x",
+    "name": "X",
+    "type": "number",
+    "desc": "Longitude coordinate for squirrel sighting point"
+   },
+   {
+    "field": "y",
+    "name": "Y",
+    "type": "number",
+    "desc": "Latitude coordinate for squirrel sighting point"
+   },
+   {
+    "field": "unique_squirrel_id",
+    "name": "Unique Squirrel ID",
+    "type": "text",
+    "desc": "Identification tag for each squirrel sightings. The tag is comprised of \"Hectare ID\" + \"Shift\" + \"Date\" + \"Hectare Squirrel Number.\""
+   },
+   {
+    "field": "hectare",
+    "name": "Hectare",
+    "type": "text",
+    "desc": "ID tag, which is derived from the hectare grid used to divide and count the park area. One axis that runs predominantly north-to-south is numerical (1-42), and the axis that runs predominantly east-to"
+   },
+   {
+    "field": "shift",
+    "name": "Shift",
+    "type": "text",
+    "desc": "Value is either \"AM\" or \"PM,\" to communicate whether or not the sighting session occurred in the morning or late afternoon. "
+   },
+   {
+    "field": "date",
+    "name": "Date",
+    "type": "text",
+    "desc": "Concatenation of the sighting session day and month."
+   },
+   {
+    "field": "hectare_squirrel_number",
+    "name": "Hectare Squirrel Number",
+    "type": "number",
+    "desc": "Number within the chronological sequence of squirrel sightings for a discrete sighting session. "
+   },
+   {
+    "field": "age",
+    "name": "Age",
+    "type": "text",
+    "desc": "Value is either \"Adult\" or \"Juvenile.\""
+   },
+   {
+    "field": "primary_fur_color",
+    "name": "Primary Fur Color",
+    "type": "text",
+    "desc": "Value is either \"Gray,\" \"Cinnamon\" or \"Black.\""
+   },
+   {
+    "field": "highlight_fur_color",
+    "name": "Highlight Fur Color",
+    "type": "text",
+    "desc": "Discrete value or string values comprised of \"Gray,\" \"Cinnamon\" or \"Black.\""
+   },
+   {
+    "field": "combination_of_primary_and",
+    "name": "Combination of Primary and Highlight Color",
+    "type": "text",
+    "desc": "A combination of the previous two columns; this column gives the total permutations of primary and highlight colors observed."
+   },
+   {
+    "field": "color_notes",
+    "name": "Color notes",
+    "type": "text",
+    "desc": "Sighters occasionally added commentary on the squirrel fur conditions. These notes are provided here."
+   },
+   {
+    "field": "location",
+    "name": "Location",
+    "type": "text",
+    "desc": "Value is either \"Ground Plane\" or \"Above Ground.\" Sighters were instructed to indicate the location of where the squirrel was when first sighted."
+   },
+   {
+    "field": "above_ground_sighter",
+    "name": "Above Ground Sighter Measurement",
+    "type": "text",
+    "desc": "For squirrel sightings on the ground plane, fields were populated with a value of \u201cFALSE.\u201d"
+   },
+   {
+    "field": "specific_location",
+    "name": "Specific Location",
+    "type": "text",
+    "desc": "Sighters occasionally added commentary on the squirrel location. These notes are provided here."
+   },
+   {
+    "field": "running",
+    "name": "Running",
+    "type": "checkbox",
+    "desc": "Squirrel was seen running."
+   },
+   {
+    "field": "chasing",
+    "name": "Chasing",
+    "type": "checkbox",
+    "desc": "Squirrel was seen chasing another squirrel."
+   },
+   {
+    "field": "climbing",
+    "name": "Climbing",
+    "type": "checkbox",
+    "desc": "Squirrel was seen climbing a tree or other environmental landmark."
+   },
+   {
+    "field": "eating",
+    "name": "Eating",
+    "type": "checkbox",
+    "desc": "Squirrel was seen eating."
+   },
+   {
+    "field": "foraging",
+    "name": "Foraging",
+    "type": "checkbox",
+    "desc": "Squirrel was seen foraging for food."
+   },
+   {
+    "field": "other_activities",
+    "name": "Other Activities",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "kuks",
+    "name": "Kuks",
+    "type": "checkbox",
+    "desc": "Squirrel was heard kukking, a chirpy vocal communication used for a variety of reasons."
+   },
+   {
+    "field": "quaas",
+    "name": "Quaas",
+    "type": "checkbox",
+    "desc": "Squirrel was heard quaaing, an elongated vocal communication which can indicate the presence of a ground predator such as a dog."
+   },
+   {
+    "field": "moans",
+    "name": "Moans",
+    "type": "checkbox",
+    "desc": "Squirrel was heard moaning, a high-pitched vocal communication which can indicate the presence of an air predator such as a hawk."
+   },
+   {
+    "field": "tail_flags",
+    "name": "Tail flags",
+    "type": "checkbox",
+    "desc": "Squirrel was seen flagging its tail. Flagging is a whipping motion used to exaggerate squirrel's size and confuse rivals or predators. Looks as if the squirrel is scribbling with tail into the air."
+   },
+   {
+    "field": "tail_twitches",
+    "name": "Tail twitches",
+    "type": "checkbox",
+    "desc": "Squirrel was seen twitching its tail. Looks like a wave running through the tail, like a breakdancer doing the arm wave. Often used to communicate interest, curiosity."
+   },
+   {
+    "field": "approaches",
+    "name": "Approaches",
+    "type": "checkbox",
+    "desc": "Squirrel was seen approaching human, seeking food."
+   },
+   {
+    "field": "indifferent",
+    "name": "Indifferent",
+    "type": "checkbox",
+    "desc": "Squirrel was indifferent to human presence."
+   },
+   {
+    "field": "runs_from",
+    "name": "Runs from",
+    "type": "checkbox",
+    "desc": "Squirrel was seen running from humans, seeing them as a threat."
+   },
+   {
+    "field": "other_interactions",
+    "name": "Other Interactions",
+    "type": "text",
+    "desc": "Sighter notes on other types of interactions between squirrels and humans."
+   },
+   {
+    "field": "geocoded_column",
+    "name": "Lat/Long",
+    "type": "point",
+    "desc": "Latitude and longitude"
+   }
+  ],
+  "license": null
+ },
+ "usep-8jbt": {
+  "id": "usep-8jbt",
+  "name": "NYC Citywide Rolling Calendar Sales",
+  "desc": "This dataset includes all recorded sales within New York City over the prior twelve-month period. This dataset is updated around the 15th of the month with recorded sales through the end of the prior month.",
+  "agency": "Department of Finance",
+  "category": null,
+  "updated": 1792079407,
+  "freq": "Monthly",
+  "rows": 82576,
+  "columns": [
+   {
+    "field": "borough",
+    "name": "BOROUGH",
+    "type": "text",
+    "desc": "The name of the borough in which the property is located"
+   },
+   {
+    "field": "neighborhood",
+    "name": "NEIGHBORHOOD",
+    "type": "text",
+    "desc": "DOF assessors determine the neighborhood name in the course of valuing properties."
+   },
+   {
+    "field": "building_class_category",
+    "name": "BUILDING CLASS CATEGORY",
+    "type": "text",
+    "desc": "This identifies properties broad usage (e.g. One Family Home)."
+   },
+   {
+    "field": "tax_class_at_present",
+    "name": "TAX CLASS AT PRESENT",
+    "type": "text",
+    "desc": "Present Tax Class. Every property in the city is assigned to one of four tax classes (Classes 1,2, 3, and 4) based on the use of the property"
+   },
+   {
+    "field": "block",
+    "name": "BLOCK",
+    "type": "text",
+    "desc": "A Tax Block is a sub-division of the borough on which real properties are located "
+   },
+   {
+    "field": "lot",
+    "name": "LOT",
+    "type": "number",
+    "desc": "A tax Lot is a subdivision of a tax Block and represents the property unique location"
+   },
+   {
+    "field": "ease_ment",
+    "name": "EASE-MENT",
+    "type": "text",
+    "desc": "An easement is a right, such as a right of way, which allows an entity to make limited use of another's real property"
+   },
+   {
+    "field": "building_class_at_present",
+    "name": "BUILDING CLASS AT PRESENT",
+    "type": "text",
+    "desc": "The building classification is used to describe a property's constructive use"
+   },
+   {
+    "field": "address",
+    "name": "ADDRESS",
+    "type": "text",
+    "desc": "The street  address of the property as listed on the Sales File. Coop sales include the apartment in the address field"
+   },
+   {
+    "field": "apartment_number",
+    "name": "APARTMENT NUMBER",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "zip_code",
+    "name": "ZIP CODE",
+    "type": "text",
+    "desc": "The property's postal code"
+   },
+   {
+    "field": "residential_units",
+    "name": "RESIDENTIAL UNITS",
+    "type": "number",
+    "desc": "The number of residential units at the listed property"
+   },
+   {
+    "field": "commercial_units",
+    "name": "COMMERCIAL UNITS",
+    "type": "number",
+    "desc": "The number of commercial units at the listed property"
+   },
+   {
+    "field": "total_units",
+    "name": "TOTAL UNITS",
+    "type": "number",
+    "desc": "The total number of units at the listed property"
+   },
+   {
+    "field": "land_square_feet",
+    "name": "LAND SQUARE FEET",
+    "type": "text",
+    "desc": "The land are of the property listed in square feet"
+   },
+   {
+    "field": "gross_square_feet",
+    "name": "GROSS SQUARE FEET",
+    "type": "number",
+    "desc": "The total area of all e floors of a building as measured from the exterior surfaces of the outside walls of the building , including the land area and space within any building structure on the proper"
+   },
+   {
+    "field": "year_built",
+    "name": "YEAR BUILT",
+    "type": "text",
+    "desc": "Year the structure on the property was built."
+   },
+   {
+    "field": "tax_class_at_time_of_sale",
+    "name": "TAX CLASS AT TIME OF SALE",
+    "type": "number",
+    "desc": "Tax Class at time of sale"
+   },
+   {
+    "field": "building_class_at_time_of",
+    "name": "BUILDING CLASS AT TIME OF SALE",
+    "type": "text",
+    "desc": "The building classification at the time of sale"
+   },
+   {
+    "field": "sale_price",
+    "name": "SALE PRICE",
+    "type": "number",
+    "desc": "Price paid for the property"
+   },
+   {
+    "field": "sale_date",
+    "name": "SALE DATE",
+    "type": "calendar_date",
+    "desc": "Date the property sold"
+   }
+  ],
+  "license": null
+ },
+ "64uk-42ks": {
+  "id": "64uk-42ks",
+  "name": "Primary Land Use Tax Lot Output (PLUTO)",
+  "desc": "Extensive land use and geographic data at the tax lot level in comma-separated values (CSV) file format. The PLUTO files contain more than seventy fields derived from data maintained by city agencies.\n\nAll previously released versions of this data are available on the <a href=\"https://www.nyc.gov/content/planning/pages/resources/datasets/mappluto-pluto-change\">DCP Website: BYTES of the BIG APPLE</a>. Current version: 26v2",
+  "agency": "Department of City Planning (DCP)",
+  "category": "City Government",
+  "updated": 1787604531,
+  "freq": "Quarterly",
+  "rows": 858284,
+  "columns": [
+   {
+    "field": "borough",
+    "name": "borough",
+    "type": "text",
+    "desc": "The borough in which the tax lot is located. This field contains a two-character borough code.\n\nTwo portions of the city, Marble Hill and Rikers Island, are legally located in one borough but are serv"
+   },
+   {
+    "field": "block",
+    "name": "Tax block",
+    "type": "number",
+    "desc": "The tax block in which the tax lot is located.\nThis field contains a one to five-digit tax block number.\nEach tax block is unique within a borough (see BOROUGH)."
+   },
+   {
+    "field": "lot",
+    "name": "Tax lot",
+    "type": "number",
+    "desc": "The number of the tax lot.\n\nThis field contains a one to four-digit tax lot number.\n\nEach tax lot is unique within a tax block (see TAX BLOCK).\n\n<b>Special handling for condominiums:</b>\n\nIn a condomi"
+   },
+   {
+    "field": "cd",
+    "name": "community board",
+    "type": "number",
+    "desc": "The community district (CD) or joint interest area (JIA) for the tax lot. The city is divided into 59 community districts and 12 joint interest areas, which are large parks or airports that are not co"
+   },
+   {
+    "field": "ct2010",
+    "name": "census tract 2010",
+    "type": "number",
+    "desc": "The 2010 census tract in which the tax lot is located.\n\nThis field contains a one to four-digit census tract number, sometimes with a decimal point and a two-digit suffix.\n\n2010 census tracts are geog"
+   },
+   {
+    "field": "cb2010",
+    "name": "cb2010",
+    "type": "number",
+    "desc": "The 2010 census block in which the tax lot is located.\n\nThis field contains a four-digit census block number and, when applicable, a one- character alphabetic suffix.\n\n2010 census blocks are the small"
+   },
+   {
+    "field": "schooldist",
+    "name": "schooldist",
+    "type": "number",
+    "desc": "The school district in which the tax lot is located.\n\nThis field contains a two-digit school district number, which is preceded with a zero when the district number is one digit.\n\nThe city is divided "
+   },
+   {
+    "field": "council",
+    "name": "council district",
+    "type": "number",
+    "desc": "The city council district in which the tax lot is located.\n\nThis field contains a two-digit city council district number, which is preceded with a zero when the district number is one digit.\n\nThere ar"
+   },
+   {
+    "field": "zipcode",
+    "name": "postcode",
+    "type": "number",
+    "desc": "A ZIP code that is valid for one of the addresses assigned to the tax lot.\n\nNote that a tax lot may have multiple addresses and these addresses may not have the same ZIP code. A building with entrance"
+   },
+   {
+    "field": "firecomp",
+    "name": "firecomp",
+    "type": "text",
+    "desc": "The fire company that services the tax lot.\n\nThis field consists of four characters, the first of which is an alphabetic code identifying the type of fire company, where E stands for Engine, L stands "
+   },
+   {
+    "field": "policeprct",
+    "name": "policeprct",
+    "type": "number",
+    "desc": "The police precinct in which the tax lot is located.\n\nThis field contains a three-digit police precinct number which is preceded with\nleading zeros if the precinct number has less than three digits.\n\n"
+   },
+   {
+    "field": "healtharea",
+    "name": "healtharea",
+    "type": "number",
+    "desc": "The health area in which the tax lot is located.\n\nHealth areas were originally created in the 1920s for the purpose of reporting and statistical analysis of public health data. They were based on cens"
+   },
+   {
+    "field": "sanitboro",
+    "name": "sanitboro",
+    "type": "number",
+    "desc": "The borough of the sanitation district that services the tax lot.\n\nSANITATION DISTRICT BORO contains the value returned by Geosupport for one of the addresses assigned to the lot. If Geosupport does n"
+   },
+   {
+    "field": "sanitsub",
+    "name": "sanitsub",
+    "type": "text",
+    "desc": "The subsection of the sanitation district that services the tax lot.\n\nSANITATION SUBSECTION contains the value returned by Geosupport for one of the addresses assigned to the lot. If Geosupport does n"
+   },
+   {
+    "field": "address",
+    "name": "address",
+    "type": "text",
+    "desc": "An address for the tax lot.\n\nTax lots may be assigned a single house number on a street, a range of house numbers on a street, or addresses on multiple streets. ADDRESS contains the address in PTS, us"
+   },
+   {
+    "field": "zonedist1",
+    "name": "zonedist1",
+    "type": "text",
+    "desc": "The zoning district classification of the tax lot. Under the Zoning Resolution, the map of New York City is generally apportioned into three basic zoning district categories: Residence (R), Commercial"
+   },
+   {
+    "field": "zonedist2",
+    "name": "zonedist2",
+    "type": "text",
+    "desc": "If the tax lot is divided by zoning boundary lines, ZONING DISTRICT 2 represents the zoning classification occupying the second greatest percentage of the tax lot's area. Only zoning districts that co"
+   },
+   {
+    "field": "zonedist3",
+    "name": "zonedist3",
+    "type": "text",
+    "desc": "If the tax lot is divided by zoning boundary lines, ZONING DISTRICT 3 represents the zoning classification occupying the third greatest percentage of the tax lot's area. Only zoning districts that cov"
+   },
+   {
+    "field": "zonedist4",
+    "name": "zonedist4",
+    "type": "text",
+    "desc": "If the tax lot is divided by zoning boundary lines, ZONING DISTRICT 4 represents\n\nthe zoning classification occupying the fourth greatest percentage of the tax lot's area. Only zoning districts that c"
+   },
+   {
+    "field": "overlay1",
+    "name": "overlay1",
+    "type": "text",
+    "desc": "The commercial overlay assigned to the tax lot. A commercial overlay is a C1 or C2 zoning district mapped within residential zoning districts to serve local retail needs (grocery stores, dry cleaners,"
+   },
+   {
+    "field": "overlay2",
+    "name": "overlay2",
+    "type": "text",
+    "desc": "A commercial overlay assigned to the tax lot.\n\nIf the tax lot has more than one commercial overlays, COMMERCIAL OVERLAY 2 represents the commercial overlay occupying the second largest percentage of t"
+   },
+   {
+    "field": "spdist1",
+    "name": "spdist1",
+    "type": "text",
+    "desc": "The special purpose district assigned to the tax lot. The regulations for special purpose districts are designed to supplement and modify the underlying zoning in order to respond to distinctive neigh"
+   },
+   {
+    "field": "spdist2",
+    "name": "spdist2",
+    "type": "text",
+    "desc": "The special purpose district assigned to the tax lot. The regulations for special purpose districts are designed to supplement and modify the underlying zoning in order to respond to distinctive neigh"
+   },
+   {
+    "field": "spdist3",
+    "name": "spdist3",
+    "type": "text",
+    "desc": "The special purpose district assigned to the tax lot. The regulations for special purpose districts are designed to supplement and modify the underlying zoning in order to respond to distinctive neigh"
+   },
+   {
+    "field": "ltdheight",
+    "name": "ltdheight",
+    "type": "text",
+    "desc": "The limited height district assigned to the tax lot. A limited height district is superimposed on an area designated as an historic district by the Landmarks Preservation Commission.\n\nSee Appendix B f"
+   },
+   {
+    "field": "splitzone",
+    "name": "splitzone",
+    "type": "checkbox",
+    "desc": "A code indicating whether the tax lot is split between multiple zoning features. The split boundary indicator is equal to \"Y\" if the tax lot has a value for ZONING DISTRICT 2, COMMERCIAL OVERLAY 2, or"
+   },
+   {
+    "field": "bldgclass",
+    "name": "bldgclass",
+    "type": "text",
+    "desc": "A code describing the major use of structures on the tax lot.\n\nExcept as described below, BUILDING CLASS is taken from PTS without modification.\n\nFor condominiums, PTS contains the building class for "
+   },
+   {
+    "field": "landuse",
+    "name": "landuse",
+    "type": "number",
+    "desc": "A code for the tax lot's land use category.\n\nThe Department of City Planning has created 11 land use categories and assigns each BUILDING CLASS to the most appropriate land use category.\n\nAppendix D -"
+   },
+   {
+    "field": "easements",
+    "name": "easements",
+    "type": "number",
+    "desc": "The number of unique easements on the tax lot.\n\nPTS contains a record for each easement. NUMBER OF EASEMENTS is calculated by counting the number of unique PTS easement records for the tax lot.\n\nIf th"
+   },
+   {
+    "field": "ownertype",
+    "name": "ownertype",
+    "type": "text",
+    "desc": "A code indicating type of ownership for the tax lot.\n\nOnly one data source is used per tax lot.\n\nThe COLP file, which contains more accurate and specific type of city ownership data than PTS, is used "
+   },
+   {
+    "field": "ownername",
+    "name": "ownername",
+    "type": "text",
+    "desc": "The name of the owner of the tax lot.\n\nFor publicly owned tax lots, owner names have been normalized. For example, \"NYC PARKS\", \"PARKS DEPARTMENT\", and \"PARKS AND RECREATION (GENERAL)\" have been chang"
+   },
+   {
+    "field": "lotarea",
+    "name": "lotarea",
+    "type": "number",
+    "desc": "Total area of the tax lot, expressed in square feet rounded to the nearest integer.\n\nLOT AREA contains street beds when the tax lot contains \"paper streets\" i.e., streets mapped but not built.\n\nIf the"
+   },
+   {
+    "field": "bldgarea",
+    "name": "bldgarea",
+    "type": "number",
+    "desc": "The total gross area in square feet, except for condominium measurements which come from the Condo Declaration and are net square footage not gross.\n\nTOTAL BUILDING FLOOR AREA is populated in the foll"
+   },
+   {
+    "field": "comarea",
+    "name": "comarea",
+    "type": "number",
+    "desc": "An estimate of the exterior dimensions of the portion of the structure(s) allocated for commercial use.\n\nValue is taken from PTS, if available. When calculated from PTS data, COMMERCIAL FLOOR AREA is "
+   },
+   {
+    "field": "resarea",
+    "name": "resarea",
+    "type": "number",
+    "desc": "An estimate of the exterior dimensions of the portion of the structure(s) allocated for residential use.\n\nValue is taken from PTS, if available. Otherwise it comes from CAMA.\n\nFor condominiums, RESIDE"
+   },
+   {
+    "field": "officearea",
+    "name": "officearea",
+    "type": "number",
+    "desc": "An estimate of the exterior dimensions of the portion of the structure(s) allocated for office use.\n\nValue is taken from PTS, if available. Otherwise it comes from CAMA.\n\nThis information is NOT avail"
+   },
+   {
+    "field": "retailarea",
+    "name": "retailarea",
+    "type": "number",
+    "desc": "An estimate of the exterior dimensions of the portion of the structure(s) allocated for retail use.\n\nValue is taken from PTS, if available. Otherwise it comes from CAMA.\n\nThis information is NOT avail"
+   },
+   {
+    "field": "garagearea",
+    "name": "garagearea",
+    "type": "number",
+    "desc": "An estimate of the exterior dimensions of the portion of the structure(s) allocated for\ngarage use.\n\nValue is taken from PTS, if available. Otherwise it comes from CAMA.\n\nThis information is NOT avail"
+   },
+   {
+    "field": "strgearea",
+    "name": "strgearea",
+    "type": "number",
+    "desc": "An estimate of the exterior dimensions of the portion of the structure(s) allocated for storage or loft purposes.\n\nValue is taken from PTS, if available. Otherwise it comes from CAMA.\n\nThis informatio"
+   },
+   {
+    "field": "factryarea",
+    "name": "factryarea",
+    "type": "number",
+    "desc": "An estimate of the exterior dimensions of the portion of the structure(s) allocated for factory, warehouse or loft use.\n\nValue is taken from PTS, if available. Otherwise it comes from CAMA.\n\nThis info"
+   },
+   {
+    "field": "otherarea",
+    "name": "otherarea",
+    "type": "number",
+    "desc": "An estimate of the exterior dimensions of the portion of the structure(s) allocated for other than commercial, residential, office, retail, garage, storage, or factory use.\n\nValue is taken from PTS, i"
+   },
+   {
+    "field": "areasource",
+    "name": "areasource",
+    "type": "number",
+    "desc": "A code indicating the methodology used to determine the tax lot's TOTAL BUILDING FLOOR AREA (BldgArea)\n\nOnly one source is used per tax lot."
+   },
+   {
+    "field": "numbldgs",
+    "name": "numbldgs",
+    "type": "number",
+    "desc": "The number of buildings on the tax lot.\n\nThe number of buildings on a lot is calculated by taking the Building Identification Number (BIN) for every building in DoITT's Building Footprints dataset, ru"
+   },
+   {
+    "field": "numfloors",
+    "name": "numfloors",
+    "type": "number",
+    "desc": "The number of full and partial floors starting from the ground floor, for the tallest building on the tax lot. A partial floor is a floor that does not span the entire building envelope. For example, "
+   },
+   {
+    "field": "unitsres",
+    "name": "unitsres",
+    "type": "number",
+    "desc": "The sum of residential units in all buildings on the tax lot.\n\nIf there are no residential units in the tax lot, this field will be zero.\n\nHotels/motels, nursing homes and SROs do not have residential"
+   },
+   {
+    "field": "unitstotal",
+    "name": "unitstotal",
+    "type": "number",
+    "desc": "The sum of residential and non-residential (offices, retail stores, etc.) units for all buildings on the tax lot.\n\nThe count of non-residential units is sometimes not available if the building contain"
+   },
+   {
+    "field": "lotfront",
+    "name": "lotfront",
+    "type": "number",
+    "desc": "The tax lot's frontage measured in feet.\n\nNOTE: It appears that if a lot fronts on more than one street, the PTS building address often determines which side of the lot used for calculating lot fronta"
+   },
+   {
+    "field": "lotdepth",
+    "name": "lotdepth",
+    "type": "number",
+    "desc": "The tax lot's depth measured in feet."
+   },
+   {
+    "field": "bldgfront",
+    "name": "bldgfront",
+    "type": "number",
+    "desc": "The building's frontage along the street measured in feet."
+   },
+   {
+    "field": "bldgdepth",
+    "name": "bldgdepth",
+    "type": "number",
+    "desc": "The building's depth, which is the effective perpendicular distance, measured in feet."
+   },
+   {
+    "field": "ext",
+    "name": "ext",
+    "type": "text",
+    "desc": "A code identifying whether there is an extension on the lot or a garage other than the primary structure."
+   },
+   {
+    "field": "proxcode",
+    "name": "proxcode",
+    "type": "number",
+    "desc": "A code describing the physical relationship of the building to neighboring buildings. If there are multiple buildings on the lot, CAMA data for building number 1 is used."
+   },
+   {
+    "field": "irrlotcode",
+    "name": "irrlotcode",
+    "type": "checkbox",
+    "desc": "A code indicating whether the tax lot is irregularly shaped."
+   },
+   {
+    "field": "lottype",
+    "name": "lottype",
+    "type": "number",
+    "desc": "A code indicating the location of the tax lot in relationship to another tax lot and/or the water.\n\nCAMA may contain multiple lot types for a tax lot. For instance, a lot may be both a corner lot and "
+   },
+   {
+    "field": "bsmtcode",
+    "name": "bsmtcode",
+    "type": "number",
+    "desc": "A code describing the building's basement."
+   },
+   {
+    "field": "assessland",
+    "name": "assessland",
+    "type": "number",
+    "desc": "The assessed land value for the tax lot.\n\nThe Department of Finance calculates the assessed value by multiplying the tax lot's estimated full market land value, determined as if vacant and unimproved,"
+   },
+   {
+    "field": "assesstot",
+    "name": "assesstot",
+    "type": "number",
+    "desc": "The assessed total value for the tax lot.\n\nThe Department of Finance (DOF) calculates the assessed value by multiplying the tax lot's estimated full market value by a uniform percentage for the proper"
+   },
+   {
+    "field": "exempttot",
+    "name": "exempttot",
+    "type": "number",
+    "desc": "The exempt total value, which is determined differently for each exemption program, is the dollar amount related to that portion of the tax lot that has received an exemption.\n\nAssessed and exempt val"
+   },
+   {
+    "field": "yearbuilt",
+    "name": "yearbuilt",
+    "type": "number",
+    "desc": "The year construction of the building was completed.\n\nIn general, YEAR BUILT is accurate for the decade, but not necessarily for the specific year. Between 1910 and 1985, the majority of YEAR BUILT va"
+   },
+   {
+    "field": "yearalter1",
+    "name": "yearalter1",
+    "type": "number",
+    "desc": "If a building has only been altered once, YEAR ALTERED 1 is the date that alteration began.\n\nIf a building has been altered more than once, YEAR ALTERED 1 is the year of the second most recent alterat"
+   },
+   {
+    "field": "yearalter2",
+    "name": "yearalter2",
+    "type": "number",
+    "desc": "If a building has only been altered once, this field is blank.\n\nIf a building has been altered more than once, YEAR ALTERED 2 is the year that the most recent alteration began.\n\nThe Department of Fina"
+   },
+   {
+    "field": "histdist",
+    "name": "histdist",
+    "type": "text",
+    "desc": "The name of the Historic District that the tax lot is within. Historic Districts are designated by the New York City Landmarks Preservation Commission."
+   },
+   {
+    "field": "landmark",
+    "name": "landmark",
+    "type": "text",
+    "desc": "This value indicates whether the lot contains an individual landmark building, an interior landmark building, or both."
+   },
+   {
+    "field": "builtfar",
+    "name": "builtfar",
+    "type": "number",
+    "desc": "The BUILT FLOOR AREA RATIO is the total building floor area divided by the area of the tax lot.\n\nThis is an estimate by City Planning based on rough building area and lot area measurements provided by"
+   },
+   {
+    "field": "residfar",
+    "name": "residfar",
+    "type": "number",
+    "desc": "The maximum allowable residential floor area ratio for standard residences, based on the zoning district classification occupying the greatest percentage of the tax lot\u2019s area as reported in ZoneDist1"
+   },
+   {
+    "field": "commfar",
+    "name": "commfar",
+    "type": "number",
+    "desc": "The maximum allowable commercial floor area ratio, based on the zoning district classification occupying the greatest percentage of the tax lot's area as reported in ZoneDist1. If the lot is assigned "
+   },
+   {
+    "field": "facilfar",
+    "name": "facilfar",
+    "type": "number",
+    "desc": "The maximum allowable community facility floor area ratio, based on the zoning district classification occupying the greatest percentage of the tax lot's area as reported in ZoneDist1. If the lot is a"
+   },
+   {
+    "field": "affresfar",
+    "name": "affresfar",
+    "type": "number",
+    "desc": "The maximum allowable residential floor area ratio for affordable housing, based on the zoning district classification occupying the greatest percentage of the tax lot\u2019s area as reported in ZoneDist1."
+   },
+   {
+    "field": "mnffar",
+    "name": "mnffar",
+    "type": "number",
+    "desc": "The maximum allowable Manufacturing floor area ratio, based on the zoning district classification occupying the greatest percentage of the tax lot\u2019s area as reported in ZoneDist1. If the lot is assign"
+   },
+   {
+    "field": "borocode",
+    "name": "borocode",
+    "type": "number",
+    "desc": "The borough in which the tax lot is located.\n\nTwo portions of the city, Marble Hill and Rikers Island, are legally located in one borough but are serviced by a different borough. The BORO CODEs associ"
+   },
+   {
+    "field": "bbl",
+    "name": "BBL",
+    "type": "number",
+    "desc": "A concatenation of the borough code, tax block and tax lot.\n\nThis field consists of the borough code followed by the tax block followed by the tax lot.  The borough code is one numeric digit.  The tax"
+   },
+   {
+    "field": "condono",
+    "name": "condono",
+    "type": "number",
+    "desc": "The condominium number assigned to the complex.\n\nCondominium numbers are unique within a borough (see BOROUGH)."
+   },
+   {
+    "field": "tract2010",
+    "name": "tract2010",
+    "type": "number",
+    "desc": "The 2010 census tract in which the tax lot is located.\n\nThis field contains a one to four-digit census tract number and a two-digit suffix.  There is an implied decimal point between the census tract "
+   },
+   {
+    "field": "xcoord",
+    "name": "xcoord",
+    "type": "number",
+    "desc": "The X coordinate of the XY coordinate pair which depicts the approximate location of the lot.\n\nIf the X coordinate is not available from Geosupport, it is calculated from the centroid of the tax lot, "
+   },
+   {
+    "field": "ycoord",
+    "name": "ycoord",
+    "type": "number",
+    "desc": "The Y coordinate of the XY coordinate pair which depicts the approximate location of the lot.\n\nIf the Y coordinate is not available from Geosupport, it is calculated from the centroid of the tax lot, "
+   },
+   {
+    "field": "latitude",
+    "name": "latitude",
+    "type": "number",
+    "desc": "The WGS 84 latitude of the latitude/longitude coordinate pair for the approximate location of the tax lot."
+   },
+   {
+    "field": "longitude",
+    "name": "longitude",
+    "type": "number",
+    "desc": "The WGS 84 longitude of the latitude/longitude coordinate pair for the approximate location of the tax lot"
+   },
+   {
+    "field": "zonemap",
+    "name": "zonemap",
+    "type": "text",
+    "desc": "The Department of City Planning Zoning Map Number associated with the tax lot's X and Y Coordinates. If the tax lot is on the border of two or more zoning maps, ZONING MAP \\# is the zoning map coverin"
+   },
+   {
+    "field": "zmcode",
+    "name": "zmcode",
+    "type": "checkbox",
+    "desc": "A code (Y) identifies a tax lot on the border of two or more zoning maps."
+   },
+   {
+    "field": "sanborn",
+    "name": "sanborn",
+    "type": "text",
+    "desc": "The Sanborn Map Company map number associated with the tax block and lot.\n\nSANBORN MAP \\# format is Borough Code/Volume Number/Page Number,\n\nwhere Borough Code is 1 (Manhattan), 2 (Bronx), 3 (Brooklyn"
+   },
+   {
+    "field": "taxmap",
+    "name": "taxmap",
+    "type": "number",
+    "desc": "The Department of Finance paper tax map volume number associated with the tax block and lot.\n\nThe first character of the Tax Map \\# is the Borough Code - 1 (Manhattan), 2 (Bronx), 3 (Brooklyn), 4 (Que"
+   },
+   {
+    "field": "edesignum",
+    "name": "edesignum",
+    "type": "text",
+    "desc": "The (E) designation number assigned to the tax lot. An (E) designation provides notice of the presence of an environmental requirement pertaining to potential hazardous materials contamination, high a"
+   },
+   {
+    "field": "appbbl",
+    "name": "appbbl",
+    "type": "number",
+    "desc": "The originating BBL (borough, block and lot) from the apportionment prior to the merge, split or property's conversion to a condominium.\n\nAPPORTIONMENT BBL is only available for mergers, splits, and c"
+   },
+   {
+    "field": "appdate",
+    "name": "appdate",
+    "type": "calendar_date",
+    "desc": "The date of the apportionment.\n\nThe data is in the format MM/DD/YYYY, where MM is a two-digit month, DD is the two-digit day, and YYYY is the four-digit year."
+   },
+   {
+    "field": "plutomapid",
+    "name": "plutomapid",
+    "type": "number",
+    "desc": "A code indicating whether the tax lot is in the PLUTO file, the MapPLUTO file with water areas included, and/or the MapPLUTO file that is clipped to the shoreline.\n\nBecause the Digital Tax Map (DTM) a"
+   },
+   {
+    "field": "version",
+    "name": "version",
+    "type": "text",
+    "desc": "The version number for this release of PLUTO.\n\nThe Version Number is in the format YYv#.# where:\n  YY is the last two digits of the year;\n  v stands for version;\n  \\# is the release number for that ye"
+   },
+   {
+    "field": "sanitdistrict",
+    "name": "sanitdistrict",
+    "type": "number",
+    "desc": "The sanitation district that services the tax lot.\n\nSANITATION DISTRICT NUMBER contains the value returned by Geosupport for one of the addresses assigned to the lot. If Geosupport does not return a v"
+   },
+   {
+    "field": "healthcenterdistrict",
+    "name": "healthcenterdistrict",
+    "type": "number",
+    "desc": "The health center district in which the tax lot is located. Thirty health center districts were created by the City in 1930 to conduct neighborhood focused health interventions.\n\nThis field contains a"
+   },
+   {
+    "field": "firm07_flag",
+    "name": "firm07_flag",
+    "type": "number",
+    "desc": "A value of 1 means that some portion of the tax lot falls within the 1% annual chance floodplain as determined by FEMA's 2007 Flood Insurance Rate Map.\n\nNote that buildings on the tax lot may or may n"
+   },
+   {
+    "field": "pfirm15_flag",
+    "name": "pfirm15_flag",
+    "type": "number",
+    "desc": "A value of 1 means that some portion of the tax lot falls within the 1% annual chance floodplain as determined by FEMA's 2015 Preliminary Flood Insurance Rate Map.\n\nNote that buildings on the tax lot "
+   },
+   {
+    "field": "dcpedited",
+    "name": "dcpedited",
+    "type": "text",
+    "desc": "Flag indicating that City Planning has applied a correction to the record.\n\nFlag set to \"1\" if City Planning has made a change to any field values for this tax lot. To see which field(s) were changed,"
+   },
+   {
+    "field": "notes",
+    "name": "notes",
+    "type": "text",
+    "desc": "A text field containing notes of importance to one or more lots."
+   },
+   {
+    "field": "bct2020",
+    "name": "bct2020",
+    "type": "text",
+    "desc": "The 2020 census tract in which the tax lot is located.\n\nThis field contains a seven-digit code representing the one-digit borough code followed by the six-digit census tract number.\n\n2020 census tract"
+   },
+   {
+    "field": "bctcb2020",
+    "name": "bctcb2020",
+    "type": "text",
+    "desc": "The 2020 census block in which the tax lot is located.\n\nThis field contains an eleven-digit code representing the one-digit borough code followed by the six-digit census tract number and then the four"
+   },
+   {
+    "field": "mih_opt1",
+    "name": "mihopt1",
+    "type": "checkbox",
+    "desc": "Flag set to \u201c1\u201d if MIH Option 1 applies to tax lot. Under Option 1, 25 percent of the residential floor area must be affordable to households earning an average of 60 percent of Area Median Income, of"
+   },
+   {
+    "field": "mih_opt2",
+    "name": "mihopt2",
+    "type": "checkbox",
+    "desc": "Flag set to \u201c1\u201d if MIH Option 2 applies to tax lot. Under Option 2, 30 percent of the residential floor area must be affordable to households earning an average of 80 percent of Area Median Income.\n\nU"
+   },
+   {
+    "field": "mih_opt3",
+    "name": "mihopt3",
+    "type": "checkbox",
+    "desc": "Flag set to \u201c1\u201d if MIH Option 3 (deep affordability) applies to tax lot. Under Option 3, 20 percent of the residential floor area must be affordable to households earning an average of 40 percent of A"
+   },
+   {
+    "field": "mih_opt4",
+    "name": "mihopt4",
+    "type": "checkbox",
+    "desc": "Flag set to \u201c1\u201d if MIH Option 4 (workforce option) applies to tax lot. Under Option 4, 30 percent of the residential floor area must be affordable to families earning an average of 115 percent of Area"
+   },
+   {
+    "field": "transitzone",
+    "name": "transitzone",
+    "type": "text",
+    "desc": "The Transit Zone classification of the tax lot. Under the Zoning Resolution, the map of New York City is apportioned into areas that generally govern residential parking. These include the Manhattan C"
+   },
+   {
+    "field": "geom",
+    "name": "geom",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "basempdate",
+    "name": "basempdate",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "dcasdate",
+    "name": "dcasdate",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "edesigdate",
+    "name": "edesigdate",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "landmkdate",
+    "name": "landmkdate",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "masdate",
+    "name": "masdate",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "polidate",
+    "name": "polidate",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "rpaddate",
+    "name": "rpaddate",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "zoningdate",
+    "name": "zoningdate",
+    "type": "text",
+    "desc": ""
+   }
+  ],
+  "license": null
+ },
+ "yjub-udmw": {
+  "id": "yjub-udmw",
+  "name": "NYC Wi-Fi Hotspot Locations",
+  "desc": "NYC Wi-Fi Hotspot Locations Wi-Fi Providers: \r\nCityBridge, LLC (Free Beta): LinkNYC 1 gigabyte (GB), Free Wi-Fi Internet Kiosks\r\nSpot On Networks (Free) NYC HOUSING AUTHORITY (NYCHA) Properties\r\nFiberless (Free): Wi-Fi access on Governors Island Free - up to 5 Mbps for users as the part of Governors Island Trust Governors Island Connectivity Challenge\r\nAT&T (Free): Wi-Fi access is free for all users at all times. \r\nPartners: In several parks, the NYC partner organizations provide publicly accessible Wi-Fi. Visit these parks to learn more information about their Wi-Fi service and how to connect. \r\nCable (Limited-Free): In NYC Parks provided by NYC DoITT Cable television franchisees. \r\nALTICEUSA previously known as \u201cCablevision\u201d and SPECTRUM previously known as \u201cTime Warner Cable\u201d (Limited Free) Connect for 3 free 10 minute sessions every 30 days or purchase a 99 cent day pass through midnight. Wi-Fi service is free at all times to Cablevision\u2019s Optimum Online and Time Warner Cable broadband subscribers. \r\nWi-Fi Provider: Chelsea Wi-Fi (Free) Wi-Fi access is free for all users at all times. \r\nChelsea Improvement Company has partnered with Google to provide Wi-Fi a free wireless Internet zone, a broadband region bounded by West 19th Street, Gansevoort Street, Eighth Avenue, and the High Line Park. \r\nWi-Fi Provider: Downtown Brooklyn Wi-Fi (Free) \r\nThe Downtown Brooklyn Partnership - the New York City Economic Development Corporation to provide Wi-Fi to the area bordered by Schermerhorn Street, Cadman Plaza West, Flatbush Avenue, and Tillary Street, along with select public spaces in the NYCHA Ingersoll and Whitman Houses. \r\nWi-Fi Provider: Manhattan Downtown Alliance Wi-Fi (Free) \r\nLower Manhattan Several public spaces all along Water Street, Front Street and the East River Esplanade south of Fulton Street and in several other locations throughout Lower Manhattan. \r\nWi-Fi Provider: Harlem Wi-Fi (Free) \r\nThe network will extend 95 city blocks, from 110th to 138th Streets between Frederick Douglass Boulevard and Madison Avenue is the free outdoor public wireless network. \r\nWi-Fi Provider: Transit Wireless (Free) \r\nWi-Fi Services in the New York City subway system is available in certain underground stations. For more information visit http://www.transitwireless.com/stations/. \r\nWi-Fi Provider: Public Pay Telephone Franchisees (Free) \r\nUsing existing payphone infrastructure, the City of New York has teamed up with private partners to provide free Wi-Fi service at public payphone kiosks across the five boroughs at no cost to taxpayers. \r\nWi-Fi Provider: New York Public Library \r\nUsing Wireless Internet Access (Wi-Fi): All Library locations offer free wireless access (Wi-Fi) in public areas at all times the libraries are open. \r\nConnecting to the Library's Wireless Network \r\n\u2022You must have a computer or other device equipped with an 802.11b-compatible wireless card. \r\n\u2022Using your computer's network utilities, look for the wireless network named \"NYPL.\" \r\n\u2022The \"NYPL\" wireless network does not require a password to connect. \r\nLimitations and Disclaimers Regarding Wireless Access \r\n\u2022The Library's wireless network is not secure. Information sent from or to your laptop can be captured by anyone else with a wireless device and the appropriate software, within three hundred feet. \r\n\u2022Library staff is not able to provide technical assistance and no guarantee can be provided that you will be able to make a wireless connection. \r\n\u2022The Library assumes no responsibility for the safety of equipment or for laptop configurations, security, or data files resulting from connection to the Library's network",
+  "agency": "Office of Technology and Innovation (OTI)",
+  "category": "City Government",
+  "updated": 1569515080,
+  "freq": "As needed",
+  "rows": 3319,
+  "columns": [
+   {
+    "field": "objectid",
+    "name": "OBJECTID",
+    "type": "number",
+    "desc": "Identification number automatically generated by map software ArcMap.\n"
+   },
+   {
+    "field": "borough",
+    "name": "Borough",
+    "type": "text",
+    "desc": "Borough of New York City.                MN = Manhattan                                  BX = Bronx                                           BK = Brooklyn                                     QU = Que"
+   },
+   {
+    "field": "type",
+    "name": "Type",
+    "type": "text",
+    "desc": "Type of WiFi provided by franchise.\n"
+   },
+   {
+    "field": "provider",
+    "name": "Provider",
+    "type": "text",
+    "desc": "Franchise who is providing the Wifi connection.\n"
+   },
+   {
+    "field": "name",
+    "name": "Name",
+    "type": "text",
+    "desc": "The name of the location where the WiFi is located.\n"
+   },
+   {
+    "field": "location",
+    "name": "Location",
+    "type": "text",
+    "desc": "A brief description of where the WiFi point is.\n"
+   },
+   {
+    "field": "latitude",
+    "name": "Latitude",
+    "type": "number",
+    "desc": "Latitude: Points that fall North or South of the Equator, expressed in degrees.\n"
+   },
+   {
+    "field": "longitude",
+    "name": "Longitude",
+    "type": "number",
+    "desc": "Longitude: Points that fall East or West of the Prime Meridian, expressed in degrees.\n"
+   },
+   {
+    "field": "x",
+    "name": "X",
+    "type": "number",
+    "desc": "X-Coordinate: A horizontal value where a point is located.\n"
+   },
+   {
+    "field": "y",
+    "name": "Y",
+    "type": "number",
+    "desc": "Y-Coordinate: A vertical value where a point is located.\n"
+   },
+   {
+    "field": "location_t",
+    "name": "Location_T",
+    "type": "text",
+    "desc": "The type of location that a WiFi hotspot is present in.\n"
+   },
+   {
+    "field": "remarks",
+    "name": "Remarks",
+    "type": "text",
+    "desc": "Comments describing a specific hotspot or location.\n"
+   },
+   {
+    "field": "city",
+    "name": "City",
+    "type": "text",
+    "desc": "The city in which a hotspot is located.\n"
+   },
+   {
+    "field": "ssid",
+    "name": "SSID",
+    "type": "text",
+    "desc": "The name of the WiFi seen on people's devices.\n"
+   },
+   {
+    "field": "sourceid",
+    "name": "SourceID",
+    "type": "text",
+    "desc": "A LinkNYC Kiosk's unique identification number.\n"
+   },
+   {
+    "field": "activated",
+    "name": "Activated",
+    "type": "calendar_date",
+    "desc": "The approximated date that this Wi-Fi site went active\n"
+   },
+   {
+    "field": "borocode",
+    "name": "BoroCode",
+    "type": "number",
+    "desc": "The New York City borough where the hotspots are located.\n"
+   },
+   {
+    "field": "boroname",
+    "name": "Borough Name",
+    "type": "text",
+    "desc": "The New York City borough where the hotspots are located.\n"
+   },
+   {
+    "field": "ntacode",
+    "name": "Neighborhood Tabulation Area Code (NTACODE)",
+    "type": "text",
+    "desc": "Four (4) digit code assigned to neighborhoods to differentiate NYC's five boroughs."
+   },
+   {
+    "field": "ntaname",
+    "name": "Neighborhood Tabulation Area (NTA)",
+    "type": "text",
+    "desc": "Neighborhood identifiers to differentiate NYC's five boroughs."
+   },
+   {
+    "field": "coundist",
+    "name": "Council Distrcit",
+    "type": "number",
+    "desc": "NYC City Council District number\n"
+   },
+   {
+    "field": "zip",
+    "name": "Postcode",
+    "type": "number",
+    "desc": "United States Postal Service Zip Code (5-digits).\n"
+   },
+   {
+    "field": "borocd",
+    "name": "BoroCD",
+    "type": "number",
+    "desc": "New York City Borough plus Community Board Numbers.                \n"
+   },
+   {
+    "field": "ct2010",
+    "name": "Census Tract",
+    "type": "number",
+    "desc": "2010 U.S. Census data based on location.\n"
+   },
+   {
+    "field": "bctcb2010",
+    "name": "BCTCB2010",
+    "type": "number",
+    "desc": "Combined value of Borough CD and Census 2010.\n"
+   },
+   {
+    "field": "bin",
+    "name": "BIN",
+    "type": "number",
+    "desc": "Building Identification Number.\n"
+   },
+   {
+    "field": "bbl",
+    "name": "BBL",
+    "type": "number",
+    "desc": "Borough Block Lot.\n"
+   },
+   {
+    "field": "doitt_id",
+    "name": "DOITT_ID",
+    "type": "number",
+    "desc": "Identification number automatically generated by GIS Developer map sites.\n"
+   },
+   {
+    "field": "location_lat_long",
+    "name": "Location (Lat, Long)",
+    "type": "location",
+    "desc": "Combination of the lat and long  values\n"
+   }
+  ],
+  "license": null
+ },
+ "tg4x-b46p": {
+  "id": "tg4x-b46p",
+  "name": "Film Permits",
+  "desc": "Permits are generally required when asserting the exclusive use of city property, like a sidewalk, a street, or a park. See http://www1.nyc.gov/site/mome/permits/when-permit-required.page",
+  "agency": "Mayor\u2019s Office of Media and Entertainment (MOME)",
+  "category": "City Government",
+  "updated": 1794429033,
+  "freq": "Daily",
+  "rows": 20282,
+  "columns": [
+   {
+    "field": "eventid",
+    "name": "EventID",
+    "type": "number",
+    "desc": "Auto-generated unique event identification number"
+   },
+   {
+    "field": "eventtype",
+    "name": "EventType",
+    "type": "text",
+    "desc": "Type of Activity for this approved permit.\n\nLoad in/out \u2013 vehicles parking to load sets, equipment, etc. into location;\n\nShooting \u2013 filming scheduled to occur;\n\nDCAS Prep/Shoot/Wrap \u2013activity schedule"
+   },
+   {
+    "field": "startdatetime",
+    "name": "StartDateTime",
+    "type": "calendar_date",
+    "desc": "Activity scheduled to begin"
+   },
+   {
+    "field": "enddatetime",
+    "name": "EndDateTime",
+    "type": "calendar_date",
+    "desc": "Activity scheduled to be completed"
+   },
+   {
+    "field": "enteredon",
+    "name": "EnteredOn",
+    "type": "calendar_date",
+    "desc": "Date permit request submitted to MOME"
+   },
+   {
+    "field": "eventagency",
+    "name": "EventAgency",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "parkingheld",
+    "name": "ParkingHeld",
+    "type": "text",
+    "desc": "Locations of request to hold parking in advance for permitted filming activity."
+   },
+   {
+    "field": "borough",
+    "name": "Borough",
+    "type": "text",
+    "desc": "First borough of activity for the day"
+   },
+   {
+    "field": "communityboard_s",
+    "name": "CommunityBoard(s)",
+    "type": "text",
+    "desc": "First Community Board of activity for the day"
+   },
+   {
+    "field": "policeprecinct_s",
+    "name": "PolicePrecinct(s)",
+    "type": "text",
+    "desc": "First Police precinct of activity for the day"
+   },
+   {
+    "field": "category",
+    "name": "Category",
+    "type": "text",
+    "desc": "Description of production as selected by permit applicant"
+   },
+   {
+    "field": "subcategoryname",
+    "name": "SubCategoryName",
+    "type": "text",
+    "desc": "More specific description of production as selected by permit applicant"
+   },
+   {
+    "field": "country",
+    "name": "Country",
+    "type": "text",
+    "desc": "Project origin "
+   },
+   {
+    "field": "zipcode_s",
+    "name": "ZipCode(s)",
+    "type": "text",
+    "desc": "First zip code of production activity"
+   }
+  ],
+  "license": null
+ },
+ "nu7n-tubp": {
+  "id": "nu7n-tubp",
+  "name": "NYC Dog Licensing Dataset",
+  "desc": "Active Dog Licenses.\r\n\r\nAll dog owners residing in NYC are required by law to license their dogs. The data is sourced from the DOHMH Dog Licensing System (https://a816-healthpsi.nyc.gov/DogLicense), where owners can apply for and renew dog licenses. Each record represents a unique dog license that was active during the year, but not necessarily a unique record per dog, since a license that is renewed during the year results in a separate record of an active license period. Each record stands as a unique license period for the dog over the course of the yearlong time frame.",
+  "agency": "Department of Mental Health and Hygeine",
+  "category": "Health",
+  "updated": 1784128853,
+  "freq": "Annually",
+  "rows": 819323,
+  "columns": [
+   {
+    "field": "animalname",
+    "name": "AnimalName",
+    "type": "text",
+    "desc": "User-provided dog name (unless specified otherwise)"
+   },
+   {
+    "field": "animalgender",
+    "name": "AnimalGender",
+    "type": "text",
+    "desc": "M (Male) or F (Female) dog gender"
+   },
+   {
+    "field": "animalbirth",
+    "name": "AnimalBirthYear",
+    "type": "text",
+    "desc": "Year dog was born"
+   },
+   {
+    "field": "breedname",
+    "name": "BreedName",
+    "type": "text",
+    "desc": "Dog breed"
+   },
+   {
+    "field": "zipcode",
+    "name": "ZipCode",
+    "type": "number",
+    "desc": "Owner zip code"
+   },
+   {
+    "field": "licenseissueddate",
+    "name": "LicenseIssuedDate",
+    "type": "calendar_date",
+    "desc": "Date the dog license was issued"
+   },
+   {
+    "field": "licenseexpireddate",
+    "name": "LicenseExpiredDate",
+    "type": "calendar_date",
+    "desc": "Date the dog license expires"
+   },
+   {
+    "field": "extract_year",
+    "name": "Extract Year",
+    "type": "text",
+    "desc": ""
+   }
+  ],
+  "license": null
+ },
+ "rsgh-akpg": {
+  "id": "rsgh-akpg",
+  "name": "DOHMH Dog Bite Data",
+  "desc": "NYC Reported Dog Bites.\n\nSection 11.03 of NYC Health Code requires all animals bites to be reported within 24 hours of the event.\n\nInformation reported assists the Health Department to determine if the biting dog is healthy ten days after the person was bitten in order to avoid having the person bitten receive unnecessary rabies shots. Data is collected from reports received online, mail, fax or by phone to 311 or NYC DOHMH Animal Bite Unit. Each record represents a single dog bite incident.   Information on breed, age, gender and Spayed or Neutered status have not been verified by DOHMH and is listed only as reported to DOHMH. A blank space in the dataset means no data was available.",
+  "agency": "Department of Health and Mental Hygiene",
+  "category": "Health",
+  "updated": 1787330629,
+  "freq": "As needed",
+  "rows": 39082,
+  "columns": [
+   {
+    "field": "uniqueid",
+    "name": "UniqueID",
+    "type": "text",
+    "desc": "Unique dog bite case identifier"
+   },
+   {
+    "field": "dateofbite",
+    "name": "DateOfBite",
+    "type": "calendar_date",
+    "desc": "Date bitten"
+   },
+   {
+    "field": "species",
+    "name": "Species",
+    "type": "text",
+    "desc": "Animal Type (Dog)"
+   },
+   {
+    "field": "breed",
+    "name": "Breed",
+    "type": "text",
+    "desc": "Breed type"
+   },
+   {
+    "field": "age",
+    "name": "Age",
+    "type": "text",
+    "desc": "Dog's age at time of bite. Numbers with 'M' indicate months."
+   },
+   {
+    "field": "gender",
+    "name": "Gender",
+    "type": "text",
+    "desc": "Sex of Dog. M=Male, F=Female, U=Unknown"
+   },
+   {
+    "field": "spayneuter",
+    "name": "SpayNeuter",
+    "type": "checkbox",
+    "desc": "Surgical removal of dog's reproductive organs. True (reported to DOHMH as Spayed or Neutered), False (Unknown or Not Spayed or Neutered)"
+   },
+   {
+    "field": "borough",
+    "name": "Borough",
+    "type": "text",
+    "desc": "Dog bite Borough. Other' indicates that the bite took place outside New York City"
+   },
+   {
+    "field": "zipcode",
+    "name": "ZipCode",
+    "type": "text",
+    "desc": "Dog bite Zipcode. Blank ZipCode indicates that information was not available"
+   }
+  ],
+  "license": null
+ },
+ "6z8x-wfk4": {
+  "id": "6z8x-wfk4",
+  "name": "Evictions",
+  "desc": "This dataset lists executed evictions within the five boroughs for the years 2017-Present (data prior to January 1, 2017, is not available). The data fields may be sorted by 20 categories of information including Court Index Number, Docket Number, Eviction Address, Marshal First or Last Name, Borough, etc.. \n \nEviction data is compiled from New York City Marshals. City Marshals are independent public officials appointed by the Mayor. Marshals can be contacted directly regarding evictions, and their contact information can be found at https://www1.nyc.gov/site/doi/offices/marshals-list.page.",
+  "agency": "Department of Investigation (DOI)",
+  "category": "City Government",
+  "updated": 1793637131,
+  "freq": "Daily",
+  "rows": 136544,
+  "columns": [
+   {
+    "field": "court_index_number",
+    "name": "Court Index Number",
+    "type": "text",
+    "desc": "Number assigned by the court that has jurisdiction over the landlord/tenant proceedings. \n"
+   },
+   {
+    "field": "docket_number",
+    "name": "Docket Number ",
+    "type": "text",
+    "desc": "Number assigned by the City Marshal upon case intake. \n"
+   },
+   {
+    "field": "eviction_address",
+    "name": "Eviction Address",
+    "type": "text",
+    "desc": "Identifies the street and building number where an eviction is pending or has been completed.\n"
+   },
+   {
+    "field": "eviction_apt_num",
+    "name": "Eviction Apartment Number",
+    "type": "text",
+    "desc": "Identifies the unit within the building where an eviction is pending or has been completed. \n"
+   },
+   {
+    "field": "executed_date",
+    "name": "Executed Date",
+    "type": "calendar_date",
+    "desc": "The date that evictions have been executed. \n"
+   },
+   {
+    "field": "marshal_first_name",
+    "name": "Marshal First Name",
+    "type": "text",
+    "desc": "Identifies the first name of the NYC Marshal who performed the eviction or who is scheduled to perform the eviction. \n"
+   },
+   {
+    "field": "marshal_last_name",
+    "name": "Marshal Last Name",
+    "type": "text",
+    "desc": "Identifies the last name of the NYC Marshal who performed the eviction or who is scheduled to perform the eviction. \n"
+   },
+   {
+    "field": "residential_commercial_ind",
+    "name": "Residential/Commercial",
+    "type": "text",
+    "desc": "Identifies the property type where the eviction is pending or has been completed. \n"
+   },
+   {
+    "field": "borough",
+    "name": "BOROUGH",
+    "type": "text",
+    "desc": "Identifies the NYC borough where the eviction is pending or has been completed. \n"
+   },
+   {
+    "field": "eviction_zip",
+    "name": "Eviction Postcode",
+    "type": "text",
+    "desc": "Identifies the NYC zip code where the eviction is pending or has been completed. \n"
+   },
+   {
+    "field": "ejectment",
+    "name": "Ejectment",
+    "type": "text",
+    "desc": "An action in ejectment is a way for a landlord to obtain possession of a residence and may be started in either Civil or Supreme Court."
+   },
+   {
+    "field": "eviction_possession",
+    "name": "Eviction/Legal Possession",
+    "type": "text",
+    "desc": "Process by which a warrant of eviction is executed.  Landlord may request an eviction whereby the tenant and his/her property are removed by a marshal, or a legal possession whereby the tenant is remo"
+   },
+   {
+    "field": "latitude",
+    "name": "Latitude",
+    "type": "text",
+    "desc": "The latitude associated with the provided entity location."
+   },
+   {
+    "field": "longitude",
+    "name": "Longitude",
+    "type": "text",
+    "desc": "The longitude associated with the provided entity location."
+   },
+   {
+    "field": "community_board",
+    "name": "Community Board",
+    "type": "text",
+    "desc": "The NYC community board associated with the provided entity location."
+   },
+   {
+    "field": "council_district",
+    "name": "Council District",
+    "type": "text",
+    "desc": "The NYC council district associated with the provided entity location."
+   },
+   {
+    "field": "census_tract",
+    "name": "Census Tract",
+    "type": "text",
+    "desc": "The US census tract associated with the provided entity location."
+   },
+   {
+    "field": "bin",
+    "name": "BIN",
+    "type": "text",
+    "desc": "The Building Identification Number (BIN) associated with the provided entity location. It is formatted as a seven-digit numerical identifier, which is unique to each building in NYC."
+   },
+   {
+    "field": "bbl",
+    "name": "BBL",
+    "type": "text",
+    "desc": "The Borough, Block, Lot (BBL) associated with the provided entity location. It is formatted as a ten-digit numerical identifier, which is unique to each parcel of real property in NYC."
+   },
+   {
+    "field": "nta",
+    "name": "NTA",
+    "type": "text",
+    "desc": "The Neighborhood Tabulation Area (NTA) associated with the provided entity location."
+   }
+  ],
+  "license": null
+ },
+ "ipu4-2q9a": {
+  "id": "ipu4-2q9a",
+  "name": "DOB Permit Issuance",
+  "desc": "The Department of Buildings (DOB) issues permits for construction and demolition activities in the City of New York. The construction industry must submit an application to DOB with details of the construction job they would like to complete. The primary types of application, aka job type, are: New Building, Demolition, and Alterations Type 1, 2, and 3. Each job type can have multiple work types, such as general construction, boiler, elevator, and plumbing. Each work type will receive a separate permit. (See the DOB Job Application Filings dataset for information about each job application.) Each row/record in this dataset represents the life cycle of one permit for one work type. The dataset is updated daily with new records, and each existing record will be updated as the permit application moves through the approval process to reflect the latest status of the application.\n<b> Note: This dataset only includes permits issued in the Buildings Information System (BIS), most current permits are now issued in DOB NOW -- see the <a href =\"https://data.cityofnewyork.us/Housing-Development/DOB-NOW-Build-Approved-Permits/rbx6-tga4/about_data\">DOB NOW: Build \u2013 Approved Permits</a> dataset.</b>",
+  "agency": "Department of Buildings (DOB)",
+  "category": "Housing & Development",
+  "updated": 1794443798,
+  "freq": "Daily",
+  "rows": 3991358,
+  "columns": [
+   {
+    "field": "borough",
+    "name": "BOROUGH",
+    "type": "text",
+    "desc": "1= Manhattan, 2= Bronx, 3 = Brooklyn, 4 = Queens, 5 = Staten Island"
+   },
+   {
+    "field": "bin__",
+    "name": "Bin #",
+    "type": "text",
+    "desc": "Number assigned by City Planning to a specific building"
+   },
+   {
+    "field": "house__",
+    "name": "House #",
+    "type": "text",
+    "desc": "House Number of Residence or Commercial Property"
+   },
+   {
+    "field": "street_name",
+    "name": "Street Name",
+    "type": "text",
+    "desc": "Street Name where Property is located"
+   },
+   {
+    "field": "job__",
+    "name": "Job #",
+    "type": "text",
+    "desc": "Number assigned by DOB to Job Filing"
+   },
+   {
+    "field": "job_doc___",
+    "name": "Job doc. #",
+    "type": "text",
+    "desc": "Document Number"
+   },
+   {
+    "field": "job_type",
+    "name": "Job Type",
+    "type": "text",
+    "desc": "Job Type, based on DOB Job Code (NB-New Building, A1, A2, A3- Alterations 1-3, SG-Sign, etc.)"
+   },
+   {
+    "field": "self_cert",
+    "name": "Self_Cert",
+    "type": "text",
+    "desc": "Self_Cert"
+   },
+   {
+    "field": "block",
+    "name": "Block",
+    "type": "text",
+    "desc": "Tax block assigned by Department of Finance"
+   },
+   {
+    "field": "lot",
+    "name": "Lot",
+    "type": "text",
+    "desc": "Tax lot assigned by Department of Finance"
+   },
+   {
+    "field": "community_board",
+    "name": "Community Board",
+    "type": "text",
+    "desc": "3-digit identifier: Borough code = first position, last 2 = community board"
+   },
+   {
+    "field": "zip_code",
+    "name": "Zip Code",
+    "type": "text",
+    "desc": "Tax lot Zip Code"
+   },
+   {
+    "field": "bldg_type",
+    "name": "Bldg Type",
+    "type": "text",
+    "desc": "1-2-3 Family  or Other"
+   },
+   {
+    "field": "residential",
+    "name": "Residential",
+    "type": "text",
+    "desc": "Residential"
+   },
+   {
+    "field": "special_district_1",
+    "name": "Special District 1",
+    "type": "text",
+    "desc": "Special District 1"
+   },
+   {
+    "field": "special_district_2",
+    "name": "Special District 2",
+    "type": "text",
+    "desc": "Special District 2"
+   },
+   {
+    "field": "work_type",
+    "name": "Work Type",
+    "type": "text",
+    "desc": "DOB Designated Work Types (PL-Plumbing,  BL-Boiler, MH-Mechanical, OT-Other Constuction Equipment, etc.)"
+   },
+   {
+    "field": "permit_status",
+    "name": "Permit Status",
+    "type": "text",
+    "desc": "Permit Status"
+   },
+   {
+    "field": "filing_status",
+    "name": "Filing Status",
+    "type": "text",
+    "desc": "Filing Status"
+   },
+   {
+    "field": "permit_type",
+    "name": "Permit Type",
+    "type": "text",
+    "desc": "Permit Type (DM-Demolition, EW-Equipment Work, PL-Plumbing, etc.)  Complete List - http://www.nyc.gov/html/dob/downloads/pdf/bisjobstatus.pdf"
+   },
+   {
+    "field": "permit_sequence__",
+    "name": "Permit Sequence #",
+    "type": "text",
+    "desc": "Permit Sequence #"
+   },
+   {
+    "field": "permit_subtype",
+    "name": "Permit Subtype",
+    "type": "text",
+    "desc": "Permit Subtype (Subset of Equipment Work Permit Type-- BL-Boiler, FA- Fire Alarm, Subset of Construction Equipment Permit Type-- CH-Chute, SF-Scaffold, etc.) Complete List - http://www.nyc.gov/html/do"
+   },
+   {
+    "field": "oil_gas",
+    "name": "Oil Gas",
+    "type": "text",
+    "desc": "Oil Gas"
+   },
+   {
+    "field": "site_fill",
+    "name": "Site Fill",
+    "type": "text",
+    "desc": "Site Fill"
+   },
+   {
+    "field": "filing_date",
+    "name": "Filing Date",
+    "type": "text",
+    "desc": "Filing Date"
+   },
+   {
+    "field": "issuance_date",
+    "name": "Issuance Date",
+    "type": "text",
+    "desc": "Issuance Date"
+   },
+   {
+    "field": "expiration_date",
+    "name": "Expiration Date",
+    "type": "text",
+    "desc": "Expiration Date"
+   },
+   {
+    "field": "job_start_date",
+    "name": "Job Start Date",
+    "type": "text",
+    "desc": "Job Start Date"
+   },
+   {
+    "field": "permittee_s_first_name",
+    "name": "Permittee's First Name",
+    "type": "text",
+    "desc": "Permittee's First Name"
+   },
+   {
+    "field": "permittee_s_last_name",
+    "name": "Permittee's Last Name",
+    "type": "text",
+    "desc": "Permittee's Last Name"
+   },
+   {
+    "field": "permittee_s_business_name",
+    "name": "Permittee's Business Name",
+    "type": "text",
+    "desc": "Permittee's Business Name"
+   },
+   {
+    "field": "permittee_s_phone__",
+    "name": "Permittee's Phone #",
+    "type": "text",
+    "desc": "Permittee's Phone #"
+   },
+   {
+    "field": "permittee_s_license_type",
+    "name": "Permittee's License Type",
+    "type": "text",
+    "desc": "Permittee's License Type"
+   },
+   {
+    "field": "permittee_s_license__",
+    "name": "Permittee's License #",
+    "type": "text",
+    "desc": "Permittee's License #"
+   },
+   {
+    "field": "act_as_superintendent",
+    "name": "Act as Superintendent",
+    "type": "text",
+    "desc": "Permittee Acts as Superintendent"
+   },
+   {
+    "field": "permittee_s_other_title",
+    "name": "Permittee's Other Title",
+    "type": "text",
+    "desc": "Permittee's Other Title"
+   },
+   {
+    "field": "hic_license",
+    "name": "HIC License",
+    "type": "text",
+    "desc": "HIC License"
+   },
+   {
+    "field": "site_safety_mgr_s_first_name",
+    "name": "Site Safety Mgr's First Name",
+    "type": "text",
+    "desc": "Site Safety Mgr's First Name"
+   },
+   {
+    "field": "site_safety_mgr_s_last_name",
+    "name": "Site Safety Mgr's Last Name",
+    "type": "text",
+    "desc": "Site Safety Mgr's Last Name"
+   },
+   {
+    "field": "site_safety_mgr_business_name",
+    "name": "Site Safety Mgr Business Name",
+    "type": "text",
+    "desc": "Site Safety Mgr Business Name"
+   },
+   {
+    "field": "superintendent_first___last_name",
+    "name": "Superintendent First & Last Name",
+    "type": "text",
+    "desc": "Superintendent First & Last Name"
+   },
+   {
+    "field": "superintendent_business_name",
+    "name": "Superintendent Business Name",
+    "type": "text",
+    "desc": "Superintendent Business Name"
+   },
+   {
+    "field": "owner_s_business_type",
+    "name": "Owner's Business Type",
+    "type": "text",
+    "desc": "Owner's Business Type"
+   },
+   {
+    "field": "non_profit",
+    "name": "Non-Profit",
+    "type": "text",
+    "desc": "Non-Profit"
+   },
+   {
+    "field": "owner_s_business_name",
+    "name": "Owner's Business Name",
+    "type": "text",
+    "desc": "Business Name of Property Owner"
+   },
+   {
+    "field": "owner_s_first_name",
+    "name": "Owner's First Name",
+    "type": "text",
+    "desc": "First Name of property owner"
+   },
+   {
+    "field": "owner_s_last_name",
+    "name": "Owner's Last Name",
+    "type": "text",
+    "desc": "Last Name of property owner"
+   },
+   {
+    "field": "owner_s_house__",
+    "name": "Owner's House #",
+    "type": "text",
+    "desc": "Owner's House #"
+   },
+   {
+    "field": "owner_s_house_street_name",
+    "name": "Owner's House Street Name",
+    "type": "text",
+    "desc": "Owner's House Street Name"
+   },
+   {
+    "field": "city",
+    "name": "Owner\u2019s House City",
+    "type": "text",
+    "desc": "Owner\u2019s House City"
+   },
+   {
+    "field": "state",
+    "name": "Owner\u2019s House State",
+    "type": "text",
+    "desc": "Owner\u2019s House State"
+   },
+   {
+    "field": "owner_s_zip_code",
+    "name": "Owner\u2019s House Zip Code",
+    "type": "text",
+    "desc": "Owner\u2019s House Zip Code"
+   },
+   {
+    "field": "permit_si_no",
+    "name": "PERMIT_SI_NO",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "gis_latitude",
+    "name": "LATITUDE",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "gis_longitude",
+    "name": "LONGITUDE",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "gis_council_district",
+    "name": "COUNCIL_DISTRICT",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "gis_census_tract",
+    "name": "CENSUS_TRACT",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "bbl",
+    "name": "BBL",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "gis_nta_name",
+    "name": "NTA_NAME",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "dobrundate",
+    "name": "DOBRunDate",
+    "type": "calendar_date",
+    "desc": "Date when query is run and pushed to Open Data. Could be used to differentiate report dates."
+   }
+  ],
+  "license": null
+ },
+ "ygpa-z7cr": {
+  "id": "ygpa-z7cr",
+  "name": "Housing Maintenance Code Complaints and Problems",
+  "desc": "The Department of Housing Preservation and Development (HPD) records complaints that are made by the public for conditions which violate the New York City Housing Maintenance Code (HMC) or the New York State Multiple Dwelling Law (MDL).",
+  "agency": "Department of Housing Preservation & Development (HPD)",
+  "category": "Housing & Development",
+  "updated": 1794409457,
+  "freq": "Daily",
+  "rows": 16461420,
+  "columns": [
+   {
+    "field": "received_date",
+    "name": "Received Date",
+    "type": "calendar_date",
+    "desc": "Date when the complaint was received"
+   },
+   {
+    "field": "problem_id",
+    "name": "Problem ID",
+    "type": "number",
+    "desc": "Unique identifier of this problem"
+   },
+   {
+    "field": "complaint_id",
+    "name": "Complaint ID",
+    "type": "number",
+    "desc": "Unique identifier of the complaint this problem is associated with"
+   },
+   {
+    "field": "building_id",
+    "name": "Building ID",
+    "type": "number",
+    "desc": "Unique identifier given to a building record"
+   },
+   {
+    "field": "borough",
+    "name": "Borough",
+    "type": "text",
+    "desc": "Complaint borough"
+   },
+   {
+    "field": "house_number",
+    "name": "House Number",
+    "type": "text",
+    "desc": "Complaint house number"
+   },
+   {
+    "field": "street_name",
+    "name": "Street Name",
+    "type": "text",
+    "desc": "Complaint street name"
+   },
+   {
+    "field": "post_code",
+    "name": "Post Code",
+    "type": "text",
+    "desc": "Complaint zip code"
+   },
+   {
+    "field": "block",
+    "name": "Block",
+    "type": "number",
+    "desc": "\"Number assigned by DoF identifying the Tax  block the lot is on\""
+   },
+   {
+    "field": "lot",
+    "name": "Lot",
+    "type": "number",
+    "desc": "\"Unique number assigned by DoF within a Block  identifying a lot\""
+   },
+   {
+    "field": "apartment",
+    "name": "Apartment",
+    "type": "text",
+    "desc": "Number of the unit or apartment in a building"
+   },
+   {
+    "field": "community_board",
+    "name": "Community Board",
+    "type": "number",
+    "desc": "\"Unique number identifying a Community  District/Board, which is a political geographical  area within a borough of the City of NY\""
+   },
+   {
+    "field": "unit_type",
+    "name": "Unit Type",
+    "type": "text",
+    "desc": "Type of space where the problem was reported "
+   },
+   {
+    "field": "space_type",
+    "name": "Space Type",
+    "type": "text",
+    "desc": "Type of space where the problem was reported"
+   },
+   {
+    "field": "type",
+    "name": "Type",
+    "type": "text",
+    "desc": "Code indicating the problem type"
+   },
+   {
+    "field": "major_category",
+    "name": "Major Category",
+    "type": "text",
+    "desc": "The major category of the problem"
+   },
+   {
+    "field": "minor_category",
+    "name": "Minor Category",
+    "type": "text",
+    "desc": "The minor category of the problem"
+   },
+   {
+    "field": "problem_code",
+    "name": "Problem Code",
+    "type": "text",
+    "desc": "The problem code"
+   },
+   {
+    "field": "complaint_status",
+    "name": "Complaint Status",
+    "type": "text",
+    "desc": "The status of the complaint"
+   },
+   {
+    "field": "complaint_status_date",
+    "name": "Complaint Status Date",
+    "type": "calendar_date",
+    "desc": "Date when the complaint status was updated"
+   },
+   {
+    "field": "problem_status",
+    "name": "Problem Status",
+    "type": "text",
+    "desc": "The status of the problem"
+   },
+   {
+    "field": "problem_status_date",
+    "name": "Problem Status Date",
+    "type": "calendar_date",
+    "desc": "Status description"
+   },
+   {
+    "field": "status_description",
+    "name": "Status Description",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "problem_duplicate_flag",
+    "name": "Problem Duplicate Flag",
+    "type": "text",
+    "desc": "Duplicate complaint Indicator "
+   },
+   {
+    "field": "complaint_anonymous_flag",
+    "name": "Complaint Anonymous Flag",
+    "type": "text",
+    "desc": "Anonymous complaint Indicator"
+   },
+   {
+    "field": "unique_key",
+    "name": "Unique Key",
+    "type": "text",
+    "desc": "Unique identifier of a Service Request (SR) in the open data set * Ties to 311"
+   },
+   {
+    "field": "latitude",
+    "name": "Latitude",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "longitude",
+    "name": "Longitude",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "council_district",
+    "name": "Council District",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "census_tract",
+    "name": "Census Tract",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "bin",
+    "name": "BIN",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "bbl",
+    "name": "BBL",
+    "type": "number",
+    "desc": ""
+   },
+   {
+    "field": "nta",
+    "name": "NTA",
+    "type": "text",
+    "desc": ""
+   }
+  ],
+  "license": null
+ },
+ "592z-n7dk": {
+  "id": "592z-n7dk",
+  "name": "Bicycle Parking",
+  "desc": "The data contains locations of all bike parking throughout the five boroughs as of the date of publication.  The data is in shapefile format.",
+  "agency": "Department of Transportation (DOT)",
+  "category": "Transportation",
+  "updated": 1793819995,
+  "freq": "Monthly",
+  "rows": 38255,
+  "columns": [
+   {
+    "field": "the_geom",
+    "name": "the_geom",
+    "type": "point",
+    "desc": "Geometry column used for mapping"
+   },
+   {
+    "field": "borocode",
+    "name": "BoroCode",
+    "type": "text",
+    "desc": "Borough and Community District code of the bicycle rack."
+   },
+   {
+    "field": "boroname",
+    "name": "BoroName",
+    "type": "text",
+    "desc": "The full name of the borough the bicycle rack is located in. "
+   },
+   {
+    "field": "borocd",
+    "name": "BoroCD",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "coundist",
+    "name": "CounDist",
+    "type": "text",
+    "desc": "The New York Council District of the bicycle rack."
+   },
+   {
+    "field": "assemdist",
+    "name": "AssemDist",
+    "type": "text",
+    "desc": "The Assembly District of the bicycle rack."
+   },
+   {
+    "field": "stsendist",
+    "name": "StSenDist",
+    "type": "text",
+    "desc": "The State Senate District of the bicycle rack."
+   },
+   {
+    "field": "congdist",
+    "name": "CongDist",
+    "type": "text",
+    "desc": "The New York Congressional District of the bicycle rack."
+   },
+   {
+    "field": "program",
+    "name": "Program",
+    "type": "text",
+    "desc": "Name of program"
+   },
+   {
+    "field": "site_id",
+    "name": "Site_ID",
+    "type": "text",
+    "desc": "Unique identifier for the bicycle rack. "
+   },
+   {
+    "field": "group_id",
+    "name": "Group_ID",
+    "type": "text",
+    "desc": ""
+   },
+   {
+    "field": "borough",
+    "name": "Borough",
+    "type": "text",
+    "desc": "The full name of the borough the bicycle rack is located in. "
+   },
+   {
+    "field": "ifoaddress",
+    "name": "IFOAddress",
+    "type": "text",
+    "desc": "Building number (part of street address)"
+   },
+   {
+    "field": "onstreet",
+    "name": "OnStreet",
+    "type": "text",
+    "desc": "The name of the street the rack(s) are on"
+   },
+   {
+    "field": "fromstreet",
+    "name": "FromStreet",
+    "type": "text",
+    "desc": "The intersecting street name at one end of the street"
+   },
+   {
+    "field": "tostreet",
+    "name": "ToStreet",
+    "type": "text",
+    "desc": "The intersecting street name at the other end of the street"
+   },
+   {
+    "field": "side_of_st",
+    "name": "Side_of_St",
+    "type": "text",
+    "desc": "Identifies the side of the street where the rack(s) are installed."
+   },
+   {
+    "field": "racktype",
+    "name": "RackType",
+    "type": "text",
+    "desc": "The type of asset/bike rack"
+   },
+   {
+    "field": "date_inst",
+    "name": "Date_Inst",
+    "type": "calendar_date",
+    "desc": "Date of installation"
+   },
+   {
+    "field": "latitude",
+    "name": "Latitude",
+    "type": "number",
+    "desc": "The latitude geographic coordinate for the bicycle rack, "
+   },
+   {
+    "field": "longitude",
+    "name": "Longitude",
+    "type": "number",
+    "desc": "The longitude geographic coordinate for the bicycle rack, "
+   },
+   {
+    "field": "ntaname",
+    "name": "NTAName",
+    "type": "text",
+    "desc": "Name of the New York City neighborhood for the location of the bicycle rack."
+   },
+   {
+    "field": "femafldz",
+    "name": "FEMAFldz",
+    "type": "text",
+    "desc": "FEMA flood zone code for the bicycle rack."
+   },
+   {
+    "field": "femafldt",
+    "name": "FEMAFldT",
+    "type": "text",
+    "desc": "FEMA flood zone description for the bicycle rack."
+   },
+   {
+    "field": "hrcevac",
+    "name": "HrcEvac",
+    "type": "text",
+    "desc": "Hurricane Evacuation Zone Code"
+   }
+  ],
+  "license": null
+ },
+ "wvxf-dwi5": {
+  "id": "wvxf-dwi5",
+  "name": "Housing Maintenance Code Violations",
+  "desc": "Pursuant to New York City\u2019s Housing Maintenance Code, the Department of Housing Preservation and Development (HPD) issues violations against conditions, in rental dwelling units and buildings, that have been verified to violate the New York City Housing Maintenance Code (HMC) or the New York State Multiple Dwelling Law (MDL).\r\nEach row in this dataset contains discrete information about one violation of the New York City Housing Maintenance Code or New York State Multiple Dwelling Law. Each violation is identified using a unique Violation ID. These Laws are in place to provide requirements for the maintenance of residential dwelling units within New York City. \r\nViolations are issued by Housing Inspectors after a physical inspection is conducted (except for class I violations which are generally  administratively issued).  Violations are issued in four classes: Class A (non-hazardous), Class B (hazardous), Class C (immediately hazardous) and Class I (information orders).  For more information on violations, see https://www1.nyc.gov/site/hpd/owners/compliance-clear-violations.page  \r\nThe base data for this file is all violations open as of October 1, 2012.  Violation data is updated daily.  The daily update includes both new violations and updates to the status of previously issued violations. An open violation is a violation which is still active on the Department records. See the status table for determining how to filter for open violations versus closed violations, and within open violations for a more detailed current status. \r\nThe property owner may or may not have corrected the physical condition if the status is open. The violation status is closed when the violation is observed/verified as corrected by HPD or as certified by the landlord.   The processes for having violations dismissed are described at http://www1.nyc.gov/site/hpd/owners/compliance-clear-violations.page\r\nUsing other HPD datasets, such as the Building File or the Registration File, a user can link together violations issued for given buildings or for given owners.",
+  "agency": "Department of Housing Preservation and Development (HPD)",
+  "category": "Housing & Development",
+  "updated": 1794412676,
+  "freq": "Daily",
+  "rows": 11381870,
+  "columns": [
+   {
+    "field": "violationid",
+    "name": "ViolationID",
+    "type": "number",
+    "desc": "Unique identifier of Violation\n"
+   },
+   {
+    "field": "buildingid",
+    "name": "BuildingID",
+    "type": "number",
+    "desc": "Unique identifier of building\n"
+   },
+   {
+    "field": "registrationid",
+    "name": "RegistrationID",
+    "type": "number",
+    "desc": "Unique identifier of valid registration information\n"
+   },
+   {
+    "field": "boroid",
+    "name": "BoroID",
+    "type": "number",
+    "desc": "unique number to identify borough"
+   },
+   {
+    "field": "boro",
+    "name": "Borough",
+    "type": "text",
+    "desc": "Boro code (1 = Manhattan, 2 = Bronx, 3 = Brooklyn, 4 = Queens, 5 = Staten Island)\n"
+   },
+   {
+    "field": "housenumber",
+    "name": "HouseNumber",
+    "type": "text",
+    "desc": "Address information for the building\n"
+   },
+   {
+    "field": "lowhousenumber",
+    "name": "LowHouseNumber",
+    "type": "text",
+    "desc": "Address information for the building\n"
+   },
+   {
+    "field": "highhousenumber",
+    "name": "HighHouseNumber",
+    "type": "text",
+    "desc": "Address information for the building\n"
+   },
+   {
+    "field": "streetname",
+    "name": "StreetName",
+    "type": "text",
+    "desc": "Address information for the building\n"
+   },
+   {
+    "field": "streetcode",
+    "name": "StreetCode",
+    "type": "text",
+    "desc": "Address information for the building\n"
+   },
+   {
+    "field": "zip",
+    "name": "Postcode",
+    "type": "text",
+    "desc": "Address information for the building\n"
+   },
+   {
+    "field": "apartment",
+    "name": "Apartment",
+    "type": "text",
+    "desc": "Apartment with violation, if applicable\n"
+   },
+   {
+    "field": "story",
+    "name": "Story",
+    "type": "text",
+    "desc": "Floor of violation\n"
+   },
+   {
+    "field": "block",
+    "name": "Block",
+    "type": "number",
+    "desc": "Tax block for building\n"
+   },
+   {
+    "field": "lot",
+    "name": "Lot",
+    "type": "number",
+    "desc": "Tax lot for building\n"
+   },
+   {
+    "field": "class",
+    "name": "Class",
+    "type": "text",
+    "desc": "Indicator of seriousness of the violations, where A is the least serious and C is the most serious\n"
+   },
+   {
+    "field": "inspectiondate",
+    "name": "InspectionDate",
+    "type": "calendar_date",
+    "desc": "Date when the violation was observed\n"
+   },
+   {
+    "field": "approveddate",
+    "name": "ApprovedDate",
+    "type": "calendar_date",
+    "desc": "Date when violation was approved"
+   },
+   {
+    "field": "originalcertifybydate",
+    "name": "OriginalCertifyByDate",
+    "type": "calendar_date",
+    "desc": "Original date by when the owner was to inform HPD that the violation as corrected\n"
+   },
+   {
+    "field": "originalcorrectbydate",
+    "name": "OriginalCorrectByDate",
+    "type": "calendar_date",
+    "desc": "Original date by when the owner was to correct the violation\n"
+   },
+   {
+    "field": "newcertifybydate",
+    "name": "NewCertifyByDate",
+    "type": "calendar_date",
+    "desc": "Modified date by when the owner was to inform HPD that the violation as corrected\n"
+   },
+   {
+    "field": "newcorrectbydate",
+    "name": "NewCorrectByDate",
+    "type": "calendar_date",
+    "desc": "Modified date by when the owner was to correct the violation\n"
+   },
+   {
+    "field": "certifieddate",
+    "name": "CertifiedDate",
+    "type": "calendar_date",
+    "desc": "Date when the violation was certified (if it was)\n"
+   },
+   {
+    "field": "ordernumber",
+    "name": "OrderNumber",
+    "type": "text",
+    "desc": "Reference to the abstract description of the violation condition which cites a specific section of the law which is in violation\n"
+   },
+   {
+    "field": "novid",
+    "name": "NOVID",
+    "type": "number",
+    "desc": "Unique identifier of the Notice of Violation sent to the owner\n"
+   },
+   {
+    "field": "novdescription",
+    "name": "NOVDescription",
+    "type": "text",
+    "desc": "Description of the violation\n"
+   },
+   {
+    "field": "novissueddate",
+    "name": "NOVIssuedDate",
+    "type": "calendar_date",
+    "desc": "Date when the NOV was sent\n"
+   },
+   {
+    "field": "currentstatusid",
+    "name": "CurrentStatusID",
+    "type": "number",
+    "desc": "unique id to identify current status"
+   },
+   {
+    "field": "currentstatus",
+    "name": "CurrentStatus",
+    "type": "text",
+    "desc": "Violation status (see below for details)\n"
+   },
+   {
+    "field": "currentstatusdate",
+    "name": "CurrentStatusDate",
+    "type": "calendar_date",
+    "desc": "Date when the current status when into effect\n"
+   },
+   {
+    "field": "novtype",
+    "name": "NovType",
+    "type": "text",
+    "desc": "Original / Reissued Notice of Violation. For more information on the Reissuance process, see http://www1.nyc.gov/site/hpd/owners/compliance-clear-violations.page .\n"
+   },
+   {
+    "field": "violationstatus",
+    "name": "ViolationStatus",
+    "type": "text",
+    "desc": "Status of Violation(Open / Close)"
+   },
+   {
+    "field": "rentimpairing",
+    "name": "RentImpairing",
+    "type": "text",
+    "desc": "A rent-impairing violation is a condition within a multiple dwelling which constitutes, or if not promptly corrected will constitute, a fire hazard or a serious threat to the life, health or safety of"
+   },
+   {
+    "field": "latitude",
+    "name": "Latitude",
+    "type": "text",
+    "desc": "The latitude associated with the provided entity location."
+   },
+   {
+    "field": "longitude",
+    "name": "Longitude",
+    "type": "text",
+    "desc": "The longitude associated with the provided entity location."
+   },
+   {
+    "field": "communityboard",
+    "name": "CommunityBoard",
+    "type": "text",
+    "desc": "The NYC community board associated with the provided entity location (numbered 1 \u2013 59."
+   },
+   {
+    "field": "councildistrict",
+    "name": "CouncilDistrict",
+    "type": "text",
+    "desc": "The NYC council district associated with the provided entity location (numbered 1 \u2013 51)."
+   },
+   {
+    "field": "censustract",
+    "name": "CensusTract",
+    "type": "text",
+    "desc": "The US census tract associated with the provided entity location (in the format of up to four-digit integers, followed by an optional two-digit suffix; e.g., \u201c15.02\u201d or \u201c319\u201d)."
+   },
+   {
+    "field": "bin",
+    "name": "BIN",
+    "type": "text",
+    "desc": "The Building Identification Number (BIN) associated with the provided entity location. It is formatted as a seven-digit numerical identifier, which is unique to each building in NYC."
+   },
+   {
+    "field": "bbl",
+    "name": "BBL",
+    "type": "text",
+    "desc": "The Borough, Block, Lot (BBL) associated with the provided entity location. It is formatted as a ten-digit numerical identifier, which is unique to each parcel of real property in NYC."
+   },
+   {
+    "field": "nta",
+    "name": "NTA",
+    "type": "text",
+    "desc": "The Neighborhood Tabulation Area (NTA) associated with the provided entity location, which is formatted as a two-letter borough identifier followed by a two-digit numerical identifier (e.g., \u201cBX31\u201d)."
+   }
+  ],
+  "license": null
+ },
+ "4b4i-vvec": {
+  "id": "4b4i-vvec",
+  "name": "2023 Yellow Taxi Trip Data",
+  "desc": "These records are generated from the trip record submissions made by yellow taxi Technology Service Providers (TSPs). Each row represents a single trip in a yellow taxi. The trip records include fields capturing pick-up and drop-off dates/times, pick-up and drop-off taxi zone locations, trip distances, itemized fares, rate types, payment types, and driver-reported passenger counts.",
+  "agency": "Taxi and Limousine Commission (TLC)",
+  "category": "Transportation",
+  "updated": 1719865953,
+  "freq": "Historical data",
+  "rows": 38310226,
+  "columns": [
+   {
+    "field": "vendorid",
+    "name": "VendorID",
+    "type": "number",
+    "desc": "A code indicating the TPEP provider that provided the record. "
+   },
+   {
+    "field": "tpep_pickup_datetime",
+    "name": "tpep_pickup_datetime",
+    "type": "calendar_date",
+    "desc": "The date and time when the meter was engaged."
+   },
+   {
+    "field": "tpep_dropoff_datetime",
+    "name": "tpep_dropoff_datetime",
+    "type": "calendar_date",
+    "desc": "The date and time when the meter was disengaged. "
+   },
+   {
+    "field": "passenger_count",
+    "name": "passenger_count",
+    "type": "number",
+    "desc": "The number of passengers in the vehicle. "
+   },
+   {
+    "field": "trip_distance",
+    "name": "trip_distance",
+    "type": "number",
+    "desc": "The elapsed trip distance in miles reported by the taximeter."
+   },
+   {
+    "field": "ratecodeid",
+    "name": "RatecodeID",
+    "type": "number",
+    "desc": "The final rate code in effect at the end of the trip."
+   },
+   {
+    "field": "store_and_fwd_flag",
+    "name": "store_and_fwd_flag",
+    "type": "text",
+    "desc": "This flag indicates whether the trip record was held in vehicle memory before sending to the vendor, aka \u201cstore and forward,\u201d because the vehicle did not have a connection to the server."
+   },
+   {
+    "field": "pulocationid",
+    "name": "PULocationID",
+    "type": "number",
+    "desc": "TLC Taxi Zone in which the taximeter was engaged"
+   },
+   {
+    "field": "dolocationid",
+    "name": "DOLocationID",
+    "type": "number",
+    "desc": "TLC Taxi Zone in which the taximeter was disengaged"
+   },
+   {
+    "field": "payment_type",
+    "name": "payment_type",
+    "type": "number",
+    "desc": "A numeric code signifying how the passenger paid for the trip."
+   },
+   {
+    "field": "fare_amount",
+    "name": "fare_amount",
+    "type": "number",
+    "desc": "The time-and-distance fare calculated by the meter. For additional information on the following columns, see https://www.nyc.gov/site/tlc/passengers/taxi-fare.page"
+   },
+   {
+    "field": "extra",
+    "name": "extra",
+    "type": "number",
+    "desc": "Miscellaneous extras and surcharges."
+   },
+   {
+    "field": "mta_tax",
+    "name": "mta_tax",
+    "type": "number",
+    "desc": "Tax that is automatically triggered based on the metered rate in use."
+   },
+   {
+    "field": "tip_amount",
+    "name": "tip_amount",
+    "type": "number",
+    "desc": "Tip amount \u2013 This field is automatically populated for credit card tips. Cash tips are not included."
+   },
+   {
+    "field": "tolls_amount",
+    "name": "tolls_amount",
+    "type": "number",
+    "desc": "Total amount of all tolls paid in trip."
+   },
+   {
+    "field": "improvement_surcharge",
+    "name": "improvement_surcharge",
+    "type": "number",
+    "desc": "Improvement surcharge assessed trips at the flag drop. The improvement surcharge began being levied in 2015."
+   },
+   {
+    "field": "total_amount",
+    "name": "total_amount",
+    "type": "number",
+    "desc": "The total amount charged to passengers. Does not include cash tips."
+   },
+   {
+    "field": "congestion_surcharge",
+    "name": "congestion_surcharge",
+    "type": "number",
+    "desc": "Total amount collected in trip for NYS congestion surcharge."
+   },
+   {
+    "field": "airport_fee",
+    "name": "airport_fee",
+    "type": "number",
+    "desc": "For pick up only at LaGuardia\u00a0and John F. Kennedy Airports."
+   }
+  ],
+  "license": null
+ },
+ "hxx3-bwgv": {
+  "id": "hxx3-bwgv",
+  "name": "Dog Runs",
+  "desc": "Dog runs are large, fenced-in areas for dogs to exercise unleashed during park hours. Each record in this dataset is an individual dog run. Planimetrics have ensured good GIS quality of the data. \r\n\r\nUser guide:  https://drive.google.com/open?id=1_LB-hb9eJ9Bph7K2Yf06_KOtra8qKppbPnfSyH1lRUg\r\nData Dictionary: https://drive.google.com/open?id=1a3vdtIHUTUl2wokZ1r3fot8wm-lrnKGXYL-6xU5Fj2A",
+  "agency": "Department of Parks and Recreation (DPR)",
+  "category": "Recreation",
+  "updated": 1792070309,
+  "freq": "Monthly",
+  "rows": 95,
+  "columns": [
+   {
+    "field": "objectid",
+    "name": "OBJECTID",
+    "type": "number",
+    "desc": "Unique identifier for the record."
+   },
+   {
+    "field": "system",
+    "name": "SYSTEM",
+    "type": "text",
+    "desc": "Unique identifier for the record."
+   },
+   {
+    "field": "the_geom",
+    "name": "the_geom",
+    "type": "multipolygon",
+    "desc": "The spatial information"
+   },
+   {
+    "field": "gispropnum",
+    "name": "GISPROPNUM",
+    "type": "text",
+    "desc": "Unique identifier for the Parks Property that the dog run is within."
+   },
+   {
+    "field": "department",
+    "name": "DEPARTMENT",
+    "type": "text",
+    "desc": "Parks District that the dog run is within."
+   },
+   {
+    "field": "parentid",
+    "name": "PARENTID",
+    "type": "text",
+    "desc": "Unique identifier of the zone that the dog run is within. If the park is not zoned it will be equivalent to GISPROPNUM."
+   },
+   {
+    "field": "communityboard",
+    "name": "COMMUNITYBOARD",
+    "type": "text",
+    "desc": "Community board number that the dog run is within. "
+   },
+   {
+    "field": "councildistrict",
+    "name": "COUNCILDISTRICT",
+    "type": "text",
+    "desc": "Council district number that the dog run is within."
+   },
+   {
+    "field": "precinct",
+    "name": "PRECINCT",
+    "type": "text",
+    "desc": "Precint that the dog run is within."
+   },
+   {
+    "field": "zipcode",
+    "name": "ZIPCODE",
+    "type": "text",
+    "desc": "Zip code that the dog run in within."
+   },
+   {
+    "field": "borough",
+    "name": "BOROUGH",
+    "type": "text",
+    "desc": "Borough that the dog run is within."
+   },
+   {
+    "field": "dog_area_type",
+    "name": "DOG_AREA_TYPE",
+    "type": "text",
+    "desc": "Type of dog area."
+   },
+   {
+    "field": "name",
+    "name": "NAME",
+    "type": "text",
+    "desc": "Name of the dog run."
+   },
+   {
+    "field": "seating",
+    "name": "SEATING",
+    "type": "text",
+    "desc": "Indicates whether or not the dog run has seating."
+   },
+   {
+    "field": "surface",
+    "name": "SURFACE",
+    "type": "text",
+    "desc": "Type of surface the dog run has."
+   },
+   {
+    "field": "featurestatus",
+    "name": "FEATURESTATUS",
+    "type": "text",
+    "desc": "The current status of the feature. "
+   }
+  ],
+  "license": null
+ },
+ "uiay-nctu": {
+  "id": "uiay-nctu",
+  "name": "Open Streets Locations",
+  "desc": "New York City's Open Streets program transforms streets into public spaces open to all. These public spaces allows a variety of activities including education and cultural programming as well as building communities. For more information please visit: https://www.nyc.gov/html/dot/html/pedestrians/openstreets.shtml\nPlease note: there may be a delay in updates to the Open Data files.",
+  "agency": "Department of Transportation",
+  "category": "Health",
+  "updated": 1793532160,
+  "freq": "Monthly",
+  "rows": 391,
+  "columns": [
+   {
+    "field": "object_id",
+    "name": "Object ID",
+    "type": "number",
+    "desc": "A sequential count of records in the dataset. \n"
+   },
+   {
+    "field": "orgname",
+    "name": "Organization Name",
+    "type": "text",
+    "desc": "The name of the organization hosting the open streets program."
+   },
+   {
+    "field": "appronstre",
+    "name": "Approved On Street",
+    "type": "text",
+    "desc": "Name of the street that the application was approved for."
+   },
+   {
+    "field": "boroughname",
+    "name": "Borough Name",
+    "type": "text",
+    "desc": "Full name of the borough the open streets is located in. \"Manhattan, Bronx, Brooklyn, Queens, Staten Island\""
+   },
+   {
+    "field": "apprfromst",
+    "name": "Approved From Street",
+    "type": "text",
+    "desc": "Cross-Street that the open streets application starts at"
+   },
+   {
+    "field": "apprtostre",
+    "name": "Approved To Street",
+    "type": "text",
+    "desc": "Cross-Street that the open streets application ends at"
+   },
+   {
+    "field": "apprdayswe",
+    "name": "apprDaysWe",
+    "type": "text",
+    "desc": "Days of the week the streets are open to pedestrians and cyclists. \"mon, tue,wed, thurs, fri, sat, sun\""
+   },
+   {
+    "field": "reviewstat",
+    "name": "Status Type",
+    "type": "text",
+    "desc": "A description of the street closure. "
+   },
+   {
+    "field": "apprmonope",
+    "name": "Approved Monday Open",
+    "type": "text",
+    "desc": "The approved start time of the open streets program. "
+   },
+   {
+    "field": "apprmonclo",
+    "name": "Approved Monday Close",
+    "type": "text",
+    "desc": "The approved end time of the open streets program."
+   },
+   {
+    "field": "apprtueope",
+    "name": "Approved Tuesday Open",
+    "type": "text",
+    "desc": "The approved start time of the open streets program. "
+   },
+   {
+    "field": "apprtueclo",
+    "name": "Approved Tuesday Close",
+    "type": "text",
+    "desc": "The approved end time of the open streets program."
+   },
+   {
+    "field": "apprwedope",
+    "name": "Approved Wednesday Open",
+    "type": "text",
+    "desc": "The approved start time of the open streets program. "
+   },
+   {
+    "field": "apprwedclo",
+    "name": "Approved Wednesday Close",
+    "type": "text",
+    "desc": "The approved end time of the open streets program."
+   },
+   {
+    "field": "apprthuope",
+    "name": "Approved Thursday Open",
+    "type": "text",
+    "desc": "The approved start time of the open streets program. "
+   },
+   {
+    "field": "apprthuclo",
+    "name": "Approved Thursday Close",
+    "type": "text",
+    "desc": "The approved end time of the open streets program."
+   },
+   {
+    "field": "apprfriope",
+    "name": "Approved Friday Open",
+    "type": "text",
+    "desc": "The approved start time of the open streets program. "
+   },
+   {
+    "field": "apprfriclo",
+    "name": "Approved Friday Close",
+    "type": "text",
+    "desc": "The approved end time of the open streets program."
+   },
+   {
+    "field": "apprsatope",
+    "name": "Approved Saturday Open",
+    "type": "text",
+    "desc": "The approved start time of the open streets program. "
+   },
+   {
+    "field": "apprsatclo",
+    "name": "Approved Saturday Close",
+    "type": "text",
+    "desc": "The approved end time of the open streets program."
+   },
+   {
+    "field": "apprsunope",
+    "name": "Approved Sunday Open",
+    "type": "text",
+    "desc": "The approved start time of the open streets program. "
+   },
+   {
+    "field": "apprsunclo",
+    "name": "Approved Sunday Close",
+    "type": "text",
+    "desc": "The approved end time of the open streets program."
+   },
+   {
+    "field": "apprstartd",
+    "name": "apprStartD",
+    "type": "calendar_date",
+    "desc": "Days of the week the streets are open to pedestrians and cyclists."
+   },
+   {
+    "field": "apprenddat",
+    "name": "apprEndDat",
+    "type": "calendar_date",
+    "desc": "Last Day that Open Street permit is active"
+   },
+   {
+    "field": "shape_stle",
+    "name": "Shape_STLe",
+    "type": "text",
+    "desc": "The length of the block segment in feet; Auto-generated by ESRI"
+   },
+   {
+    "field": "segmentidt",
+    "name": "segmentidt",
+    "type": "text",
+    "desc": "The segment unique identifier for apprstreetto based on the LION dataset."
+   },
+   {
+    "field": "segmentidf",
+    "name": "segmentidf",
+    "type": "text",
+    "desc": "The segment unique identifier for apprstreetfrom based on the LION dataset. "
+   },
+   {
+    "field": "lionversion",
+    "name": "lionversion",
+    "type": "text",
+    "desc": "The data version for Department of City Planning LION, versions are based on year/quarter."
+   },
+   {
+    "field": "the_geom",
+    "name": "The_Geom",
+    "type": "multiline",
+    "desc": ""
+   }
+  ],
+  "license": null
+ },
+ "hn5i-inap": {
+  "id": "hn5i-inap",
+  "name": "Forestry Tree Points",
+  "desc": "Record of Forestry tree points for NYC Parks & Recreation. \n\nTree Points and Planting Spaces form the basis of ForMS 2.0\u2019s data inventory and are the core entities that all Service Requests, Inspections, and Work Orders are associated to.  The system has built-in rules to ensure that every Tree Point has a Planting Space and each Planting Space can have no more than one active Tree Point at a given time.  Locations that have had one tree removed and another tree replanted will appear in ForMS 2.0 as a single Planting Space associated with one retired Tree Point (that has a removal Work Order) and one active Tree Point.\n\nThis dataset can be joined to the Forestry Planting Spaces dataset by joining PlantingSpaceGlobalID from Forestry Tree Points to GLOBALID from Forestry Planting Spaces.\n\nUser guide: https://docs.google.com/document/d/1PVPWFi-WExkG3rvnagQDoBbqfsGzxCKNmR6n678nUeU/edit?usp=sharing\n\nData dictionary: https://docs.google.com/spreadsheets/d/1yMfZgcsrvx9M0b3-ZdEQ3WCk2dFxgitCWytTrJSwEAs/edit?usp=sharing",
+  "agency": "Department of Parks and Recreation",
+  "category": "Environment",
+  "updated": 1793803002,
+  "freq": null,
+  "rows": 1125266,
+  "columns": [
+   {
+    "field": "objectid",
+    "name": "OBJECTID",
+    "type": "number",
+    "desc": "Unique identifier for each tree point"
+   },
+   {
+    "field": "dbh",
+    "name": "DBH",
+    "type": "number",
+    "desc": "Diameter of tree at breast height (4.5 feet off the ground)"
+   },
+   {
+    "field": "tpstructure",
+    "name": "TPStructure",
+    "type": "text",
+    "desc": "Indicates the current physical state of the tree (stump, shaft, or entire tree intact)"
+   },
+   {
+    "field": "tpcondition",
+    "name": "TPCondition",
+    "type": "text",
+    "desc": "Indicates condition of the tree based on biological health and physical structure"
+   },
+   {
+    "field": "stumpdiameter",
+    "name": "StumpDiameter",
+    "type": "text",
+    "desc": "Diameter of exposed stump face"
+   },
+   {
+    "field": "plantingspaceglobalid",
+    "name": "PlantingSpaceGlobalID",
+    "type": "text",
+    "desc": "Unique identifier for planting space associated with tree point"
+   },
+   {
+    "field": "geometry",
+    "name": "Geometry",
+    "type": "text",
+    "desc": "Geometry for planting space in well known text\n"
+   },
+   {
+    "field": "globalid",
+    "name": "GlobalID",
+    "type": "text",
+    "desc": "Unique identifier for each tree point"
+   },
+   {
+    "field": "genusspecies",
+    "name": "GenusSpecies",
+    "type": "text",
+    "desc": "Tree species, includes gensus and specific epithet plus common name"
+   },
+   {
+    "field": "createddate",
+    "name": "CreatedDate",
+    "type": "text",
+    "desc": "Date tree point record was created"
+   },
+   {
+    "field": "updateddate",
+    "name": "UpdatedDate",
+    "type": "text",
+    "desc": "Date tree point record was last updated"
+   },
+   {
+    "field": "planteddate",
+    "name": "PlantedDate",
+    "type": "text",
+    "desc": "Date tree was planted"
+   },
+   {
+    "field": "riskrating",
+    "name": "RiskRating",
+    "type": "text",
+    "desc": "Risk rating of the most recent risk assessment inspection"
+   },
+   {
+    "field": "riskratingdate",
+    "name": "RiskRatingDate",
+    "type": "text",
+    "desc": "Date of most recent risk assessment inspection"
+   },
+   {
+    "field": "location",
+    "name": "Location",
+    "type": "point",
+    "desc": ""
+   }
+  ],
+  "license": null
+ }
+}

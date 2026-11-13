@@ -1,0 +1,149 @@
+{
+  "page": "index.html",
+  "checked_at": "2026-11-12T15:43:23.421Z",
+  "summary": {
+    "verified": 8,
+    "derived": 0,
+    "failed": 0,
+    "unmarked_numbers": 0,
+    "sources_cited": 4,
+    "sources_unused": 0
+  },
+  "items": [
+    {
+      "n": 1,
+      "text": "The Moon\u2019s gravity pulls more strongly on the side of Earth nearest to it than on the far side.",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s1"
+      ],
+      "quote": "The gravitational attraction between the Earth and the moon is strongest on the side of the Earth that happens to be facing the moon, simply because it is closer.",
+      "reason": null,
+      "found": null,
+      "where": "Tides, in plain words"
+    },
+    {
+      "n": 2,
+      "text": "Together with the motion of Earth and the Moon, this creates two broad bulges of ocean water on opposite sides of Earth.",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s1"
+      ],
+      "quote": "In this way the combination of gravity and inertia create two bulges of water. One forms where the Earth and moon are closest, and the other forms where they are furthest apart.",
+      "reason": null,
+      "found": null,
+      "where": "Tides, in plain words"
+    },
+    {
+      "n": 3,
+      "text": "As Earth turns through these bulges, most coasts get roughly two high tides a day.",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "Because the Earth rotates through two tidal \u201cbulges\u201d every lunar day, coastal areas experience two high and two low tides every 24 hours and 50 minutes.",
+      "reason": null,
+      "found": null,
+      "where": "Tides, in plain words"
+    },
+    {
+      "n": 4,
+      "text": "Not every coast follows this pattern.",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "Most coastal areas, with some exceptions, experience two high tides and two low tides every day.",
+      "reason": null,
+      "found": null,
+      "where": "Tides, in plain words"
+    },
+    {
+      "n": 5,
+      "text": "A bigger gap between high and low tide, around a new or full moon.",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "During full or new moons\u2014which occur when the Earth, sun, and moon are nearly in alignment\u2014average tidal ranges are slightly larger.",
+      "reason": null,
+      "found": null,
+      "where": "Three terms to know"
+    },
+    {
+      "n": 6,
+      "text": "A smaller gap between high and low tide,",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "This produces moderate tides known as neap tides, meaning that high tides are a little lower and low tides are a little higher than average.",
+      "reason": null,
+      "found": null,
+      "where": "Three terms to know"
+    },
+    {
+      "n": 7,
+      "text": "around a half moon.",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "Neap tides occur during the first and third quarter moon, when the moon appears \"half full.\"",
+      "reason": null,
+      "found": null,
+      "where": "Three terms to know"
+    },
+    {
+      "n": 8,
+      "text": "The difference in water height between high tide and low tide.",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s4"
+      ],
+      "quote": "The difference in height between the high tide and the low tide is called the tidal range.",
+      "reason": null,
+      "found": null,
+      "where": "Three terms to know"
+    }
+  ],
+  "unmarked": [],
+  "sources": [
+    {
+      "id": "s1",
+      "title": "Gravity, Inertia, and the Two Bulges - Tides and water levels: NOAA's National Ocean Service Educationdot gov iconhttps icon",
+      "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides03_gravity.html",
+      "fetched_at": "2026-11-12T15:42:19.128Z",
+      "cited": 2
+    },
+    {
+      "id": "s2",
+      "title": "What are spring and neap tides?dot gov iconhttps icon",
+      "url": "https://oceanservice.noaa.gov/facts/springtide.html",
+      "fetched_at": "2026-11-12T15:42:19.319Z",
+      "cited": 3
+    },
+    {
+      "id": "s3",
+      "title": "Frequency of Tides - The Lunar Day - Tides and water levels: NOAA's National Ocean Service Educationdot gov iconhttps icon",
+      "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides05_lunarday.html",
+      "fetched_at": "2026-11-12T15:42:24.166Z",
+      "cited": 2
+    },
+    {
+      "id": "s4",
+      "title": "What are Tides - Tides and Water Levels: NOAA's National Ocean Service Educationdot gov iconhttps icon",
+      "url": "https://oceanservice.noaa.gov/education/tutorial_tides/tides01_intro.html",
+      "fetched_at": "2026-11-12T15:42:24.274Z",
+      "cited": 1
+    }
+  ]
+}

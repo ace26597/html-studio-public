@@ -1,0 +1,680 @@
+{
+  "page": "index.html",
+  "checked_at": "2026-11-11T21:55:46.146Z",
+  "summary": {
+    "verified": 44,
+    "derived": 0,
+    "failed": 0,
+    "unmarked_numbers": 0,
+    "sources_cited": 11,
+    "sources_unused": 2
+  },
+  "items": [
+    {
+      "n": 1,
+      "text": "LLM + loop",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s8"
+      ],
+      "quote": "It\u2019s an LLM, a loop, and enough tokens.",
+      "reason": null,
+      "found": null,
+      "where": "How AI agent harnesses work, and how to build your own"
+    },
+    {
+      "n": 2,
+      "text": "< 400 lines",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s8"
+      ],
+      "quote": "You can do it in less than 400 lines of code, most of which is boilerplate.",
+      "reason": null,
+      "found": null,
+      "where": "How AI agent harnesses work, and how to build your own"
+    },
+    {
+      "n": 3,
+      "text": "Four APIs",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s6"
+      ],
+      "quote": "There's really only four APIs you need to speak to talk to pretty much any LLM provider",
+      "reason": null,
+      "found": null,
+      "where": "How AI agent harnesses work, and how to build your own"
+    },
+    {
+      "n": 4,
+      "text": "60+ providers",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "60+ providers \u00b7 31 built-in tools",
+      "reason": null,
+      "found": null,
+      "where": "How AI agent harnesses work, and how to build your own"
+    },
+    {
+      "n": 5,
+      "text": "31 built-in tools",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "60+ providers \u00b7 31 built-in tools",
+      "reason": null,
+      "found": null,
+      "where": "How AI agent harnesses work, and how to build your own"
+    },
+    {
+      "n": 6,
+      "text": "< 1,000 tokens",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s6"
+      ],
+      "quote": "pi's system prompt and tool definitions together come in below 1000 tokens.",
+      "reason": null,
+      "found": null,
+      "where": "How AI agent harnesses work, and how to build your own"
+    },
+    {
+      "n": 7,
+      "text": "\u201cThe model itself does not execute specific functions.\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s13"
+      ],
+      "quote": "The model itself does not execute specific functions.",
+      "reason": null,
+      "found": null,
+      "where": "1. What a harness is"
+    },
+    {
+      "n": 8,
+      "text": "workflows, where LLMs and tools are \u201corchestrated through predefined code paths\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s5"
+      ],
+      "quote": "Workflows are systems where LLMs and tools are orchestrated through predefined code paths.",
+      "reason": null,
+      "found": null,
+      "where": "1. What a harness is"
+    },
+    {
+      "n": 9,
+      "text": "\u201cLLMs dynamically direct their own processes and tool usage\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s5"
+      ],
+      "quote": "Agents, on the other hand, are systems where LLMs dynamically direct their own processes and tool usage",
+      "reason": null,
+      "found": null,
+      "where": "1. What a harness is"
+    },
+    {
+      "n": 10,
+      "text": "\u201cthe server \u2026 is stateless. It only sees what's in the conversation slice. It's up to us to maintain that.\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s8"
+      ],
+      "quote": "The server \u2014 Anthropic\u2019s server \u2014 is stateless. It only sees what\u2019s in the conversation slice. It\u2019s up to us to maintain that.",
+      "reason": null,
+      "found": null,
+      "where": "1. What a harness is"
+    },
+    {
+      "n": 11,
+      "text": "the model \u201cproduces a response with no tool calls\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "Claude continues calling tools and processing results until it produces a response with no tool calls.",
+      "reason": null,
+      "found": null,
+      "where": "2. The agent loop: the heart of every harness"
+    },
+    {
+      "n": 12,
+      "text": "\u201cIf a tool call is requested, the agent executes it, appends the output to the prompt, and re-queries the model.\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s10"
+      ],
+      "quote": "If a tool call is requested, the agent executes it, appends the output to the prompt, and re-queries the model.",
+      "reason": null,
+      "found": null,
+      "where": "2. The agent loop: the heart of every harness"
+    },
+    {
+      "n": 13,
+      "text": "four-turn session",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "That was four turns: three with tool calls, one final text-only response.",
+      "reason": null,
+      "found": null,
+      "where": "A real example, turn by turn"
+    },
+    {
+      "n": 14,
+      "text": "\u201ca PreToolUse hook that rejects a tool call prevents it from executing, and Claude receives the rejection message instead\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "a PreToolUse hook that rejects a tool call prevents it from executing, and Claude receives the rejection message instead.",
+      "reason": null,
+      "found": null,
+      "where": "A real example, turn by turn"
+    },
+    {
+      "n": 15,
+      "text": "three main Responses API parameters",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s10"
+      ],
+      "quote": "Codex constructs the prompt using three main Responses API parameters: instructions",
+      "reason": null,
+      "found": null,
+      "where": "3. What actually gets sent to the model"
+    },
+    {
+      "n": 16,
+      "text": "\u201ceach new prompt is an exact prefix extension of the previous one, so only the new tokens need processing\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s10"
+      ],
+      "quote": "Codex ensures each new prompt is an exact prefix extension of the previous one, so only the new tokens need processing.",
+      "reason": null,
+      "found": null,
+      "where": "3. What actually gets sent to the model"
+    },
+    {
+      "n": 17,
+      "text": "\u201ctools change order, the model changes, or sandbox configuration is modified mid-conversation\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s10"
+      ],
+      "quote": "Cache misses occur when tools change order, the model changes, or sandbox configuration is modified mid-conversation.",
+      "reason": null,
+      "found": null,
+      "where": "3. What actually gets sent to the model"
+    },
+    {
+      "n": 18,
+      "text": "already \u201cunderstand what a coding agent is\u201d, so there is no need for \u201c10,000 tokens of system prompt\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s6"
+      ],
+      "quote": "all the frontier models have been RL-trained up the wazoo, so they inherently understand what a coding agent is. There does not appear to be a need for 10,000 tokens of system prompt",
+      "reason": null,
+      "found": null,
+      "where": "3. What actually gets sent to the model"
+    },
+    {
+      "n": 19,
+      "text": "\u201creading a big file or running a command with verbose output can use thousands of tokens in a single turn\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "Reading a big file or running a command with verbose output can use thousands of tokens in a single turn.",
+      "reason": null,
+      "found": null,
+      "where": "4. Context, compaction and memory"
+    },
+    {
+      "n": 20,
+      "text": "\u201capproaches its limit, the SDK automatically compacts the conversation: it summarizes older history to free space\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "When the context window approaches its limit, the SDK automatically compacts the conversation: it summarizes older history to free space",
+      "reason": null,
+      "found": null,
+      "where": "4. Context, compaction and memory"
+    },
+    {
+      "n": 21,
+      "text": "\u201cbecause CLAUDE.md content is re-injected on every request\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "because CLAUDE.md content is re-injected on every request.",
+      "reason": null,
+      "found": null,
+      "where": "4. Context, compaction and memory"
+    },
+    {
+      "n": 22,
+      "text": "\u201cinitializer agent\u201d that sets up an script and a file",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s11"
+      ],
+      "quote": "Initializer agent: The very first agent session uses a specialized prompt that asks the model to set up the initial environment: an init.sh script, a claude-progress.txt file",
+      "reason": null,
+      "found": null,
+      "where": "4. Context, compaction and memory"
+    },
+    {
+      "n": 23,
+      "text": "over 200 features",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s11"
+      ],
+      "quote": "this meant over 200 features",
+      "reason": null,
+      "found": null,
+      "where": "4. Context, compaction and memory"
+    },
+    {
+      "n": 24,
+      "text": "Playwright MCP (21 tools, 13.7k tokens) and Chrome DevTools MCP (26 tools, 18k tokens)",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s6"
+      ],
+      "quote": "Popular MCP servers like Playwright MCP (21 tools, 13.7k tokens) or Chrome DevTools MCP (26 tools, 18k tokens) dump their entire tool descriptions into your context on every session.",
+      "reason": null,
+      "found": null,
+      "where": "4. Context, compaction and memory"
+    },
+    {
+      "n": 25,
+      "text": "standalone SDK package",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "The SDK is a standalone package that gives you programmatic control over tools, permissions, cost limits, and output.",
+      "reason": null,
+      "found": null,
+      "where": "5. Claude Code vs Codex vs OMP vs Pi"
+    },
+    {
+      "n": 26,
+      "text": "Apache-2.0",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s7"
+      ],
+      "quote": "Apache-2.0 license",
+      "reason": null,
+      "found": null,
+      "where": "5. Claude Code vs Codex vs OMP vs Pi"
+    },
+    {
+      "n": 27,
+      "text": "only the shell tool is sandboxed",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s10"
+      ],
+      "quote": "Only the shell tool is sandboxed by Codex; MCP tools are responsible for their own guardrails.",
+      "reason": null,
+      "found": null,
+      "where": "5. Claude Code vs Codex vs OMP vs Pi"
+    },
+    {
+      "n": 28,
+      "text": "fork of Pi",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "Fork of Pi by @mariozechner",
+      "reason": null,
+      "found": null,
+      "where": "5. Claude Code vs Codex vs OMP vs Pi"
+    },
+    {
+      "n": 29,
+      "text": "rules that abort the stream mid-token and retry",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "A regex match aborts the stream mid-token, injects the rule as a system reminder, and retries from the same point.",
+      "reason": null,
+      "found": null,
+      "where": "5. Claude Code vs Codex vs OMP vs Pi"
+    },
+    {
+      "n": 30,
+      "text": "\u201cSixty-plus providers, a thousand models\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s3"
+      ],
+      "quote": "Sixty-plus providers, a thousand models, one /model away.",
+      "reason": null,
+      "found": null,
+      "where": "5. Claude Code vs Codex vs OMP vs Pi"
+    },
+    {
+      "n": 31,
+      "text": "prompt plus tools under 1,000 tokens",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s6"
+      ],
+      "quote": "pi's system prompt and tool definitions together come in below 1000 tokens.",
+      "reason": null,
+      "found": null,
+      "where": "5. Claude Code vs Codex vs OMP vs Pi"
+    },
+    {
+      "n": 32,
+      "text": "\u201cas soon as your agent can write code and run code, it's pretty much game over\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s6"
+      ],
+      "quote": "As soon as your agent can write code and run code, it's pretty much game over.",
+      "reason": null,
+      "found": null,
+      "where": "5. Claude Code vs Codex vs OMP vs Pi"
+    },
+    {
+      "n": 33,
+      "text": "four dialects",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s6"
+      ],
+      "quote": "OpenAI's Completions API, their newer Responses API, Anthropic's Messages API, and Google's Generative AI API.",
+      "reason": null,
+      "found": null,
+      "where": "6. Swapping models: Claude, DeepSeek and others"
+    },
+    {
+      "n": 34,
+      "text": "",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s4"
+      ],
+      "quote": "export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic",
+      "reason": null,
+      "found": null,
+      "where": "Route A: point an existing harness at another model"
+    },
+    {
+      "n": 35,
+      "text": "names starting with go to",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s4"
+      ],
+      "quote": "Models starting with claude-opus are mapped to deepseek-v4-pro",
+      "reason": null,
+      "found": null,
+      "where": "Route A: point an existing harness at another model"
+    },
+    {
+      "n": 36,
+      "text": "on tools is ignored",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s4"
+      ],
+      "quote": "cache_control | Ignored",
+      "reason": null,
+      "found": null,
+      "where": "Route A: point an existing harness at another model"
+    },
+    {
+      "n": 37,
+      "text": "is \u201ctreated as auto; does not force a tool call\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s4"
+      ],
+      "quote": "any | Treated as auto; does not force a tool call",
+      "reason": null,
+      "found": null,
+      "where": "Route A: point an existing harness at another model"
+    },
+    {
+      "n": 38,
+      "text": "some providers want instead of",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s6"
+      ],
+      "quote": "Mistral and Chutes use max_tokens instead of max_completion_tokens",
+      "reason": null,
+      "found": null,
+      "where": "Route B: a multi-provider harness"
+    },
+    {
+      "n": 39,
+      "text": "reasoning arrives in different fields",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s6"
+      ],
+      "quote": "Different providers return reasoning content in different fields (reasoning_content vs reasoning)",
+      "reason": null,
+      "found": null,
+      "where": "Route B: a multi-provider harness"
+    },
+    {
+      "n": 40,
+      "text": "\u201cthe Wild West\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s6"
+      ],
+      "quote": "Anthropic has the sanest approach, but generally it's the Wild West.",
+      "reason": null,
+      "found": null,
+      "where": "Route B: a multi-provider harness"
+    },
+    {
+      "n": 41,
+      "text": "\u201cthe immediately following message must have the user role and include a tool_result for every tool call, with matching tool_use_id values\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s4"
+      ],
+      "quote": "the immediately following message must have the user role and include a tool_result for every tool call, with matching tool_use_id values.",
+      "reason": null,
+      "found": null,
+      "where": "The thing every adapter must get right: tool-call round-trips"
+    },
+    {
+      "n": 42,
+      "text": "\u201cstart by using LLM APIs directly: many patterns can be implemented in a few lines of code\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s5"
+      ],
+      "quote": "We suggest that developers start by using LLM APIs directly: many patterns can be implemented in a few lines of code.",
+      "reason": null,
+      "found": null,
+      "where": "7. Building your own harness"
+    },
+    {
+      "n": 43,
+      "text": "\u201cthe same execution loop that powers Claude Code\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "When you start an agent, the SDK runs the same execution loop that powers Claude Code",
+      "reason": null,
+      "found": null,
+      "where": "7. Building your own harness"
+    },
+    {
+      "n": 44,
+      "text": "\u201can open-source standard for connecting AI applications to external systems\u201d",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s9"
+      ],
+      "quote": "MCP (Model Context Protocol) is an open-source standard for connecting AI applications to external systems.",
+      "reason": null,
+      "found": null,
+      "where": "References & further reading"
+    }
+  ],
+  "unmarked": [],
+  "sources": [
+    {
+      "id": "s1",
+      "title": "Just a moment...",
+      "url": "https://openai.com/index/unrolling-the-codex-agent-loop/",
+      "fetched_at": "2026-11-11T21:52:13.269Z",
+      "cited": 0
+    },
+    {
+      "id": "s2",
+      "title": "How the agent loop works - Claude Code Docs",
+      "url": "https://code.claude.com/docs/en/agent-sdk/agent-loop",
+      "fetched_at": "2026-11-11T21:52:13.508Z",
+      "cited": 8
+    },
+    {
+      "id": "s3",
+      "title": "GitHub - can1357/oh-my-pi: \u2325 Coding agent with the IDE wired in. Built by Stencil Labs. \u00b7 GitHub",
+      "url": "https://github.com/can1357/oh-my-pi",
+      "fetched_at": "2026-11-11T21:52:14.210Z",
+      "cited": 5
+    },
+    {
+      "id": "s4",
+      "title": "Using the Anthropic API | DeepSeek API Docs",
+      "url": "https://api-docs.deepseek.com/guides/anthropic_api/",
+      "fetched_at": "2026-11-11T21:52:15.258Z",
+      "cited": 5
+    },
+    {
+      "id": "s5",
+      "title": "Building effective AI agents \\ Anthropic",
+      "url": "https://www.anthropic.com/research/building-effective-agents",
+      "fetched_at": "2026-11-11T21:52:15.513Z",
+      "cited": 3
+    },
+    {
+      "id": "s6",
+      "title": "What I learned building an opinionated and minimal coding agent",
+      "url": "https://mariozechner.at/posts/2025-11-30-pi-coding-agent/",
+      "fetched_at": "2026-11-11T21:52:31.484Z",
+      "cited": 10
+    },
+    {
+      "id": "s7",
+      "title": "GitHub - openai/codex: Lightweight coding agent that runs in your terminal \u00b7 GitHub",
+      "url": "https://github.com/openai/codex",
+      "fetched_at": "2026-11-11T21:52:31.922Z",
+      "cited": 1
+    },
+    {
+      "id": "s8",
+      "title": "How to Build an Agent - Amp",
+      "url": "https://ampcode.com/notes/how-to-build-an-agent",
+      "fetched_at": "2026-11-11T21:52:32.155Z",
+      "cited": 3
+    },
+    {
+      "id": "s9",
+      "title": "What is the Model Context Protocol (MCP)? - Model Context Protocol",
+      "url": "https://modelcontextprotocol.io/docs/2026-07-28/getting-started/intro",
+      "fetched_at": "2026-11-11T21:52:32.487Z",
+      "cited": 1
+    },
+    {
+      "id": "s10",
+      "title": "Unrolling the Codex agent loop | OpenAI Engineering Blog | Engineering.fyi",
+      "url": "https://www.engineering.fyi/article/unrolling-the-codex-agent-loop",
+      "fetched_at": "2026-11-11T21:52:38.841Z",
+      "cited": 5
+    },
+    {
+      "id": "s11",
+      "title": "Effective harnesses for long-running agents \\ Anthropic",
+      "url": "https://www.anthropic.com/research/effective-harnesses-for-long-running-agents",
+      "fetched_at": "2026-11-11T21:52:39.192Z",
+      "cited": 2
+    },
+    {
+      "id": "s12",
+      "title": "Codex Security | ChatGPT Learn",
+      "url": "https://learn.chatgpt.com/docs/security",
+      "fetched_at": "2026-11-11T21:52:39.437Z",
+      "cited": 0
+    },
+    {
+      "id": "s13",
+      "title": "Tool Calls | DeepSeek API Docs",
+      "url": "https://api-docs.deepseek.com/guides/tool_calls/",
+      "fetched_at": "2026-11-11T21:52:40.947Z",
+      "cited": 1
+    }
+  ]
+}

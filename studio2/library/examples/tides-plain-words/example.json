@@ -1,0 +1,16 @@
+{
+ "title": "Tides, in plain words",
+ "summary": "A short explainer of why tides happen, made by a non-Claude model through a gateway.",
+ "kind": "explainer",
+ "order": 80,
+ "made": {
+  "model": "openrouter/openai/gpt-6.1-sol",
+  "date": "2026-11-12",
+  "requests": 1,
+  "duration_s": 116,
+  "depth": null,
+  "request": "Replace the page with a small tide explainer: a title, one paragraph in plain words on why there are two high tides a day, and a table of three terms (spring tide, neap tide, tidal range) with one-line meanings. Keep it to index.html, phone-first, light and dark."
+ },
+ "sources": 4,
+ "check": null
+}

@@ -2312,3 +2312,63 @@ When the person sends a message whose text is exactly a shown step's `text` and 
 `options`, the message goes with those options (so "Check this page" from a chip is the same
 check-only request as the button); any other text goes with the project's remembered options.
 On a phone the chips wrap and each is at least 36 px tall.
+
+# Examples that come with the studio
+
+Finished work made with the studio, shipped with it, so a new install has something to open:
+reports, dashboards and other pages (never an app with its own back end). The home page shows
+them; **Open a copy** makes an ordinary project from one.
+
+## Layout
+
+`library/examples/<id>/` (`id`: lower-case letters, digits and hyphens) holds `example.json`,
+`files/` (the project's files) and, when there is one, `preview.jpg`. `example.json`:
+
+```json
+{"title": "Electric or petrol car: five-year cost", "summary": "One sentence.",
+ "kind": "report", "order": 10,
+ "made": {"model": "opus", "date": "2026-11-13", "requests": 2, "duration_s": 1888,
+          "depth": "deep", "request": "The person's first request, as they typed it."},
+ "sources": 127, "check": {"checked": 381, "passed": 372, "fixed": 9, "failed": 0, "unverifiable": 0}}
+```
+
+`kind`: `report`, `dashboard`, `explainer` or `interactive`. `made`, `sources` and `check` are
+taken from the project's own record by `tools/examples/add.py` and never typed by hand, from its
+completed requests only: the model of the longest one, the day of the last one, how many there were
+and how long they ran together, the first one's depth and text, the number of saved sources, and the counts of the
+last reported check (`null` when none was reported). A missing fact is `null`, never a guess.
+
+**What is left out of `files/`:** `.git`, `research/`, `attachments/`, `template/`, `notes/`,
+caches and dependency folders, and the saved text of every source (`sources/*` except
+`sources/index.json`): that text is other people's writing. The source list, with each address,
+stays.
+
+## REST
+
+| Route | Answer |
+|---|---|
+| `GET /api/examples` | `[Example]`, by `order` then title. An example whose `example.json` cannot be read or has no title, or that has no `files/index.html`, is left out |
+| `GET /api/examples/{id}/preview` | the picture (`image/jpeg`), or 404 `no_preview` |
+| `POST /api/projects` with `{example: id, name?}` | 201 Project: a copy of the example's files with one first version ("From the example …"). `name` defaults to the example's title. 400 `unknown_example`; 400 `invalid_request` when `template` is given too |
+
+`Example` is `example.json` plus `id`, `files` (count), `bytes` and `preview`
+(`/api/examples/<id>/preview` or `null`). `Project` gains `from_example: id | null`.
+
+## A copy and its sources
+
+The copy has the page's source list and no source text, so the page check cannot confirm a quote
+until its source is fetched again. Two things make that work:
+
+- `fetch_source` for an address that is saved but whose text file is missing downloads it again
+  and writes it **under the same id** (the page's marks keep pointing at it). The answer has
+  `restored: true`. This holds in any project, not only a copy of an example.
+- While `from_example` is set and a source's text is missing, the project facts tell the agent so:
+  the texts were not shipped, and a check must fetch each cited source again first.
+
+## UI
+
+The home page has an **Examples** section under the person's own projects (under the empty state
+when there are none): a card per example with its picture, title, summary and one
+line of facts ("Opus · Deep · 31 min · 2 requests · 115 sources · 381 figures checked", each part only
+when the record holds it), and **Open a copy**. Nothing is
+shown when the studio has no examples. At 390 px the cards are one column.

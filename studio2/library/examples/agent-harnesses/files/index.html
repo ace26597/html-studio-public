@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How AI agent harnesses work — Claude Code, Codex, OMP, and building your own</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fbfaf7; --surface: #ffffff; --ink: #1d1f24; --muted: #5d6270; --line: #e3e1da;
+    --accent: #c2410c; --accent-soft: #fff1e8; --blue: #1d4ed8; --blue-soft: #eaf0ff;
+    --green: #15803d; --green-soft: #e9f8ee; --violet: #6d28d9; --violet-soft: #f2ecff;
+    --code-bg: #f4f2ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14151a; --surface: #1c1e24; --ink: #e9e9ec; --muted: #a2a6b2; --line: #30333c;
+      --accent: #fb923c; --accent-soft: #2c1d14; --blue: #8fb1ff; --blue-soft: #18213a;
+      --green: #6ee7a0; --green-soft: #13261b; --violet: #c4a7ff; --violet-soft: #221a35;
+      --code-bg: #101116;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.6; font-size: 17px; }
+  body { margin: 0; background: var(--bg); color: var(--ink); }
+  main { max-width: 64rem; margin: 0 auto; padding: 3rem 2rem 5rem; }
+  header.hero { border-bottom: 1px solid var(--line); padding-bottom: 2rem; margin-bottom: 2rem; }
+  .kicker { color: var(--accent); font-weight: 650; letter-spacing: .06em; text-transform: uppercase; font-size: .78rem; }
+  h1 { font-size: 2.4rem; line-height: 1.15; margin: .4rem 0 1rem; letter-spacing: -.02em; }
+  h2 { font-size: 1.6rem; margin: 3.2rem 0 .8rem; letter-spacing: -.01em; }
+  h3 { font-size: 1.15rem; margin: 2rem 0 .5rem; }
+  p, li { max-width: 46rem; }
+  .lede { font-size: 1.12rem; color: var(--ink); }
+  .meta { color: var(--muted); font-size: .9rem; }
+  nav.toc { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.4rem; margin: 1.5rem 0; }
+  nav.toc ol { margin: .3rem 0 0; padding-left: 1.2rem; columns: 2; column-gap: 2rem; }
+  nav.toc a { color: var(--ink); text-decoration: none; }
+  nav.toc a:hover { color: var(--accent); }
+  a { color: var(--blue); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.1rem; }
+  .card .big { font-size: 1.7rem; font-weight: 700; color: var(--accent); line-height: 1.2; }
+  .card .lbl { color: var(--muted); font-size: .9rem; margin-top: .3rem; }
+  figure { margin: 1.6rem 0; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 1.3rem; }
+  figcaption { color: var(--muted); font-size: .9rem; margin-top: .8rem; }
+  .mermaid { display: flex; justify-content: center; }
+  .mermaid svg { max-width: 100% !important; height: auto; }
+  #fig1 svg { min-height: 30rem; }
+  .callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: .9rem 1.1rem; border-radius: 0 10px 10px 0; margin: 1.2rem 0; max-width: 48rem; }
+  .callout.blue { border-color: var(--blue); background: var(--blue-soft); }
+  table { border-collapse: collapse; width: 100%; font-size: .93rem; background: var(--surface); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: .6rem .75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--code-bg); font-weight: 650; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.2rem; overflow-x: auto; font-size: .85rem; line-height: 1.5; }
+  code { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; }
+  :not(pre) > code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+  [data-src] { text-decoration: underline dotted; text-decoration-color: var(--muted); text-underline-offset: 3px; }
+  sup a, a.ref { text-decoration: none; font-size: .78em; }
+  /* prompt anatomy stack */
+  .stack { display: grid; gap: .45rem; max-width: 40rem; margin: 0 auto; }
+  .layer { border-radius: 9px; padding: .55rem .9rem; border: 1px solid var(--line); display: flex; justify-content: space-between; gap: 1rem; font-size: .92rem; }
+  .layer small { color: var(--muted); }
+  .l-static { background: var(--blue-soft); }
+  .l-semi { background: var(--violet-soft); }
+  .l-dyn { background: var(--green-soft); }
+  .l-new { background: var(--accent-soft); border-style: dashed; }
+  .legend { display: flex; gap: 1.2rem; justify-content: center; font-size: .85rem; color: var(--muted); margin-top: .8rem; flex-wrap: wrap; }
+  .legend span::before { content: ""; display: inline-block; width: .8rem; height: .8rem; border-radius: 3px; margin-right: .35rem; vertical-align: -1px; border: 1px solid var(--line); }
+  .legend .a::before { background: var(--blue-soft); } .legend .b::before { background: var(--violet-soft); }
+  .legend .c::before { background: var(--green-soft); } .legend .d::before { background: var(--accent-soft); }
+  .steps { counter-reset: s; list-style: none; padding: 0; display: grid; gap: .8rem; max-width: 52rem; }
+  .steps li { counter-increment: s; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: .9rem 1rem .9rem 3.4rem; position: relative; max-width: none; }
+  .steps li::before { content: counter(s); position: absolute; left: 1rem; top: .9rem; width: 1.7rem; height: 1.7rem; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; display: grid; place-items: center; font-size: .9rem; }
+  .sources li { margin-bottom: .5rem; font-size: .93rem; }
+  .note { color: var(--muted); font-size: .9rem; }
+  #checked-numbers table { font-size: .82rem; }
+  .st-failed td { color: #dc2626; }
+  details summary { cursor: pointer; color: var(--muted); }
+</style>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: true, theme: dark ? 'dark' : 'neutral', fontFamily: 'Inter, system-ui, sans-serif', flowchart: { curve: 'basis', padding: 14 }, sequence: { mirrorActors: false } });
+</script>
+</head>
+<body>
+<main>
+
+<header class="hero">
+  <div class="kicker">Explainer · Agent engineering</div>
+  <h1>How AI agent harnesses work, and how to build your own</h1>
+  <p class="meta">Prepared 11 November 2026 · Covers Claude Code / Claude Agent SDK, OpenAI Codex CLI, oh-my-pi (OMP) and Pi, plus running any harness on Claude, DeepSeek or other models</p>
+  <p class="lede"><strong>In short:</strong> a large language model can only read text and write text. A <em>harness</em> is the program wrapped around it that turns this into an agent. It builds the prompt, hands the model a list of tools, runs the tools the model asks for (reading files, running shell commands), feeds the results back, and repeats until the model stops asking. Claude Code, Codex and OMP all run this same loop. Where they differ is in the extras: which tools they offer, how they keep the conversation inside the context window, how much they lock down, and which model APIs they can talk to. You can build a working harness in a few hundred lines. The hard parts are managing context, keeping it safe, and coping with each provider's quirks.</p>
+</header>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#what">What a harness is</a></li>
+    <li><a href="#loop">The agent loop</a></li>
+    <li><a href="#prompt">What actually gets sent to the model</a></li>
+    <li><a href="#context">Context, compaction and memory</a></li>
+    <li><a href="#compare">Claude Code vs Codex vs OMP vs Pi</a></li>
+    <li><a href="#models">Swapping models: Claude, DeepSeek and others</a></li>
+    <li><a href="#build">Building your own harness</a></li>
+    <li><a href="#refs">References &amp; further reading</a></li>
+  </ol>
+</nav>
+
+<div class="cards">
+  <div class="card"><div class="big"><span data-src="s8" data-quote="It’s an LLM, a loop, and enough tokens." title="Amp — How to Build an Agent">LLM + loop</span></div><div class="lbl">“an LLM, a loop, and enough tokens” is how Amp's Thorsten Ball sums up an agent <a class="ref" href="#src-s8">[8]</a></div></div>
+  <div class="card"><div class="big"><span data-src="s8" data-quote="You can do it in less than 400 lines of code, most of which is boilerplate." title="Amp — How to Build an Agent">&lt; 400 lines</span></div><div class="lbl">for a working code-editing agent, per the same tutorial <a class="ref" href="#src-s8">[8]</a></div></div>
+  <div class="card"><div class="big"><span data-src="s6" data-quote="There's really only four APIs you need to speak to talk to pretty much any LLM provider" title="Mario Zechner — pi coding agent">Four APIs</span></div><div class="lbl">are enough to reach almost every provider, according to Pi's author <a class="ref" href="#src-s6">[6]</a></div></div>
+  <div class="card"><div class="big"><span data-src="s3" data-quote="60+ providers · 31 built-in tools" title="oh-my-pi README">60+ providers</span></div><div class="lbl">supported by OMP, which ships <span data-src="s3" data-quote="60+ providers · 31 built-in tools">31 built-in tools</span> <a class="ref" href="#src-s3">[3]</a></div></div>
+  <div class="card"><div class="big"><span data-src="s6" data-quote="pi's system prompt and tool definitions together come in below 1000 tokens." title="Mario Zechner — pi coding agent">&lt; 1,000 tokens</span></div><div class="lbl">for Pi's whole system prompt plus tool definitions <a class="ref" href="#src-s6">[6]</a></div></div>
+</div>
+
+<!-- ============================================================ -->
+<section id="what">
+<h2>1. What a harness is</h2>
+<p>The model on its own has no hands. DeepSeek's documentation puts it plainly: <span data-src="s13" data-quote="The model itself does not execute specific functions." title="DeepSeek API Docs — Tool Calls">“The model itself does not execute specific functions.”</span> <a class="ref" href="#src-s13">[13]</a> The model only writes a structured request, something like “please call <code>read_file</code> with <code>path=auth.ts</code>”. Some other program has to run it and send back the result. That program is the harness.</p>
+<p>Think of the model as a brilliant consultant on the phone. The harness is the assistant in the office: it reads documents aloud, runs errands, refuses dangerous ones, and keeps notes so the consultant doesn't lose track.</p>
+
+<figure>
+<pre class="mermaid" id="fig1">
+flowchart LR
+  U([👤 You<br/>terminal · IDE · app]) <--> H
+  subgraph H [" HARNESS (runs on your machine or server) "]
+    direction TB
+    P[Prompt builder<br/>system prompt · rules files · history]
+    L{{Agent loop}}
+    T[Tool runner<br/>read · write · edit · bash · MCP]
+    G[Guardrails<br/>permissions · sandbox · hooks]
+    C[Context manager<br/>compaction · sessions · memory]
+    A[Provider adapter<br/>Anthropic · OpenAI · DeepSeek · local]
+    P --> L
+    L --> T
+    T --> G
+    L --> C
+    L --> A
+  end
+  A <-->|HTTPS JSON / SSE stream| M[(🧠 LLM API<br/>Claude · GPT · DeepSeek · Llama…)]
+  T <--> W[(📁 Your files, shell,<br/>browser, databases)]
+</pre>
+<figcaption>Figure 1. What a harness contains. The model is reached only through an HTTP API and sees only the text the harness sends it. Everything that touches the outside world happens in the harness. Diagram by the author, based on the components described in sources <a href="#src-s2">[2]</a>, <a href="#src-s10">[10]</a> and <a href="#src-s6">[6]</a>.</figcaption>
+</figure>
+
+<p>Anthropic separates <span data-src="s5" data-quote="Workflows are systems where LLMs and tools are orchestrated through predefined code paths." title="Anthropic — Building effective agents">workflows, where LLMs and tools are “orchestrated through predefined code paths”</span>, from agents, which are systems where <span data-src="s5" data-quote="Agents, on the other hand, are systems where LLMs dynamically direct their own processes and tool usage" title="Anthropic — Building effective agents">“LLMs dynamically direct their own processes and tool usage”</span> <a class="ref" href="#src-s5">[5]</a>. A coding harness falls in the second group: the model decides which tool to call next, and the harness carries it out.</p>
+
+<p>Also note that the API server keeps no memory between calls. As the Amp tutorial says, <span data-src="s8" data-quote="The server — Anthropic’s server — is stateless. It only sees what’s in the conversation slice. It’s up to us to maintain that." title="Amp — How to Build an Agent">“the server … is stateless. It only sees what's in the conversation slice. It's up to us to maintain that.”</span> <a class="ref" href="#src-s8">[8]</a> So on every turn the harness sends the whole conversation again.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="loop">
+<h2>2. The agent loop: the heart of every harness</h2>
+<p>Claude Code, Codex and OMP all run the same cycle. Anthropic's Agent SDK documentation describes it in five steps <a class="ref" href="#src-s2">[2]</a>: receive the prompt, let the model evaluate and respond, execute any tools it requested, repeat, and return a result once <span data-src="s2" data-quote="Claude continues calling tools and processing results until it produces a response with no tool calls." title="Claude Code Docs — How the agent loop works">the model “produces a response with no tool calls”</span>. OpenAI describes the Codex loop the same way: <span data-src="s10" data-quote="If a tool call is requested, the agent executes it, appends the output to the prompt, and re-queries the model." title="Engineering.fyi summary of OpenAI 'Unrolling the Codex agent loop'">“If a tool call is requested, the agent executes it, appends the output to the prompt, and re-queries the model.”</span> <a class="ref" href="#src-s10">[10]</a></p>
+
+<figure>
+<pre class="mermaid">
+flowchart TD
+  S(["User types a task"]) --> B[Build request:<br/>system prompt + tool list + full history]
+  B --> API[[Call the model API]]
+  API --> R{"Does the reply contain<br/>tool calls?"}
+  R -- "No: plain text" --> DONE(["Show the answer.<br/>Turn complete ✅"])
+  R -- Yes --> PERM{"Allowed?<br/>permission rules · hooks · sandbox"}
+  PERM -- Denied --> DEN["Send a denied message<br/>back as the tool result"]
+  PERM -- Allowed --> EX["Run the tools<br/>possibly several in parallel"]
+  EX --> AP[Append tool results to history]
+  DEN --> AP
+  AP --> CHK{"Context nearly full?<br/>Turn or budget limit hit?"}
+  CHK -- "Context full" --> CMP["Compact: summarise old history"] --> B
+  CHK -- "Limit hit" --> STOP(["Stop with an error or partial result"])
+  CHK -- Fine --> B
+</pre>
+<figcaption>Figure 2. The agent loop. Each pass is one “turn”. The loop ends when the model replies with no tool calls, or when a turn or budget limit stops it. Steps follow the Claude Agent SDK documentation <a href="#src-s2">[2]</a> and the Codex description <a href="#src-s10">[10]</a>.</figcaption>
+</figure>
+
+<h3>A real example, turn by turn</h3>
+<p>The Claude docs walk through the prompt “Fix the failing tests in auth.ts” <a class="ref" href="#src-s2">[2]</a>. This is how it plays out:</p>
+<figure>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor You
+  participant H as Harness
+  participant M as Model (API)
+  participant T as Tools (shell / files)
+  You->>H: "Fix the failing tests in auth.ts"
+  H->>M: system prompt + tools + message
+  M-->>H: tool_use: Bash("npm test")
+  H->>T: run npm test
+  T-->>H: 3 failures
+  H->>M: history + tool_result
+  M-->>H: tool_use: Read(auth.ts), Read(auth.test.ts)
+  H->>T: read both files
+  T-->>H: file contents
+  H->>M: history + tool_results
+  M-->>H: tool_use: Edit(auth.ts) then Bash("npm test")
+  H->>T: apply edit, rerun tests
+  T-->>H: all tests pass
+  H->>M: history + tool_results
+  M-->>H: text: "Fixed the auth bug, all three tests pass now."
+  H-->>You: final answer + cost + usage
+</pre>
+<figcaption>Figure 3. The <span data-src="s2" data-quote="That was four turns: three with tool calls, one final text-only response.">four-turn session</span> described in the Claude Agent SDK docs. Notice that the model never touches the disk. It only asks, and the harness does the work.</figcaption>
+</figure>
+
+<div class="callout blue"><strong>Guardrails live inside the loop.</strong> The Claude Agent SDK lets your code intercept every tool call with <em>hooks</em>. Hooks run in your application process, not inside the agent's context window, and <span data-src="s2" data-quote="a PreToolUse hook that rejects a tool call prevents it from executing, and Claude receives the rejection message instead." title="Claude Code Docs — How the agent loop works">“a PreToolUse hook that rejects a tool call prevents it from executing, and Claude receives the rejection message instead”</span> <a class="ref" href="#src-s2">[2]</a>. Limits like <code>max_turns</code> and <code>max_budget_usd</code> keep open-ended tasks from running forever <a class="ref" href="#src-s2">[2]</a>.</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="prompt">
+<h2>3. What actually gets sent to the model</h2>
+<p>Every API call carries a full “context” built by the harness. OpenAI's write-up of Codex lists the pieces. The request uses <span data-src="s10" data-quote="Codex constructs the prompt using three main Responses API parameters: instructions" title="Engineering.fyi summary of OpenAI 'Unrolling the Codex agent loop'">three main Responses API parameters</span>: <em>instructions</em>, <em>tools</em> (shell tool, plan tool, web search, and MCP server tools) and <em>input</em>. Input holds permission messages, developer instructions, user instructions gathered from <code>AGENTS.md</code> files and skills, environment context such as the working directory and shell, and finally the user's message <a class="ref" href="#src-s10">[10]</a>.</p>
+
+<figure>
+<div class="stack">
+  <div class="layer l-static"><span><strong>System / instructions</strong>: who the agent is, how it should behave</span><small>rarely changes</small></div>
+  <div class="layer l-static"><span><strong>Tool definitions</strong>: name, description, JSON schema for each tool</span><small>rarely changes</small></div>
+  <div class="layer l-semi"><span><strong>Project rules</strong>: CLAUDE.md / AGENTS.md, skills, permissions</span><small>per project</small></div>
+  <div class="layer l-semi"><span><strong>Environment</strong>: working directory, shell, OS, date</span><small>per session</small></div>
+  <div class="layer l-dyn"><span><strong>Conversation history</strong>: user turns, model replies, tool calls &amp; results</span><small>grows every turn</small></div>
+  <div class="layer l-new"><span><strong>Newest items</strong>: latest tool results or user message</span><small>appended at the end</small></div>
+</div>
+<div class="legend"><span class="a">static</span><span class="b">semi-static</span><span class="c">growing</span><span class="d">new this turn</span></div>
+<figcaption>Figure 4. How a harness lays out its context. Stable parts go first and new parts are appended at the end, which keeps prompt caching effective. Layout follows the Codex prompt structure in <a href="#src-s10">[10]</a>.</figcaption>
+</figure>
+
+<p><strong>Why the order matters: prompt caching.</strong> Providers can reuse computation for a prompt prefix they have already seen. So Codex makes sure <span data-src="s10" data-quote="Codex ensures each new prompt is an exact prefix extension of the previous one, so only the new tokens need processing." title="Engineering.fyi summary of OpenAI 'Unrolling the Codex agent loop'">“each new prompt is an exact prefix extension of the previous one, so only the new tokens need processing”</span> <a class="ref" href="#src-s10">[10]</a>. The cache breaks when <span data-src="s10" data-quote="Cache misses occur when tools change order, the model changes, or sandbox configuration is modified mid-conversation." title="Engineering.fyi summary">“tools change order, the model changes, or sandbox configuration is modified mid-conversation”</span>. A good harness therefore keeps its tool list in a fixed order and appends new information rather than editing old messages.</p>
+
+<p><strong>How big should the system prompt be?</strong> Opinions differ. Pi's author argues that frontier models <span data-src="s6" data-quote="all the frontier models have been RL-trained up the wazoo, so they inherently understand what a coding agent is. There does not appear to be a need for 10,000 tokens of system prompt" title="Mario Zechner — pi coding agent">already “understand what a coding agent is”, so there is no need for “10,000 tokens of system prompt”</span>. Pi runs with just four tools: read, write, edit and bash <a class="ref" href="#src-s6">[6]</a>. Larger harnesses like Claude Code and OMP put many more tools and instructions up front to get more behaviour out of the box.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="context">
+<h2>4. Context, compaction and memory</h2>
+<p>The context window is the model's whole working memory, and tool output fills it fast. The Claude docs warn that <span data-src="s2" data-quote="Reading a big file or running a command with verbose output can use thousands of tokens in a single turn." title="Claude Code Docs — How the agent loop works">“reading a big file or running a command with verbose output can use thousands of tokens in a single turn”</span> <a class="ref" href="#src-s2">[2]</a>. Harnesses deal with this in three ways:</p>
+<ul>
+  <li><strong>Compaction.</strong> When the window <span data-src="s2" data-quote="When the context window approaches its limit, the SDK automatically compacts the conversation: it summarizes older history to free space" title="Claude Code Docs">“approaches its limit, the SDK automatically compacts the conversation: it summarizes older history to free space”</span> <a class="ref" href="#src-s2">[2]</a>. Codex does the same: when usage crosses <code>auto_compact_limit</code> it calls a dedicated <code>/responses/compact</code> endpoint <a class="ref" href="#src-s10">[10]</a>.</li>
+  <li><strong>Re-injected rule files.</strong> Compaction can drop early instructions, so the Claude docs say persistent rules belong in <code>CLAUDE.md</code>, <span data-src="s2" data-quote="because CLAUDE.md content is re-injected on every request." title="Claude Code Docs">“because CLAUDE.md content is re-injected on every request”</span> <a class="ref" href="#src-s2">[2]</a>. Codex reads <code>AGENTS.md</code> in the same way <a class="ref" href="#src-s10">[10]</a>.</li>
+  <li><strong>Progress files for long jobs.</strong> For work that spans many context windows, Anthropic used an <span data-src="s11" data-quote="Initializer agent: The very first agent session uses a specialized prompt that asks the model to set up the initial environment: an init.sh script, a claude-progress.txt file" title="Anthropic — Effective harnesses for long-running agents">“initializer agent” that sets up an <code>init.sh</code> script and a <code>claude-progress.txt</code> file</span>, plus a feature list of <span data-src="s11" data-quote="this meant over 200 features" title="Anthropic — Effective harnesses">over 200 features</span> all marked failing. Every later session reads these files and git history to pick up where the last one stopped <a class="ref" href="#src-s11">[11]</a>.</li>
+</ul>
+<p>Tool definitions cost context as well. Pi's author measured that <span data-src="s6" data-quote="Popular MCP servers like Playwright MCP (21 tools, 13.7k tokens) or Chrome DevTools MCP (26 tools, 18k tokens) dump their entire tool descriptions into your context on every session." title="Mario Zechner — pi coding agent">Playwright MCP (21 tools, 13.7k tokens) and Chrome DevTools MCP (26 tools, 18k tokens)</span> load their full tool descriptions into every session <a class="ref" href="#src-s6">[6]</a>. That is why newer harnesses lean on “progressive disclosure”: they show the model a short summary first and load the details only when needed.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="compare">
+<h2>5. Claude Code vs Codex vs OMP vs Pi</h2>
+<p>Under the hood all four run the same loop. What differs is their philosophy and their extras.</p>
+<table>
+<thead><tr><th>Harness</th><th>Who / licence</th><th>Philosophy</th><th>Notable mechanics</th><th>Models</th></tr></thead>
+<tbody>
+<tr><td><strong>Claude Code</strong> (and the Claude Agent SDK)</td><td>Anthropic</td><td>Batteries included: built-in tools, permissions, hooks, subagents, skills, MCP</td><td>Agent loop exposed as a <span data-src="s2" data-quote="The SDK is a standalone package that gives you programmatic control over tools, permissions, cost limits, and output.">standalone SDK package</span>; automatic compaction; PreToolUse/PostToolUse hooks; CLAUDE.md re-injected each request <a class="ref" href="#src-s2">[2]</a></td><td>Claude by default; any endpoint that speaks the Anthropic Messages format, e.g. DeepSeek <a class="ref" href="#src-s4">[4]</a></td></tr>
+<tr><td><strong>OpenAI Codex CLI</strong></td><td>OpenAI, <span data-src="s7" data-quote="Apache-2.0 license">Apache-2.0</span> <a class="ref" href="#src-s7">[7]</a></td><td>Core “harness” shared by the CLI, cloud and IDE versions</td><td>Responses API; stateless requests (no <code>previous_response_id</code>) to support Zero Data Retention; <span data-src="s10" data-quote="Only the shell tool is sandboxed by Codex; MCP tools are responsible for their own guardrails.">only the shell tool is sandboxed</span>; auto-compaction <a class="ref" href="#src-s10">[10]</a></td><td>OpenAI models; local or custom Responses-API endpoints such as LM Studio via <code>--oss</code> <a class="ref" href="#src-s10">[10]</a></td></tr>
+<tr><td><strong>OMP (oh-my-pi)</strong></td><td>Can Bölük / Stencil Labs, MIT; <span data-src="s3" data-quote="Fork of Pi by @mariozechner">fork of Pi</span> <a class="ref" href="#src-s3">[3]</a></td><td>“Coding agent with the IDE wired in”: maximal features</td><td>LSP and debugger (DAP) tools, typed subagents in isolated worktrees, “hashline” edits by content hash, <span data-src="s3" data-quote="A regex match aborts the stream mid-token, injects the rule as a system reminder, and retries from the same point.">rules that abort the stream mid-token and retry</span>; inherits rules, skills and MCP config from <code>.claude</code>, <code>.codex</code>, <code>.cursor</code> etc. <a class="ref" href="#src-s3">[3]</a></td><td><span data-src="s3" data-quote="Sixty-plus providers, a thousand models, one /model away.">“Sixty-plus providers, a thousand models”</span>; nine model roles (default, smol, slow, plan…) so different models handle different jobs <a class="ref" href="#src-s3">[3]</a></td></tr>
+<tr><td><strong>Pi</strong></td><td>Mario Zechner</td><td>Minimal and inspectable: “if I don't need it, it won't be built”</td><td>Four tools (read, write, edit, bash); <span data-src="s6" data-quote="pi's system prompt and tool definitions together come in below 1000 tokens.">prompt plus tools under 1,000 tokens</span>; no MCP, no plan mode, no subagents; “YOLO” with no permission prompts <a class="ref" href="#src-s6">[6]</a></td><td>Unified <code>pi-ai</code> layer: Anthropic, OpenAI, Google, xAI, Groq, Cerebras, OpenRouter, any OpenAI-compatible endpoint <a class="ref" href="#src-s6">[6]</a></td></tr>
+</tbody>
+</table>
+<p class="note">Feature claims come from each project's own documentation or README as saved on 11 Nov 2026. They describe what each project says it does, not independent testing. The Codex details come from a third-party summary of OpenAI's blog post <a href="#src-s10">[10]</a>, because OpenAI's own page blocked automated reading.</p>
+
+<div class="callout"><strong>The security trade-off is real.</strong> Pi's author argues that <span data-src="s6" data-quote="As soon as your agent can write code and run code, it's pretty much game over." title="Mario Zechner — pi coding agent">“as soon as your agent can write code and run code, it's pretty much game over”</span> for in-process safety checks <a class="ref" href="#src-s6">[6]</a>. Codex and Claude Code instead add sandboxes and permission layers. If you build your own, choose deliberately: run in a container or VM, or add permission gates.</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="models">
+<h2>6. Swapping models: Claude, DeepSeek and others</h2>
+<p>This is the part most people ask about. A harness talks to a model over HTTP, so changing the model mostly means changing three settings: the <strong>base URL</strong>, the <strong>API key</strong> and the <strong>model name</strong>. The hard part is that providers speak slightly different dialects.</p>
+
+<figure>
+<pre class="mermaid">
+flowchart LR
+  CORE[Harness core<br/>loop · tools · context] --> IF[One internal message format<br/>messages · tool_calls · tool_results]
+  IF --> A1[Anthropic Messages adapter]
+  IF --> A2[OpenAI Chat Completions adapter]
+  IF --> A3[OpenAI Responses adapter]
+  IF --> A4[Google Generative AI adapter]
+  A1 --> P1[(Claude)]
+  A1 --> P1b[(DeepSeek<br/>api.deepseek.com/anthropic)]
+  A2 --> P2[(DeepSeek · Groq · OpenRouter<br/>Ollama · vLLM · LM Studio)]
+  A3 --> P3[(OpenAI GPT / Codex models)]
+  A4 --> P4[(Gemini)]
+</pre>
+<figcaption>Figure 5. The provider-adapter pattern. The core works in one internal format, and a thin adapter per API dialect translates. Pi's author counts <span data-src="s6" data-quote="OpenAI's Completions API, their newer Responses API, Anthropic's Messages API, and Google's Generative AI API.">four dialects</span>: OpenAI Completions, OpenAI Responses, Anthropic Messages and Google Generative AI <a href="#src-s6">[6]</a>. DeepSeek offers both an OpenAI-style and an Anthropic-style endpoint <a href="#src-s4">[4]</a><a href="#src-s13">[13]</a>.</figcaption>
+</figure>
+
+<h3>Route A: point an existing harness at another model</h3>
+<p>DeepSeek publishes an Anthropic-compatible endpoint. Its docs say you can set <span data-src="s4" data-quote="export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic" title="DeepSeek API Docs — Using the Anthropic API"><code>ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic</code></span> along with your DeepSeek key, and they link a guide for using DeepSeek inside Claude Code <a class="ref" href="#src-s4">[4]</a>. Model names are mapped: <span data-src="s4" data-quote="Models starting with claude-opus are mapped to deepseek-v4-pro" title="DeepSeek API Docs">names starting with <code>claude-opus</code> go to <code>deepseek-v4-pro</code></span>, and Sonnet/Haiku names go to <code>deepseek-flash</code> <a class="ref" href="#src-s4">[4]</a>.</p>
+<pre><code><span data-nocheck># Example: run Claude Code against DeepSeek (per DeepSeek's docs)
+export ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
+export ANTHROPIC_API_KEY=sk-...your-deepseek-key...
+claude</span></code></pre>
+<p>“Compatible” rarely means identical. DeepSeek's own table shows several Anthropic fields are ignored, for example <span data-src="s4" data-quote="cache_control | Ignored" title="DeepSeek API Docs"><code>cache_control</code> on tools is ignored</span>, and <span data-src="s4" data-quote="any | Treated as auto; does not force a tool call" title="DeepSeek API Docs"><code>tool_choice: any</code> is “treated as auto; does not force a tool call”</span> <a class="ref" href="#src-s4">[4]</a>. Features that depend on those fields can behave differently.</p>
+
+<h3>Route B: a multi-provider harness</h3>
+<p>OMP and Pi are built from the start to talk to many providers. Pi's <code>pi-ai</code> library wraps every provider behind one interface. Even so, its author lists quirks it has to patch around: <span data-src="s6" data-quote="Mistral and Chutes use max_tokens instead of max_completion_tokens" title="Mario Zechner — pi coding agent">some providers want <code>max_tokens</code> instead of <code>max_completion_tokens</code></span>, some reject the <code>developer</code> role, and <span data-src="s6" data-quote="Different providers return reasoning content in different fields (reasoning_content vs reasoning)">reasoning arrives in different fields</span> <a class="ref" href="#src-s6">[6]</a>. Token and cost reporting is inconsistent too. He calls it <span data-src="s6" data-quote="Anthropic has the sanest approach, but generally it's the Wild West.">“the Wild West”</span>.</p>
+
+<h3>The thing every adapter must get right: tool-call round-trips</h3>
+<p>Each dialect has strict rules for sending tool results back. For DeepSeek's Anthropic endpoint, <span data-src="s4" data-quote="the immediately following message must have the user role and include a tool_result for every tool call, with matching tool_use_id values." title="DeepSeek API Docs">“the immediately following message must have the user role and include a tool_result for every tool call, with matching tool_use_id values”</span>. With thinking mode on, you must pass the model's full content back, including its thinking blocks <a class="ref" href="#src-s4">[4]</a>. In the OpenAI-style format the result goes in a message with <code>role: "tool"</code> and a <code>tool_call_id</code> <a class="ref" href="#src-s13">[13]</a>. Getting this bookkeeping wrong is the most common reason a custom harness breaks when you switch models.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="build">
+<h2>7. Building your own harness</h2>
+<p>Anthropic's advice is to <span data-src="s5" data-quote="We suggest that developers start by using LLM APIs directly: many patterns can be implemented in a few lines of code." title="Anthropic — Building effective agents">“start by using LLM APIs directly: many patterns can be implemented in a few lines of code”</span> <a class="ref" href="#src-s5">[5]</a>. Here is a path from zero to something useful.</p>
+
+<ol class="steps">
+  <li><strong>Chat loop.</strong> Keep a <code>messages</code> list, append the user's input, call the API, append the reply, print it. Because the server is stateless, you resend the whole list every time.</li>
+  <li><strong>Define tools.</strong> Give each tool a name, a one-line description and a JSON schema for its inputs. Start with <code>read_file</code>, <code>list_files</code>, <code>edit_file</code> and <code>bash</code>, the same core set Pi uses.</li>
+  <li><strong>Inner tool loop.</strong> If the reply has tool calls, run each one, append the results with matching IDs, and call the model again. Stop when the reply is plain text. This is the agent.</li>
+  <li><strong>Safety.</strong> Add an allow/deny check before every tool runs (a hook), a turn cap and a spend cap. Run inside a container or VM if the agent can execute shell commands.</li>
+  <li><strong>Context management.</strong> Truncate huge tool outputs. When token usage nears the limit, ask the model to summarise older turns and replace them with the summary. Load a project rules file (<code>AGENTS.md</code>) into every request.</li>
+  <li><strong>Provider adapters.</strong> Keep one internal message format and write a small translator per API dialect. Make base URL, key and model name configuration, so switching from Claude to DeepSeek is a config change.</li>
+  <li><strong>Polish.</strong> Add streaming output, saved sessions (JSONL logs), MCP or CLI tools, subagents and a nicer UI. Or skip all this and build on an SDK such as the Claude Agent SDK, which gives you <span data-src="s2" data-quote="When you start an agent, the SDK runs the same execution loop that powers Claude Code" title="Claude Code Docs">“the same execution loop that powers Claude Code”</span> <a class="ref" href="#src-s2">[2]</a>.</li>
+</ol>
+
+<h3>A minimal harness in Python (works with DeepSeek, OpenAI, Ollama, OpenRouter…)</h3>
+<p class="note">Illustrative code written for this explainer, using the OpenAI-compatible Chat Completions format that DeepSeek documents <a href="#src-s13">[13]</a>. Change <code>BASE_URL</code> and <code>MODEL</code> to switch providers. It has no sandbox, so run it only in a throwaway folder or container.</p>
+<pre><code><span data-nocheck>import json, os, subprocess
+from openai import OpenAI          # pip install openai
+
+BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")   # or http://localhost:11434/v1 for Ollama
+MODEL    = os.getenv("LLM_MODEL",    "deepseek-flash")
+client   = OpenAI(base_url=BASE_URL, api_key=os.environ["LLM_API_KEY"])
+
+# 1) Tools: name + description + JSON schema. The model only *requests* these.
+TOOLS = [
+  {"type": "function", "function": {"name": "read_file", "description": "Read a text file",
+     "parameters": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}}},
+  {"type": "function", "function": {"name": "write_file", "description": "Create or overwrite a file",
+     "parameters": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+                    "required": ["path", "content"]}}},
+  {"type": "function", "function": {"name": "bash", "description": "Run a shell command, return output",
+     "parameters": {"type": "object", "properties": {"cmd": {"type": "string"}}, "required": ["cmd"]}}},
+]
+
+def run_tool(name, args):
+    # 2) Guardrail: the harness decides what is allowed.
+    if name == "bash" and any(bad in args["cmd"] for bad in ["rm -rf", "sudo"]):
+        return "DENIED by harness policy"
+    if name == "read_file":  return open(args["path"]).read()[:20_000]      # truncate big outputs
+    if name == "write_file": open(args["path"], "w").write(args["content"]); return "ok"
+    if name == "bash":
+        r = subprocess.run(args["cmd"], shell=True, capture_output=True, text=True, timeout=60)
+        return (r.stdout + r.stderr)[-20_000:]
+
+rules = open("AGENTS.md").read() if os.path.exists("AGENTS.md") else ""
+messages = [{"role": "system", "content": "You are a coding agent. Use tools to act.\n" + rules}]
+
+while True:                                          # outer loop: one user task per pass
+    messages.append({"role": "user", "content": input("you> ")})
+    for turn in range(30):                           # inner agent loop with a turn cap
+        reply = client.chat.completions.create(model=MODEL, messages=messages, tools=TOOLS).choices[0].message
+        messages.append(reply)                       # keep the assistant turn (incl. tool_calls)
+        if not reply.tool_calls:                     # no tool calls -> task done
+            print("agent>", reply.content); break
+        for call in reply.tool_calls:                # run every requested tool
+            out = run_tool(call.function.name, json.loads(call.function.arguments))
+            print(f"  [{call.function.name}] {str(out)[:120]}")
+            messages.append({"role": "tool", "tool_call_id": call.id, "content": str(out)})</span></code></pre>
+<p>That is a real, working agent. Everything Claude Code, Codex and OMP add on top (sandboxes, compaction, diff-based edits, subagents, LSP, session files, UIs, prompt caching discipline) is what turns the toy into a dependable tool. The Amp tutorial <a class="ref" href="#src-s8">[8]</a> builds the same thing step by step in Go against Claude, and is the best hands-on next step.</p>
+
+<h3>Build vs reuse: quick guide</h3>
+<table>
+<thead><tr><th>You want…</th><th>Sensible choice</th></tr></thead>
+<tbody>
+<tr><td>To understand how agents work</td><td>Write the loop above yourself, or follow the Amp tutorial <a href="#src-s8">[8]</a></td></tr>
+<tr><td>A product feature backed by Claude, with built-in tools, permissions and compaction</td><td>Claude Agent SDK (Python / TypeScript) <a href="#src-s2">[2]</a></td></tr>
+<tr><td>A coding agent that runs on many providers and models</td><td>OMP or Pi; both open source and extensible in TypeScript <a href="#src-s3">[3]</a><a href="#src-s6">[6]</a></td></tr>
+<tr><td>Claude Code's UX but on DeepSeek</td><td>Point <code>ANTHROPIC_BASE_URL</code> at DeepSeek's Anthropic endpoint <a href="#src-s4">[4]</a>, and expect some ignored features</td></tr>
+<tr><td>To study a production harness's internals</td><td>Codex CLI source (Apache-2.0) <a href="#src-s7">[7]</a> and OpenAI's “Unrolling the Codex agent loop”</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="gaps">
+<h2>What could not be confirmed</h2>
+<ul>
+  <li>OpenAI's original post “Unrolling the Codex agent loop” blocked automated reading. Codex facts on this page come from a third-party summary of that post (Engineering.fyi) <a href="#src-s10">[10]</a>, not the original text.</li>
+  <li>Claude Code's exact system prompt and full internal tool list aren't published in the sources used here, so this page describes behaviour from the Agent SDK documentation instead.</li>
+  <li>Nothing here was benchmarked. Comparisons reflect each project's own documentation.</li>
+</ul>
+</section>
+
+<!-- ============================================================ -->
+<section id="refs">
+<h2>References &amp; further reading</h2>
+<ol class="sources">
+  <li id="src-s2" value="2"><a href="https://code.claude.com/docs/en/agent-sdk/agent-loop">How the agent loop works</a>. Anthropic, Claude Code Docs (Agent SDK). Saved 11 Nov 2026.</li>
+  <li id="src-s3" value="3"><a href="https://github.com/can1357/oh-my-pi">oh-my-pi (omp): Coding agent with the IDE wired in</a>. Can Bölük / Stencil Labs, GitHub README. Saved 11 Nov 2026.</li>
+  <li id="src-s4" value="4"><a href="https://api-docs.deepseek.com/guides/anthropic_api/">Using the Anthropic API</a>. DeepSeek API Docs. Saved 11 Nov 2026.</li>
+  <li id="src-s5" value="5"><a href="https://www.anthropic.com/research/building-effective-agents">Building effective agents</a>. Anthropic, 19 Dec 2024. Saved 11 Nov 2026.</li>
+  <li id="src-s6" value="6"><a href="https://mariozechner.at/posts/2025-11-30-pi-coding-agent/">What I learned building an opinionated and minimal coding agent</a>. Mario Zechner, 30 Nov 2025. Saved 11 Nov 2026.</li>
+  <li id="src-s7" value="7"><a href="https://github.com/openai/codex">openai/codex: Lightweight coding agent that runs in your terminal</a>. OpenAI, GitHub. Saved 11 Nov 2026.</li>
+  <li id="src-s8" value="8"><a href="https://ampcode.com/notes/how-to-build-an-agent">How to Build an Agent (or: The Emperor Has No Clothes)</a>. Thorsten Ball, Amp, 15 Apr 2025. Saved 11 Nov 2026.</li>
+  <li id="src-s9" value="9"><a href="https://modelcontextprotocol.io/docs/getting-started/intro">What is the Model Context Protocol (MCP)?</a> MCP documentation. Saved 11 Nov 2026.</li>
+  <li id="src-s10" value="10"><a href="https://www.engineering.fyi/article/unrolling-the-codex-agent-loop">Unrolling the Codex agent loop (summary)</a>. Engineering.fyi summary of the OpenAI post by Michael Bolin (<a href="https://openai.com/index/unrolling-the-codex-agent-loop/">original</a>). Saved 11 Nov 2026.</li>
+  <li id="src-s11" value="11"><a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Effective harnesses for long-running agents</a>. Anthropic, 26 Nov 2025. Saved 11 Nov 2026.</li>
+  <li id="src-s13" value="13"><a href="https://api-docs.deepseek.com/guides/tool_calls/">Tool Calls</a>. DeepSeek API Docs. Saved 11 Nov 2026.</li>
+</ol>
+<p class="note">About MCP <a href="#src-s9">[9]</a>: it is <span data-src="s9" data-quote="MCP (Model Context Protocol) is an open-source standard for connecting AI applications to external systems.">“an open-source standard for connecting AI applications to external systems”</span>. Most harnesses (Claude Code, Codex, OMP) use it to plug in extra tools without code changes. Pi deliberately leaves it out.</p>
+</section>
+
+<section id="checked-numbers">
+  <h2>Checked numbers</h2>
+  <p class="note">Each figure was compared with the saved text of its source. A match means
+  the words are in the source as saved on the date shown; it does not prove the source is right.</p>
+  <div id="checked-list">Loading the check…</div>
+</section>
+<script>
+fetch('checks/index.html.json').then(r => r.json()).then(c => {
+  const s = c.summary, esc = t => String(t ?? '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  document.getElementById('checked-list').innerHTML =
+    `<p><strong>${s.verified}</strong> verified · <strong>${s.derived}</strong> derived · <strong>${s.failed}</strong> failed · checked ${new Date(c.checked_at).toLocaleString()}</p>` +
+    '<table><thead><tr><th>#</th><th>Figure</th><th>Status</th><th>Source</th><th>Evidence</th></tr></thead><tbody>' +
+    c.items.map(i => `<tr class="st-${i.status}"><td>${i.n}</td><td>${esc(i.text)}</td><td>${i.status}</td><td>${i.sources.map(esc).join(', ')}</td><td>${esc(i.status === 'derived' ? i.reason : i.quote)}${i.status === 'failed' ? '<br><em>' + esc(i.reason) + '</em>' : ''}</td></tr>`).join('') +
+    '</tbody></table>';
+}).catch(() => { document.getElementById('checked-list').textContent = 'The check has not been run for this page.'; });
+</script>
+
+</main>
+</body>
+</html>

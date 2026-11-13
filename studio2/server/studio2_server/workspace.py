@@ -149,9 +149,10 @@ def git(workspace: Path, *args: str, check: bool = True) -> str:
     return proc.stdout.decode("utf-8", "replace")
 
 
-def init_workspace(workspace: Path, title: str, template: Path | None = None, label: str = "Blank page") -> dict:
+def init_workspace(workspace: Path, title: str, template: Path | None = None, label: str = "Blank page",
+                   exact: bool = False) -> dict:
     """Create the workspace. `template` is a folder whose files are copied in; "{{title}}" in
-    text files becomes the project name."""
+    text files becomes the project name, unless `exact` (an example: its files are copied as they are)."""
     workspace.mkdir(parents=True, exist_ok=True)
     git(workspace, "init", "-q")
     if template and template.is_dir():
@@ -160,6 +161,9 @@ def init_workspace(workspace: Path, title: str, template: Path | None = None, la
                 continue
             target = workspace / source.relative_to(template)
             target.parent.mkdir(parents=True, exist_ok=True)
+            if exact:
+                shutil.copyfile(source, target)
+                continue
             try:
                 target.write_text(source.read_text("utf-8").replace("{{title}}", html.escape(title)), "utf-8")
             except UnicodeDecodeError:

@@ -1,0 +1,16 @@
+{
+ "title": "How AI agent harnesses work",
+ "summary": "An explainer of how coding-agent programs are built and how they differ, written from their own documentation.",
+ "kind": "explainer",
+ "order": 60,
+ "made": {
+  "model": "opus",
+  "date": "2026-11-11",
+  "requests": 1,
+  "duration_s": 278,
+  "depth": null,
+  "request": "How does harnesses work? How does Cloud Code OMP or Codex Harness work? And what it takes to create our own custom harness and use it along with different API models or large language models such as Anthropic Cloud or DeepSeq or any other. How does it exactly work? Explain me in simple terms with some diagrams, flowcharts and report on overall explaining how harnesses work, how can we make them or how are they made and showcase some references as well."
+ },
+ "sources": 13,
+ "check": null
+}

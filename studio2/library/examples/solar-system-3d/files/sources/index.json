@@ -1,0 +1,28 @@
+{
+  "sources": [
+    {
+      "id": "s1",
+      "url": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/",
+      "path": "sources/s1.txt",
+      "original": null,
+      "title": "Planetary Fact Sheet",
+      "kind": "html",
+      "fetched_at": "2026-11-11T20:55:13.098Z",
+      "chars": 2240,
+      "sha256": "d515c97a8be38de7c0a679f9f846ed67fec4c787906c68e494bc4e2930da9eb5",
+      "pages": null
+    },
+    {
+      "id": "s2",
+      "url": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/sunfact.html",
+      "path": "sources/s2.txt",
+      "original": null,
+      "title": "Sun Fact Sheet",
+      "kind": "html",
+      "fetched_at": "2026-11-11T20:55:15.154Z",
+      "chars": 2818,
+      "sha256": "03d9bb97670cd293deeb25a0f32394cee223fab4c72d0c438078a720a86f48c3",
+      "pages": null
+    }
+  ]
+}

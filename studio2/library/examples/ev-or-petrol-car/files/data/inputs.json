@@ -1,0 +1,54 @@
+{
+ "aaa2026": {
+  "Medium sedan": {
+   "ev":     {"fuel": 712.5, "maintenance": 1602, "depreciation": 6786, "insurance": 2070, "lrt": 1051, "finance": 1441},
+   "gas":    {"fuel": 2215,  "maintenance": 1827, "depreciation": 3330, "insurance": 1704, "lrt": 609,  "finance": 897},
+   "hybrid": {"fuel": 1436,  "maintenance": 1619, "depreciation": 3739, "insurance": 1706, "lrt": 689,  "finance": 1016}
+  },
+  "Compact SUV": {
+   "ev":     {"fuel": 771,  "maintenance": 1402, "depreciation": 5298, "insurance": 2277, "lrt": 931, "finance": 1208},
+   "gas":    {"fuel": 2382, "maintenance": 1954, "depreciation": 3568, "insurance": 2188, "lrt": 631, "finance": 933},
+   "hybrid": {"fuel": 1731, "maintenance": 1506, "depreciation": 3845, "insurance": 2294, "lrt": 739, "finance": 1087}
+  },
+  "Medium SUV": {
+   "ev":     {"fuel": 909,  "maintenance": 1784, "depreciation": 7077, "insurance": 2070, "lrt": 1052, "finance": 1440},
+   "gas":    {"fuel": 3066, "maintenance": 1829, "depreciation": 5052, "insurance": 2423, "lrt": 827,  "finance": 1235},
+   "hybrid": {"fuel": 2087, "maintenance": 1902, "depreciation": 4822, "insurance": 2534, "lrt": 940,  "finance": 1412}
+  },
+  "Pickup": {
+   "ev":     {"fuel": 1222, "maintenance": 1618, "depreciation": 8624, "insurance": 2294, "lrt": 1507, "finance": 2149},
+   "gas":    {"fuel": 3598, "maintenance": 1788, "depreciation": 6446, "insurance": 2139, "lrt": 1054, "finance": 1601},
+   "hybrid": {"fuel": 3153, "maintenance": 1539, "depreciation": 6370, "insurance": 2178, "lrt": 1148, "finance": 1730}
+  }
+ },
+ "aaa2026_src": "s51 AAA Your Driving Costs 2026 brochure, cost per year at 15k mi/yr",
+ "example": {
+  "ev_price": 37195, "gas_price_car": 31695,
+  "ev_dep_pct": 57.2, "gas_dep_pct": 41.8,
+  "miles": 15000,
+  "ev_kwh_per_100mi": 31, "gas_mpg": 27,
+  "home_price": 0.182, "dcfc_price": 0.540, "public_share": 0.20,
+  "gas_price": 3.89,
+  "ev_maint_per_mi": 0.061, "gas_maint_per_mi": 0.101,
+  "ev_ins": 2277, "gas_ins": 2188,
+  "ev_fee": 200
+ },
+ "example_src": {
+  "ev_price": "s69 Car and Driver 2027 Equinox EV starting MSRP",
+  "gas_price_car": "s70 Car and Driver 2027 Equinox starting MSRP",
+  "ev_dep_pct": "s14 iSeeCars 2026, EV average 5-year depreciation",
+  "gas_dep_pct": "s14 iSeeCars 2026, all-vehicle average 5-year depreciation",
+  "miles": "s51 AAA / s59 EPA assumption 15,000 mi/yr",
+  "ev_kwh_per_100mi": "s53 fueleconomy.gov 2026 Equinox EV FWD",
+  "gas_mpg": "s53 fueleconomy.gov 2026 Equinox FWD",
+  "home_price": "s17 EIA STEO Nov 2026, 2026 residential average",
+  "dcfc_price": "s81 Paren Q3 2026 DC fast charging average",
+  "public_share": "s91 DOE/NREL: 20% of charging at DC fast chargers (2030 projection)",
+  "gas_price": "s10 EIA STEO Nov 2026, 2026 average regular",
+  "ev_maint_per_mi": "s13 DOE/Argonne scheduled maintenance BEV",
+  "gas_maint_per_mi": "s13 DOE/Argonne scheduled maintenance ICEV",
+  "ev_ins": "s51 AAA 2026 compact SUV EV insurance",
+  "gas_ins": "s51 AAA 2026 compact SUV gas insurance",
+  "ev_fee": "s80 NCSL: Texas $200 annual EV fee (example state)"
+ }
+}

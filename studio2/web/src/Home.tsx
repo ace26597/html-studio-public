@@ -1,5 +1,7 @@
 // Home: the list of pages and one prominent way to start a new one.
 
+import type { Example } from "./examples";
+import { ExamplesSection } from "./ExamplesSection";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage } from "./api";
 import { appStateLabel, relativeTime } from "./format";
@@ -162,6 +164,25 @@ export function Home({ navigate, theme, onToggleTheme }: HomeProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [examples, setExamples] = useState<Example[]>([]);
+  const [opening, setOpening] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Examples are an extra: a studio without them, or one that cannot list them, shows none.
+    api.listExamples().then(setExamples, () => setExamples([]));
+  }, []);
+
+  const openExample = async (example: Example) => {
+    if (opening || creating) return;
+    setOpening(example.id);
+    try {
+      const project = await api.createProject({ example: example.id });
+      navigate(`/p/${project.id}`);
+    } catch (cause) {
+      toast({ message: errorMessage(cause), kind: "error" });
+      setOpening(null);
+    }
+  };
 
   const load = useCallback(() => {
     api.listProjects().then(
@@ -353,6 +374,7 @@ export function Home({ navigate, theme, onToggleTheme }: HomeProps) {
             </ul>
           </>
         )}
+        {projects && <ExamplesSection examples={examples} opening={opening} onOpen={(example) => void openExample(example)} />}
       </main>
       {dialogOpen && (
         <NewProjectDialog

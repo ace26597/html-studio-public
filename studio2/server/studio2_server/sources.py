@@ -191,6 +191,13 @@ class Sources:
         raise SourceError(f"There is no source “{source_id}” in this project. "
                           "Use fetch_source or add_source first; sources/index.json lists what exists.")
 
+    def has_text(self, item: dict) -> bool:
+        return bool(item.get("path")) and (self.workspace / item["path"]).is_file()
+
+    def without_text(self) -> list[str]:
+        """The ids of listed sources whose saved text is not in the project."""
+        return [item["id"] for item in self.list() if not self.has_text(item)]
+
     def text(self, source_id: str) -> str:
         item = self.get(source_id)
         try:
@@ -209,9 +216,12 @@ class Sources:
         return None
 
     def save(self, *, text: str, title: str, kind: str, url: str | None, pages: int | None = None,
-             original: bytes | None = None, original_ext: str = "", requested: str | None = None) -> tuple[dict, bool]:
+             original: bytes | None = None, original_ext: str = "", requested: str | None = None,
+             into: str | None = None) -> tuple[dict, bool]:
         """→ (source, created). The same URL with the same text returns the existing source.
-        `requested` is the address that was asked for, kept when it differs from where it ended up."""
+        `requested` is the address that was asked for, kept when it differs from where it ended up.
+        `into`: an existing source whose text file is missing (a copy of an example ships the list
+        without the text): the text is written back under that id, so the page's marks still point at it."""
         asked = [requested] if requested and same_address(requested) != same_address(url) else []
         text = text[:MAX_TEXT]
         if len(text.strip()) < 20:
@@ -219,6 +229,14 @@ class Sources:
                               "try again with render: true).")
         digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
         items = self.list()
+        for item in items:
+            if into and item["id"] == into and not self.has_text(item):
+                self.folder.mkdir(parents=True, exist_ok=True)
+                item.update(path=f"sources/{into}.txt", chars=len(text), sha256=digest, fetched_at=now_iso(),
+                            kind=kind, pages=pages)
+                (self.workspace / item["path"]).write_text(text, "utf-8")
+                write_json_atomic(self.index_path, {"sources": items})
+                return item, True
         for item in items:
             if item.get("sha256") == digest and item.get("url") == url:
                 if asked and asked[0] not in (item.get("asked") or []):  # another way to the same page

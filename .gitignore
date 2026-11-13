@@ -2,6 +2,7 @@ __pycache__/
 .pytest_cache/
 .venv/
 *.pyc
-data/
+# The studio's own data folder, at the top only: an example that ships has a data/ folder of its own.
+/data/
 .playwright-mcp/
 .DS_Store

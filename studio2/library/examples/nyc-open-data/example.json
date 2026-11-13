@@ -1,0 +1,16 @@
+{
+ "title": "NYC open data explorer",
+ "summary": "An explorer of New York City's open data catalogue built from the city's public datasets: search, filter and profile what is published.",
+ "kind": "dashboard",
+ "order": 40,
+ "made": {
+  "model": "opus",
+  "date": "2026-11-12",
+  "requests": 2,
+  "duration_s": 3164,
+  "depth": null,
+  "request": "Grab all the open data we can find about Manhattan and New York City. A lot is public: street trees, parking, 311 complaints and much more. Check what can actually be fetched, then build a dashboard I can navigate, with details about each dataset. If something needs data you cannot reach, tell me."
+ },
+ "sources": 0,
+ "check": null
+}

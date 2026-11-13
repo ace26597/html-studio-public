@@ -63,6 +63,7 @@ def error(status: int, code: str, message: str) -> JSONResponse:
 class ProjectCreate(BaseModel):
     name: str | None = None
     template: str | None = None
+    example: str | None = None
 
 
 class InspectBody(BaseModel):
@@ -293,8 +294,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def list_templates():
         return studio.templates()
 
+    @app.get("/api/examples")
+    async def list_examples():
+        return studio.examples.list()
+
+    @app.get("/api/examples/{example_id}/preview")
+    async def example_preview(example_id: str):
+        image = studio.examples.preview(example_id)
+        if image is None:
+            raise ApiError(404, "no_preview", "This example has no picture.")
+        return FileResponse(image, media_type="image/jpeg", headers={"cache-control": "no-cache"})
+
     @app.post("/api/projects", status_code=201)
     async def create_project(body: ProjectCreate | None = None):
+        if body and body.example:
+            if body.template:
+                raise ApiError(400, "invalid_request", "Give an example or a template, not both.")
+            example = studio.examples.get(body.example)
+            if example is None:
+                raise ApiError(400, "unknown_example", "There is no such example.")
+            name = _clean_name(body.name) if (body.name or "").strip() else example["title"]
+            return studio.view(await studio.create_project(name, example=example["id"]))
         try:
             project = await studio.create_project(_clean_name(body.name if body else None),
                                                   (body.template if body else None) or "blank")

@@ -50,6 +50,11 @@ Detail: [what you can make, skills and connectors](studio2/docs/features.md) ·
 
 ## Examples
 
+**Eight finished pages come with the studio.** The home page lists them (reports, dashboards, explainers
+and a 3D scene, each with the model, the time it took and its sources); **Open a copy** makes one
+yours to read, change or draw on. The saved text of their sources is not included (it is other
+people's writing), so a check on a copy fetches each source again first.
+
 Three more real runs, recorded on 13 November 2026 on Claude Opus, waiting shown as a time-lapse.
 Click a picture for the full-size video, or watch
 [all three as one video](studio2/docs/demo/demo-full.mp4) (4 minutes 48 seconds).

@@ -1,0 +1,54 @@
+{
+  "page": "index.html",
+  "checked_at": "2026-11-11T20:57:13.691Z",
+  "summary": {
+    "verified": 0,
+    "derived": 0,
+    "failed": 0,
+    "unmarked_numbers": 5,
+    "sources_cited": 0,
+    "sources_unused": 2
+  },
+  "items": [],
+  "unmarked": [
+    {
+      "text": "The Moon's orbit is drawn about 35 times wider than the scale used for the planets' distances relative to Earth's drawn size so that it can be told apart from Earth. Its period (27.3 days) is real.",
+      "numbers": [
+        "35",
+        "27.3"
+      ],
+      "where": "What is not to scale"
+    },
+    {
+      "text": "Source: NASA Goddard Space Flight Center, Planetary Fact Sheet (updated 18 March 2025) and Sun Fact Sheet (updated 9 May 2024). The Sun's diameter is twice its volumetric mean radius of 695,700 km. The Moon's distance is from Earth. \u201cLength of day\u201d is the sola",
+      "numbers": [
+        "695,700"
+      ],
+      "where": "Figures used"
+    },
+    {
+      "text": "1200 \u00d7 630 px PNG, made from the same 3D scene, for use as a link preview.",
+      "numbers": [
+        "1200",
+        "630"
+      ],
+      "where": "Link preview picture"
+    }
+  ],
+  "sources": [
+    {
+      "id": "s1",
+      "title": "Planetary Fact Sheet",
+      "url": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/",
+      "fetched_at": "2026-11-11T20:55:13.098Z",
+      "cited": 0
+    },
+    {
+      "id": "s2",
+      "title": "Sun Fact Sheet",
+      "url": "https://nssdc.gsfc.nasa.gov/planetary/factsheet/sunfact.html",
+      "fetched_at": "2026-11-11T20:55:15.154Z",
+      "cited": 0
+    }
+  ]
+}

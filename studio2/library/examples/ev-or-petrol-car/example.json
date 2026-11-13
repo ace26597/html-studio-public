@@ -1,0 +1,22 @@
+{
+ "title": "Electric or petrol car: five-year cost",
+ "summary": "A deep, sourced comparison of what an electric and a petrol car cost over five years in the US, with every figure checked against its source.",
+ "kind": "report",
+ "order": 10,
+ "made": {
+  "model": "opus",
+  "date": "2026-11-13",
+  "requests": 2,
+  "duration_s": 1888,
+  "depth": "deep",
+  "request": "How much does it cost to own an electric car compared with a petrol car over five years in the US? Purchase price, fuel or electricity, maintenance, insurance, incentives that exist today. Charts where numbers help."
+ },
+ "sources": 115,
+ "check": {
+  "checked": 381,
+  "passed": 372,
+  "fixed": 9,
+  "failed": 0,
+  "unverifiable": 0
+ }
+}

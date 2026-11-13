@@ -1,0 +1,16 @@
+{
+ "title": "Earthquakes this week (USGS)",
+ "summary": "A dashboard built from one uploaded CSV file: a week of earthquakes of magnitude 2.5 and above from the USGS feed.",
+ "kind": "dashboard",
+ "order": 50,
+ "made": {
+  "model": "opus",
+  "date": "2026-11-10",
+  "requests": 4,
+  "duration_s": 183,
+  "depth": null,
+  "request": "Make a dashboard from this file."
+ },
+ "sources": 0,
+ "check": null
+}

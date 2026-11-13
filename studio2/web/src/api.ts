@@ -1,3 +1,4 @@
+import type { Example } from "./examples";
 import type { TurnOptions } from "./effort";
 import type {
   AppInfo,
@@ -150,12 +151,14 @@ export const api = {
   health: (signal?: AbortSignal) => request<Health>("GET", "/health", undefined, signal),
 
   listProjects: () => request<Project[]>("GET", "/projects"),
-  createProject: (options: { name?: string; template?: string } = {}) => {
+  createProject: (options: { name?: string; template?: string; example?: string } = {}) => {
     const body: Record<string, string> = {};
     if (options.name) body.name = options.name;
     if (options.template) body.template = options.template;
+    if (options.example) body.example = options.example;
     return request<Project>("POST", "/projects", body);
   },
+  listExamples: () => request<Example[]>("GET", "/examples"),
   getShip: (id: string) => request<ShipView>("GET", `/projects/${enc(id)}/ship`),
   setShipRecipe: (id: string, recipe: ShipRecipe) =>
     request<ShipView>("PUT", `/projects/${enc(id)}/ship/recipe`, { recipe }),

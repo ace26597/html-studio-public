@@ -14,7 +14,7 @@ Handoff · [Attaching an app](ATTACH.md)
 | `server/studio2_server/` | The FastAPI server and the `studio` command |
 | `web/` | The interface: React 19, Vite, TypeScript. Built into `web/dist`, which the server serves |
 | `web/mock/` | A stand-in server for interface work (`npm run mock`); not shipped |
-| `library/` | What the agent is given: `system-prompt.md`, 20 skills, 2 sub-agents, 6 starting templates, suggested connectors |
+| `library/` | What the agent is given: `system-prompt.md`, 20 skills, 2 sub-agents, 6 starting templates, 8 finished examples (`examples/`, made from real projects with `tools/examples/add.py`), suggested connectors |
 | `tests/` | Server tests. They run on the scripted agent and make no model call |
 | `install.sh` | The installer described on the front page |
 | `litellm-requirements.txt` | LiteLLM 1.102.1 and its packages, pinned by hash |
