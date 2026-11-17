@@ -94,7 +94,8 @@ def reported_free(row: dict, rates: tuple = ()) -> bool:
     cost = (usage or {}).get("cost") if isinstance(usage, dict) else None
     if row.get("custom_llm_provider") == "openrouter" and _number(cost) and cost == 0:
         return True
-    return prices.free_request(row.get("model") or row.get("model_group"), row.get("spend"), rates)
+    return any(prices.free_request(name, row.get("spend"), rates)
+               for name in {row.get("model"), row.get("model_group")} if name)
 
 
 def basis_of(priced: int, reported: int) -> str | None:
@@ -482,6 +483,11 @@ class Costs:
                 reached[turn["session"]] = total
             elif _number(usage.get("session_cost_usd")) and turn.get("session"):
                 reached[turn["session"]] = float(usage["session_cost_usd"])
+            elif (kinds.get(turn["connection"]) in SELF_PRICED and turn.get("session") and "cost_estimated" not in usage
+                  and _is_price(usage.get("cost_usd"))):
+                # A gateway turn written before Step 2: its figure is the agent program's running total,
+                # never its price, but the conversation's mark (a 0 says nothing).
+                reached[turn["session"]] = float(usage["cost_usd"])
             if cost is not None:
                 value, estimated, basis = cost.get("cost_usd"), False, cost.get("basis")
                 requests, unpriced = int(cost.get("requests") or 0), int(cost.get("unpriced") or 0)

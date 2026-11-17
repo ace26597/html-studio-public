@@ -132,6 +132,181 @@ def test_python_app_starts_from_what_the_install_makes(tmp_path, files, python):
     assert found["run"].startswith(f"exec {python} -m uvicorn main:api"), found["run"]
 
 
+FASTAPI = "from fastapi import FastAPI\napi = FastAPI()\n"
+PIP = "uv venv -q && uv pip install -q -r requirements.txt"
+
+
+@pytest.mark.parametrize("package,lock,kind,run_starts,both_note", [
+    # Only build tools in package.json: the Python back end is the app, started from its .venv.
+    ({"devDependencies": {"tailwindcss": "4"}}, None, "fastapi", "exec .venv/bin/python -m uvicorn main:api", False),
+    # A known front end wins the one start command; the back end is installed and said to be not started.
+    ({"devDependencies": {"vite": "7"}}, "package-lock.json", "vite", "exec npx vite", True),
+])
+def test_a_node_and_python_folder_gets_both_installs(tmp_path, package, lock, kind, run_starts, both_note):
+    (tmp_path / "package.json").write_text(json.dumps(package))
+    if lock:
+        (tmp_path / lock).write_text("{}")
+    (tmp_path / "requirements.txt").write_text("fastapi\nuvicorn\n")
+    (tmp_path / "main.py").write_text(FASTAPI)
+    found = attach.detect(tmp_path)
+    node = "npm ci" if lock else "npm install"
+    # The Python app that starts needs its packages: joined by &&. A Node app that starts does
+    # not: the Python install may fail without stopping it.
+    joined = f"{node} && {PIP}" if kind == "fastapi" else f"{node} && ( {PIP} || echo "
+    assert joined in found["install"], found["install"]
+    assert found["package_manager"] == "npm"
+    assert found["framework"]["id"] == kind
+    assert run_starts in found["run"], found["run"]
+    notes = attach.inspect(str(tmp_path), [], tmp_path.parent / "home", set())["notes"]
+    said = [note for note in notes if "back end" in note]
+    assert bool(said) == both_note, notes
+    if both_note:
+        assert "FastAPI" in said[0] and "not started" in said[0]
+
+
+def test_a_project_pyproject_is_installed_with_uv_sync(tmp_path):
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0"\ndependencies = ["fastapi"]\n')
+    (tmp_path / "main.py").write_text(FASTAPI)
+    found = attach.detect(tmp_path)
+    assert found["install"] == "uv sync" and found["run"].startswith("exec uv run python -m uvicorn")
+    (tmp_path / "pyproject.toml").write_text("[tool.poetry]\nname = 'x'\n")   # not something uv can sync
+    assert attach.detect(tmp_path)["install"] is None
+
+
+@pytest.mark.parametrize("extra,warned", [
+    ({}, True),                                               # only .venv: a copy cannot make it again
+    ({"requirements.txt": "fastapi\n"}, False),
+    ({"pyproject.toml": '[project]\nname = "x"\nversion = "0"\n'}, False),
+    ({"uv.lock": ""}, False),
+])
+def test_a_venv_only_app_is_said_not_to_start_as_a_copy(tmp_path, extra, warned):
+    (tmp_path / "main.py").write_text(FASTAPI)
+    (tmp_path / ".venv" / "bin").mkdir(parents=True)
+    for name, content in extra.items():
+        (tmp_path / name).write_text(content)
+    found = attach.inspect(str(tmp_path), [], tmp_path.parent / "home", set())
+    said = [note for note in found["notes"] if "will not start" in note]
+    assert bool(said) == warned, found["notes"]
+    if warned:
+        assert ".venv" in said[0] and "in place" in said[0] and "requirements.txt" in said[0]
+        assert found["refused"]["copy"] is None              # said, not refused: the agent can still set it up
+
+
+# -- a Python part beside a Node app: installed only on evidence, never in the Node app's way --
+VITE = json.dumps({"name": "x", "scripts": {"dev": "vite"}, "devDependencies": {"vite": "^5"}})
+TOOLING = ("[project]\nname='tools'\nversion='0.1'\ndependencies=['pre-commit']\n"
+           "[build-system]\nrequires=['hatchling']\nbuild-backend='hatchling.build'\n")
+
+
+def make_files(folder: Path, files: dict) -> Path:
+    for rel, text in files.items():
+        (folder / rel).parent.mkdir(parents=True, exist_ok=True)
+        (folder / rel).write_text(text)
+    return folder
+
+
+@pytest.mark.parametrize("files,named", [
+    # The reviewer's folders (review4-work finding 3): each installed with npm alone and started
+    # before 6951f3dc, and must again.
+    ({"package.json": VITE, "requirements.txt": "mkdocs-material==9.5.0\n", "index.html": "<h1>x</h1>"},
+     "requirements.txt"),
+    ({"package.json": VITE, "index.html": "<h1>x</h1>", "pyproject.toml": TOOLING}, "pyproject.toml"),
+    ({"package.json": VITE, "index.html": "<h1>x</h1>", "uv.lock": ""}, "uv.lock"),
+    ({"package.json": VITE, "index.html": "<h1>x</h1>", "pyproject.toml": "[tool.ruff]\nline-length=100\n"}, None),
+])
+def test_a_node_app_with_python_docs_or_tooling_installs_only_node(tmp_path, files, named):
+    found = attach.inspect(str(make_files(tmp_path, files)), [], tmp_path.parent / "home", set())
+    assert found["install"] == "npm install", found["install"]
+    assert found["framework"]["id"] == "vite" and found["run"].startswith("exec npx vite")
+    said = [note for note in found["notes"] if "not installed" in note]
+    if named:
+        assert len(said) == 1 and named in said[0] and "Node packages" in said[0], found["notes"]
+    else:                                                     # nothing Python to install: nothing to say
+        assert not said, found["notes"]
+
+
+def test_a_monorepo_installs_at_the_top_and_says_so(tmp_path):
+    folder = make_files(tmp_path, {
+        "package.json": json.dumps({"name": "mono", "private": True, "workspaces": ["apps/*"]}),
+        "apps/web/package.json": VITE, "pyproject.toml": "[project]\nname='mono'\nversion='0'\n"})
+    found = attach.inspect(str(folder), [], tmp_path.parent / "home", set())
+    assert found["install"] == "npm install", found["install"]      # as before 6951f3dc: no uv sync
+    assert any("several packages" in note for note in found["notes"]), found["notes"]
+    (folder / "package.json").write_text(json.dumps({"name": "mono"}))
+    (folder / "pnpm-workspace.yaml").write_text("packages:\n  - apps/*\n")
+    found = attach.inspect(str(folder), [], tmp_path.parent / "home", set())
+    assert any("several packages" in note for note in found["notes"]), found["notes"]
+
+
+def test_a_typed_python_start_command_is_evidence_for_the_python_install(tmp_path):
+    folder = make_files(tmp_path, {"package.json": VITE, "requirements.txt": "requests\n", "serve.py": ""})
+    assert attach.detect(folder)["install"] == "npm install"
+    assert attach.install_for(folder, "exec .venv/bin/python serve.py") == f"npm install && {PIP}"
+    assert attach.install_for(folder, "exec uv run python serve.py") == f"npm install && {PIP}"
+    assert attach.install_for(folder, "exec npx vite --port $PORT") == "npm install"
+    # A Python-only folder keeps its install whatever start command is typed (as before today).
+    (folder / "package.json").unlink()
+    assert attach.install_for(folder, "exec npx serve") == PIP
+
+
+def run_setup(folder: Path, install: str, uv_exit: int, bin_dir: Path) -> subprocess.CompletedProcess:
+    """The install as apps.py runs it (`{ setup ; } && <start>`), with npm and uv stand-ins."""
+    bin_dir.mkdir(exist_ok=True)
+    for name, code in (("npm", 0), ("uv", uv_exit)):
+        (bin_dir / name).write_text(f"#!/bin/sh\necho {name} \"$@\"\nexit {code}\n")
+        (bin_dir / name).chmod(0o755)
+    return subprocess.run(["/bin/sh", "-c", f"{{ {install} ; }} && echo APP-STARTED"], cwd=folder,
+                          env={**os.environ, "PATH": f"{bin_dir}:/usr/bin:/bin"}, capture_output=True, text=True)
+
+
+def test_a_failed_python_install_does_not_stop_a_node_app(tmp_path):
+    folder = make_files(tmp_path / "app", {"package.json": VITE, "requirements.txt": "no-such-package-zz\n",
+                                           "main.py": FASTAPI})
+    found = attach.inspect(str(folder), [], tmp_path / "home", set())
+    assert found["framework"]["id"] == "vite"
+    note = next(note for note in found["notes"] if "back end" in note)
+    assert "still starts" in note, note
+    done = run_setup(folder, found["install"], 1, tmp_path / "bin")
+    assert "APP-STARTED" in done.stdout, (done.stdout, done.stderr)
+    assert "[studio] The Python packages could not be installed" in done.stdout
+    ok = run_setup(folder, found["install"], 0, tmp_path / "bin")
+    assert "APP-STARTED" in ok.stdout and "could not be installed" not in ok.stdout
+
+
+def test_a_failed_python_install_still_stops_the_python_app_that_needs_it(tmp_path):
+    # Scripts-only package.json beside a real Flask app: the Flask app is what starts.
+    folder = make_files(tmp_path / "app", {"package.json": json.dumps({"scripts": {"lint": "eslint ."}}),
+                                           "requirements.txt": "flask\n",
+                                           "app.py": "from flask import Flask\napp = Flask(__name__)\n"})
+    found = attach.detect(folder)
+    assert found["framework"]["id"] == "flask" and found["run"].startswith("exec .venv/bin/python -m flask")
+    assert found["install"] == f"npm install && {PIP}"
+    assert "APP-STARTED" not in run_setup(folder, found["install"], 1, tmp_path / "bin").stdout
+
+
+async def test_a_typed_python_start_command_gets_the_python_install_over_http(client, studio, tmp_path):
+    folder = make_files(tmp_path / "apps" / "mixed", {"package.json": VITE, "requirements.txt": "requests\n",
+                                                      "serve.py": ""})
+    looked = (await client.post("/api/apps/inspect", json={"path": str(folder)})).json()
+    assert looked["install"] == "npm install"
+    project = (await client.post("/api/projects/attach", json={
+        "path": str(folder), "run": "exec .venv/bin/python serve.py"})).json()
+    assert project["attach"]["install"] == f"npm install && {PIP}", project["attach"]
+    await client.post(f"/api/projects/{project['id']}/app/stop")
+
+
+async def test_a_venv_only_copy_that_is_made_anyway_says_why_it_does_not_start(client, studio, tmp_path):
+    folder = tmp_path / "apps" / "flaskapp"
+    (folder / ".venv" / "bin").mkdir(parents=True)
+    (folder / "app.py").write_text("from flask import Flask\napp = Flask(__name__)\n")
+    project = (await client.post("/api/projects/attach", json={"path": str(folder)})).json()
+    pid = project["id"]
+    await wait_for(lambda: studio.app(pid) is not None and studio.app(pid).state == "crashed")
+    assert studio.app(pid).run.startswith("exec .venv/bin/python")
+    log = "\n".join(line["text"] for line in studio.app(pid).logs()["lines"])
+    assert "[studio]" in log and "no .venv" in log and "requirements.txt" in log, log
+
+
 async def test_inspect_refuses_what_must_not_be_attached(client, settings, tmp_path):
     settings.home.mkdir(parents=True, exist_ok=True)
     cases = {

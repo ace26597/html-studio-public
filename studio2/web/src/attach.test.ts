@@ -6,6 +6,7 @@ import {
   attachLabel,
   attachRequest,
   defaultAttachName,
+  envSkippedNote,
   formatBytes,
   shortPath,
   sizeLine,
@@ -99,5 +100,31 @@ describe("attach helpers", () => {
       attachRequest(inspection, { ...choices, mode: "in_place", address: " localhost:5173 ", envFiles: [".env"], name: " Mine " }),
     ).toEqual({ path: "/Users/sam/dev/site", mode: "in_place", run: "npm run dev", address: "localhost:5173", name: "Mine" });
     expect(defaultAttachName(inspection, "in_place")).toBe("site (in place)");
+  });
+});
+
+describe("key files a copy did not take (env_skipped)", () => {
+  const link = { name: ".env", reason: "it is a link, and the studio never copies links" };
+  const gone = { name: ".env.local", reason: "not found in the folder" };
+
+  it("says nothing when every ticked file was copied, or for an older record", () => {
+    expect(envSkippedNote({ ...record, env_skipped: [] })).toBeNull();
+    expect(envSkippedNote(record)).toBeNull();
+  });
+
+  it("names each file, why, and what to do", () => {
+    const one = envSkippedNote({ ...record, env_skipped: [link] })!;
+    expect(one).toContain("The key file .env was not copied: it is a link, and the studio never copies links.");
+    expect(one).toContain("replace the link in ~/dev/site with a real file");
+    expect(one).toContain("make the copy again");
+    const two = envSkippedNote({ ...record, env_skipped: [link, gone] })!;
+    expect(two).toContain("2 key files were not copied: .env (it is a link");
+    expect(two).toContain(".env.local (not found in the folder)");
+    expect(two).toContain("check that it is still in ~/dev/site");
+  });
+
+  it("is kept in the project's own line about where it came from", () => {
+    expect(attachDetail({ ...record, env_skipped: [link] })).toContain("1 key file not copied (.env)");
+    expect(attachDetail(record)).not.toContain("key file");
   });
 });

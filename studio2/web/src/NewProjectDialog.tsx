@@ -4,6 +4,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { api, errorMessage } from "./api";
 import { AttachForm } from "./AttachForm";
 import { Icon, Spinner } from "./icons";
+import { useDialogFocus } from "./dialogFocus";
+import { DialogHead } from "./Modal";
 import { groupTemplates, templateKindLabel, templateOrigin, templatePreviewSrc, templateStartLine } from "./templates";
 import type { AttachRequest, Template } from "./types";
 
@@ -33,13 +35,10 @@ export function NewProjectDialog({ creating, createError, onCreate, onAttach, on
   const [attempt, setAttempt] = useState(0);
   const [chosen, setChosen] = useState<string>(DEFAULT_TEMPLATE);
   const dialog = useRef<HTMLDivElement>(null);
-  const restoreFocus = useRef<HTMLElement | null>(null);
   const titleId = useId();
 
-  useEffect(() => {
-    restoreFocus.current = document.activeElement as HTMLElement | null;
-    return () => restoreFocus.current?.focus?.();
-  }, []);
+  // Focus goes in (the dialog itself while the templates load) and comes back; Tab stays inside.
+  useDialogFocus(dialog);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -134,22 +133,10 @@ export function NewProjectDialog({ creating, createError, onCreate, onAttach, on
           event.stopPropagation();
           if (!creating) onClose();
         }
-        if (event.key === "Tab") {
-          const focusable = Array.from(
-            dialog.current?.querySelectorAll<HTMLElement>(
-              'button:not(:disabled), [tabindex="0"], a[href], input:not(:disabled)',
-            ) ?? [],
-          );
-          if (!focusable.length) return;
-          const index = focusable.indexOf(document.activeElement as HTMLElement);
-          event.preventDefault();
-          const next = (index + (event.shiftKey ? focusable.length - 1 : 1) + focusable.length) % focusable.length;
-          focusable[next]?.focus();
-        }
       }}
     >
-      <div className="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={dialog}>
-        <h2 id={titleId}>New page</h2>
+      <div className="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} ref={dialog}>
+        <DialogHead titleId={titleId} title="New page" onClose={onClose} busy={creating} />
         <div className="newpage-tabs" role="tablist" aria-label="Start from">
           {(
             [

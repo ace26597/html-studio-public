@@ -594,6 +594,31 @@ async def test_the_replay_reads_an_older_conversation_the_same_way_as_the_live_p
     assert total["charged_usd"] == pytest.approx(0.5) and total["plan_equivalent_usd"] == pytest.approx(1.0)
 
 
+async def test_a_gateway_turn_from_before_step_2_moves_the_conversations_mark(client, studio, project, monkeypatch):
+    """The log as it was written before Step 2 (10 November 2026): no `cost_estimated`, and a gateway
+    turn's `cost_usd` was the agent program's running total. The plan turn after it was counted the
+    gateway turn's growth again (2.0 where its own part is 0.5)."""
+    pid = project["id"]
+    monkeypatch.setattr(studio.registry, "connections", lambda: [{**CONNECTION, "id": "plan", "kind": "claude-subscription"},
+                                                                  {**CONNECTION, "id": "gw", "kind": "anthropic-gateway"}])
+    events = studio.log(pid)
+
+    def turn(name, connection, usage, status="completed"):
+        events.append("turn_started", name, text="x", connection=connection, model="m")
+        events.append("turn_finished", name, status=status, error=None, session_id="s1",
+                      usage={"input_tokens": 1, "output_tokens": 1, "duration_ms": 1, **usage})
+
+    turn("t_1", "plan", {"cost_usd": 1.0, "cost_estimated": True})
+    turn("t_2", "gw", {"cost_usd": 0}, status="failed")      # before Step 2: a 0 says nothing
+    turn("t_3", "gw", {"cost_usd": 2.5})                      # before Step 2: the program's running total
+    turn("t_4", "plan", {"cost_usd": 3.0, "cost_estimated": True})
+    total = (await client.get(f"/api/projects/{pid}/cost")).json()
+    by_id = {t["turn_id"]: t for t in total["turns"]}
+    assert by_id["t_3"]["kind"] == "unpriced"                 # still no price of its own
+    assert by_id["t_4"]["cost_usd"] == pytest.approx(0.5)
+    assert total["plan_equivalent_usd"] == pytest.approx(1.5) and total["charged_usd"] == 0
+
+
 async def test_older_turns_that_stored_the_running_total_are_read_as_their_own_part(client, studio, project, monkeypatch):
     pid = project["id"]
     monkeypatch.setattr(studio.registry, "connections", lambda: [{**CONNECTION, "id": "subscription", "kind": "claude-subscription"},

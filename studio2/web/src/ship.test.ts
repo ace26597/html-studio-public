@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { formRecipe, progressSteps, recipeForm, shipButton } from "./ship";
-import type { ShipRecipe, ShipRecord, ShipView } from "./types";
+import {
+  METHOD_LABEL,
+  allowLabel,
+  cardTitle,
+  codeParts,
+  formRecipe,
+  offerUpdate,
+  progressSteps,
+  recipeForm,
+  shipButton,
+  shipResultText,
+  startNotice,
+  updateNotice,
+} from "./ship";
+import type { ShipCard, ShipRecipe, ShipRecord, ShipView } from "./types";
 
 const recipe: ShipRecipe = {
   checks: ["npm test"],
@@ -75,8 +88,27 @@ describe("button", () => {
     expect(shipButton(view({ confirmed: false })).state).toBe("setup");
     expect(shipButton(view({})).state).toBe("idle");
     expect(shipButton(view({ running: "s_1" })).state).toBe("running");
-    const card = { ship_id: "s_1" } as ShipView["card"];
+    const card = { ship_id: "s_1", method: "merge", commands: [], address: null } as unknown as ShipView["card"];
     expect(shipButton(view({ running: "s_1", card })).state).toBe("waiting");
+  });
+  it("uses the card's words for each method, never 'live' for a branch", () => {
+    const branch = { ...recipe, method: "branch" as const };
+    const branchCard = { ship_id: "s_1", method: "branch", commands: [], address: null } as unknown as ShipCard;
+    const waiting = shipButton(view({ recipe: branch, running: "s_1", card: branchCard }));
+    expect(waiting.label).toBe("Allow and leave the branch");
+    expect(waiting.short).toBe("Allow");
+    const running = shipButton(view({ recipe: branch, running: "s_1" }));
+    expect(running.label).toBe("Leaving the branch…");
+    expect(`${running.label} ${running.short}`).not.toMatch(/live/i);
+
+    const liveCard = { ship_id: "s_1", method: "merge", commands: ["npm run build"], address: null } as unknown as ShipCard;
+    expect(shipButton(view({ running: "s_1", card: liveCard })).label).toBe("Allow and make it live");
+    expect(shipButton(view({ running: "s_1" })).label).toBe("Making it live…");
+    const quiet = { ...recipe, after: [], address: null };
+    expect(shipButton(view({ recipe: quiet, running: "s_1" })).label).toBe("Merging…");
+    expect(shipButton(view({ recipe: { ...quiet, method: "files" }, running: "s_1" })).label).toBe("Copying the files…");
+    const quietCard = { ship_id: "s_1", method: "merge", commands: [], address: null } as unknown as ShipCard;
+    expect(shipButton(view({ recipe: quiet, running: "s_1", card: quietCard })).label).toBe("Allow and merge");
   });
 });
 
@@ -120,5 +152,60 @@ describe("progress", () => {
       null,
     );
     expect(steps.map((step) => step.state)).toEqual(["ok", "ok", "failed", "ok"]);
+  });
+});
+
+describe("what the panel says", () => {
+  const shipped = (method: "branch" | "merge" | "files" | "none", after: string[], address: string | null = null) =>
+    record({ result: "shipped", recipe: { ...recipe, method, after, address }, plan: { method, base: "a", head: "b", where: "/x", writes: [] } });
+
+  it("calls a ship live only when something ran or answered", () => {
+    expect(shipResultText(shipped("merge", [])).label).toBe("Merged");
+    expect(shipResultText(shipped("files", [])).label).toBe("Files copied");
+    expect(shipResultText(shipped("none", [])).label).toBe("Done");
+    expect(shipResultText(shipped("branch", ["npm run build"])).label).toBe("Branch left");
+    expect(shipResultText(shipped("merge", ["pm2 restart site"])).label).toBe("Live");
+    expect(shipResultText(shipped("files", [], "http://127.0.0.1:3020/")).label).toBe("Live");
+    expect(shipResultText(record({ result: "back_failed" })).label).toBe("Going back did not finish");
+  });
+
+  it("words the allow button by what it does", () => {
+    const card = (method: ShipCard["method"], commands: ShipCard["commands"], address: string | null = null) =>
+      ({ method, commands, address }) as ShipCard;
+    expect(allowLabel(card("branch", []))).toBe("Allow and leave the branch");
+    expect(allowLabel(card("merge", []))).toBe("Allow and merge");
+    expect(allowLabel(card("files", []))).toBe("Allow and copy the files");
+    expect(allowLabel(card("none", []))).toBe("Allow");
+    expect(allowLabel(card("merge", [{ command: "pm2 restart site", where: "/x" }]))).toBe("Allow and make it live");
+    expect(allowLabel(card("none", [], "http://127.0.0.1:3020/"))).toBe("Allow and make it live");
+    expect(cardTitle(card("branch", []))).toBe("Allow leaving this branch in the original?");
+    expect(cardTitle(card("merge", []))).toBe("Allow this change into the original?");
+    expect(cardTitle(card("merge", [{ command: "pm2 restart site", where: "/x" }]))).toBe("Allow this change to go live?");
+  });
+
+  it("names the merge method as the card does", () => {
+    expect(METHOD_LABEL.merge).toBe("Merge into the original's checked-out branch (fast-forward only)");
+    expect(METHOD_LABEL.none).toBe("Nothing to move: the folder is edited in place");
+  });
+
+  it("shows commands between backticks as code", () => {
+    expect(codeParts("then `git reset --keep abc1234` in /x.")).toEqual([
+      { text: "then ", code: false },
+      { text: "git reset --keep abc1234", code: true },
+      { text: " in /x.", code: false },
+    ]);
+    expect(codeParts("a lone ` stays")).toEqual([{ text: "a lone ` stays", code: false }]);
+  });
+
+  it("keeps one current message, and offers the update after a moved-on refusal or an update", () => {
+    const movedOn = startNotice("The original's main has moved on since the copy last matched it.");
+    expect(movedOn).toEqual({ kind: "start", ok: false, text: "The original's main has moved on since the copy last matched it." });
+    expect(offerUpdate(true, movedOn)).toBe(true);
+    expect(offerUpdate(false, movedOn)).toBe(false);
+    expect(offerUpdate(true, startNotice("The original has uncommitted changes (index.html)."))).toBe(false);
+    const conflict = updateNotice(false, "The original's new commits conflict with the copy's changes in index.html.");
+    expect(conflict.kind).toBe("update");
+    expect(offerUpdate(true, conflict)).toBe(true);
+    expect(offerUpdate(true, null)).toBe(false);
   });
 });

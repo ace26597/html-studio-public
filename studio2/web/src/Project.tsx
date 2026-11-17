@@ -27,7 +27,8 @@ import { Preview, type PreviewHandle } from "./Preview";
 import { refreshFailure, REFRESH_RETRY_MS } from "./projectLoad";
 import { mayDiscard } from "./discard";
 import { escapeTarget, MODAL_SELECTOR } from "./escape";
-import type { Navigate } from "./router";
+import { holdUnload, setLeaveGuard, type Navigate } from "./router";
+import { holdSignIn } from "./signIn";
 import { loadString, saveString } from "./storage";
 import type { Theme } from "./theme";
 import { drawingHoldsReload, heldReloadNote, shouldReloadPreview, type ReloadReason } from "./reload";
@@ -692,6 +693,16 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   const closeFiles = useCallback(() => {
     if (mayDiscard(filesDirty.current, (question) => window.confirm(question))) setFilesOpen(false);
   }, []);
+  // Leaving the project ("All pages", Library or Setup, the browser's Back) asks the same
+  // question; closing or reloading the tab gets the browser's own.
+  useEffect(() => setLeaveGuard(() => mayDiscard(filesDirty.current, (question) => window.confirm(question))), []);
+  // A 401 while there are edits keeps the tab here and asks for signing in in a new tab.
+  useEffect(() => holdSignIn(() => filesDirty.current), []);
+  useEffect(() => {
+    const onUnload = (event: BeforeUnloadEvent) => holdUnload(event, filesDirty.current);
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, []);
 
   // ---- keyboard ---------------------------------------------------------------------
   useEffect(() => {
@@ -931,10 +942,11 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             <button
               type="button"
               className={`ship-btn is-${shipState.state} is-compact`}
+              aria-label={shipState.label}
               onClick={() => setShipOpen(true)}
             >
               {shipState.state === "running" ? <Spinner size={13} /> : <Icon name="play" size={13} />}
-              <span>{shipState.state === "waiting" ? "Allow" : shipState.state === "running" ? "Live…" : "Make live"}</span>
+              <span>{shipState.short}</span>
             </button>
           )}
           <Menu

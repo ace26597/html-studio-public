@@ -1,7 +1,7 @@
 // Make it live: the recipe, the card the person allows, live progress, the result and the
 // history of ships (CONTRACT.md, "Ship: make it live"). Opened from the top bar's button.
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { api, errorMessage } from "./api";
 import { fileStatus, relativeTime } from "./format";
 import { Icon, Spinner } from "./icons";
@@ -9,13 +9,20 @@ import { Modal } from "./Modal";
 import {
   METHOD_LABEL,
   METHOD_SHORT,
+  allowLabel,
+  cardTitle,
+  codeParts,
   confirmedBy,
   formRecipe,
+  offerUpdate,
   progressSteps,
   recipeForm,
-  resultText,
+  shipResultText,
+  startNotice,
+  updateNotice,
   type ProgressStep,
   type RecipeForm,
+  type ShipNotice,
 } from "./ship";
 import type { Project, ShipCard, ShipRecord, ShipStepEvent, ShipView } from "./types";
 
@@ -39,9 +46,13 @@ export function ShipPanel({ project, view, liveStep, tick, initialTab, onClose, 
   const [records, setRecords] = useState<ShipRecord[] | null>(null);
   const [current, setCurrent] = useState<ShipRecord | null>(null);
   const [starting, setStarting] = useState(false);
-  const [startError, setStartError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
-  const [updateNote, setUpdateNote] = useState<string | null>(null);
+  // One message above the buttons: the last thing that happened there (a refusal or an update).
+  const [notice, setNotice] = useState<ShipNotice | null>(null);
+  const noticeRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (notice) noticeRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [notice]);
 
   const shipId = view.running ?? view.last?.ship_id ?? null;
   useEffect(() => {
@@ -71,32 +82,28 @@ export function ShipPanel({ project, view, liveStep, tick, initialTab, onClose, 
 
   const start = useCallback(() => {
     setStarting(true);
-    setStartError(null);
-    setUpdateNote(null);
+    setNotice(null);
     api
       .startShip(project.id)
-      .then(onChanged, (error) => setStartError(errorMessage(error)))
+      .then(onChanged, (error) => setNotice(startNotice(errorMessage(error))))
       .finally(() => setStarting(false));
   }, [project.id, onChanged]);
 
   const updateCopy = useCallback(() => {
     setUpdating(true);
-    setUpdateNote(null);
     api
       .updateCopy(project.id)
       .then(
         (answer) => {
-          setUpdateNote(answer.message);
-          setStartError(null);
+          setNotice(updateNotice(true, answer.message));
           onChanged();
         },
-        (error) => setUpdateNote(errorMessage(error)),
+        (error) => setNotice(updateNotice(false, errorMessage(error))),
       )
       .finally(() => setUpdating(false));
   }, [project.id, onChanged]);
 
   const gitCopy = project.attach?.mode === "copy" && project.attach.kind === "git";
-  const movedOn = Boolean(startError && /moved on/.test(startError));
 
   return (
     <Modal title="Make it live" onClose={onClose} wide>
@@ -158,13 +165,17 @@ export function ShipPanel({ project, view, liveStep, tick, initialTab, onClose, 
                     {METHOD_LABEL[view.recipe!.method]}. The studio saves the current version, runs the checks, and
                     shows you exactly what it will write before anything reaches the original.
                   </p>
-                  {startError && (
-                    <p className="ship-error" role="alert">
-                      {startError}
+                  {notice && (
+                    <p
+                      ref={noticeRef}
+                      className={notice.ok ? "ship-note" : "ship-error"}
+                      role={notice.ok ? "status" : "alert"}
+                    >
+                      {notice.text}
                     </p>
                   )}
                   <div className="ship-actions">
-                    {gitCopy && (movedOn || updateNote) && (
+                    {offerUpdate(gitCopy, notice) && (
                       <button type="button" className="btn" onClick={updateCopy} disabled={updating}>
                         {updating ? <Spinner size={13} /> : <Icon name="refresh" size={14} />}
                         Bring the copy up to date
@@ -175,7 +186,6 @@ export function ShipPanel({ project, view, liveStep, tick, initialTab, onClose, 
                       Make it live
                     </button>
                   </div>
-                  {updateNote && <p className="ship-note">{updateNote}</p>}
                 </div>
               )}
             </>
@@ -279,10 +289,10 @@ function Card({ projectId, card }: { projectId: string; card: ShipCard }) {
   };
 
   return (
-    <section className="ship-card" aria-label="Allow this change to go live">
+    <section className="ship-card" aria-label="Allow this change">
       <div className="ship-card-head">
         <Icon name="hand" size={15} />
-        <strong>Allow this change to go live?</strong>
+        <strong>{cardTitle(card)}</strong>
       </div>
       <dl className="ship-facts">
         <dt>How</dt>
@@ -387,7 +397,7 @@ function Card({ projectId, card }: { projectId: string; card: ShipCard }) {
           disabled={busy !== null || !nameOk}
         >
           {busy === "allow" ? <Spinner size={13} /> : <Icon name="check" size={14} />}
-          Allow and make it live
+          {allowLabel(card)}
         </button>
       </div>
     </section>
@@ -396,8 +406,7 @@ function Card({ projectId, card }: { projectId: string; card: ShipCard }) {
 
 // ---- result and history ---------------------------------------------------------------
 function Result({ record }: { record: ShipRecord }) {
-  const text = resultText(record.result!, record.plan.method);
-  const help = record.result === "shipped" && record.plan.method === "branch" ? record.message : null;
+  const text = shipResultText(record);
   return (
     <section className={`ship-result is-${text.tone}`} aria-label="Last ship">
       <div className="ship-result-head">
@@ -406,24 +415,23 @@ function Result({ record }: { record: ShipRecord }) {
           {METHOD_SHORT[record.plan.method]} · {record.finished_at ? relativeTime(record.finished_at) : ""}
         </span>
       </div>
-      {help ? <MergeHelp text={help} /> : <p>{record.message}</p>}
+      {record.message && <ShipMessage text={record.message} />}
     </section>
   );
 }
 
-/** Branch way: the message holds commands in backticks; show them as code. */
-function MergeHelp({ text }: { text: string }) {
-  const parts = text.split("`");
+/** A ship's message: commands in it are between backticks; show them as code. */
+function ShipMessage({ text }: { text: string }) {
   return (
     <p className="ship-merge-help">
-      {parts.map((part, index) => (index % 2 ? <code key={index}>{part}</code> : <span key={index}>{part}</span>))}
+      {codeParts(text).map((part, index) => (part.code ? <code key={index}>{part.text}</code> : <span key={index}>{part.text}</span>))}
     </p>
   );
 }
 
 function HistoryItem({ record }: { record: ShipRecord }) {
   const [open, setOpen] = useState(false);
-  const text = record.result ? resultText(record.result, record.plan.method) : { label: "Running", tone: "muted" as const };
+  const text = shipResultText(record);
   const count = record.files.length + record.files_more;
   return (
     <li className="ship-history-item">
@@ -437,7 +445,7 @@ function HistoryItem({ record }: { record: ShipRecord }) {
       </button>
       {open && (
         <div className="ship-history-detail">
-          {record.message && (record.plan.method === "branch" && record.result === "shipped" ? <MergeHelp text={record.message} /> : <p>{record.message}</p>)}
+          {record.message && <ShipMessage text={record.message} />}
           <Progress steps={progressSteps(record, null)} />
           <p className="ship-step-detail">
             {record.plan.head.slice(0, 7)} · started {new Date(record.started_at).toLocaleString()} · record {record.id}

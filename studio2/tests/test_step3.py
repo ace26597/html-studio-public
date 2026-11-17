@@ -362,7 +362,9 @@ async def test_skills_and_servers_are_listed_added_and_chosen_per_project(client
     assert {"pdf-tools", "house-style", "deep-research"} <= names and "charts" not in names
     assert (extras["plugin_dir"] / "agents" / "researcher.md").is_file()
     assert extras["mcp_servers"]["docs"]["headers"]["X-Team"] == "t1"
-    assert extras["mcp_servers"]["notes"] == {"command": "notes-mcp", "args": ["--x"], "env": {"NOTES_KEY": "secret-value"}, "type": "stdio"}
+    notes = extras["mcp_servers"]["notes"]      # started through the studio's launcher, secret in env only
+    assert notes["args"][4:] == ["notes-mcp", "--x"] and notes["env"] == {"NOTES_KEY": "secret-value"}
+    assert notes["type"] == "stdio" and "secret-value" not in json.dumps(notes["args"])
     assert "docs" in studio.agent_context(pid) and "abc123" not in studio.agent_context(pid)
 
     too_many = {f"suggested:{s['name']}": True for s in json.loads((settings.library_dir / "mcp-suggestions.json").read_text())}

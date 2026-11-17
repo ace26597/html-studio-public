@@ -91,6 +91,17 @@ export function errorMessage(error: unknown): string {
   return "Something went wrong.";
 }
 
+let accessDenied: (() => void) | null = null;
+
+/**
+ * What to do when any call is answered 401 `access_denied`: the access cookie expired or the key
+ * changed in the middle of a session (CONTRACT.md, "Access from other devices"). Set once at start
+ * (`main.tsx`: go to the sign-in page); null clears it.
+ */
+export function whenAccessDenied(handler: (() => void) | null): void {
+  accessDenied = handler;
+}
+
 export async function request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const init: RequestInit = { method, signal, headers: { Accept: "application/json" } };
   if (body instanceof FormData) {
@@ -118,6 +129,7 @@ export async function request<T>(method: string, path: string, body?: unknown, s
   }
   if (!response.ok) {
     const err = (data as { error?: { code?: string; message?: string } } | null)?.error;
+    if (response.status === 401 && err?.code === "access_denied") accessDenied?.();
     throw new ApiError(
       response.status,
       err?.code ?? `http_${response.status}`,

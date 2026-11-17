@@ -229,6 +229,7 @@ class Picker:
         connectors: list[dict] = []
         requested = list((project.get("library") or {}).get("requested") or [])
         signin: list[dict] = []      # need signing in: only ever picked when the request names them
+        waiting: list[dict] = []     # asked for by the agent, and need signing in first
         crowded: list[dict] = []     # switched on, and one too many for a request: named in the note
         for server in self.lib.servers() + self.lib.app_servers(workspace):
             if server["source"] == "suggested":
@@ -243,7 +244,10 @@ class Picker:
             elif check_only:
                 continue
             elif said is None and server["id"] in requested:
-                add(server, "requested", "The assistant asked for it in an earlier request.", connectors, MAX_CONNECTORS)
+                if server.get("state") == "needs-auth":
+                    waiting.append(server)     # asked for, and joins once it is seen connected
+                else:
+                    add(server, "requested", "The assistant asked for it in an earlier request.", connectors, MAX_CONNECTORS)
             elif said is None and server["source"] != "app" and server.get("plugin_enabled", True):
                 if server.get("state") not in ("needs-setting", "needs-auth", "failed"):
                     candidates.append(server)
@@ -281,14 +285,14 @@ class Picker:
                 add(entry, "picked", reason, skills, MAX_SKILLS)
             for server, reason in chosen[1]:
                 add(server, "picked", reason, connectors, room)
-        if signin and room and text.strip():
-            left = self._signin(text, signin, add, connectors, room)
-            if left:   # one sentence, however many: the Library's "signin" filter has the rest
-                they = "it needs" if len(left) == 1 else "they need"
-                fixes = "; ".join(f"`{server['fix']}`" for server in left)
-                said = (f"Left out {', '.join(server['label'] for server in left)}: {they} signing in ({fixes}), "
-                        "then switch it on for this project or test it in the Library.")
-                note = f"{note} {said}" if note else said
+        left = self._signin(text, signin, add, connectors, room) if signin and room and text.strip() else []
+        left += [server for server in waiting if server not in left]
+        if left:   # one sentence, however many: the Library's "signin" filter has the rest
+            they = "it needs" if len(left) == 1 else "they need"
+            fixes = "; ".join(f"`{server['fix']}`" for server in left)
+            said = (f"Left out {', '.join(server['label'] for server in left)}: {they} signing in ({fixes}), "
+                    "then switch it on for this project or test it in the Library.")
+            note = f"{note} {said}" if note else said
         if crowded:
             said = (f"Left out {', '.join(server['label'] for server in crowded)}: a request connects at most "
                     f"{MAX_ENABLED_SERVERS} connectors that are switched on. Switch one off to make room.")
@@ -559,11 +563,20 @@ class Picker:
         chosen = dict(project.get("library") or {})
         asked = [server["id"]] + [i for i in chosen.get("requested") or [] if i != server["id"]]
         self.studio.store.update(project["id"], library={**chosen, "requested": asked[:MAX_CONNECTORS]})
+        if server.get("state") == "needs-auth":
+            # Kept as asked for, but not added until it is seen connected (CONTRACT.md, "Signing in").
+            self.studio.log(project["id"]).append(
+                "notice", turn.get("turn_id"), level="warning",
+                message=(f"The assistant asked for the connector {server['label']}. It needs signing in first: run "
+                         f"`{server['fix']}` in a terminal, then test it in the Library. It joins the next "
+                         "request after that."))
+            return {"connector": server["name"], "connected": False, "joins": "after signing in",
+                    "sign_in": f"The person runs `{server['fix']}` in a terminal once, then tests it in the Library.",
+                    "next": f"“{server['label']}” is NOT connected and will not be until the person signs in: it needs "
+                            f"signing in first. The studio has told the person. Finish what you can without it, and say "
+                            f"plainly that they need to run `{server['fix']}` and then send another message."}
         out = {"connector": server["name"], "connected": False, "joins": "the next request",
                "next": f"“{server['label']}” is NOT available in this request and its tools cannot be called now. The "
                        "studio connects it when the person sends their next message. Say that plainly: finish what you "
                        "can without it, then tell the person to send a follow-up (for example “go on”) to use it."}
-        if server.get("state") == "needs-auth":
-            out["sign_in"] = (f"Last time this connector needed signing in. If it still does, the person runs "
-                              f"`{server['fix']}` in a terminal once.")
         return out

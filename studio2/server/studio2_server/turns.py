@@ -192,7 +192,8 @@ class TurnRunner:
         for item in waiting:
             if item["queued_id"] == queued_id:
                 waiting.remove(item)
-                self.studio.log(project_id).append("turn_unqueued", None, queued_id=queued_id, reason=reason)
+                self.studio.log(project_id).append("turn_unqueued", None, queued_id=queued_id, reason=reason,
+                                                   text=item.get("text") or "")
                 return
 
     def _start_next(self, pid: str) -> None:
@@ -211,7 +212,9 @@ class TurnRunner:
                 waiting.clear()
             except Exception:  # e.g. its connection was removed meanwhile
                 log.exception("Queued message %s could not start", item["queued_id"])
-                self.studio.log(pid).append("turn_unqueued", None, queued_id=item["queued_id"], reason="cancelled")
+                # Its own reason, not `cancelled` (the person removed it): the thread says so and offers it back.
+                self.studio.log(pid).append("turn_unqueued", None, queued_id=item["queued_id"], reason="not_started",
+                                            text=item.get("text") or "")
 
     # -- approvals --------------------------------------------------------------------------
     def answer(self, turn_id: str, approval_id: str, decision: str) -> bool:
@@ -375,7 +378,7 @@ class TurnRunner:
         waiting = self.stopped_with.get(turn_id)
         for item in list(self.queue.get(pid, [])):
             if waiting is not None and item["queued_id"] in waiting:
-                self.unqueue(pid, item["queued_id"])
+                self.unqueue(pid, item["queued_id"], reason="stopped")
 
     async def _turn(self, pid: str, turn_id: str, text: str, selection: dict | None,
                     connection: dict, model: str | None, attachments: list[str],

@@ -3,7 +3,7 @@
 
 import { EffortControl } from "./EffortControl";
 import type { TurnOptions } from "./effort";
-import { fillDraft, type NextStep } from "./nextSteps";
+import { draftHolds, fillDraft, type NextStep } from "./nextSteps";
 import {
   forwardRef,
   useCallback,
@@ -21,7 +21,7 @@ import { VoiceButton } from "./VoiceButton";
 import { formatBytes, truncate } from "./format";
 import { Icon, Spinner } from "./icons";
 import { AttachmentList, SelectionChip, ThreadView, type DecisionState } from "./ThreadView";
-import { latestActivity, waitingApprovals, type ApprovalItem, type ThreadState, type Turn } from "./thread";
+import { latestActivity, waitingApprovals, type ApprovalItem, type NoticeItem, type ThreadState, type Turn } from "./thread";
 import type { Approvals, Connection, Project, Selection } from "./types";
 import { IconButton, Menu, useToast, type MenuEntry } from "./ui";
 
@@ -420,9 +420,9 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
   };
 
   // A suggested next step: its text goes into the box, the caret after it, and nothing is sent.
-  const fillFromStep = useCallback(
-    (step: NextStep) => {
-      const next = fillDraft(draftRef.current, step.text);
+  const fillText = useCallback(
+    (text: string) => {
+      const next = fillDraft(draftRef.current, text);
       pendingCaret.current = next.length;
       if (next === draftRef.current) {
         // Nothing to render (a second tap): the layout effect will not run, so focus here.
@@ -435,6 +435,23 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
     },
     [onDraftChange],
   );
+  const fillFromStep = useCallback((step: NextStep) => fillText(step.text), [fillText]);
+
+  // "Put it back": the text once (never doubled), and the note then stops offering it.
+  const [usedNotes, setUsedNotes] = useState<ReadonlySet<string>>(() => new Set());
+  const putBackNote = useCallback(
+    (item: NoticeItem) => {
+      if (!item.restoreText) return;
+      if (draftHolds(draftRef.current, item.restoreText)) {
+        textarea.current?.focus();
+      } else {
+        fillText(item.restoreText);
+      }
+      setUsedNotes((used) => new Set(used).add(item.key));
+    },
+    [fillText],
+  );
+  const putBack = useMemo(() => ({ draft, used: usedNotes }), [draft, usedNotes]);
 
   const actions = useMemo(
     () => ({
@@ -447,9 +464,10 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
       readDrawing,
       projectId: project.id,
       onUseStep: fillFromStep,
+      onPutBack: putBackNote,
       busy: starting || queue.length > 0,
     }),
-    [onRetry, onOpenVersion, running, starting, onDecide, decisions, fileHref, readDrawing, project.id, fillFromStep, queue.length],
+    [onRetry, onOpenVersion, running, starting, onDecide, decisions, fileHref, readDrawing, project.id, fillFromStep, putBackNote, queue.length],
   );
 
   const activity = running ? latestActivity(thread) : null;
@@ -649,7 +667,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
             </div>
           ) : (
             <div className="thread" role="log" aria-label="Conversation">
-              <ThreadView entries={thread.entries} actions={actions} />
+              <ThreadView entries={thread.entries} actions={actions} putBack={putBack} />
               {queue.map((item) => (
                 <div key={item.queuedId} className="queued">
                   <div className="msg-user is-queued">

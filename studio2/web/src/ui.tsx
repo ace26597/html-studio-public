@@ -14,6 +14,7 @@ import {
   type ReactNode,
 } from "react";
 import { Icon, type IconName } from "./icons";
+import { confirmEscape, MODAL_SELECTOR } from "./escape";
 
 // ---- Toasts ----------------------------------------------------------------
 
@@ -332,6 +333,20 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     if (state) cancelRef.current?.focus();
   }, [state]);
 
+  // Escape cancels wherever focus is: with focus on the page body the dialog's own key handler
+  // never hears it. Capture phase, so it is heard first and stopped there (one Escape, one thing).
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const latestClose = useRef(close);
+  latestClose.current = close;
+  const open = state !== null;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) =>
+      confirmEscape(event, dialogRef.current, document.querySelectorAll(MODAL_SELECTOR), () => latestClose.current(false));
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [open]);
+
   const value = useMemo(() => confirm, [confirm]);
 
   return (
@@ -357,7 +372,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             }
           }}
         >
-          <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
+          <div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby={titleId} ref={dialogRef}>
             <h2 id={titleId}>{state.title}</h2>
             {state.body && <div className="dialog-body">{state.body}</div>}
             <div className="dialog-actions">

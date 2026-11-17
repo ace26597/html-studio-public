@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from ..config import Settings, load_connections
@@ -52,6 +53,14 @@ class Registry:
         before any turn runs."""
         for path in self.mcp_dir.glob("mcp-*.json") if self.mcp_dir.is_dir() else []:
             path.unlink(missing_ok=True)
+        # The start folders of library connectors (connector_launch.py) untouched for a day; a
+        # younger one may still be in use by a connector that outlived the last studio.
+        from ..connector_launch import remove_old_folders
+        home = self.settings.data_dir / "run" / "connectors"
+        if home.is_symlink():
+            home.unlink()
+        elif home.is_dir() and home.lstat().st_uid == os.geteuid():
+            remove_old_folders(str(home))
 
     def connections(self) -> list[dict]:
         """Resolved configs (server-internal; may name key variables)."""

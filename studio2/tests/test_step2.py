@@ -214,8 +214,25 @@ async def test_queued_messages_run_in_order_after_the_running_turn(client, studi
     assert [(e["text"], e["queued_id"]) for e in started] == [
         ("slow one", None), ("second", second["queued_id"]), ("fourth", fourth["queued_id"])]
     assert started[0]["turn_id"] == first
-    assert [(e["queued_id"], e["reason"]) for e in types_of(studio, pid, "turn_unqueued")] == [
-        (third["queued_id"], "cancelled")]
+    assert [(e["queued_id"], e["reason"], e["text"]) for e in types_of(studio, pid, "turn_unqueued")] == [
+        (third["queued_id"], "cancelled", "third")]
+
+
+async def test_a_queued_message_that_cannot_start_says_so(client, studio, project, monkeypatch):
+    pid = project["id"]
+    monkeypatch.setenv("STUDIO2_FAKE_DELAY", "0.05")
+    await client.post(f"/api/projects/{pid}/turns", json={"text": "slow one"})
+    queued = (await client.post(f"/api/projects/{pid}/turns", json={"text": "then this", "queue": True})).json()
+
+    def no_connection(_id):  # e.g. every connection was removed while it waited
+        raise StopIteration
+
+    monkeypatch.setattr(studio.registry, "resolve", no_connection)
+    await wait_for(lambda: types_of(studio, pid, "turn_unqueued"))
+    # Not `cancelled` (the person removed it): its own reason, with the text to offer it again.
+    assert [(e["queued_id"], e["reason"], e["text"]) for e in types_of(studio, pid, "turn_unqueued")] == [
+        (queued["queued_id"], "not_started", "then this")]
+    assert len(types_of(studio, pid, "turn_started")) == 1
 
 
 async def test_stop_also_clears_the_queue(client, studio, project, monkeypatch):
@@ -227,7 +244,9 @@ async def test_stop_also_clears_the_queue(client, studio, project, monkeypatch):
     await studio.turns.wait(pid)
     await asyncio.sleep(0.05)
     assert [e["status"] for e in types_of(studio, pid, "turn_finished")] == ["stopped"]
-    assert [e["queued_id"] for e in types_of(studio, pid, "turn_unqueued")] == [queued["queued_id"]]
+    # Said as cleared by Stop, with the text, so the thread can say what was not sent and offer it again.
+    assert [(e["queued_id"], e["reason"], e["text"]) for e in types_of(studio, pid, "turn_unqueued")] == [
+        (queued["queued_id"], "stopped", "later")]
     assert len(types_of(studio, pid, "turn_started")) == 1
 
 

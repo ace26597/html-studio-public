@@ -24,7 +24,62 @@ export function signInUrl(href: string): string {
   return `/login?next=${encodeURIComponent(href)}`;
 }
 
+let sent = false;
+let waiting = false;
+let hold: (() => boolean) | null = null;
+const listeners = new Set<() => void>();
+const changed = () => listeners.forEach((listener) => listener());
+
+/**
+ * A page that holds something unsaved (the file viewer's edits) and must not be left for the
+ * sign-in page. Returns a clean-up that releases it only if it is still this page's.
+ */
+export function holdSignIn(check: () => boolean): () => void {
+  hold = check;
+  return () => {
+    if (hold === check) hold = null;
+  };
+}
+
+/** True while the studio needs signing in again and the tab stays, to keep unsaved edits. */
+export function signInWaiting(): boolean {
+  return waiting;
+}
+
+export function onSignInChange(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/**
+ * Once per page: several calls answered 401 at the same moment send the browser one time. While
+ * unsaved edits are held, the tab stays and waits instead (CONTRACT.md, "Access from other devices").
+ */
 export function goToSignIn(): void {
-  if (window.location.pathname === "/login") return;
+  if (sent || window.location.pathname === "/login") return;
+  if (hold?.()) {
+    if (!waiting) {
+      waiting = true;
+      changed();
+    }
+    return;
+  }
+  sent = true;
   window.location.assign(signInUrl(window.location.href));
+}
+
+/** A call was answered again (the person signed in in another tab): stop waiting. */
+export function signedInAgain(): void {
+  if (!waiting) return;
+  waiting = false;
+  changed();
+}
+
+export function resetSignInForTests(): void {
+  sent = false;
+  waiting = false;
+  hold = null;
+  listeners.clear();
 }

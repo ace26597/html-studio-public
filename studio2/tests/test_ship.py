@@ -849,3 +849,254 @@ def test_a_key_file_added_in_a_merge_itself_is_seen(tmp_path):
     assert refused and ".env" in refused[0]
     # A history with no key file is still let through.
     assert ship._key_file_refusal(repo, "merge", base, git("rev-parse", "HEAD^1"), []) is None
+
+
+# -- what the person reads: messages and cards say only what is true for the method -------------
+SAM_GIT = "git -c user.name=Sam -c user.email=sam@example.com -c commit.gpgsign=false"
+
+
+def _reads_cleanly(message: str) -> None:
+    assert ".." not in message.replace("...", ""), message
+    assert "FAILED" not in message and "file(s)" not in message, message
+
+
+async def test_merge_back_failed_says_only_what_is_true(client, studio, tmp_path):
+    """An after-command edits the shipped file and fails: going back refuses, and the message says
+    the ship's change is still there, without claiming a backup or a half-changed original."""
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid = project["id"]
+    await set_recipe(client, pid, method="merge", after=["echo rebuilt >> index.html; exit 1"])
+    await change(client, pid)
+    record = await ship(client, studio, pid)
+    assert record["result"] == "back_failed", record["message"]
+    message = record["message"]
+    _reads_cleanly(message)
+    assert message.startswith("An after-command failed.")
+    assert "half" not in message and "overwritten" not in message and "changed nothing" not in message
+    assert "index.html" in message and "`git reset --keep " in message
+    assert "still" in message      # the ship's change is still in the original
+
+
+async def test_merge_back_failed_after_a_commit_reads_cleanly(client, studio, tmp_path):
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid = project["id"]
+    await set_recipe(client, pid, method="merge", after=[f"{SAM_GIT} commit -q --allow-empty -m mine; exit 1"])
+    await change(client, pid)
+    record = await ship(client, studio, pid)
+    assert record["result"] == "back_failed", record["message"]
+    _reads_cleanly(record["message"])
+    assert "could not be undone automatically" in record["message"]
+    assert "half" not in record["message"] and "overwritten" not in record["message"]
+
+
+async def test_files_back_failed_names_what_was_kept_and_put_back(client, studio, tmp_path):
+    site = make_site(tmp_path, git=False)
+    project = await attach(client, site)
+    pid = project["id"]
+    await set_recipe(client, pid, method="files", after=["echo rebuilt >> index.html; exit 1"])
+    await change(client, pid)
+    await change(client, pid, "public/new.html", "<p>new</p>\n")
+    record = await ship(client, studio, pid)
+    assert record["result"] == "back_failed", record["message"]
+    message = record["message"]
+    _reads_cleanly(message)
+    assert "1 file in" in message and "index.html" in message and "half" not in message
+
+
+async def test_rolled_back_says_staged_files_are_no_longer_staged(client, studio, tmp_path):
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid = project["id"]
+    flag = tmp_path / "ran-once"
+    # Stages a file of the person's, then fails the first time only.
+    await set_recipe(client, pid, method="merge",
+                     after=[f"if [ -f {flag} ]; then exit 0; fi; touch {flag}; echo mine > notes.txt; "
+                            "git add notes.txt; exit 1"])
+    await change(client, pid)
+    record = await ship(client, studio, pid)
+    assert record["result"] == "rolled_back", record["message"]
+    assert "notes.txt" in record["message"] and "no longer staged" in record["message"], record["message"]
+    _reads_cleanly(record["message"])
+
+
+async def test_a_merge_with_nothing_after_does_not_say_anything_ran(client, studio, tmp_path):
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid = project["id"]
+    await set_recipe(client, pid, method="merge")
+    await change(client, pid)
+    record = await ship(client, studio, pid)
+    assert record["result"] == "shipped" and record["message"] == "The change is in the original.", record["message"]
+    await set_recipe(client, pid, method="merge", after=["true"])
+    await change(client, pid, text="<h1>Again</h1>\n")
+    record = await ship(client, studio, pid)
+    assert record["message"] == "The change is in the original and the after-commands ran.", record["message"]
+
+
+async def test_in_place_with_nothing_to_run_does_not_say_commands_ran(client, studio, tmp_path):
+    site = make_site(tmp_path)
+    project = await attach(client, site, mode="in_place")
+    pid = project["id"]
+    await set_recipe(client, pid)
+    await change(client, pid)
+    record = await ship(client, studio, pid)
+    assert record["result"] == "shipped"
+    assert "after-commands ran" not in record["message"] and "checks" not in record["message"].lower(), record["message"]
+
+
+async def card_for(client, studio, pid: str) -> dict:
+    response = await client.post(f"/api/projects/{pid}/ships")
+    assert response.status_code == 202, response.text
+    card = await wait_card(studio, pid)
+    await client.post(f"/api/projects/{pid}/ships/{card['ship_id']}/decision", json={"decision": "deny"})
+    await finish(studio, pid)
+    return card
+
+
+async def test_each_card_states_only_the_limits_and_going_back_of_its_method(client, studio, tmp_path):
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid = project["id"]
+    await change(client, pid)
+
+    await set_recipe(client, pid, method="branch", after=["npm run build"])
+    card = await card_for(client, studio, pid)
+    text = " ".join(card["limits"])
+    assert "Going back" not in text and "commands do" not in text and "never pushes" in text, text
+    assert card["method_label"] == shipping.METHODS["branch"]
+
+    await set_recipe(client, pid, method="merge", after=["npm run build"])
+    card = await card_for(client, studio, pid)
+    text = " ".join(card["limits"])
+    assert "Going back restores the branch only" in text and "files and the branch" not in text, text
+    assert "after-commands do" in text, text
+    assert "where it was, then runs the after-commands again." in card["going_back"], card["going_back"]
+    assert "1 file in the folder changes" in " ".join(card["writes"]), card["writes"]
+    assert card["method_label"] == "Merge into the original's checked-out branch (fast-forward only)"
+
+    await set_recipe(client, pid, method="merge")
+    card = await card_for(client, studio, pid)
+    assert "nothing is restarted or sent anywhere" in " ".join(card["limits"]), card["limits"]
+    assert "after the merge fails" not in card["going_back"], card["going_back"]
+
+
+async def test_an_in_place_card_says_nothing_about_going_back_in_its_limits(client, studio, tmp_path):
+    site = make_site(tmp_path)
+    project = await attach(client, site, mode="in_place")
+    pid = project["id"]
+    await set_recipe(client, pid, after=["true"])
+    await change(client, pid)
+    card = await card_for(client, studio, pid)
+    assert not any("Going back" in line for line in card["limits"]), card["limits"]
+    assert card["method_label"] == "Nothing to move: the folder is edited in place"
+
+
+async def test_a_files_card_counts_in_words(client, studio, tmp_path):
+    site = make_site(tmp_path, git=False)
+    project = await attach(client, site)
+    pid = project["id"]
+    await set_recipe(client, pid, method="files")
+    await change(client, pid)
+    card = await card_for(client, studio, pid)
+    writes = " ".join(card["writes"])
+    assert "file(s)" not in writes and "overwrite 1 file" in writes, writes
+    assert "Going back restores the files only" in " ".join(card["limits"]), card["limits"]
+
+
+async def test_a_failed_branch_ship_runs_no_command_of_the_recipe(client, studio, tmp_path, monkeypatch):
+    """A branch is only left there: its after-commands and go-back commands never run, so a branch ship
+    whose apply step fails must not run them while going back, nor say they ran (commit 4e4b39c4 did)."""
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid, branch = project["id"], project["attach"]["studio_branch"]
+    after_mark, back_mark = tmp_path / "after-ran", tmp_path / "back-ran"
+    await set_recipe(client, pid, method="branch", after=[f"touch {after_mark}", "touch after-here"],
+                     back=[f"touch {back_mark}", "touch back-here"])
+    await change(client, pid)
+    real_apply = shipping._apply
+
+    def apply_then_fail(*args):
+        real_apply(*args)                          # the branch is really fetched, then the step fails
+        raise shipping.ShipError("apply_failed", "fetch failed (simulated)")
+
+    monkeypatch.setattr(shipping, "_apply", apply_then_fail)
+    before = git_state(site)
+    record = await ship(client, studio, pid)
+    assert record["result"] == "rolled_back", record["message"]
+    assert not after_mark.exists() and not back_mark.exists()
+    assert not (site / "after-here").exists() and not (site / "back-here").exists()
+    assert record["after"] == [] and record["back_after"] == [], record
+    assert "ran again" not in record["message"] and "after-commands" not in record["message"], record["message"]
+    assert git_state(site) == before
+    assert run_git(site, "branch", "--list", branch).strip() == ""      # going back removed the branch
+
+
+def _fail_after_applying(monkeypatch):
+    real_apply = shipping._apply
+
+    def apply_then_fail(*args):
+        real_apply(*args)
+        raise shipping.ShipError("apply_failed", "fetch failed (simulated)")
+
+    monkeypatch.setattr(shipping, "_apply", apply_then_fail)
+
+
+async def test_a_failed_apply_runs_the_after_commands_once_and_does_not_say_again(client, studio, tmp_path,
+                                                                                  monkeypatch):
+    """Applying fails: the after-commands had not run yet, so going back runs them for the first time
+    and the message says why, not that they "ran again"."""
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid = project["id"]
+    runs = tmp_path / "after-runs.txt"
+    await set_recipe(client, pid, method="merge", after=[f"echo run >> {runs}"])
+    await change(client, pid)
+    _fail_after_applying(monkeypatch)
+    record = await ship(client, studio, pid)
+    assert record["result"] == "rolled_back", record["message"]
+    assert runs.read_text() == "run\n"                  # behaviour unchanged: they run once, after going back
+    assert "ran again" not in record["message"], record["message"]
+    assert "after going back" in record["message"] and "matches the folder" in record["message"], record["message"]
+
+
+async def test_a_failed_apply_names_the_go_back_commands_it_ran(client, studio, tmp_path, monkeypatch):
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid = project["id"]
+    await set_recipe(client, pid, method="merge", back=["true"])
+    await change(client, pid)
+    _fail_after_applying(monkeypatch)
+    record = await ship(client, studio, pid)
+    assert record["result"] == "rolled_back", record["message"]
+    assert len(record["back_after"]) == 1
+    assert "after-commands" not in record["message"] and "go-back commands ran" in record["message"], \
+        record["message"]
+
+
+async def test_an_address_failure_says_the_after_commands_ran_again(client, studio, tmp_path):
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid = project["id"]
+    await set_recipe(client, pid, method="merge", after=["true"], address=dead_address())
+    await change(client, pid)
+    record = await ship(client, studio, pid)
+    assert record["result"] == "rolled_back", record["message"]
+    assert "The after-commands ran again." in record["message"], record["message"]
+
+
+async def test_a_card_with_go_back_commands_and_nothing_after_says_when_they_run(client, studio, tmp_path):
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid = project["id"]
+    await change(client, pid)
+    for method in ("merge", "files"):
+        if method == "files":
+            site = make_site(tmp_path, "plain", git=False)
+            pid = (await attach(client, site))["id"]
+            await change(client, pid)
+        await set_recipe(client, pid, method=method, back=["pm2 restart site"])
+        card = await card_for(client, studio, pid)
+        text = card["going_back"]
+        assert "pm2 restart site" in text and "fails" in text, text

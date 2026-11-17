@@ -37,6 +37,7 @@ NOT_ANSWERING_AFTER = 300.0
 LOCK_TIMEOUT = 180.0
 REQUIREMENTS, LOCKED = "requirements.txt", "requirements.lock"
 BARE_PYTHON = re.compile(r"^\s*(?:exec\s+)?python3?(?:\.\d+)?(?:\s|$)")
+VENV_PYTHON = re.compile(r"^\s*(?:exec\s+)?\.venv/bin/")
 SETUP_TIMEOUT = 900.0   # a first start that installs packages first (an attached app)
 
 
@@ -437,6 +438,11 @@ class App:
         if BARE_PYTHON.match(self.run or ""):
             self._line("[studio] This command uses the machine's own `python`, whatever version that is (on a Mac "
                        "often 3.9). `uv run python …` uses a current one.", handle)
+        if VENV_PYTHON.match(self.run or "") and not self.setup and not (self.workspace / ".venv").exists():
+            self._line("[studio] This command starts from .venv, and this folder has no .venv. A safe copy never "
+                       "takes .venv, and nothing here installs the packages again. Ask the agent to write a "
+                       "requirements.txt and make .venv from it (uv venv, then uv pip install -r requirements.txt), "
+                       "or attach the original folder in place.", handle)
         if self.setup and not self.setup_marker.exists():
             # First start of an attached app: install its packages, in the same log, then run it.
             self._line(f"[studio] Installing packages first: {self.setup}", handle)

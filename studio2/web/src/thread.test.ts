@@ -756,6 +756,63 @@ describe("queue", () => {
     expect(notice.type === "notice" && notice.level).toBe("warning");
   });
 
+  it("says what Stop removed and keeps its text to put back", () => {
+    const state = build(started(), queued("q1", "make it blue"), unqueued("q1", "stopped"), finished("stopped"));
+    expect(state.queue).toEqual([]);
+    const notice = state.entries.find((entry) => entry.type === "notice");
+    expect(notice?.type === "notice" && notice.message).toContain("make it blue");
+    expect(notice?.type === "notice" && notice.message).toContain("Stop");
+    expect(notice?.type === "notice" && notice.restoreText).toBe("make it blue");
+    expect(notice?.type === "notice" && notice.level).toBe("info");
+  });
+
+  it("says when what Stop removed had files that are not put back", () => {
+    const state = build(started(), queued("q1", "use this", { attachments: ["attachments/a.png"] }), unqueued("q1", "stopped"));
+    const notice = state.entries.find((entry) => entry.type === "notice");
+    expect(notice?.type === "notice" && notice.message).toContain("attached file");
+  });
+
+  it("names exactly what is not put back: the selected element and each attached file", () => {
+    const selection = { path: "index.html", selector: "h1", tag: "h1", text: "Welcome", html: "<h1>Welcome</h1>" };
+    const state = build(
+      started(),
+      queued("q1", "make the heading red", { selection }),
+      queued("q2", "use these notes", { attachments: ["attachments/notes.txt", "index.html"] }),
+      unqueued("q1", "stopped"),
+      unqueued("q2", "stopped"),
+    );
+    const notices = state.entries.filter((entry) => entry.type === "notice");
+    const [heading, notes] = notices.map((entry) => (entry.type === "notice" ? entry.message : ""));
+    expect(heading).toContain("selected element");
+    expect(heading).toContain("<h1>");
+    expect(heading).toContain("Welcome");
+    expect(notes).toContain("notes.txt and index.html");
+    expect(notes).not.toContain("attachments/");
+  });
+
+  it("stops offering a note's text once it was sent again, also after a reload", () => {
+    const state = build(
+      started(),
+      queued("q1", "make it blue"),
+      unqueued("q1", "stopped"),
+      finished("stopped"),
+      { ...started("make it blue"), turn_id: "turn_b" },
+    );
+    const notice = state.entries.find((entry) => entry.type === "notice");
+    expect(notice?.type === "notice" && notice.restoreText).toBe("make it blue");
+    expect(notice?.type === "notice" && notice.resent).toBe(true);
+  });
+
+  it("says when a queued message could not start, and keeps its text to put back", () => {
+    const state = build(started(), queued("q1", "make it blue"), finished(), unqueued("q1", "not_started"));
+    expect(state.queue).toEqual([]);
+    const notice = state.entries.find((entry) => entry.type === "notice");
+    expect(notice?.type === "notice" && notice.message).toContain("could not start");
+    expect(notice?.type === "notice" && notice.message).toContain("make it blue");
+    expect(notice?.type === "notice" && notice.restoreText).toBe("make it blue");
+    expect(notice?.type === "notice" && notice.level).toBe("warning");
+  });
+
   it("ignores turn_unqueued for an unknown id", () => {
     const before = build(started(), queued("q1"));
     const after = reduceEvent(before, { ...log(unqueued("nope"))[0], seq: before.lastSeq + 1 });
@@ -1082,6 +1139,18 @@ describe("a conversation's running cost total", () => {
   it("takes a newer turn's figure as it is, and carries on from its total", () => {
     const state = build(...turn("a", 10.6), ...turn("b", 0.39, { session_cost_usd: 10.99 }), ...turn("c", 0.66, { session_cost_usd: 11.65 }));
     expect(costs(state)).toEqual([10.6, 0.39, 0.66]);
+  });
+
+  it("carries on from a gateway turn written before Step 2, whose figure was the running total", () => {
+    // Before Step 2 no turn said `cost_estimated`, and a gateway turn's cost_usd was the program's total.
+    const old = (id: string, cost: number): Loose[] => {
+      const [started, finished] = turn(id, cost);
+      const usage = { ...(finished.usage as Record<string, unknown>) };
+      delete usage.cost_estimated;
+      return [{ ...started, connection: "gateway" }, { ...finished, usage }];
+    };
+    const state = build(...turn("a", 1.0), ...old("g0", 0), ...old("g", 2.5), ...turn("b", 3.0));
+    expect(costs(state)[3]).toBeCloseTo(0.5);
   });
 });
 

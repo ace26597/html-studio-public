@@ -156,6 +156,8 @@ export interface AttachRecord {
   uncommitted: FileChange[];
   included_uncommitted: boolean;
   env_files: string[];
+  /** Ticked key files the copy did not take, with why (absent in records made before it was added). */
+  env_skipped?: { name: string; reason: string }[];
   install: string | null;
   address: string | null;
   attached_at: string;
@@ -421,6 +423,8 @@ export type SslMode = "disable" | "prefer" | "require" | "verify-full";
 export interface DataSourceTestResult {
   ok: boolean;
   message: string;
+  /** "ca_changed": refused because the CA file changed; type the password again to trust it. */
+  code?: string;
   server_version?: string | null;
   tables?: number | null;
 }
@@ -434,9 +438,12 @@ export interface DataSource {
   database: string;
   user: string;
   ssl: SslMode | string;
+  /** A PEM certificate file on the studio's computer that verify-full trusts; null = public authorities. */
+  ca_file?: string | null;
   has_password: boolean;
   created_at: string;
-  last_test: { ok: boolean; at: string; message: string } | null;
+  /** `code: "ca_changed"`: the CA file changed since the password was saved (CONTRACT.md, "Data sources"). */
+  last_test: { ok: boolean; at: string; message: string; code?: string } | null;
 }
 
 export interface ProjectDataSource extends DataSource {
@@ -453,6 +460,8 @@ export interface DataSourceInput {
   user: string;
   password?: string;
   ssl?: string;
+  /** `""` on PATCH removes it. */
+  ca_file?: string;
 }
 
 export type Approvals = "ask" | "allow";
@@ -806,7 +815,8 @@ export interface TurnQueuedEvent extends EventBase {
 export interface TurnUnqueuedEvent extends EventBase {
   type: "turn_unqueued";
   queued_id: string;
-  reason: "cancelled" | "restart" | string;
+  reason: "cancelled" | "stopped" | "restart" | string;
+  text?: string;
 }
 export interface ApprovalRequestEvent extends EventBase {
   type: "approval_request";

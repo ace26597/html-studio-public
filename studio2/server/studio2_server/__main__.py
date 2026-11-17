@@ -35,7 +35,11 @@ def serve(settings: Settings) -> None:
             print(f"Also on http://{host}:{settings.port}/ ({access})", flush=True)
     for host in settings.hosts if settings.tls else ():   # bound and served with the certificate at startup (api.py)
         print(f"Also on https://{host}:{settings.port}/ by the name on the certificate ({access})", flush=True)
-    config = uvicorn.Config(create_app(settings), log_level="info", timeout_graceful_shutdown=3)
+    app = create_app(settings)
+    # Besides addresses and localhost, only these names are answered (DNS rebinding; access.known_names).
+    print(f"Answers to the names: {', '.join(sorted(app.state.studio.names)) or 'none'}"
+          " (add more with STUDIO2_NAMES)", flush=True)
+    config = uvicorn.Config(app, log_level="info", timeout_graceful_shutdown=3)
     uvicorn.Server(config).run(sockets=sockets)
 
 

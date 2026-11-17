@@ -1153,7 +1153,7 @@ async function runTurn(project, turnId, text, selection, attachments = []) {
   });
   if (checkpoint) syncApp(project, { restart: Boolean(project.app.run) });
   if (status === "stopped") {
-    for (const item of project.queue.splice(0)) emit(project, "turn_unqueued", { queued_id: item.queued_id, reason: "cancelled" });
+    for (const item of project.queue.splice(0)) emit(project, "turn_unqueued", { queued_id: item.queued_id, reason: "stopped", text: item.text });
   } else if (project.queue.length) {
     beginTurn(project, project.queue.shift());
   }
@@ -1947,8 +1947,8 @@ async function handleApi(req, res, url) {
   if (segments[2] === "queue" && segments.length === 4 && method === "DELETE") {
     const index = project.queue.findIndex((item) => item.queued_id === segments[3]);
     if (index !== -1) {
-      project.queue.splice(index, 1);
-      emit(project, "turn_unqueued", { queued_id: segments[3], reason: "cancelled" });
+      const [item] = project.queue.splice(index, 1);
+      emit(project, "turn_unqueued", { queued_id: segments[3], reason: "cancelled", text: item.text });
     }
     res.writeHead(204);
     return res.end();

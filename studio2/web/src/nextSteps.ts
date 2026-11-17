@@ -59,6 +59,17 @@ export function fillDraft(draft: string, text: string): string {
   return `${typed}\n${text}`;
 }
 
+/** True when the chat box already holds this text (as typed, or put back earlier). */
+export function draftHolds(draft: string, text: string): boolean {
+  const wanted = text.trim();
+  return wanted !== "" && draft.includes(wanted);
+}
+
+/** "Put it back": the text after what is typed, once; a box that already holds it is left as it is. */
+export function putBackDraft(draft: string, text: string): string {
+  return draftHolds(draft, text) ? draft : fillDraft(draft, text);
+}
+
 /** The options a message goes with when it is exactly a shown step's text; otherwise undefined. */
 export function optionsForText(steps: readonly NextStep[], typed: string): TurnOptions | undefined {
   const text = typed.trim();

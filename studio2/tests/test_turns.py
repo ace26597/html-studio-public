@@ -303,7 +303,7 @@ async def test_stop_while_a_request_is_finishing_stops_what_would_follow(client,
     assert len(notice) == 1 and "already finished" in notice[0] and "saved as a version" in notice[0]
     started = [e for e in events if e["type"] == "turn_started"]
     assert [(e["text"], e["queued_id"]) for e in started] == [("Hello studio", None), ("instead", after)]
-    assert [(e["queued_id"], e["reason"]) for e in events if e["type"] == "turn_unqueued"] == [(queued, "cancelled")]
+    assert [(e["queued_id"], e["reason"]) for e in events if e["type"] == "turn_unqueued"] == [(queued, "stopped")]
     assert studio.turns.queue.get(pid) == [] and pid not in studio.turns.active
     assert turn_id not in looked and shipped == [] and pid not in studio.ships.from_agent
     assert turn_id not in studio.turns.stopped_with

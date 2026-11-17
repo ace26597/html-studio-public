@@ -108,7 +108,7 @@ cd studio2 && STUDIO2_FAKE=1 .venv/bin/pytest -q
 cd studio2/web && npm test && npx tsc --noEmit
 ```
 
-On 17 November 2026: 859 server tests passed and 3 were skipped, in about 170 seconds; 331
+On 17 November 2026: 1129 server tests passed and 3 were skipped, in about 190 seconds; 376
 interface tests passed. Neither suite calls a model, and the server suite uses an in-memory
 secret store and an empty LiteLLM folder, so it does not touch your settings.
 
@@ -137,6 +137,7 @@ Where it runs and who may open it:
 | `STUDIO2_CONFIG` | `~/.config/studio2/config.json` | The config file. Secrets kept in a file sit beside it |
 | `STUDIO2_PORT_RANGE` | `8201-8299`, or the 99 ports after a port chosen in setup | Ports for project pages, as `first-last`. Each project's back end is on its page port + 100 |
 | `STUDIO2_HOSTS` | none | Extra addresses to listen on, comma separated. Loopback is always served. Needs an access key unless `STUDIO2_OPEN_TAILNET=1` |
+| `STUDIO2_NAMES` | none | More DNS names the studio answers to, comma separated. It always answers to addresses, `localhost`, the machine's own names and the names in its TLS certificate; any other name gets a 421 page (this stops a website pointing its own name at your studio). Needed behind a proxy or for a name only your router's DNS gives |
 | `STUDIO2_ACCESS_KEY` | the one setup stored | The key other devices sign in with, at least 24 characters |
 | `STUDIO2_OPEN_TAILNET` | off | `1`: devices on your Tailscale network need no key. Every address in `STUDIO2_HOSTS` must then be a Tailscale address; refused in a shared studio |
 | `STUDIO2_SHARED` | off | `1`: shared with other people. The Claude plan is switched off and an access key is compulsory |

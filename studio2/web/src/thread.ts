@@ -57,6 +57,10 @@ export interface NoticeItem {
   level: string;
   message: string;
   ts: string;
+  /** A message Stop removed from the queue: its text, which the thread offers to put back in the box. */
+  restoreText?: string;
+  /** That text was sent (or queued) again after this note: nothing left to offer. */
+  resent?: boolean;
 }
 
 export type ApprovalStatus = "waiting" | "allowed" | "denied";
@@ -353,7 +357,7 @@ function applyEvent(state: ThreadState, event: StudioEvent): ThreadState {
         };
         return { ...state, entries, queue, runningTurnId: prior.status === "running" ? id : state.runningTurnId };
       }
-      return { ...state, entries: [...state.entries, turn], queue, runningTurnId: id };
+      return { ...state, entries: markResent([...state.entries, turn], turn.text), queue, runningTurnId: id };
     }
 
     case "library_picked": {
@@ -377,13 +381,32 @@ function applyEvent(state: ThreadState, event: StudioEvent): ThreadState {
         connection: event.connection ?? null,
         model: event.model ?? null,
       };
-      return { ...state, queue: [...state.queue, item] };
+      return { ...state, entries: markResent(state.entries, item.text), queue: [...state.queue, item] };
     }
 
     case "turn_unqueued": {
       const removed = state.queue.find((item) => item.queuedId === event.queued_id);
       if (!removed) return state;
       const queue = state.queue.filter((item) => item !== removed);
+      if (event.reason === "stopped" || event.reason === "not_started") {
+        // Stop cleared it, or its turn came and it could not start: say so, and keep the text so
+        // the person can send it again.
+        const text = removed.text || (typeof event.text === "string" ? event.text : "");
+        const stopped = event.reason === "stopped";
+        const notice: NoticeItem = {
+          type: "notice",
+          key: `unqueued:${seq}`,
+          level: stopped ? "info" : "warning",
+          message:
+            (stopped
+              ? `Stop also removed a message that was waiting, so it was not sent: “${text}”`
+              : `A message that was waiting could not start, so it was not sent: “${text}”`) +
+            notPutBack(removed.selection, removed.attachments),
+          ts,
+          restoreText: text,
+        };
+        return { ...state, queue, entries: [...state.entries, notice] };
+      }
       if (event.reason !== "restart") return { ...state, queue };
       // Removed by a restart, not by the user: say so, or the message silently vanishes.
       const notice: NoticeItem = {
@@ -625,6 +648,11 @@ function applyEvent(state: ThreadState, event: StudioEvent): ThreadState {
         const before = sessionCost && sessionCost.id === session && total >= sessionCost.total ? sessionCost.total : 0;
         sessionCost = { id: session, total };
         usage = { ...usage, cost_usd: Math.round((total - before) * 1e6) / 1e6 };
+      } else if (usage && session && typeof usage.cost_usd === "number" && usage.cost_usd > 0
+                 && event.usage?.cost_estimated === undefined) {
+        // Written before Step 2 (a gateway turn too): the figure is the running total. Shown as it
+        // was, and kept as the mark the next turn's own part is worked out from.
+        sessionCost = { id: session, total: usage.cost_usd };
       }
       state = sessionCost === (state.sessionCost ?? null) ? state : { ...state, sessionCost };
       const finished = withTurn(state, event.turn_id, seq, ts, (turn) => ({
@@ -863,4 +891,29 @@ export function waitingApprovals(state: ThreadState): ApprovalItem[] {
 /** Paths changed by the turn that is running now (for the Files panel's dots). */
 export function runningChangedPaths(state: ThreadState): string[] {
   return runningTurn(state)?.changedPaths ?? [];
+}
+
+/** The part of a removed message that "Put it back" does not bring back, named, as a sentence. */
+export function notPutBack(selection: Selection | null, attachments: readonly string[]): string {
+  const parts: string[] = [];
+  if (selection) {
+    const shown = selection.text.trim().replace(/\s+/g, " ");
+    const short = shown.length > 40 ? `${shown.slice(0, 39)}…` : shown;
+    parts.push(`the selected element (<${selection.tag || "element"}>${short ? ` “${short}”` : ""})`);
+  }
+  const names = attachments.map((path) => path.split("/").pop() || path);
+  if (names.length === 1) parts.push(`the attached file ${names[0]}`);
+  else if (names.length > 1) parts.push(`the attached files ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`);
+  return parts.length ? ` Putting it back gives the text only, without ${parts.join(" or ")}.` : "";
+}
+
+/** A note whose text was sent or queued again since has nothing left to offer. */
+function markResent(entries: ThreadEntry[], text: string): ThreadEntry[] {
+  const sent = text.trim();
+  if (!sent || !entries.some((entry) => entry.type === "notice" && !entry.resent && entry.restoreText?.trim() === sent)) {
+    return entries;
+  }
+  return entries.map((entry) =>
+    entry.type === "notice" && !entry.resent && entry.restoreText?.trim() === sent ? { ...entry, resent: true } : entry,
+  );
 }

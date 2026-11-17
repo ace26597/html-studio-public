@@ -520,6 +520,26 @@ a {
   letter-spacing: -0.01em;
 }
 
+/* The title and a close button: a sheet that fills the screen has no backdrop to tap. */
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -9px -10px 0 0;
+}
+
+.dialog-head h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.icon-btn.dialog-close {
+  flex: none;
+  min-width: 40px;
+  min-height: 40px;
+}
+
 .dialog-body {
   margin-top: 8px;
   color: var(--text-2);
@@ -2261,6 +2281,24 @@ a {
   margin-top: 2px;
 }
 
+/* "Put it back in the message box" under a message Stop removed: a link-like button in the line. */
+.notice-action {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 550;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.notice-action:hover {
+  color: var(--text);
+}
+
 .notice-warning {
   background: var(--warn-soft);
   color: var(--warn);
@@ -3809,6 +3847,11 @@ a.attachment:hover {
   color: var(--warn);
 }
 
+.ds-retype {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
 /* the add / edit form */
 
 .ds-form {
@@ -3861,6 +3904,63 @@ a.attachment:hover {
 
 .field input[aria-invalid="true"] {
   border-color: var(--err);
+}
+
+.ds-ssl {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  gap: 6px;
+}
+
+.ds-ssl > legend {
+  margin-bottom: 5px;
+  padding: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.save-choice.ds-ssl-choice {
+  align-items: flex-start;
+}
+
+.field .save-choice.ds-ssl-choice input[type="radio"] {
+  margin-top: 2px;
+}
+
+.ds-ssl-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.ds-ssl-text code {
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.ds-ssl-ca {
+  margin-top: 4px;
+}
+
+.ds-ssl-hint {
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ds-ssl-warning {
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-2);
 }
 
 .ds-password-row {
@@ -4825,6 +4925,16 @@ a.attachment:hover {
     padding: calc(var(--safe-top) + 16px) calc(16px + var(--safe-right)) calc(var(--safe-bottom) + 16px)
       calc(16px + var(--safe-left));
     animation: sheet-up var(--slow) var(--ease);
+  }
+
+  /* The close button stays in reach while a long sheet scrolls. */
+  .dialog-wide .dialog-head {
+    position: sticky;
+    top: calc(-16px - var(--safe-top));
+    z-index: 2;
+    margin: calc(-16px - var(--safe-top)) calc(-16px - var(--safe-right)) 0 calc(-16px - var(--safe-left));
+    padding: calc(var(--safe-top) + 8px) calc(8px + var(--safe-right)) 8px calc(16px + var(--safe-left));
+    background: var(--surface);
   }
 
   .dialog-wide .dialog-actions {
@@ -7554,4 +7664,51 @@ a.attachment:hover {
 
 .places-add .btn {
   min-height: 36px;
+}
+
+/* ---- signing in again while unsaved edits are held ----------------------------------- */
+
+.signin-again {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 410;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  border-radius: 12px;
+  background: var(--warn-soft);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+  box-shadow: var(--shadow-float);
+}
+
+.signin-again p {
+  flex: 1 1 260px;
+  margin: 0;
+}
+
+.signin-again .btn {
+  flex: none;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+/* Toasts sit above the notice instead of under it. */
+.signin-waiting .toasts {
+  bottom: 160px;
+}
+
+/* A dialog that holds focus itself (nothing inside to focus yet) needs no ring round the whole box. */
+.dialog[tabindex="-1"]:focus {
+  outline: none;
 }

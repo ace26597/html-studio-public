@@ -1,10 +1,11 @@
 // Make it live (CONTRACT.md, "Ship: make it live"): pure helpers for the ship panel.
 
-import type { ShipCommandResult, ShipMethod, ShipRecipe, ShipRecord, ShipResult, ShipStepEvent, ShipView } from "./types";
+import type { ShipCard, ShipCommandResult, ShipMethod, ShipRecipe, ShipRecord, ShipResult, ShipStepEvent, ShipView } from "./types";
 
 export const METHOD_LABEL: Record<ShipMethod, string> = {
   branch: "Leave a branch in the original's repository",
-  merge: "Merge into the original's branch (fast-forward only)",
+  // The same names the server puts on the card (ship.py METHODS).
+  merge: "Merge into the original's checked-out branch (fast-forward only)",
   files: "Copy the changed files into the original folder",
   none: "Nothing to move: the folder is edited in place",
 };
@@ -83,15 +84,65 @@ export const RESULT_TEXT: Record<ShipResult, { label: string; tone: "ok" | "warn
   checks_failed: { label: "A check failed", tone: "warn" },
   refused: { label: "Stopped before writing", tone: "warn" },
   rolled_back: { label: "Went back by itself", tone: "warn" },
-  back_failed: { label: "Going back failed", tone: "err" },
+  back_failed: { label: "Going back did not finish", tone: "err" },
   failed: { label: "Failed", tone: "err" },
   interrupted: { label: "Interrupted", tone: "warn" },
 };
 
-/** The result's label: a branch left in the original is not live yet. */
-export function resultText(result: ShipResult, method: ShipMethod) {
-  if (result === "shipped" && method === "branch") return { label: "Branch left", tone: "ok" as const };
-  return RESULT_TEXT[result];
+const SHIPPED_QUIETLY: Record<ShipMethod, string> = {
+  branch: "Branch left",
+  merge: "Merged",
+  files: "Files copied",
+  none: "Done",
+};
+
+/** The result's label. "Live" only when something ran or answered afterwards: a branch left in
+ * the original, or a merge with nothing run after it, started and checked nothing. */
+export function shipResultText(record: Pick<ShipRecord, "result" | "plan" | "recipe">) {
+  const method = record.plan.method;
+  if (record.result === "shipped") {
+    const ran = method !== "branch" && (record.recipe.after.length > 0 || Boolean(record.recipe.address));
+    return ran ? RESULT_TEXT.shipped : { label: SHIPPED_QUIETLY[method], tone: "ok" as const };
+  }
+  return record.result ? RESULT_TEXT[record.result] : { label: "Running", tone: "muted" as const };
+}
+
+/** The card's allow button, by what allowing does. */
+export function allowLabel(card: Pick<ShipCard, "method" | "commands" | "address">): string {
+  if (card.method === "branch") return "Allow and leave the branch";
+  if (card.commands.length || card.address) return "Allow and make it live";
+  return { merge: "Allow and merge", files: "Allow and copy the files", none: "Allow" }[card.method];
+}
+
+/** The card's question, by what allowing does. */
+export function cardTitle(card: Pick<ShipCard, "method" | "commands" | "address">): string {
+  if (card.method === "branch") return "Allow leaving this branch in the original?";
+  if (card.commands.length || card.address) return "Allow this change to go live?";
+  return card.method === "none" ? "Allow this change?" : "Allow this change into the original?";
+}
+
+/** A message with commands between backticks → its parts, the commands marked as code. An odd
+ * number of backticks is not a command: the text stays as it is. */
+export function codeParts(text: string): { text: string; code: boolean }[] {
+  const parts = text.split("`");
+  if (parts.length % 2 === 0) return [{ text, code: false }];
+  return parts.map((part, index) => ({ text: part, code: index % 2 === 1 })).filter((part) => part.text);
+}
+
+/** The one message shown above the panel's buttons: the last thing that happened there. */
+export interface ShipNotice {
+  kind: "start" | "update";
+  ok: boolean;
+  text: string;
+}
+
+export const startNotice = (text: string): ShipNotice => ({ kind: "start", ok: false, text });
+export const updateNotice = (ok: boolean, text: string): ShipNotice => ({ kind: "update", ok, text });
+
+/** "Bring the copy up to date" is offered after the original moved on, and stays after a try. */
+export function offerUpdate(gitCopy: boolean, notice: ShipNotice | null): boolean {
+  if (!gitCopy || !notice) return false;
+  return notice.kind === "update" || /moved on/.test(notice.text);
 }
 
 /** Who confirmed the recipe, in words. */
@@ -102,15 +153,27 @@ export function confirmedBy(by: string | null): string {
   return `Confirmed (${by})`;
 }
 
-/** What the top-bar button says. */
+/** What a running ship is doing, in the card's words for its method: "live" only when something
+ * runs or answers afterwards, never for a branch left in the original. */
+function runningLabel(recipe: ShipRecipe | null): { label: string; short: string } {
+  const method = recipe?.method;
+  if (method === "branch") return { label: "Leaving the branch…", short: "Branch…" };
+  if (recipe && (recipe.after.length || recipe.address)) return { label: "Making it live…", short: "Live…" };
+  if (method === "merge") return { label: "Merging…", short: "Merging…" };
+  if (method === "files") return { label: "Copying the files…", short: "Copying…" };
+  return { label: "Working…", short: "Working…" };
+}
+
+/** What the top-bar button says (`short` is the compact button's text, on a phone). */
 export function shipButton(view: ShipView | null | undefined): {
   label: string;
+  short: string;
   state: "setup" | "idle" | "running" | "waiting";
 } {
-  if (!view || !view.confirmed) return { label: "Make it live", state: "setup" };
-  if (view.running && view.card) return { label: "Allow to make it live", state: "waiting" };
-  if (view.running) return { label: "Making it live…", state: "running" };
-  return { label: "Make it live", state: "idle" };
+  if (!view || !view.confirmed) return { label: "Make it live", short: "Make live", state: "setup" };
+  if (view.running && view.card) return { label: allowLabel(view.card), short: "Allow", state: "waiting" };
+  if (view.running) return { ...runningLabel(view.recipe), state: "running" };
+  return { label: "Make it live", short: "Make live", state: "idle" };
 }
 
 export interface ProgressStep {

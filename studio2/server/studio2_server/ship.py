@@ -43,19 +43,36 @@ METHODS = {
     "branch": "Leave a branch in the original's repository",
     "merge": "Merge into the original's checked-out branch (fast-forward only)",
     "files": "Copy the changed files into the original folder",
-    "none": "Nothing to move (edited in place): run the checks and the after-commands",
+    "none": "Nothing to move: the folder is edited in place",
 }
 MAX_COMMANDS, MAX_COMMAND_CHARS, MAX_GLOBS = 10, 2_000, 40
 DEFAULT_TIMEOUT, MIN_TIMEOUT, MAX_TIMEOUT = 600, 10, 3_600
 OUTPUT_KEEP, EVENT_OUTPUT = 8_000, 4_000
 FILE_LIST_CAP = 500
 ADDRESS_TRIES, ADDRESS_PAUSE, ADDRESS_TIMEOUT = 6, 5.0, 10.0   # tests make these shorter
-LIMITS = [
-    "Going back restores files and the branch only: data and database changes made by the app or by a "
-    "command are not undone.",
-    "Where the change ends up is whatever the recipe's commands do (a restart on this machine, a push that "
-    "a build service picks up, a copy to a server). The studio itself never pushes to GitHub or any remote.",
-]
+NEVER_PUSHES = "The studio itself never pushes to GitHub or any remote."
+UNSTAGED = "Kept, but no longer staged (stage them again if you want): "
+
+
+def limits_for(method: str, recipe: dict) -> list[str]:
+    """The limits a card states: only those that hold for its method and recipe."""
+    if method == "branch":
+        return ["The branch stays in the original's own repository until you merge or delete it. " + NEVER_PUSHES]
+    lines = []
+    if method in ("merge", "files"):
+        lines.append(f"Going back restores the {'branch' if method == 'merge' else 'files'} only: data and "
+                     "database changes made by the app or by a command are not undone.")
+    if recipe.get("after"):
+        lines.append("Where the change ends up is whatever the after-commands do (a restart on this machine, a "
+                     "push that a build service picks up, a copy to a server). " + NEVER_PUSHES)
+    else:
+        lines.append("There are no after-commands, so nothing is restarted or sent anywhere. " + NEVER_PUSHES)
+    return lines
+
+
+def _count(number: int, word: str) -> str:
+    """1 file, 2 files."""
+    return f"{number} {word}{'' if number == 1 else 's'}"
 
 
 class ShipError(Exception):
@@ -381,7 +398,8 @@ def plan(project: dict, workspace: Path) -> dict:
                  f"In {folder}/.git: {'update' if ref else 'create'} the branch {branch} ({(ref or 'new')[:7]} → "
                  f"{head[:7]}) by fetching it from the copy."),
                 f"In {folder}: fast-forward {expected} from {orig['head'][:7]} to {head[:7]}; "
-                f"{len(result['files'])} file(s) in the folder change.",
+                f"{_count(len(result['files']), 'file')} in the folder "
+                f"{'changes' if len(result['files']) == 1 else 'change'}.",
             ]
     elif method == "files":
         base = state.get("shipped") or attach.get("import_commit")
@@ -408,10 +426,14 @@ def plan(project: dict, workspace: Path) -> dict:
                               "then ship again.")
             return result
         counts = {kind: sum(1 for f in result["files"] if f["status"] == kind) for kind in ("added", "modified", "deleted")}
-        result["writes"] = [
-            f"In {folder}: write {counts['added']} new file(s), overwrite {counts['modified']} and delete "
-            f"{counts['deleted']}. Every file overwritten or deleted is kept first, so the studio can put it back.",
-        ]
+        parts = [f"write {_count(counts['added'], 'new file')}" if counts["added"] else "",
+                 f"overwrite {_count(counts['modified'], 'file')}" if counts["modified"] else "",
+                 f"delete {_count(counts['deleted'], 'file')}" if counts["deleted"] else ""]
+        parts = [part for part in parts if part]
+        said = ", ".join(parts[:-1]) + (" and " if len(parts) > 1 else "") + parts[-1]
+        kept = (" Every file overwritten or deleted is kept first, so the studio can put it back."
+                if counts["modified"] or counts["deleted"] else " Going back removes them again.")
+        result["writes"] = [f"In {folder}: {said}.{kept}"]
     else:   # in place: nothing moves
         base = state.get("shipped") or attach.get("import_commit")
         result["base"] = base
@@ -506,7 +528,8 @@ def _apply(project: dict, workspace: Path, planned: dict, backup: Path) -> list[
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
             os.chmod(target, 0o755 if _mode(workspace, head, item["path"]) == "100755" else 0o644)
-        done.append(f"{len(written)} file(s) written in {folder}; what they replaced is kept in the ship's record.")
+        done.append(f"{_count(len(written), 'file')} written in {folder}; what they replaced is kept in the "
+                    "ship's record.")
     return done
 
 
@@ -528,98 +551,121 @@ def _not_undone(folder: Path, expected: str, on: str | None, before: str | None,
                  f"ship left it (someone committed since)")
     return ShipError("back_failed", (
         f"The ship could not be undone automatically: {moved}. Before the ship {expected} was at "
-        f"{(before or 'nothing')[:7]}. The studio changed nothing, so that work is kept; settling it is yours "
-        "to do by hand."))
+        f"{(before or 'nothing')[:7]}. Nothing was put back, so that work is kept, and so is the ship's "
+        "change; settling it is yours to do by hand."))
 
 
 def _go_back(project: dict, planned: dict, backup: Path) -> list[str]:
     """Put the original back as it was before `_apply`, without ever discarding what the studio did not
     put there: the person may have edited or committed in his folder while the after-commands ran.
     → lines saying what was done. Raises ShipError (`back_failed`) when something is left for him."""
-    attach, method, folder = project["attach"], planned["method"], Path(project["attach"]["path"])
-    shipped, done = planned.get("head"), []
-    if method in ("branch", "merge"):
-        branch, before = attach["studio_branch"], planned["before"]
-        if method == "merge" and before.get("head"):
-            now = _read(folder, "rev-parse", "-q", "--verify", "HEAD") or None
-            on = _read(folder, "symbolic-ref", "-q", "--short", "HEAD") or None
-            if now == before["head"] and on == attach["branch"]:
-                done.append(f"{attach['branch']} in {folder} was still at {before['head'][:7]}.")
-            elif now != shipped or on != attach["branch"]:
-                raise _not_undone(folder, attach["branch"], on, before["head"], now, shipped)
+    done: list[str] = []
+    try:
+        attach, method, folder = project["attach"], planned["method"], Path(project["attach"]["path"])
+        shipped = planned.get("head")
+        if method in ("branch", "merge"):
+            branch, before = attach["studio_branch"], planned["before"]
+            if method == "merge" and before.get("head"):
+                now = _read(folder, "rev-parse", "-q", "--verify", "HEAD") or None
+                on = _read(folder, "symbolic-ref", "-q", "--short", "HEAD") or None
+                if now == before["head"] and on == attach["branch"]:
+                    done.append(f"The branch {attach['branch']} in {folder} was still at {before['head'][:7]}.")
+                elif now != shipped or on != attach["branch"]:
+                    raise _not_undone(folder, attach["branch"], on, before["head"], now, shipped)
+                else:
+                    # --keep, never --hard: it refuses rather than lose a local change to a file the ship
+                    # changed, and leaves every other edit and untracked file as it is. It does unstage
+                    # what was staged (the content stays), so that is said.
+                    _code, staged = _git_read(folder, "diff", "--cached", "--name-only", "--no-renames")
+                    code, out = _git_write(folder, "reset", "--keep", "-q", before["head"])
+                    if code != 0:
+                        in_way = _in_the_way(folder, before["head"], shipped)
+                        named = ", ".join(in_way[:10]) if in_way else out[:500]
+                        raise ShipError("back_failed", (
+                            f"The branch {attach['branch']} in {folder} was not put back: these files changed by the ship have "
+                            f"been edited there since (by you or by an after-command), and going back would lose "
+                            f"that: {named}. Nothing was put back: the ship's change is still there, and so "
+                            f"are those edits. To go back by hand, keep those edits somewhere, then run "
+                            f"`git reset --keep {before['head'][:7]}` in {folder}."))
+                    done.append(f"The branch {attach['branch']} in {folder} is back at {before['head'][:7]}; other edits there are kept.")
+                    unstaged = [line for line in staged.splitlines() if line]
+                    if unstaged:
+                        done.append(UNSTAGED
+                                    + ", ".join(unstaged[:10]) + (" …" if len(unstaged) > 10 else "") + ".")
+            current, target = _ref(folder, branch), before.get("ref")
+            if current == target:
+                done.append(f"Branch {branch} in {folder} was " + (f"still at {target[:7]}." if target else "not there."))
+            elif current != shipped or _read(folder, "symbolic-ref", "-q", "--short", "HEAD") == branch:
+                raise ShipError("back_failed", (
+                    f"The branch {branch} in {folder} was left as it is: it is at {(current or 'nothing')[:7]}"
+                    f"{' and checked out' if current == shipped else ''}, not where the ship left it "
+                    f"({(shipped or '?')[:7]}), so someone is using it. Before the ship it was at "
+                    f"{(target or 'nothing')[:7]}."))
             else:
-                # --keep, never --hard: it refuses rather than lose a local change to a file the ship
-                # changed, and leaves every other edit and untracked file as it is. It does unstage
-                # what was staged (the content stays), so that is said.
-                _code, staged = _git_read(folder, "diff", "--cached", "--name-only", "--no-renames")
-                code, out = _git_write(folder, "reset", "--keep", "-q", before["head"])
+                # The old value makes git refuse if the branch moves between the look above and this write.
+                if target:
+                    code, out = _git_write(folder, "update-ref", f"refs/heads/{branch}", target, current)
+                else:
+                    code, out = _git_write(folder, "update-ref", "-d", f"refs/heads/{branch}", current)
                 if code != 0:
-                    in_way = _in_the_way(folder, before["head"], shipped)
-                    named = ", ".join(in_way[:10]) if in_way else out[:500]
-                    raise ShipError("back_failed", (
-                        f"{attach['branch']} in {folder} was not put back: these files changed by the ship have "
-                        f"been edited there since (by you or by an after-command), and going back would lose "
-                        f"that: {named}. The studio changed "
-                        f"nothing. To go back by hand, keep those edits somewhere, then "
-                        f"`git reset --keep {before['head'][:7]}`."))
-                done.append(f"{attach['branch']} in {folder} is back at {before['head'][:7]}; other edits there are kept.")
-                unstaged = [line for line in staged.splitlines() if line]
-                if unstaged:
-                    done.append("Kept, but no longer staged (stage them again if you want): "
-                                + ", ".join(unstaged[:10]) + (" …" if len(unstaged) > 10 else "") + ".")
-        current, target = _ref(folder, branch), before.get("ref")
-        if current == target:
-            done.append(f"Branch {branch} in {folder} was " + (f"still at {target[:7]}." if target else "not there."))
-        elif current != shipped or _read(folder, "symbolic-ref", "-q", "--short", "HEAD") == branch:
-            raise ShipError("back_failed", (
-                f"The branch {branch} in {folder} was left as it is: it is at {(current or 'nothing')[:7]}"
-                f"{' and checked out' if current == shipped else ''}, not where the ship left it "
-                f"({(shipped or '?')[:7]}), so someone is using it. Before the ship it was at "
-                f"{(target or 'nothing')[:7]}."))
-        else:
-            # The old value makes git refuse if the branch moves between the look above and this write.
-            if target:
-                code, out = _git_write(folder, "update-ref", f"refs/heads/{branch}", target, current)
-            else:
-                code, out = _git_write(folder, "update-ref", "-d", f"refs/heads/{branch}", current)
-            if code != 0:
-                raise ShipError("back_failed", f"Putting the branch {branch} back failed: {out[:500]}")
-            done.append(f"Branch {branch} in {folder} is " + (f"back at {target[:7]}." if target else "removed again."))
-    elif method == "files":
-        try:
-            applied = json.loads((backup.parent / "applied.json").read_text("utf-8"))["files"]
-        except (OSError, ValueError, KeyError):
-            applied = []
-        left = []
-        for item in reversed(applied):
+                    raise ShipError("back_failed", f"Putting the branch {branch} back failed: {out[:500]}")
+                done.append(f"Branch {branch} in {folder} is " + (f"back at {target[:7]}." if target else "removed again."))
+        elif method == "files":
             try:
-                target = _target(folder, item["path"])
-            except ShipError:
-                left.append(item["path"])         # now a link, or under one: never written through
-                continue
-            keep = backup / item["path"]
-            if "wrote" in item:   # records from before 17 November 2026 do not say what was written
-                if target.exists() and not target.is_file():
-                    left.append(item["path"])
+                applied = json.loads((backup.parent / "applied.json").read_text("utf-8"))["files"]
+            except (OSError, ValueError, KeyError):
+                applied = []
+            left = []
+            for item in reversed(applied):
+                try:
+                    target = _target(folder, item["path"])
+                except ShipError:
+                    left.append(item["path"])         # now a link, or under one: never written through
                     continue
-                current = _sha(target.read_bytes()) if target.is_file() else None
-                original = _sha(keep.read_bytes()) if keep.is_file() else None
-                if current not in (item["wrote"], original):
-                    left.append(item["path"])     # edited after the ship wrote it: his now
-                    continue
-            if keep.is_file():
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(keep, target)
-            else:
-                target.unlink(missing_ok=True)
-        done.append(f"{len(applied) - len(left)} file(s) in {folder} put back as they were.")
-        if left:
-            shown = ", ".join(left[:10]) + (" …" if len(left) > 10 else "")
-            raise ShipError("back_failed", (
-                f"{done[-1]} These changed in {folder} after the ship wrote them (edited, or now a link), so the "
-                f"studio left them as "
-                f"they are: {shown}. What each was before the ship is kept in the ship's record (backup/)."))
-    return done
+                keep = backup / item["path"]
+                if "wrote" in item:   # records from before 17 November 2026 do not say what was written
+                    if target.exists() and not target.is_file():
+                        left.append(item["path"])
+                        continue
+                    current = _sha(target.read_bytes()) if target.is_file() else None
+                    original = _sha(keep.read_bytes()) if keep.is_file() else None
+                    if current not in (item["wrote"], original):
+                        left.append(item["path"])     # edited after the ship wrote it: his now
+                        continue
+                if keep.is_file():
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(keep, target)
+                else:
+                    target.unlink(missing_ok=True)
+            put = len(applied) - len(left)
+            if put or not left:
+                done.append(f"{_count(put, 'file')} in {folder} put back as {'it was' if put == 1 else 'they were'}.")
+            if left:
+                shown = ", ".join(left[:10]) + (" …" if len(left) > 10 else "")
+                one = len(left) == 1
+                raise ShipError("back_failed", (
+                    f"{'This file' if one else 'These files'} changed in {folder} after the ship wrote "
+                    f"{'it' if one else 'them'} (edited, or now a link), so the studio left "
+                    f"{'it as it is' if one else 'them as they are'}: {shown}. What "
+                    f"{'it' if one else 'each'} was before the ship is kept in the ship's record (its backup folder)."))
+        return done
+    except ShipError as exc:
+        # What was already put back is said first, so the message never reads as if nothing was.
+        if done:
+            exc.message = " ".join(done) + " " + exc.message
+        raise
+
+
+def _shipped_message(method: str, recipe: dict) -> str:
+    """What a ship that went through did, and nothing it did not do."""
+    ran = [part for part, there in (("the after-commands ran", recipe.get("after")),
+                                    ("the address answered", recipe.get("address"))) if there]
+    if method == "none":
+        if not ran:
+            return "Nothing to move or run: the folder already has the change."
+        return "In the folder, " + " and ".join(ran) + "."
+    return "The change is in the original" + "".join(
+        (", " if index < len(ran) - 1 else " and ") + part for index, part in enumerate(ran)) + "."
 
 
 # -- the runner ----------------------------------------------------------------------------
@@ -811,16 +857,23 @@ class Shipper:
                 "address": None if planned["method"] == "branch" else recipe["address"],
                 "protected": hits, "needs_name": bool(hits), "project_name": project["name"],
                 "going_back": self._going_back_text(planned["method"], recipe),
-                "limits": LIMITS, "merge_help": self._merge_help(attach) if planned["method"] == "branch" else None}
+                "limits": limits_for(planned["method"], recipe), "merge_help": self._merge_help(attach) if planned["method"] == "branch" else None}
 
     @staticmethod
     def _going_back_text(method: str, recipe: dict) -> str:
-        again = ("then runs: " + "; ".join(recipe["back"])) if recipe["back"] else (
-            "then runs the after-commands again" if recipe["after"] else "")
-        if method == "merge":
-            return f"If a step after the merge fails, the studio puts the branch back where it was {again}".strip() + "."
-        if method == "files":
-            return f"If a step after the copy fails, the studio puts back every file it wrote or removed {again}".strip() + "."
+        again = (", then runs: " + "; ".join(recipe["back"])) if recipe["back"] else (
+            ", then runs the after-commands again" if recipe["after"] else "")
+        if method in ("merge", "files"):
+            undo = ("puts the branch back where it was" if method == "merge"
+                    else "puts back every file it wrote or removed")
+            if not recipe["after"] and not recipe["address"]:
+                step = "merge" if method == "merge" else "copy"
+                if recipe["back"]:
+                    return (f"Nothing runs after the {step}. If the {step} itself fails, the studio {undo}{again}. "
+                            f"If the studio stops half way, it {undo} when it starts again.")
+                return (f"Nothing runs after the {step}, so there is no step that can fail afterwards. If the "
+                        f"studio stops half way, it {undo} when it starts again.")
+            return f"If a step after the {'merge' if method == 'merge' else 'copy'} fails, the studio {undo}{again}."
         if method == "branch":
             return "The branch is only left there; delete it in the original to go back."
         return "Nothing is moved, so there is nothing for the studio to put back; restore a version if needed."
@@ -909,10 +962,8 @@ class Shipper:
             if planned["method"] == "branch":
                 message = f"The branch {project['attach']['studio_branch']} is in the original's repository. " \
                           + self._merge_help(project["attach"])
-            elif planned["method"] == "none":
-                message = "Checks and after-commands ran in the folder" + (" and the address answered." if recipe["address"] else ".")
             else:
-                message = "The change is in the original" + (" and the address answered." if recipe["address"] else ".")
+                message = _shipped_message(planned["method"], recipe)
             state = {**(studio.store.get(project_id).get("ship") or {}), "shipped": planned["head"]}
             studio.store.update(project_id, ship=state)
         except asyncio.CancelledError:
@@ -921,8 +972,10 @@ class Shipper:
                 try:
                     record["back"] = await asyncio.to_thread(_go_back, project, planned, backup)
                     message += " The original was put back; its after-commands were not run again."
+                except ShipError as exc:
+                    message += f" {exc.message}"
                 except Exception as exc:  # noqa: BLE001
-                    message += f" Putting the original back failed: {exc}. Check {folder} by hand."
+                    message += f" Putting the original back stopped on an error ({exc}). Check {folder} by hand."
         except Exception as exc:  # noqa: BLE001 - a ship always ends with a record
             log.exception("Ship %s failed", ship_id)
             result, message = "failed", f"The studio hit an error: {exc}"
@@ -950,27 +1003,42 @@ class Shipper:
         if planned["method"] in ("none",):
             return "failed", (f"{why} Nothing was moved (the project is the folder itself), so there was nothing "
                               "to put back. The folder has the edited files; restore a version if needed.")
-        if planned["method"] == "branch":
-            pass
         record["phase"] = "back"
         self.save(project_id, record)
         self._step(project_id, record["id"], "back", "running")
         try:
             record["back"] = await asyncio.to_thread(_go_back, self.studio.store.get(project_id), planned, backup)
+        except ShipError as exc:
+            # Its message says what was put back, what was left and why: true as it stands.
+            self._step(project_id, record["id"], "back", "failed", lines=[exc.message])
+            return "back_failed", f"{why} {exc.message}"
         except Exception as exc:  # noqa: BLE001
-            message = getattr(exc, "message", None) or str(exc)
-            self._step(project_id, record["id"], "back", "failed", lines=[message])
-            return "back_failed", (f"{why} Going back FAILED: {message}. The original at {folder} may be half "
-                                   "changed: check it by hand. The ship's record keeps every overwritten file.")
+            self._step(project_id, record["id"], "back", "failed", lines=[str(exc)])
+            kept = (" What each file was before the ship is kept in the ship's record."
+                    if planned["method"] == "files" else "")
+            return "back_failed", (f"{why} Going back stopped on an error ({exc}), so {folder} may be only partly "
+                                   f"put back: check it by hand.{kept}")
         self._step(project_id, record["id"], "back", "ok", lines=record["back"])
-        again = record["recipe"]["back"] or record["recipe"]["after"]
-        if again and record["recipe"]["method"] != "branch":
+        unstaged = next((line[len(UNSTAGED):] for line in record["back"] if line.startswith(UNSTAGED)), None)
+        staged = (f" Files you had staged there are kept but no longer staged: {unstaged.rstrip('.')}. Stage them "
+                  "again if you want." if unstaged else "")
+        restored = "branch is back where it was" if planned["method"] == "merge" else "files are back as they were"
+        # A branch is only left there: none of its commands ever run, going back included.
+        again = None if planned["method"] == "branch" else (record["recipe"]["back"] or record["recipe"]["after"])
+        if again:
             if not await self._commands(project_id, record, "back_after", again, folder, record["back_after"]):
-                return "back_failed", (f"{why} The original's files and branch are back as they were, but a command "
-                                       "run after going back failed, so the running app may not match them. "
-                                       "Check it by hand.")
-        return "rolled_back", f"{why} The studio went back: the original is as it was before this ship." + (
-            " The after-commands ran again." if again else "")
+                return "back_failed", (f"{why} The original's {restored}, but a command run after going back "
+                                       f"failed, so the running app may not match it. Check it by hand.{staged}")
+        if not again:
+            ran = ""
+        elif record["recipe"]["back"]:
+            ran = " The go-back commands ran."
+        elif record["after"]:     # they had run (or started) in this ship before it went back
+            ran = " The after-commands ran again."
+        else:                     # applying failed: they had not run yet
+            ran = " The after-commands were run after going back, so that what is live matches the folder."
+        return "rolled_back", (f"{why} The studio went back: the original is as it was before this ship."
+                               + staged + ran)
 
     # -- startup and shutdown --------------------------------------------------------------
     async def recover(self, project_id: str) -> None:
@@ -987,8 +1055,11 @@ class Shipper:
                     record["back"] = await asyncio.to_thread(
                         _go_back, project, planned, self.folder(project_id, record["id"]) / "backup")
                     message += " The original was put back; its after-commands were not run again (run them by hand)."
+                except ShipError as exc:
+                    message += f" {exc.message}"
                 except Exception as exc:  # noqa: BLE001
-                    message += f" Putting the original back failed: {exc}. Check {record['attach']['path']} by hand."
+                    message += (f" Putting the original back stopped on an error ({exc}). "
+                                f"Check {record['attach']['path']} by hand.")
             else:
                 message += " Nothing had been written to the original."
             record.update(result="interrupted", message=message, finished_at=now_iso(), phase="done")

@@ -15,9 +15,15 @@ from __future__ import annotations
 import contextvars
 import ipaddress
 import hashlib
+import json
+import re
 import hmac
 import html
+import socket
+import subprocess
+import sys
 import time
+from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
 COOKIE = "studio2_access"
@@ -36,10 +42,14 @@ def token_for(key: str) -> str:
 
 
 def host_name(host: str) -> str:
-    """"100.101.102.103:8200" → "100.101.102.103"; "[::1]:8200" → "[::1]"."""
+    """"100.101.102.103:8200" → "100.101.102.103"; "[::1]:8200" → "[::1]". A bracketed address
+    must be the whole host (with at most a port): "[::1].evil.example" stays as it is, a name."""
     host = (host or "").strip().lower()
     if host.startswith("["):
-        return host.split("]")[0] + "]"
+        inside, bracket, after = host[1:].partition("]")
+        if bracket and (after == "" or re.fullmatch(r":\d{1,5}", after)):
+            return f"[{inside}]"
+        return host
     return host.rsplit(":", 1)[0] if ":" in host else host
 
 
@@ -69,6 +79,143 @@ def is_tailnet_peer(scope) -> bool:
     headers = dict(scope.get("headers") or [])
     client = (scope.get("client") or ("", 0))[0]
     return on_tailnet(client) and not any(name in headers for name in FORWARDED)
+
+
+# -- names the studio answers to (DNS rebinding) ----------------------------------------------
+# A page on a site someone else owns can point that site's name at this machine's address. The
+# browser then sends `Host: their-name:8200` and treats the answers as their own page's. An
+# address cannot be pointed elsewhere, so addresses pass; a name passes only when it is one the
+# studio knows (CONTRACT.md, "Names the studio answers to").
+
+def _bare(host: str) -> str:
+    """"Mac.Example.:8200" → "mac.example"; "[::1]:8200" → "[::1]"."""
+    return host_name(host).rstrip(".")
+
+
+def is_address(name: str) -> bool:
+    try:
+        ipaddress.ip_address(name[1:-1] if name.startswith("[") and name.endswith("]") else name)
+    except ValueError:
+        return False
+    return "." in name or ":" in name        # "2130706433" parses as an address, but a browser never sends it so
+
+
+def name_allowed(host: str, names: frozenset[str]) -> bool:
+    name = _bare(host)
+    if not name:
+        return False
+    if is_address(name) or name == "localhost" or name.endswith(".localhost"):
+        return True
+    if name in names:
+        return True
+    first, _, rest = name.partition(".")
+    return bool(first and rest) and f"*.{rest}" in names
+
+
+def _bonjour_name() -> str | None:
+    """A Mac's own network name (what other devices find it by as <name>.local)."""
+    if sys.platform != "darwin":
+        return None
+    try:
+        done = subprocess.run(["scutil", "--get", "LocalHostName"], capture_output=True, text=True, timeout=3)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if done.returncode != 0:
+        return None
+    return done.stdout.strip() or None
+
+
+HOSTS_FILE = Path("/etc/hosts")
+
+
+def _hosts_file_names(host: str) -> list[str]:
+    """The names /etc/hosts lists on a line that also names this machine's host name (a Linux
+    installer writes "127.0.1.1 box.lan box"). The machine's own file, not a DNS answer."""
+    try:
+        text = HOSTS_FILE.read_text("utf-8", errors="replace")
+    except OSError:
+        return []
+    out: list[str] = []
+    for line in text.splitlines():
+        fields = [f.lower().rstrip(".") for f in line.split("#", 1)[0].split()[1:]]
+        if host in fields or host.split(".")[0] in fields:
+            out.extend(f for f in fields if f and not is_address(f))
+    return out
+
+
+def machine_names() -> set[str]:
+    """This machine's names from its own settings only. Never socket.getfqdn(): its answer can come
+    from the network's DNS, which also picks the first part (it sees the name asked for)."""
+    out: set[str] = set()
+    host = (socket.gethostname() or "").strip().lower().rstrip(".")
+    candidates = [host, *(_hosts_file_names(host) if host else [])]
+    bonjour = _bonjour_name()
+    if bonjour:
+        candidates.append(bonjour.lower())
+    for name in candidates:
+        if name and not is_address(name):
+            first = name.split(".")[0]
+            out.update({name, first, f"{first}.local"})
+    return out
+
+
+def certificate_names(cert_file: str) -> set[str]:
+    """The DNS names in the certificate: its alternative names, or its common name when it has none."""
+    try:
+        try:
+            from cryptography import x509
+        except ImportError:
+            x509 = None
+        if x509 is not None:
+            with open(cert_file, "rb") as handle:
+                cert = x509.load_pem_x509_certificate(handle.read())
+            try:
+                alt = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+                names = alt.get_values_for_type(x509.DNSName)
+            except x509.ExtensionNotFound:
+                names = [a.value for a in cert.subject.get_attributes_for_oid(x509.NameOID.COMMON_NAME)]
+        else:
+            import ssl
+            decoded = ssl._ssl._test_decode_cert(cert_file)     # the standard library's own reader
+            names = [value for kind, value in decoded.get("subjectAltName", ()) if kind == "DNS"]
+            if not decoded.get("subjectAltName"):
+                names = [value for part in decoded.get("subject", ()) for key, value in part if key == "commonName"]
+    except Exception as exc:    # an unreadable certificate also stops the TLS listener; say why here too
+        print(f"Could not read the names in the certificate {cert_file}: {exc}", flush=True)
+        return set()
+    return {str(n).strip().lower().rstrip(".") for n in names if str(n).strip()}
+
+
+def known_names(settings) -> frozenset[str]:
+    """Every name this studio answers to besides addresses and localhost. Worked out once, at start."""
+    names = {n.strip().lower().rstrip(".") for n in getattr(settings, "names", ()) if n.strip()}
+    names |= {h.strip().lower().rstrip(".") for h in settings.hosts if h.strip() and not is_address(h.strip())}
+    if settings.tls:
+        names |= certificate_names(settings.tls[0])
+    names |= machine_names()
+    names.discard("")
+    return frozenset(names)
+
+
+UNKNOWN_NAME_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studio · unknown name</title>
+<style>
+:root {{ color-scheme: light dark; }}
+body {{ margin: 0; min-height: 100dvh; display: grid; place-items: center; font: 16px/1.5 system-ui, sans-serif;
+       background: Canvas; color: CanvasText; }}
+main {{ width: min(30rem, calc(100vw - 2.5rem)); display: grid; gap: .8rem; }}
+h1 {{ font-size: 1.3rem; margin: 0; }} p {{ margin: 0; }}
+code {{ font: .92em ui-monospace, monospace; overflow-wrap: anywhere; padding: .1em .3em; border-radius: 5px;
+       background: color-mix(in srgb, CanvasText 9%, transparent); }}
+</style></head><body><main>
+<h1>This studio does not answer to that name</h1>
+<p>The address used the name <code>{name}</code>. The studio only answers to its own names, so that
+a website cannot point its name at this computer and use the studio.</p>
+<p>If <code>{name}</code> is really this studio, start the studio with
+<code>STUDIO2_NAMES={name}</code> (more names separated by commas).</p>
+<p>The address <code>http://127.0.0.1:{port}/</code> always works on the computer the studio runs on.</p>
+</main></body></html>"""
 
 
 def cookie_value(scope) -> str | None:
@@ -116,9 +263,11 @@ class AccessGuard:
     """ASGI wrapper. `studio_port` is where the sign-in page lives; `own_login` is true for
     the studio itself and false for a project's preview port (which sends people there)."""
 
-    def __init__(self, app, key: str | None, studio_port: int, own_login: bool = True, open_tailnet: bool = False):
+    def __init__(self, app, key: str | None, studio_port: int, own_login: bool = True, open_tailnet: bool = False,
+                 names: frozenset[str] = frozenset()):
         self.app, self.key, self.studio_port, self.own_login = app, key, studio_port, own_login
         self.open_tailnet = open_tailnet   # the person chose "my tailnet is the boundary": no key for its devices
+        self.names = names                 # the DNS names this studio answers to (known_names)
         self.token = token_for(key) if key else None
         self.failures: dict[str, list[float]] = {}
 
@@ -127,6 +276,8 @@ class AccessGuard:
             return await self.app(scope, receive, send)
         headers = dict(scope.get("headers") or [])
         host = headers.get(b"host", b"").decode("latin-1")
+        if not name_allowed(host, self.names):     # before anything else, loopback included
+            return await self._unknown_name(scope, send, host, headers)
         marker = REQUEST_HOST.set(host or None)
         scheme = "https" if scope.get("scheme") in ("https", "wss") else "http"
         scheme_marker = REQUEST_SCHEME.set(scheme)
@@ -160,6 +311,26 @@ class AccessGuard:
         body = ('{"error": {"code": "access_denied", "message": "%s"}}' % message).encode()
         await send({"type": "http.response.start", "status": status,
                     "headers": [(b"content-type", b"application/json"), (b"cache-control", b"no-store")]})
+        await send({"type": "http.response.body", "body": body})
+
+    async def _unknown_name(self, scope, send, host: str, headers: dict):
+        if scope["type"] == "websocket":
+            return await send({"type": "websocket.close", "code": 4421})
+        name = _bare(host)[:200]
+        if not name:
+            status, code, message = 400, "no_name", "This request did not say which name it was sent to."
+        else:
+            status, code = 421, "unknown_name"
+            message = (f"This studio does not answer to the name {name}. If that name is really this studio, "
+                       f"start it with STUDIO2_NAMES={name}.")
+        if name and b"text/html" in headers.get(b"accept", b""):
+            body = UNKNOWN_NAME_PAGE.format(name=html.escape(name, quote=True), port=self.studio_port).encode()
+            kind = b"text/html; charset=utf-8"
+        else:
+            body = json.dumps({"error": {"code": code, "message": message}}).encode()
+            kind = b"application/json"
+        await send({"type": "http.response.start", "status": status, "headers": [
+            (b"content-type", kind), (b"cache-control", b"no-store"), (b"connection", b"close")]})
         await send({"type": "http.response.body", "body": body})
 
     @staticmethod

@@ -31,3 +31,21 @@ export function escapeTarget(state: EscapeState): EscapeTarget {
 export function isTopmostModal<T>(dialog: T | null, modals: ArrayLike<T>): boolean {
   return dialog !== null && modals.length > 0 && modals[modals.length - 1] === dialog;
 }
+
+interface EscapeKey {
+  key: string;
+  preventDefault: () => void;
+  stopPropagation: () => void;
+}
+
+/**
+ * The confirm dialog's window Escape, heard in the capture phase so it works wherever focus is
+ * (on the page body, in a field behind the dialog). It cancels the dialog when it is the topmost
+ * one and stops the key there, so nothing below (a Modal, the project page) also closes.
+ */
+export function confirmEscape<T>(event: EscapeKey, dialog: T | null, modals: ArrayLike<T>, cancel: () => void): void {
+  if (event.key !== "Escape" || !isTopmostModal(dialog, modals)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  cancel();
+}

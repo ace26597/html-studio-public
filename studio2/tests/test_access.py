@@ -21,7 +21,7 @@ def remote_client(app, **headers):
 
 @pytest.fixture
 async def open_app(settings):
-    application = create_app(dataclasses.replace(settings, access_key=KEY))
+    application = create_app(dataclasses.replace(settings, access_key=KEY, names=("mac.example.ts.net",)))
     await application.state.studio.start()
     yield application
     await application.state.studio.stop()
@@ -46,7 +46,7 @@ async def test_without_a_key_only_the_machine_itself_is_answered(app, client):
                                  headers={"X-Forwarded-For": "203.0.113.5"}) as proxied:
         assert (await proxied.get("/api/projects")).status_code == 403
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://studio.example.com") as named:
-        assert (await named.get("/api/projects")).status_code == 403
+        assert (await named.get("/api/projects")).status_code == 421     # a name the studio does not know
 
 
 async def test_sign_in_with_the_key_then_links_follow_the_host(open_app):
@@ -149,7 +149,7 @@ def test_no_key_is_allowed_only_on_tailscale_addresses():
 
 
 async def test_with_the_tailnet_open_its_devices_need_no_key_and_nothing_else_gets_in(settings):
-    application = create_app(dataclasses.replace(settings, open_tailnet=True))
+    application = create_app(dataclasses.replace(settings, open_tailnet=True, names=("mac.example.ts.net",)))
     await application.state.studio.start()
     try:
         def client(address, **headers):

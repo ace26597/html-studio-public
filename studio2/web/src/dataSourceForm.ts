@@ -1,8 +1,29 @@
 // The data source form: pure rules for kind defaults, validation and request bodies.
 
-import type { DataKindInfo, DataSource, DataSourceInput } from "./types";
+import type { DataKindInfo, DataSource, DataSourceInput, DataSourceTestResult } from "./types";
 
 export const SSL_MODES = ["disable", "prefer", "require", "verify-full"] as const;
+
+/** One plain sentence per TLS mode, shown next to the choice (CONTRACT.md, "Data sources"). */
+export const SSL_HELP: Record<(typeof SSL_MODES)[number], string> = {
+  disable: "Never encrypted. Only for a database on this computer or on a network you fully trust.",
+  prefer:
+    "Encrypted when the server offers it, plain when it does not. It does not check who the server is.",
+  require:
+    "Always encrypted, or no connection. It does not check who the server is, so it stops someone listening, not a server that pretends.",
+  "verify-full":
+    "Always encrypted, and the server proves it is the host above with a certificate from a trusted authority. Choose this for a database on another machine.",
+};
+
+/**
+ * MySQL only: its standard login (`caching_sha2_password`) hands over the password itself when the
+ * server asks for the full login, and any mode but verify-full lets a server that pretends ask.
+ * Shown under the modes; nothing is refused (CONTRACT.md, "Data sources").
+ */
+export function sslWarning(kind: string, ssl: string): string | null {
+  if (kind !== "mysql" || ssl === "verify-full") return null;
+  return "With MySQL, only verify-full keeps the password from a server that pretends to be this one. Use the other modes only for a database on this computer or on a network you trust.";
+}
 
 const FALLBACK_PORTS: Record<string, number> = { postgres: 5432, redshift: 5439, mysql: 3306 };
 
@@ -23,6 +44,8 @@ export interface DataSourceForm {
   database: string;
   user: string;
   ssl: string;
+  /** Path of a PEM file on the studio's computer; used only with verify-full. */
+  caFile: string;
   password: string;
   passwordAction: PasswordAction;
 }
@@ -46,12 +69,26 @@ export function emptyForm(kinds: readonly DataKindInfo[]): DataSourceForm {
     database: "",
     user: "",
     ssl: defaultSsl(kind),
+    caFile: "",
     password: "",
     passwordAction: "none",
   };
 }
 
-export function formFromSource(source: DataSource): DataSourceForm {
+/**
+ * The studio refused to send the stored password because the CA file changed since it was saved
+ * (`code: "ca_changed"`). A fresh test result, when there is one, wins over the stored last test.
+ */
+export function needsPasswordAgain(source: DataSource, result?: DataSourceTestResult | null): boolean {
+  const latest = result ?? source.last_test;
+  return source.has_password && latest?.code === "ca_changed";
+}
+
+export const CA_CHANGED_NOTE =
+  "The CA file changed since this password was saved, so the studio stopped sending it. Check that the file is the one you meant, then type the password again to trust it.";
+
+/** `retypePassword`: open with the password field ready, for a source refused with `ca_changed`. */
+export function formFromSource(source: DataSource, options: { retypePassword?: boolean } = {}): DataSourceForm {
   return {
     name: source.name,
     kind: source.kind,
@@ -60,8 +97,9 @@ export function formFromSource(source: DataSource): DataSourceForm {
     database: source.database,
     user: source.user,
     ssl: source.ssl,
+    caFile: source.ca_file ?? "",
     password: "",
-    passwordAction: source.has_password ? "keep" : "none",
+    passwordAction: options.retypePassword && source.has_password ? "set" : source.has_password ? "keep" : "none",
   };
 }
 
@@ -80,7 +118,7 @@ export function changeKind(form: DataSourceForm, kind: string, kinds: readonly D
 }
 
 export interface FieldError {
-  field: "name" | "host" | "port" | "database" | "user" | "password";
+  field: "name" | "host" | "port" | "database" | "user" | "caFile" | "password";
   message: string;
 }
 
@@ -95,6 +133,10 @@ export function validateForm(form: DataSourceForm): FieldError | null {
   }
   if (!form.database.trim()) return { field: "database", message: "Enter the database name." };
   if (!form.user.trim()) return { field: "user", message: "Enter the user name." };
+  const caFile = form.caFile.trim();
+  if (form.ssl === "verify-full" && caFile && !caFile.startsWith("/") && !caFile.startsWith("~/")) {
+    return { field: "caFile", message: "Give the full path of the CA file, starting with / (or ~/ for your home folder)." };
+  }
   if (form.passwordAction === "set" && !form.password) {
     return { field: "password", message: "Type the new password, or keep the stored one." };
   }
@@ -112,6 +154,7 @@ export function inputFromForm(form: DataSourceForm): DataSourceInput {
     ssl: form.ssl,
   };
   if (form.port.trim()) body.port = Number(form.port.trim());
+  if (form.ssl === "verify-full" && form.caFile.trim()) body.ca_file = form.caFile.trim();
   if (form.passwordAction === "set" && form.password) body.password = form.password;
   return body;
 }
@@ -127,6 +170,8 @@ export function patchFromForm(form: DataSourceForm, original: DataSource): Parti
   if (full.database !== original.database) patch.database = full.database;
   if (full.user !== original.user) patch.user = full.user;
   if (full.ssl !== original.ssl) patch.ssl = full.ssl;
+  // The file is asked for only under verify-full; under another mode the saved one is kept, unused.
+  if (form.ssl === "verify-full" && (full.ca_file ?? "") !== (original.ca_file ?? "")) patch.ca_file = full.ca_file ?? "";
   if (form.passwordAction === "set" && form.password) patch.password = form.password;
   if (form.passwordAction === "remove" && original.has_password) patch.password = "";
   return patch;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { escapeTarget, isTopmostModal } from "./escape";
+import { confirmEscape, escapeTarget, isTopmostModal } from "./escape";
 
 const closed = { modalOpen: false, versionSelected: false, rightPanel: false, chatOpen: false, filesOpen: false };
 
@@ -25,5 +25,35 @@ describe("the topmost dialog", () => {
     expect(isTopmostModal(below, [below, above])).toBe(false);
     expect(isTopmostModal(below, [below])).toBe(true);
     expect(isTopmostModal(null, [below])).toBe(false);
+  });
+});
+
+describe("Escape under the confirm dialog", () => {
+  const key = (name: string) => {
+    const seen = { prevented: false, stopped: false };
+    return {
+      seen,
+      event: { key: name, preventDefault: () => void (seen.prevented = true), stopPropagation: () => void (seen.stopped = true) },
+    };
+  };
+
+  it("cancels it wherever focus is, and nothing else hears that Escape", () => {
+    const dialog = { id: "confirm" };
+    let cancelled = 0;
+    const { event, seen } = key("Escape");
+    confirmEscape(event, dialog, [{ id: "modal below" }, dialog], () => cancelled++);
+    expect(cancelled).toBe(1);
+    expect(seen).toEqual({ prevented: true, stopped: true });
+  });
+
+  it("leaves other keys, and a dialog opened above it, alone", () => {
+    const dialog = { id: "confirm" };
+    let cancelled = 0;
+    const tab = key("Tab");
+    confirmEscape(tab.event, dialog, [dialog], () => cancelled++);
+    const covered = key("Escape");
+    confirmEscape(covered.event, dialog, [dialog, { id: "above" }], () => cancelled++);
+    expect(cancelled).toBe(0);
+    expect(tab.seen.stopped || covered.seen.stopped).toBe(false);
   });
 });

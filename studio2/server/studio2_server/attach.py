@@ -164,28 +164,94 @@ NODE_KINDS = [  # first match wins: a Nuxt or SvelteKit app also depends on vite
 ]
 
 
-def _install(folder: Path) -> tuple[str | None, str | None, str | None]:
-    """→ (package manager, install command, the Python that install leaves the packages in).
-
-    The interpreter is said here, beside the command that makes it, because at inspect time the
-    folder has no `.venv` yet: the start command must name the environment the install will make."""
+def _node_install(folder: Path) -> tuple[str | None, str | None]:
+    """→ (package manager, install command) for a Node part, or (None, None)."""
     for lock, manager, command in (("package-lock.json", "npm", "npm ci"),
                                    ("pnpm-lock.yaml", "pnpm", "pnpm install --frozen-lockfile"),
                                    ("yarn.lock", "yarn", "yarn install --frozen-lockfile"),
                                    ("bun.lock", "bun", "bun install"), ("bun.lockb", "bun", "bun install")):
         if (folder / lock).is_file():
-            return manager, command, None
+            return manager, command
     if (folder / "package.json").is_file():
-        return "npm", "npm install", None
+        return "npm", "npm install"
+    return None, None
+
+
+def _project_table(folder: Path) -> bool:
+    """True when pyproject.toml has a [project] table, which `uv sync` can install from."""
+    try:
+        text = (folder / "pyproject.toml").read_text("utf-8", "replace")[:200_000]
+    except OSError:
+        return False
+    return re.search(r"^\s*\[project\]\s*(#.*)?$", text, re.M) is not None
+
+
+def _python_install(folder: Path) -> tuple[str | None, str | None]:
+    """→ (install command, the Python that install leaves the packages in) for a Python part.
+
+    The interpreter is said here, beside the command that makes it, because at inspect time the
+    folder has no `.venv` yet: the start command must name the environment the install will make."""
     if (folder / "uv.lock").is_file():
-        return "uv", "uv sync", "uv run python"
+        return "uv sync", "uv run python"
     if (folder / "requirements.txt").is_file():
-        return "uv", "uv venv -q && uv pip install -q -r requirements.txt", ".venv/bin/python"
+        return "uv venv -q && uv pip install -q -r requirements.txt", ".venv/bin/python"
+    if _project_table(folder):
+        return "uv sync", "uv run python"
+    return None, None
+
+
+def _python_source(folder: Path) -> str | None:
+    """The file the Python install reads, as the notes name it."""
+    for name in ("uv.lock", "requirements.txt"):
+        if (folder / name).is_file():
+            return name
+    return "pyproject.toml" if _project_table(folder) else None
+
+
+# A start command that is Python: evidence that the folder's Python packages are needed.
+PYTHON_RUN = re.compile(r"^\s*(?:exec\s+)?(?:[A-Z_]+=\S*\s+)*(?:python3?(?:\.\d+)?|uv\s+run|\.venv/bin/\S+|"
+                        r"uvicorn|gunicorn|flask)(?:\s|$)")
+PYTHON_FAILED = ('echo "[studio] The Python packages could not be installed (the lines above say why). '
+                 'The app starts without them, so its Python part will not work until they are."')
+
+
+def _is_python_run(run: str | None) -> bool:
+    return bool(run and PYTHON_RUN.match(run))
+
+
+def _install(folder: Path, run: str | None, python_app: bool) -> tuple[str | None, str | None, str | None, str | None]:
+    """→ (package manager, install command, the Python the install makes, the Python file left
+    uninstalled). CONTRACT.md, "Install commands".
+
+    A Python part beside a Node part is installed only on evidence that a Python app needs it (a
+    Django, FastAPI or Flask app in the folder, or a start command that is Python); otherwise it is
+    docs or tooling, and installing it could only stop the Node app. When a Node app is what
+    starts, a failed Python install does not stop it. A folder with no Node part keeps its
+    `uv.lock` or `requirements.txt` install as it always had; a `[project]` table alone needs
+    the same evidence, since a pyproject.toml is as often a tool's settings as an app."""
+    manager, node = _node_install(folder)
+    python, made = _python_install(folder)
+    evidence = python_app or _is_python_run(run)
+    skipped = None
+    if python and not evidence and (node or _python_source(folder) == "pyproject.toml"):
+        skipped = _python_source(folder) if node else None
+        python = made = None
+    if node and python:
+        node = _needs_path(node)
+        command = f"{node} && {python}" if _is_python_run(run) else f"{node} && ( {python} || {PYTHON_FAILED} )"
+        return manager, command, made, None
+    if node or python:
+        return manager or "uv", _needs_path(node) if node else python, made, skipped
     if (folder / "Gemfile").is_file():
-        return "bundler", "bundle install", None
+        return "bundler", "bundle install", None, None
     if (folder / "composer.json").is_file():
-        return "composer", "composer install", None
-    return None, None, None
+        return "composer", "composer install", None, None
+    return None, None, None, None
+
+
+def install_for(folder: Path, run: str | None) -> str | None:
+    """The install for the start command a person typed instead of the one found."""
+    return _install(folder, run, _python_app_kind(folder) is not None)[1]
 
 
 def _python(folder: Path, made: str | None) -> str:
@@ -226,9 +292,9 @@ def _needs_path(command: str) -> str:
     return command
 
 
-def detect(folder: Path) -> dict:
-    """→ {framework, run, package_manager, install}; nulls where nothing matched."""
-    manager, install, made = _install(folder)
+def _detect(folder: Path) -> tuple[dict, str | None, str | None, str | None]:
+    """→ (what `detect` says, the label of a Python back end found but not started, the Python
+    the started Python app runs from or None, the Python file whose packages are not installed)."""
     package = _package(folder)
     found: tuple[str, str] | None = None
     run: str | None = None
@@ -238,16 +304,15 @@ def detect(folder: Path) -> dict:
             if dep in deps:
                 found, run = (kind, label), command
                 break
+    app = _python_app_kind(folder)
+    # A found Python app is evidence for its install, so the interpreter it starts from is the
+    # one that install makes.
+    made = _install(folder, None, app is not None)[2]
+    python = _python(folder, made)
+    backend = (app[0], app[1].format(python=python)) if app else None
     if found is None:
-        python = _python(folder, made)
-        if (folder / "manage.py").is_file():
-            found, run = ("django", "Django"), f"exec {python} manage.py runserver 127.0.0.1:$PORT"
-        elif (made := _python_app(folder, "FastAPI")):
-            found = ("fastapi", "FastAPI")
-            run = f"exec {python} -m uvicorn {made[0]}:{made[1]} --host 127.0.0.1 --port $PORT --reload"
-        elif (made := _python_app(folder, "Flask")):
-            found = ("flask", "Flask")
-            run = f"exec {python} -m flask --app {made[0]} run --host 127.0.0.1 --port $PORT --debug"
+        if backend:
+            found, run = backend
         elif (folder / "Gemfile").is_file() and (folder / "bin" / "rails").is_file() and \
                 "rails" in (folder / "Gemfile").read_text("utf-8", "replace"):
             found, run = ("rails", "Rails"), "exec bin/rails server -b 127.0.0.1 -p $PORT"
@@ -257,10 +322,33 @@ def detect(folder: Path) -> dict:
             found = ("html", "Plain HTML")
     if run:
         run = _needs_path(run)
-    if install:
-        install = _needs_path(install)
-    return {"framework": {"id": found[0], "label": found[1]} if found else None, "run": run,
-            "package_manager": manager, "install": install}
+    manager, install, _made, skipped = _install(folder, run, app is not None)
+    found_dict = {"framework": {"id": found[0], "label": found[1]} if found else None, "run": run,
+                  "package_manager": manager, "install": install}
+    started = backend is not None and backend[1] == run
+    return found_dict, (backend[0][1] if backend and not started else None), (python if started else None), skipped
+
+
+def detect(folder: Path) -> dict:
+    """→ {framework, run, package_manager, install}; nulls where nothing matched."""
+    return _detect(folder)[0]
+
+
+def _python_app_kind(folder: Path) -> tuple[tuple[str, str], str] | None:
+    """→ ((id, label), run with a `{python}` slot) for a Django, FastAPI or Flask app, or None."""
+    if (folder / "manage.py").is_file():
+        return ("django", "Django"), "exec {python} manage.py runserver 127.0.0.1:$PORT"
+    if (made := _python_app(folder, "FastAPI")):
+        return ("fastapi", "FastAPI"), (f"exec {{python}} -m uvicorn {made[0]}:{made[1]} "
+                                        "--host 127.0.0.1 --port $PORT --reload")
+    if (made := _python_app(folder, "Flask")):
+        return ("flask", "Flask"), f"exec {{python}} -m flask --app {made[0]} run --host 127.0.0.1 --port $PORT --debug"
+    return None
+
+
+def _workspaces(folder: Path, package: dict | None) -> bool:
+    """True for a monorepo: npm, yarn or bun workspaces, or a pnpm workspace file."""
+    return bool((package or {}).get("workspaces")) or (folder / "pnpm-workspace.yaml").is_file()
 
 
 # -- refusals ------------------------------------------------------------------------------
@@ -348,7 +436,8 @@ def inspect(path: str, protected: list[Path], home: Path, taken: set[Path]) -> d
         return result
     info = git_info(folder)
     result["git"] = info
-    result.update(detect(folder))
+    found, backend, python, skipped = _detect(folder)
+    result.update(found)
     try:
         keys = [entry for entry in folder.iterdir() if entry.is_file() and keyfiles.is_key_name(entry.name)]
         # A link is never copied (it could point anywhere), so it is not offered for ticking.
@@ -372,6 +461,28 @@ def inspect(path: str, protected: list[Path], home: Path, taken: set[Path]) -> d
                      "the agent to set it up, or type the start command.")
     elif result["framework"]["id"] == "html":
         notes.append("Plain HTML: the studio serves the files as they are.")
+    if backend:
+        label = result["framework"]["label"]
+        notes.append(f"This folder also has a {backend} back end. Its packages are installed after the Node ones "
+                     f"(if that fails, the {label} app still starts, and its log says why), but the studio starts "
+                     f"one command, the {label} server, so the back end is not started. To run both, type a "
+                     "start command that starts both (the back end on a port other than $PORT), or ask the agent "
+                     "to set it up.")
+    if skipped:
+        notes.append(f"This folder also has a {skipped}, but no Python app the studio could find (no manage.py, and "
+                     "no FastAPI or Flask app in main.py, app.py, server.py, api.py or wsgi.py), so it is taken as "
+                     "docs or tooling: only the Node packages are installed, and its Python packages are not "
+                     "installed. If the app needs them, type a start command that runs Python, or ask the agent.")
+    if _workspaces(folder, _package(folder)):
+        notes.append("This folder holds several packages (workspaces). The studio looks only at the top of the "
+                     "folder: it installs there and does not choose one of the packages to start. Type the start "
+                     "command, or ask the agent to set it up.")
+    if python == ".venv/bin/python" and not _python_install(folder)[0]:
+        notes.append("A safe copy of this app will not start. Its packages are only in its .venv folder, which a "
+                     "copy never takes, and nothing in the folder lists them (no requirements.txt, uv.lock, or "
+                     "pyproject.toml with a [project] table), so the copy cannot make them again. Edit it in place, "
+                     "or add a requirements.txt (in the folder: uv pip freeze --python .venv > requirements.txt) "
+                     "and check again.")
     if info and info["uncommitted"]:
         count = len(info["uncommitted"]) + info["uncommitted_more"]
         notes.append(f"{count} file{'s' if count != 1 else ''} changed here but not committed. A safe copy "

@@ -382,6 +382,39 @@ def test_a_model_the_list_prices_at_zero_and_zero_is_free(tmp_path):
     assert not prices.free_model("plan-route", (plan,))
 
 
+# `GET /model/info` as LiteLLM 1.102.1 answers it: `litellm_params` holds what the gateway's own
+# configuration set, `model_info` that merged with LiteLLM's price list (which fills in 0 where it has none).
+GRATIS = {"model_name": "mine/qwen3-coder",
+          "litellm_params": {"model": "openai/qwen3-coder", "input_cost_per_token": 0, "output_cost_per_token": 0.0},
+          "model_info": {"id": "a1", "input_cost_per_token": 0, "output_cost_per_token": 0}}
+FILLED = {"model_name": "other/qwen3-coder", "litellm_params": {"model": "bedrock/qwen3-coder"},
+          "model_info": {"id": "a2", "input_cost_per_token": 0, "output_cost_per_token": 0}}
+HALF = {"model_name": "half/qwen3-coder", "litellm_params": {"model": "x/qwen3-coder", "input_cost_per_token": 0},
+        "model_info": {"id": "a3", "input_cost_per_token": 0, "output_cost_per_token": 0}}
+
+
+def test_a_model_the_gateways_own_settings_price_at_zero_and_zero_is_free():
+    """The gateway says, in its own settings, that this route costs 0 and 0. Its spend of 0 was priced at
+    the paid `qwen/qwen3-coder` rate of the shipped list (same last part), shown as charged."""
+    gateway_rates = prices.from_gateway({"data": [GRATIS, FILLED, HALF]})
+    rates = (gateway_rates, SHIPPED)
+    assert SHIPPED.find("mine/qwen3-coder") is not None                         # the paid model of that name
+    assert prices.free_model("mine/qwen3-coder", rates)
+    keep = costs._has_tag("t_1")
+    free = spent("t_1", "mine/qwen3-coder", 200_000, 20_000, provider="openai")
+    assert summarise([free], keep, rates) == {"cost_usd": 0.0, "requests": 1, "unpriced": 0, "basis": "reported",
+                                              "backup": None}
+    # The turn's own token counts, when the spend log cannot be read: tokens times the gateway's 0.
+    turn = {"input": 200_000, "cache_read": 5_000, "cache_write": 1_000, "output": 20_000}
+    pricer = prices.Pricer(*rates)
+    assert pricer.price("mine/qwen3-coder", turn, summed=True) == 0.0
+    assert pricer.summary() == {"requests": 1, "usd": 0.0, "rates": "gateway", "as_of": None}
+    # A 0 and 0 that only LiteLLM's merged `model_info` holds can mean "no price known": not free.
+    for name in ("other/qwen3-coder", "half/qwen3-coder"):
+        assert not prices.free_model(name, rates), name
+        assert summarise([spent("t_1", name, 200_000, 20_000)], keep, rates)["basis"] == "backup", name
+
+
 # ---- a long-prompt tier, whichever source has the price -----------------------------------------------------
 # The fields as LiteLLM 1.102.1's own price list names them (claude-sonnet-4-5 there, per token).
 SONNET_INFO = {"input_cost_per_token": 3e-06, "output_cost_per_token": 1.5e-05, "cache_read_input_token_cost": 3e-07,

@@ -6,6 +6,7 @@ import { LibraryPage } from "./LibraryPage";
 import { ProjectPage } from "./Project";
 import { useRoute } from "./router";
 import { SetupPage } from "./SetupPage";
+import { SignInAgain } from "./SignInAgain";
 import { goToSignIn, healthFailure, type HealthFailure } from "./signIn";
 import { useTheme } from "./theme";
 import type { Health } from "./types";
@@ -162,7 +163,10 @@ export function App() {
 
   return (
     <ToastProvider>
-      <ConfirmProvider>{page}</ConfirmProvider>
+      <ConfirmProvider>
+        {page}
+        <SignInAgain />
+      </ConfirmProvider>
     </ToastProvider>
   );
 }

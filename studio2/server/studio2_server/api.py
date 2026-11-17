@@ -97,6 +97,7 @@ class SourceBody(BaseModel):
     user: str | None = None
     password: str | None = None
     ssl: str | None = None
+    ca_file: str | None = None
 
 
 class LibraryChoice(BaseModel):
@@ -235,7 +236,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.studio = studio
     app.add_middleware(OriginGuard, allowed=settings.allowed_origins)
     app.add_middleware(AccessGuard, key=settings.access_key, studio_port=settings.port,
-                       open_tailnet=settings.open_tailnet)  # outermost
+                       open_tailnet=settings.open_tailnet, names=studio.names)  # outermost
 
     handlers = {
         ApiError: lambda exc: error(exc.status, exc.code, exc.message),
@@ -667,7 +668,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/mcp-servers/{server_id}/test")
     async def try_server(server_id: str):
         studio.lib.server(server_id)
-        result = await test_server(studio.lib.server_config(server_id))
+        # Started as a request starts it: a library connector through the launcher (server_config).
+        home = studio.lib.connector_home
+        home.mkdir(mode=0o700, parents=True, exist_ok=True)
+        result = await test_server(studio.lib.server_config(server_id), cwd=home)
         studio.lib.record_test(server_id, result)
         return result
 

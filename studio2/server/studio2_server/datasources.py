@@ -9,6 +9,8 @@ so the database itself refuses writes; the statement check here only gives a cle
 from __future__ import annotations
 
 import base64
+import hashlib
+import os
 import csv
 import datetime as dt
 import decimal
@@ -28,7 +30,8 @@ KINDS = {
     "mysql": {"label": "MySQL / MariaDB", "default_port": 3306, "driver": "pymysql", "ssl": "prefer"},
 }
 SSL_MODES = ("disable", "prefer", "require", "verify-full")
-FIELDS = ("name", "kind", "host", "port", "database", "user", "ssl")
+FIELDS = ("name", "kind", "host", "port", "database", "user", "ssl", "ca_file")
+CA_FILE_MAX = 1024 * 1024
 READ_WORDS = {"select", "with", "show", "explain", "values", "table", "describe", "desc"}
 WRAPPABLE = {"select", "with", "values", "table"}
 INLINE_DEFAULT, INLINE_MAX, FILE_MAX_ROWS, FILE_MAX_BYTES = 1_000, 10_000, 500_000, 200 * 1024 * 1024
@@ -156,6 +159,93 @@ def to_json(value):
     return str(value)
 
 
+# -- who is trusted under verify-full ---------------------------------------------------------
+def check_ca_file(value: str, code: str = "invalid_request") -> str:
+    """→ the full path of a readable PEM file holding at least one certificate. Raises DataError
+    saying plainly what is wrong (CONTRACT.md, "Data sources": `ca_file`)."""
+    return load_ca_file(value, code)[0]
+
+
+def ca_fingerprint(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def load_ca_file(value: str, code: str = "invalid_request") -> tuple[str, bytes]:
+    """→ (full path, the bytes read once). The bytes are what is checked and what the driver gets."""
+    import ssl as ssl_module
+
+    bad = lambda message: DataError(400, code, message)  # noqa: E731
+    path = Path(str(value).strip()).expanduser()
+    if not path.is_absolute():
+        raise bad("Give the full path of the CA file, starting with / (or ~/ for your home folder).")
+    try:
+        if not path.exists():
+            raise bad(f"There is no file at {path} (the CA file).")
+        if not path.is_file():
+            raise bad(f"{path} is not a file. Give the path of the CA certificate file itself.")
+        if path.stat().st_size > CA_FILE_MAX:
+            raise bad(f"{path} is larger than 1 MB; a CA certificate file is a few kilobytes.")
+        data = path.read_bytes()
+        text = data.decode("utf-8", errors="replace")
+    except OSError:
+        raise bad(f"{path} cannot be read by the studio (check its permissions).") from None
+    try:
+        if "-----BEGIN CERTIFICATE-----" not in text:
+            raise ValueError
+        ssl_module.SSLContext(ssl_module.PROTOCOL_TLS_CLIENT).load_verify_locations(cadata=text)
+    except (ValueError, ssl_module.SSLError):
+        raise bad(f"{path} holds no certificate. A CA file is a PEM file with lines like "
+                  "-----BEGIN CERTIFICATE-----.") from None
+    return str(path), data
+
+
+def public_roots() -> str | None:
+    """The file of public authorities trusted when a source has no CA file: Python's own default
+    file (on a Mac with Homebrew, its OpenSSL list), else certifi's. One list for every kind. Never
+    libpq's ~/.postgresql/root.crt, and not libpq's own "system" list (the psycopg wheel's OpenSSL
+    looks in a folder that does not exist on a Mac, so it would trust nothing)."""
+    import ssl as ssl_module
+    default = ssl_module.get_default_verify_paths().cafile
+    if default and Path(default).is_file():
+        return default
+    try:
+        import certifi
+        return certifi.where()
+    except ImportError:
+        return None
+
+
+CA_CHANGED = ("The CA file {path} has changed since the password was saved, so the password was not sent. "
+              "If the new file is right, type the password again to trust it.")
+CA_UNPINNED = ("The CA file {path} was saved before the studio checked what it holds, so the saved password "
+               "was not sent. Type the password again to trust the file as it is now.")
+
+
+def _ca_for(source: dict, password: str | None) -> bytes | None:
+    """The CA certificates to use for this connection (verify-full only), read once now. A saved
+    source sending its saved password must find the file as it was when the password was saved
+    (CONTRACT.md, "The CA file is trusted for what it holds")."""
+    if source.get("ssl") != "verify-full" or not source.get("ca_file"):
+        return None
+    path, data = load_ca_file(source["ca_file"], code="query_failed")
+    if source.get("id") and password:
+        pinned = source.get("ca_sha256")
+        if pinned != ca_fingerprint(data):
+            raise DataError(400, "ca_changed", (CA_CHANGED if pinned else CA_UNPINNED).format(path=path))
+    return data
+
+
+def _private_copy(data: bytes) -> str:
+    """A file only this user can read, holding exactly the checked bytes, for libpq's sslrootcert."""
+    import tempfile
+    handle, name = tempfile.mkstemp(prefix="studio-ca-", suffix=".pem")
+    try:
+        os.write(handle, data)
+    finally:
+        os.close(handle)
+    return name
+
+
 # -- drivers ----------------------------------------------------------------------------------
 def driver_available(kind: str) -> bool:
     import importlib.util
@@ -169,6 +259,11 @@ def _connect(source: dict, password: str | None):
     if kind in ("postgres", "redshift"):
         import psycopg
         extra = {"client_encoding": "utf8"} if kind == "redshift" else {}
+        copy = None
+        if source["ssl"] == "verify-full":
+            ca = _ca_for(source, password)
+            copy = _private_copy(ca) if ca else None
+            extra["sslrootcert"] = copy or public_roots() or "system"
         if source["ssl"] != "verify-full" and psycopg.pq.version() >= 160000:
             # A server nobody checked may be anything listening on that port: it must not get the
             # password in clear text (libpq refuses AuthenticationCleartextPassword before sending).
@@ -183,6 +278,9 @@ def _connect(source: dict, password: str | None):
             if "require_auth" in extra and '"!password"' in str(exc):
                 raise DataError(400, "cleartext_refused", CLEARTEXT_REFUSED) from None
             raise
+        finally:
+            if copy:
+                Path(copy).unlink(missing_ok=True)
         conn.prepare_threshold = None
         conn.read_only = True  # every transaction starts as BEGIN READ ONLY
         return conn
@@ -206,6 +304,37 @@ class _RefuseCleartext:
         raise DataError(400, "cleartext_refused", CLEARTEXT_REFUSED)
 
 
+UNCHECKED_CLEARTEXT = ("The server asked for the password in clear text, but the connection was not encrypted with "
+                       "a checked certificate at that moment, so the password was not sent.")
+
+
+def _checked_tls(conn) -> bool:
+    """PyMySQL's connection is, right now, TLS with a certificate and host name that were checked."""
+    import ssl as ssl_module
+    sock = getattr(conn, "_sock", None)
+    if not getattr(conn, "_secure", False) or not isinstance(sock, ssl_module.SSLSocket):
+        return False
+    return sock.context.verify_mode == ssl_module.CERT_REQUIRED and bool(sock.context.check_hostname)
+
+
+def _checked_cleartext(plugin: bytes):
+    """Under verify-full: answer a clear-text method with PyMySQL's own answer, but only after
+    checking the connection itself, before anything is written."""
+
+    class Checked:
+        def __init__(self, conn):
+            self.conn = conn
+
+        def authenticate(self, packet):
+            if not _checked_tls(self.conn):
+                raise DataError(400, "cleartext_refused", UNCHECKED_CLEARTEXT)
+            return self.conn._process_auth(plugin, packet)      # no handler: PyMySQL's own answer
+    return Checked
+
+
+MYSQL_FLOOR = (1, 2)   # PyMySQL 1.2 stops before logging in when TLS is required and not offered
+
+
 def _connect_mysql(source: dict, password: str | None):
     """The `ssl` modes mean what they mean to PostgreSQL (CONTRACT.md, "Data sources"). PyMySQL has
     no such modes, so they are built here: always an explicit context or an explicit "no TLS"."""
@@ -213,16 +342,30 @@ def _connect_mysql(source: dict, password: str | None):
 
     import pymysql
     mode = source["ssl"]
+    if mode in ("require", "verify-full") and tuple(pymysql.VERSION[:2]) < MYSQL_FLOOR:
+        # Older PyMySQL logs in over plain TCP when the server offers no TLS, and only then could
+        # the studio notice. Refuse before anything is sent.
+        raise DataError(400, "tls_unavailable", f"This studio has PyMySQL {'.'.join(map(str, pymysql.VERSION[:3]))}, "
+                                                f"which can log in unencrypted before noticing; ssl {mode} needs "
+                                                f"PyMySQL 1.2 or later. Nothing was sent.")
+    ca = _ca_for(source, password)
     common = dict(host=source["host"], port=source["port"], database=source["database"], user=source["user"],
                   password=password or "", connect_timeout=CONNECT_TIMEOUT,
                   read_timeout=STATEMENT_TIMEOUT_MS // 1000 + 5, autocommit=False)
     if mode != "verify-full":
         common["auth_plugin_map"] = {"mysql_clear_password": _RefuseCleartext, "dialog": _RefuseCleartext}
+    else:
+        common["auth_plugin_map"] = {"mysql_clear_password": _checked_cleartext(b"mysql_clear_password"),
+                                     "dialog": _checked_cleartext(b"dialog")}
     if mode == "disable":
         return pymysql.connect(**common, ssl_disabled=True)
     # verify-full: the trusted authorities and the host name, both checked. A dict such as
     # {"check_hostname": True} is not enough: with no CA file PyMySQL then checks neither.
-    context = ssl_module.create_default_context()
+    roots = public_roots() if mode == "verify-full" and not ca else None
+    if ca:
+        context = ssl_module.create_default_context(cadata=ca.decode("utf-8", errors="replace"))
+    else:
+        context = ssl_module.create_default_context(cafile=roots) if roots else ssl_module.create_default_context()
     if mode != "verify-full":
         context.check_hostname = False          # prefer and require encrypt but do not check who answers
         context.verify_mode = ssl_module.CERT_NONE
@@ -234,7 +377,7 @@ def _connect_mysql(source: dict, password: str | None):
         if mode != "prefer" or not _no_tls_offered(exc):
             raise
         return pymysql.connect(**common, ssl_disabled=True)
-    # Older PyMySQL goes ahead in plain when the server has no TLS, even when given a context.
+    # A second net: PyMySQL older than 1.2 went ahead in plain; refused above before connecting.
     if mode != "prefer" and not isinstance(getattr(conn, "_sock", None), ssl_module.SSLSocket):
         _close(conn)
         raise DataError(400, "tls_unavailable", f"The server did not agree to an encrypted connection, and this "
@@ -271,7 +414,8 @@ def run_test(source: dict, password: str | None) -> dict:
     try:
         conn = _connect(source, password)
     except DataError as exc:
-        return {"ok": False, "message": exc.message}
+        answer = {"ok": False, "message": exc.message}
+        return {**answer, "code": exc.code} if exc.code == "ca_changed" else answer
     except Exception as exc:
         return {"ok": False, "message": _clean_error(exc, password)}
     try:
@@ -487,7 +631,25 @@ class DataSources:
         ssl = merged.get("ssl") or KINDS[kind]["ssl"]
         if ssl not in SSL_MODES:
             raise bad("ssl must be one of: " + ", ".join(SSL_MODES) + ".")
-        return {"name": name, "kind": kind, "host": host, "port": port, "database": database, "user": user, "ssl": ssl}
+        # A new CA file is checked now; one already saved is checked again at each connection.
+        given = fields.get("ca_file")
+        ca_sha256 = (base or {}).get("ca_sha256")
+        if given is not None:
+            ca_file, ca_sha256 = None, None
+            if str(given).strip():
+                ca_file, data = load_ca_file(given)
+                ca_sha256 = ca_fingerprint(data)
+        else:
+            ca_file = (base or {}).get("ca_file") or None
+        return {"name": name, "kind": kind, "host": host, "port": port, "database": database, "user": user,
+                "ssl": ssl, "ca_file": ca_file, "ca_sha256": ca_sha256}
+
+    @staticmethod
+    def _pin(item: dict) -> dict:
+        """The fingerprint of the CA file as it is now (taken with a password typed again)."""
+        if item.get("ca_file"):
+            return {**item, "ca_sha256": ca_fingerprint(load_ca_file(item["ca_file"])[1])}
+        return {**item, "ca_sha256": None}
 
     def create(self, fields: dict) -> dict:
         clean = self.normalise(fields)
@@ -507,12 +669,18 @@ class DataSources:
         if any(i["id"] != source_id and i["name"].lower() == clean["name"].lower() for i in items):
             raise DataError(409, "name_taken", "Another data source already has that name.")
         typed = "password" in fields and fields["password"] is not None
-        moved = any(clean[k] != current.get(k) for k in ("kind", "host", "port", "ssl"))
+        moved = any(clean[k] != current.get(k) for k in ("kind", "host", "port", "ssl", "ca_file"))
         if moved and not typed and self.secrets.get(source_id) is not None:
             # The stored password goes only to the server it was saved for: anything on this
             # computer can call this route, and a database server picks how a password is sent.
+            # The CA file counts as where it goes: it decides which server verify-full trusts.
             raise DataError(400, "password_needed", "This data source now points somewhere else: type its "
                                                     "password again. A saved one is only sent where it was saved for.")
+        if clean["ca_file"] == current.get("ca_file"):
+            # The same path named again vouches for nothing: only a typed password re-trusts the file.
+            clean["ca_sha256"] = current.get("ca_sha256")
+        if typed and fields["password"]:
+            clean = self._pin(clean)
         if typed:
             if fields["password"] == "":
                 self.secrets.delete(source_id)
@@ -527,7 +695,8 @@ class DataSources:
         items = self._read()
         for item in items:
             if item["id"] == source_id:
-                item["last_test"] = {"ok": bool(result["ok"]), "at": now_iso(), "message": result["message"]}
+                item["last_test"] = {"ok": bool(result["ok"]), "at": now_iso(), "message": result["message"],
+                                     **({"code": result["code"]} if result.get("code") else {})}
         self._write(items)
 
     def delete(self, source_id: str) -> None:

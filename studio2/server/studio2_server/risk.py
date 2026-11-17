@@ -2,6 +2,10 @@
 
 Pattern matching on the command text. It is a seat belt, not a sandbox: it catches the
 ordinary ways an agent reaches outside its project, not a determined attempt to hide one.
+Commands handed to another program to run (`bash -c`, `eval`, `env …`, `$( … )`, `… | sh`) are
+judged by the same rules, a few levels deep; when that inner text cannot be read, it asks. The
+line is first read as the shell reads it: joined continuation lines, decoded `$'…'`, and the
+command after `(`, `{`, `!` and keywords such as `do` and `then`.
 """
 
 from __future__ import annotations
@@ -12,11 +16,17 @@ from pathlib import Path
 
 from . import workspace as ws
 
-SEP = r"(?:^|[;&|(){}\n]|\$\(|`)\s*(?:(?:env\s+)?(?:\w+=\S+\s+)*)?(?:command\s+|exec\s+|nohup\s+|time\s+)*"
+SEP = r"(?:^|[;&|(){}\n]|\$\(|`)\s*+(?:(?:do|then|else|elif|if|while|until|!)\s+)*(?:(?:env\s+)?(?:\w+=\S+\s+)*)?(?:command\s+|exec\s+|nohup\s+|time\s+)*"
+
+
+# The folders before a program's name (`/usr/bin/`). Written so that a long run of text with no
+# space and no slash (minified JSON in an `echo`) is given up on at once instead of being walked
+# again from every bracket in it: that took 25 seconds on 180 KB, and the studio answered nothing.
+DIRS = r"(?:[^\s/]{0,255}+/)*+"
 
 
 def _cmd(names: str) -> re.Pattern:
-    return re.compile(SEP + rf"(?:\S*/)?(?:{names})(?=\s|$)", re.I)
+    return re.compile(SEP + DIRS + rf"(?:{names})(?=[\s;&|)]|$)", re.I)
 
 
 RULES: list[tuple[re.Pattern, str]] = [
@@ -29,8 +39,8 @@ RULES: list[tuple[re.Pattern, str]] = [
      "It installs a package for the whole machine, not just this project."),
     (re.compile(r"\b(?:uv\s+tool|pipx|cargo|go)\s+install\b|\bgem\s+install\b", re.I),
      "It installs a tool for the whole machine, not just this project."),
-    (re.compile(SEP + r"(?:\S*/)?git(?:\s+(?:-[Cc]\s+\S+|--(?:git-dir|work-tree|namespace)\s+\S+|-\S+))*\s+push(?=\s|$)|"
-                + SEP + r"(?:\S*/)?gh(?=\s|$)", re.I),
+    (re.compile(SEP + DIRS + r"git(?:\s+(?:-[Cc]\s+\S+|--(?:git-dir|work-tree|namespace)\s+\S+|-\S+))*\s+push(?=[\s;&|)]|$)|"
+                + SEP + DIRS + r"gh(?=[\s;&|)]|$)", re.I),
      "It sends something to GitHub."),
     (re.compile(r"\b(?:curl|wget)\b[^\n;&]*\|\s*(?:sudo\s+)?(?:ba|z|k|da)?sh\b|"
                 r"\b(?:ba|z)?sh\s+<\(\s*(?:curl|wget)\b", re.I),
@@ -136,14 +146,464 @@ def _word_at(text: str, start: int) -> str:
     return match.group(0) if match else ""
 
 
+# What can stand before a command without being one: `(`, `{`, `!`, the shell's keywords and a
+# `case` pattern (`a)`). `time` is a wrapper, read with the others.
+HEAD = re.compile(r"\s*(?:(?:do|then|else|elif|if|while|until|!|\{)(?=\s)|\((?!\()|"
+                  r"case\s+\S+\s+in(?=\s|$)|[^\s()|;&]+\)(?=\s))")
+
+
+def _head(part: str) -> str:
+    """The part from its command on: `(rm -rf x)` → `rm -rf x`, `do ssh h` → `ssh h`."""
+    while (match := HEAD.match(part)) and part[:match.end()].strip():
+        part = part[match.end():]
+    masked = _mask(part)
+    extra = masked.count(")") - masked.count("(")
+    while extra > 0 and part.rstrip().endswith(")"):    # the `)` that closes a subshell
+        part, extra = part.rstrip()[:-1], extra - 1
+    return part
+
+
+def _pieces(command: str) -> list[tuple[str, str]]:
+    """→ [(part, the separator before it)]: the command split at `;`, `&`, `|` and new lines that
+    are not inside quotes, each part from its command on."""
+    masked, pieces, at, sep = _mask(command), [], 0, ""
+    for match in re.finditer(r"[;&|\n]+", masked):
+        pieces.append((_head(command[at:match.start()]), sep))
+        at, sep = match.end(), match.group(0)
+    pieces.append((_head(command[at:]), sep))
+    return pieces
+
+
 def _parts(command: str) -> list[str]:
     """The command split at `;`, `&`, `|` and new lines that are not inside quotes."""
-    masked, parts, at = _mask(command), [], 0
-    for match in re.finditer(r"[;&|\n]+", masked):
-        parts.append(command[at:match.start()])
-        at = match.end()
-    parts.append(command[at:])
-    return parts
+    return [part for part, _ in _pieces(command)]
+
+
+# Commands inside commands (CONTRACT.md, "Approvals"): what a shell's `-c`, `eval`, a here-string,
+# a wrapper such as `env` or `timeout`, a substitution, or a pipe into a shell will run.
+MAX_DEPTH = 4
+UNREADABLE = ("It runs commands that cannot be read before they run (they come from a variable, "
+              "a computed value or another program's output).")
+TOO_DEEP = "It wraps commands inside other commands too deeply to read."
+
+
+class _Reason(str):
+    """A reason found while reading what a part hands on, given as it is."""
+
+
+RUNS_IN_CODE = _Reason("It runs code in another language that starts a program, which cannot be read "
+                       "before it runs.")
+# Read as usual: the person's own, and those the studio gives a project's back end (`$PORT`, …).
+KNOWN_VARS = {"HOME", "PWD", "USER", "LOGNAME", "TMPDIR", "PORT", "HOST"}
+HARMLESS_SUBS = {"pwd", "pwd -P", "pwd -L"}
+# Wrappers that run the rest of the line, and their options that take a value.
+HEAD_WRAPPERS = {"env": {"-u", "--unset", "-C", "--chdir"}, "sudo": {"-u", "-g", "-C", "-D", "-h", "-p", "-U"},
+                 "doas": {"-u", "-C"}, "nohup": set(), "time": set(), "command": set(), "builtin": set(),
+                 "exec": {"-a"}, "nice": {"-n"}, "timeout": {"-s", "--signal", "-k", "--kill-after"},
+                 "stdbuf": {"-i", "-o", "-e"}, "caffeinate": {"-t", "-w"}, "setsid": set()}
+
+
+def _raw_words(part: str) -> list[str]:
+    """The part's words as written, quotes kept: split at whitespace that is not quoted."""
+    masked = _mask(part)
+    return [part[m.start():m.end()] for m in re.finditer(r"\S+", masked)]
+
+
+def _unquote(raw: str) -> str:
+    try:
+        return " ".join(shlex.split(raw, posix=True))
+    except ValueError:
+        return raw
+
+
+def _filled_in(raw: str) -> list[str]:
+    """What the outer shell fills into `raw` before the inner one reads it: `$NAME`, `${NAME…}`
+    → NAME; `$( … )` and backticks → "("; nothing inside single quotes; `$((…))` is arithmetic."""
+    found, i, quote = [], 0, None
+    while i < len(raw):
+        char = raw[i]
+        if char == "\\" and quote != "'":
+            i += 2
+            continue
+        if quote is None and char in "'\"":
+            quote = char
+        elif char == quote:
+            quote = None
+        elif quote != "'":
+            if char == "`":
+                found.append("(")
+            elif char == "$" and i + 1 < len(raw):
+                nxt = raw[i + 1]
+                if raw.startswith("$((", i):
+                    i += 3
+                    continue
+                if nxt == "(":
+                    found.append("(")
+                elif nxt == "{":                # `${#X}`, `${!X}`: not a plain name
+                    found.append(re.match(r"\w*", raw[i + 2:]).group(0) or "{")
+                elif re.match(r"[\w@*#?!$-]", nxt):
+                    found.append(re.match(r"\w+", raw[i + 1:]).group(0) if re.match(r"\w", nxt) else nxt)
+        i += 1
+    return found
+
+
+def _known(name: str) -> bool:
+    return name in KNOWN_VARS or name.startswith("STUDIO_") or name in ("?", "#", "$", "!", "-")
+
+
+def _assigned(name: str, ctx: tuple[str, int]) -> bool:
+    """Does the line (or a line it is nested in) set `name`? Positional ones (`$1`, `$@`) are set
+    by whoever runs a nested line, or by `set` or a function on the line."""
+    line, depth = ctx
+    if re.fullmatch(r"\d+|[@*]", name):
+        return depth > 0 or bool(re.search(r"(?:^|[;&|\s(])set\s+\S|\w\s*\(\s*\)|\bfunction\s+\w", line))
+    n = re.escape(name)
+    return bool(re.search(rf"(?:^|[^\w$]){n}\+?=|\b(?:read|mapfile|readarray|getopts|select|for|export|declare|"
+                          rf"typeset|local|readonly)\b[^;&|\n]*\b{n}\b|\bprintf\s+-v\s*{n}\b", line))
+
+
+def _as_command(text: str) -> bool:
+    """Does a variable that is not known stand where a command goes in `text`?"""
+    for part, _ in _pieces(text):
+        raw = _raw_words(part)
+        at = _after_wrappers(raw, [_unquote(w) for w in raw]) if raw else 0
+        if at < len(raw) and any(not _known(n) for n in re.findall(r"\$\{?(\w+|[@*])", raw[at])):
+            return True
+    return False
+
+
+def _literal_values(raw: str, ctx: tuple[str, int]) -> list[str] | None:
+    """`raw` is one variable (`$C`, `"${C}"`) that the line sets only to plain text: → those
+    texts. None otherwise (another form, a computed value, `read`, `for`, …)."""
+    match = re.fullmatch(r"\$(\w+)|\$\{(\w+)\}", _unquote(raw))
+    if not match or raw.startswith("'"):
+        return None
+    name, line = match.group(1) or match.group(2), ctx[0]
+    if re.search(rf"\b(?:read|mapfile|readarray|getopts|select|for)\b[^;&|\n]*\b{name}\b", line):
+        return None
+    values = []
+    for found in re.finditer(rf"(?:^|[;&|\s(]){name}=", line):
+        at = found.end()
+        word = _word_at(line, at) if at < len(line) else ""
+        value = word if at < len(line) and line[at] in "'\"" else _unquote(word)
+        if not value or "$" in value or "`" in value or (found.end() < len(line) and line[found.end()] == "("):
+            return None
+        values.append(value)
+    return values or None
+
+
+def _readable(raw: str, ctx: tuple[str, int] = ("", 0), command: bool = False) -> bool:
+    """Can the text the outer shell makes of `raw` be read? `$(pwd)` and the known variables can.
+    Another variable can where it stands as an argument and the line does not set it: it comes
+    from the environment the agent was started with. `command`: `raw` is itself the program."""
+    if any(body.strip() not in HARMLESS_SUBS for body in _substitutions(raw)):
+        return False
+    other = [n for n in _filled_in(raw) if n != "(" and not _known(n)]
+    if not other:
+        return True
+    if command or "{" in other or any(_assigned(n, ctx) for n in other):
+        return False
+    return not _as_command(_unquote(raw))
+
+
+def _substitutions(text: str) -> list[str]:
+    """The commands inside `$( … )` and backticks that the shell runs (not those in single quotes)."""
+    found, i, quote = [], 0, None
+    while i < len(text):
+        char = text[i]
+        if char == "\\" and quote != "'":
+            i += 2
+            continue
+        if quote is None and char in "'\"":
+            quote = char
+        elif char == quote:
+            quote = None
+        elif quote != "'" and char == "`":
+            end = i + 1
+            while end < len(text) and text[end] != "`":
+                end += 2 if text[end] == "\\" else 1
+            found.append(text[i + 1:end])
+            i = end
+        elif (quote != "'" and text.startswith("$(", i) and not text.startswith("$((", i)) or (
+                quote is None and text.startswith(("<(", ">("), i)):    # also a process substitution
+            depth, end, inner = 1, i + 2, None
+            while end < len(text):
+                c = text[end]
+                if c == "\\":
+                    end += 2
+                    continue
+                if c in "'\"":
+                    close = text.find(c, end + 1)
+                    end = close + 1 if close != -1 else len(text)
+                    continue
+                depth += c == "("
+                depth -= c == ")"
+                if depth == 0:
+                    inner = text[i + 2:end]
+                    break
+                end += 1
+            found.append(inner if inner is not None else text[i + 2:])
+            i = end
+        i += 1
+    return found
+
+
+def _shell_script(raw: list[str], words: list[str], start: int,
+                  ctx: tuple[str, int] = ("", 0)) -> tuple[bool, str | None] | None:
+    """`raw[start]` is a shell: → (True, its `-c` text, or None when that cannot be read), or None
+    when it is not given text to run with `-c`."""
+    j, has_c = start + 1, False
+    while j < len(words) and words[j][:1] in ("-", "+") and words[j] not in ("-", "--"):
+        if words[j] in ("-o", "+o", "-O", "+O"):
+            j += 2
+            continue
+        if words[j].startswith("-") and not words[j].startswith("--") and "c" in words[j][1:]:
+            has_c = True
+        j += 1
+    if has_c and j < len(words) and words[j] in ("-", "--"):
+        j += 1                  # the end of the options: the script is the next word
+    if not has_c or j >= len(words):
+        return None
+    return True, (words[j] if _readable(raw[j], ctx) else None)
+
+
+def _after_wrappers(raw: list[str], words: list[str]) -> int:
+    """The index of the program a line runs, past `NAME=value` and wrappers such as `env`, `sudo`,
+    `nohup`, `time`, `nice`, `timeout` and their options."""
+    i = 0
+    while i < len(words):
+        if re.fullmatch(r"\w+=.*", words[i]):
+            i += 1
+            continue
+        name = Path(words[i]).name
+        if name not in HEAD_WRAPPERS or i + 1 >= len(words):
+            return i
+        i += 1
+        while i < len(words) and words[i].startswith("-") and words[i] != "-":
+            if name == "env" and words[i] in ("-S", "--split-string"):
+                return i        # its value is a line of its own: handled by the caller
+            i += 2 if words[i] in HEAD_WRAPPERS[name] else 1
+        if name == "timeout" and i < len(words):
+            i += 1              # the duration
+    return i
+
+
+def _nested(part: str, previous: tuple[str, str] | None, ctx: tuple[str, int] = ("", 0)) -> list[str | None]:
+    """The commands one part of a line hands to something else to run (None: one that cannot be
+    read; a _Reason: a reason of its own). `previous`: the part before and the separator between
+    them, for `… | sh`. `ctx`: the whole line and its depth, for the variables it sets."""
+    raw = _raw_words(part)
+    words = [_unquote(w) for w in raw]
+    found: list[str | None] = list(_substitutions(part))
+    if not words:
+        return found
+    at = _after_wrappers(raw, words)
+    if at > 0 and at < len(words):
+        if words[at] in ("-S", "--split-string") and at + 1 < len(words):
+            found.append(words[at + 1] if _readable(raw[at + 1], ctx) else None)
+            return found
+        if not re.fullmatch(r"\w+=.*", words[at]) and any(Path(w).name in HEAD_WRAPPERS for w in words[:at]):
+            found.append(" ".join(raw[at:]))
+            return found        # the rest is judged as a line of its own, wrappers and all
+    if at >= len(words):
+        return found
+    before = _mask(" ".join(raw[:at]))
+    inside = before.count("(") > before.count(")") or before.count("`") % 2   # `x=$(a | b`, `B=(-A …)`
+    if not inside and not _readable(raw[at], ctx, command=True):
+        # The program itself comes from a variable: read it as the plain text the line sets it
+        # to (`C=/usr/bin/x; "$C" -v`), else it cannot be read (`$x -rf ~`, `$(tool) …`).
+        values = _literal_values(raw[at], ctx)
+        if values is None:
+            found.append(None)
+        else:
+            found.extend(" ".join([shlex.quote(v), *raw[at + 1:]]) for v in values)
+        return found
+    name = Path(words[at]).name
+    if name == "eval":
+        args = raw[at + 1:]
+        found.append(" ".join(_unquote(w) for w in args) if all(_readable(w, ctx) for w in args) else None)
+        return found
+    if name in RUNS_ITS_ARGS:
+        found.append(_run_by(name, raw, words, at, previous, ctx))
+    for i in range(at, len(words)):         # also after xargs, find -exec, …
+        if Path(words[i]).name in SHELLS and (script := _shell_script(raw, words, i, ctx)):
+            found.append(script[1])
+        if _code_runs_program(words, i):
+            found.append(RUNS_IN_CODE)
+    if name in SHELLS | {"source", "."} and "<(" in _mask(part):
+        found.append(None)                  # reads another program's output
+    elif name in STDIN_SHELLS and (m := re.search(r"<<<\s*", _mask(part))):
+        rest = _raw_words(part[m.end():])
+        found.append(_unquote(rest[0]) if rest and _readable(rest[0], ctx) else None)
+    elif name in SHELLS and previous and previous[1] == "|" and not any(
+            not w.startswith("-") and w != "-" for w in words[at + 1:]) and not _shell_script(raw, words, at):
+        found.append(_piped_text(previous[0], ctx))
+    elif name in ("at", "batch") and previous and previous[1] == "|" and "-f" not in words:
+        found.append(_piped_text(previous[0], ctx))
+    return found
+
+
+# Programs that run the command they are given (CONTRACT.md, "Approvals").
+RUNS_ITS_ARGS = {"watch", "script", "tmux", "screen", "parallel", "xargs"}
+TMUX_RUNS = {"new", "new-session", "new-window", "neww", "split-window", "splitw", "respawn-pane", "respawnp",
+             "respawn-window", "respawnw", "run-shell", "run", "send-keys", "send", "pipe-pane", "pipep",
+             "display-popup", "popup"}
+TMUX_KEYS = {"Enter", "C-m", "C-c", "C-d", "Escape", "Space", "Tab", "KPEnter", "BSpace"}
+PARALLEL_WITH_VALUE = {"-j", "--jobs", "-S", "--sshlogin", "-a", "--arg-file", "--colsep", "-d", "--delimiter",
+                       "-I", "--joblog", "--results", "--tmpdir", "-N", "-n", "-L", "--timeout", "--delay",
+                       "--retries"}
+
+
+def _run_by(name: str, raw: list[str], words: list[str], at: int, previous: tuple[str, str] | None,
+            ctx: tuple[str, int]) -> str | None:
+    """The command line `watch`, `script`, `tmux`, `screen`, `parallel` or `xargs` at `at` runs
+    ("": none; None: one that cannot be read)."""
+    n, i = len(words), at + 1
+
+    def shell_text(rest: list[int]) -> str | None:      # words joined and read again by a shell
+        return " ".join(words[k] for k in rest) if all(_readable(raw[k], ctx) for k in rest) else None
+
+    if name == "watch":
+        while i < n and words[i].startswith("-"):
+            i += 2 if words[i] in ("-n", "--interval", "-q", "--equexit") else 1
+        return shell_text(list(range(i, n)))
+    if name == "script":
+        while i < n and words[i].startswith("-"):
+            if words[i] in ("-c", "--command") and i + 1 < n:
+                return shell_text([i + 1])
+            i += 2 if words[i] in ("-t", "-T", "-I", "-O", "-B", "-E", "-m", "-o", "--timing") else 1
+        return " ".join(raw[i + 1:])        # after the file: the program and its arguments
+    if name == "tmux":
+        while i < n and words[i].startswith("-"):
+            if words[i] == "-c" and i + 1 < n:
+                return shell_text([i + 1])
+            i += 2 if words[i] in ("-L", "-S", "-f", "-T") else 1
+        if i >= n or words[i] not in TMUX_RUNS:
+            return ""
+        sub, i = words[i], i + 1
+        while i < n and words[i].startswith("-"):
+            i += 2 if words[i] in ("-t", "-s", "-n", "-c", "-F", "-e", "-x", "-y", "-l", "-f", "-N", "-T") else 1
+        rest = [k for k in range(i, n) if not (sub in ("send-keys", "send") and words[k] in TMUX_KEYS)]
+        return shell_text(rest)
+    if name == "screen":
+        while i < n and words[i].startswith("-"):
+            if words[i] == "-X":
+                return None                 # a command sent to a running session
+            i += 2 if re.fullmatch(r"-[a-zA-Z]*[Scehpst]", words[i]) else 1
+        return " ".join(raw[i:])
+    if name == "parallel":
+        while i < n and words[i].startswith("-"):
+            if words[i] in ("-S", "--sshlogin"):
+                return "ssh " + " ".join(raw[i + 1:i + 2])
+            i += 2 if words[i] in PARALLEL_WITH_VALUE else 1
+        end = next((k for k in range(i, n) if words[k] in (":::", "::::", ":::+", "::::+")), n)
+        if end == i:
+            return None                     # it reads its commands from elsewhere
+        command = shell_text(list(range(i, end)))
+        return None if command is None else " ".join([command, *(raw[k] for k in range(end + 1, n)
+                                                                  if words[k] not in (":::", ":::+"))])
+    # xargs: its command, with the words `echo` or `printf` pipe into it as arguments.
+    while i < n and words[i].startswith("-"):
+        i += 2 if words[i] in XARGS_WITH_VALUE else 1
+    items = _echo_items(previous[0], ctx) if previous and previous[1] == "|" else None
+    return " ".join(raw[i:] + (items or [])) if i < n else ""
+
+
+def _echo_items(part: str, ctx: tuple[str, int]) -> list[str] | None:
+    """The words `echo` or `printf` in `part` print, as written; None when it is another program."""
+    raw = _raw_words(part)
+    words = [_unquote(w) for w in raw]
+    at = _after_wrappers(raw, words) if raw else 0
+    if at >= len(words) or Path(words[at]).name not in ("echo", "printf"):
+        return None
+    args = [w for w in raw[at + 1:] if not re.fullmatch(r"-[neE]+", w)]
+    if Path(words[at]).name == "printf" and args and "%" in args[0]:
+        args = args[1:]
+    return args if all(_readable(w, ctx) for w in args) else None
+
+
+# Code handed to another language on the command line, and the flags that give it.
+CODE_FLAGS = {"node": {"-e", "--eval", "-p", "--print"}, "bun": {"-e", "--eval", "-p", "--print"},
+              "tsx": {"-e", "--eval", "-p", "--print"}, "ts-node": {"-e", "--eval", "-p", "--print"},
+              "php": {"-r"}, "lua": {"-e"}, "Rscript": {"-e"}, "julia": {"-e", "--eval"}}
+STARTS_A_PROGRAM = re.compile(
+    r"(?<![\w.])system\(|(?<![\w.$])system\s+[\"']|\bos\.(?:system|exec\w*|spawn\w*|popen|fork)\b|"
+    r"\bsubprocess\b|\bpopen\b|\bPopen\b|\bchild_process\b|\bspawn\w*\(|(?<![\w.$])spawn\s+[\"']|"
+    r"(?<![\w.])exec(?:[lv]p?e?|Sync|File(?:Sync)?)?\b|\bshell_exec\b|\bpassthru\b|\bproc_open\b|"
+    r"\bpty\b|\bOpen3\b|\bDeno\.(?:Command|run)\b|\bqx\s*[({/'\"\[|]|%x[({\[]")
+AWK_PIPES = re.compile(r"\|\s*getline|\|\s*[\"$\w(]|\|&")
+
+
+def _inline_code(words: list[str], i: int) -> list[str]:
+    """The code text the program at `words[i]` is given on the command line (`python -c`,
+    `perl -e`, `node -e`, `awk '…'`, …)."""
+    name, n, j, codes = Path(words[i]).name, len(words), i + 1, []
+    if re.fullmatch(r"python[\d.]*", name):
+        while j < n and words[j].startswith("-") and words[j] != "-":
+            word = words[j]
+            if word == "-c" or re.fullmatch(r"-[A-Za-z]+c", word):
+                return words[j + 1:j + 2]
+            if word.startswith("-c") or word == "-m":
+                return [word[2:]] if word.startswith("-c") else []
+            j += 2 if word in ("-W", "-X") else 1
+        return []
+    if name in ("perl", "ruby"):
+        while j < n and words[j].startswith("-") and words[j] not in ("-", "--"):
+            if re.fullmatch(r"-[a-zA-Z0-9]*[eE]", words[j]) and j + 1 < n:
+                codes.append(words[j + 1])
+                j += 2
+                continue
+            j += 1
+        return codes
+    if name in ("awk", "gawk", "mawk", "nawk"):
+        while j < n and words[j].startswith("-"):
+            if words[j] in ("-f", "--file") or words[j].startswith("-f"):
+                return []                   # a program file: not looked inside
+            if words[j] == "--":
+                j += 1
+                break
+            j += 2 if words[j] in ("-F", "-v", "--assign", "--field-separator") else 1
+        return words[j:j + 1]
+    if name == "deno" and j < n and words[j] == "eval":
+        return words[j + 1:j + 2]
+    flags = CODE_FLAGS.get(name, set())
+    while flags and j < n and words[j].startswith("-"):
+        if words[j] in flags and j + 1 < n:
+            codes.append(words[j + 1])
+            j += 2
+            continue
+        j += 1
+    return codes
+
+
+def _code_runs_program(words: list[str], i: int) -> bool:
+    """Does code given to another language on the command line mention starting a program?"""
+    name = Path(words[i]).name
+    for code in _inline_code(words, i):
+        if STARTS_A_PROGRAM.search(code):
+            return True
+        if name in ("perl", "ruby", "php") and "`" in code:
+            return True
+        if name in ("awk", "gawk", "mawk", "nawk") and AWK_PIPES.search(code):
+            return True
+    return False
+
+
+def _piped_text(part: str, ctx: tuple[str, int] = ("", 0)) -> str | None:
+    """What `part` pipes into a shell, when it can be read: the text of `echo` or `printf` (a
+    here-document fed through `cat` is read with the line already). None otherwise."""
+    if (match := HEREDOC.search(part)) and "<<<" not in part[max(0, match.start() - 1):match.end()]:
+        return ""
+    raw = _raw_words(part)
+    words = [_unquote(w) for w in raw]
+    at = _after_wrappers(raw, words)
+    if at >= len(words) or Path(words[at]).name not in ("echo", "printf"):
+        return None
+    args = raw[at + 1:]
+    if not all(_readable(w, ctx) for w in args):
+        return None
+    text = " ".join(_unquote(w) for w in args if not re.fullmatch(r"-[neE]+", w))
+    return text.replace("\\n", "\n")
 
 
 GIT_READS = {"status", "log", "diff", "show", "ls-files", "ls-tree", "rev-parse", "rev-list", "blame", "grep",
@@ -439,8 +899,22 @@ def _move(here: Path | None, target: str, workspace: Path) -> Path | None:
     return ((here or workspace.resolve()) / target).resolve()
 
 
+def _script_deletes(words: list[str], i: int) -> bool:
+    """Does the program at `words[i]` delete what it is given: `rm` and the like, or a shell whose
+    `-c` text starts with one (`sh -c 'rm "$@"'`)?"""
+    if Path(words[i]).name in DELETERS:
+        return True
+    # The words are already unquoted: whether the outer shell fills anything in does not matter here.
+    script = _shell_script(["''"] * len(words), words, i) if Path(words[i]).name in SHELLS else None
+    if not script or not script[1]:
+        return False
+    first = _raw_words(_parts(script[1])[0])
+    return bool(first) and Path(_unquote(first[0])).name in DELETERS
+
+
 def _path_reason(command: str, workspace: Path, in_place: bool = False,
-                 places: tuple[Path, ...] = ()) -> str | None:
+                 places: tuple[Path, ...] = (), nested: list | None = None,
+                 ctx: tuple[str, int] = ("", 0)) -> str | None:
     def own(target: str, here: Path | None = None) -> str | None:
         if _studio_place(target, workspace, here, places):
             return f"It changes {target}: {STUDIO_OWN}."
@@ -458,7 +932,15 @@ def _path_reason(command: str, workspace: Path, in_place: bool = False,
     here: Path | None = None        # where an earlier `cd` on this line left it; None: the project
     stack: list[Path | None] = []
     before: list[str] = []          # the words of the part before, for `find … | xargs rm`
-    for part in _parts(command):
+    pieces = _pieces(command)
+    for index, (part, _sep) in enumerate(pieces):
+        if nested is not None:      # what this part hands on to run, read from where it runs
+            prefix = "" if here is None else f"cd {'/tmp' if here is SCRATCH else shlex.quote(str(here))} && "
+            for inner in _nested(part, pieces[index - 1][0:1] + (_sep,) if index else None, ctx):
+                if isinstance(inner, _Reason) or inner is None:
+                    nested.append(inner)
+                else:
+                    nested.append(prefix + inner if inner.strip() else "")
         try:
             words = shlex.split(part, posix=True)
         except ValueError:
@@ -520,8 +1002,8 @@ def _path_reason(command: str, workspace: Path, in_place: bool = False,
             continue
         if name == "find":
             deletes = "-delete" in words or any(
-                word in ("-exec", "-execdir", "-ok", "-okdir") and Path(nxt).name in DELETERS
-                for word, nxt in zip(words, words[1:]))
+                word in ("-exec", "-execdir", "-ok", "-okdir") and _script_deletes(words, i + 1)
+                for i, word in enumerate(words[:-1]))
             for start in _find_starts(words) if deletes else []:
                 if reason := own(start, here):
                     return reason
@@ -535,7 +1017,7 @@ def _path_reason(command: str, workspace: Path, in_place: bool = False,
             if i >= len(words):
                 continue
             words, name = words[i:], Path(words[i]).name
-            if name in DELETERS and previous and Path(previous[0]).name == "find":   # deletes what find found
+            if _script_deletes(words, 0) and previous and Path(previous[0]).name == "find":   # deletes what find found
                 for start in _find_starts(previous):
                     if reason := own(start, here):
                         return reason
@@ -566,7 +1048,8 @@ def _path_reason(command: str, workspace: Path, in_place: bool = False,
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1")
 INTERPRETERS = re.compile(r"python[\d.]*|node|ruby|perl|deno|bun|tsx|ts-node|php|Rscript|julia|lua")
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "fish"}
-WRAPPERS = {"env", "exec", "time", "nohup", "command", "sudo", "doas", "nice"}
+STDIN_SHELLS = SHELLS | {"at", "batch"}      # also read commands given on their input
+WRAPPERS = {"env", "exec", "time", "nohup", "command", "sudo", "doas", "nice", "setsid"}
 RUNNERS = {"uv", "uvx", "poetry", "pipenv", "pdm", "hatch", "rye", "conda", "mamba", "micromamba",
            "npx", "bunx", "pnpm", "yarn", "npm"}
 
@@ -604,8 +1087,11 @@ def _split(command: str) -> tuple[str, str]:
     lines, shell, program, i = command.split("\n"), [], [], 0
     while i < len(lines):
         line = lines[i]
-        shell.append(line)
         i += 1
+        # A backslash at the end of a line joins it to the next, even inside a word (`r\` `m`).
+        while i < len(lines) and (len(line) - len(line.rstrip("\\"))) % 2:
+            line, i = line[:-1] + lines[i], i + 1
+        shell.append(line)
         match = HEREDOC.search(line)
         if not match:
             continue
@@ -618,7 +1104,7 @@ def _split(command: str) -> tuple[str, str]:
         else:
             segment = re.split(r"[;&|(]+", line[:match.start()])[-1]
         reader = _reader(re.split(r"[;&]", segment)[0].split())
-        if reader in SHELLS:
+        if reader in STDIN_SHELLS:
             continue
         if reader not in ("cat", "tee", "git"):     # git reads it as a message (commit/tag -F -, notes)
             program.extend(lines[i:end])
@@ -626,9 +1112,81 @@ def _split(command: str) -> tuple[str, str]:
     return "\n".join(shell), "\n".join(program)
 
 
+def _ansi_c(text: str) -> str:
+    """`$'…'` (outside other quotes) decoded and written as plain single-quoted text, the way
+    the shell reads it: `$'\\x72m'` → `'rm'`."""
+    out, i, quote = [], 0, None
+    while i < len(text):
+        char = text[i]
+        if quote != "'" and char == "\\":
+            out.append(text[i:i + 2])
+            i += 2
+            continue
+        if quote is None and text.startswith("$'", i):
+            j, body = i + 2, []
+            while j < len(text) and text[j] != "'":
+                if text[j] == "\\" and j + 1 < len(text):
+                    body.append(text[j:j + 2])
+                    j += 2
+                    continue
+                body.append(text[j])
+                j += 1
+            if j >= len(text):
+                out.append(text[i:])
+                break
+            out.append(shlex.quote(_decode("".join(body))))
+            i = j + 1
+            continue
+        if quote is None and char in "'\"":
+            quote = char
+        elif char == quote:
+            quote = None
+        out.append(char)
+        i += 1
+    return "".join(out)
+
+
+ESCAPES = {"a": "\a", "b": "\b", "e": "\x1b", "E": "\x1b", "f": "\f", "n": "\n", "r": "\r", "t": "\t",
+           "v": "\v", "\\": "\\", "'": "'", '"': '"', "?": "?"}
+
+
+def _decode(body: str) -> str:
+    """The text of a `$'…'` body: `\\n`, `\\x72`, `\\162`, `\\u0072`, `\\cA`, …"""
+    def one(match: re.Match) -> str:
+        code = match.group(1)
+        try:
+            if code[0] in "xuU" and len(code) > 1:
+                return chr(int(code[1:], 16))
+            if code[0] in "01234567":
+                return chr(int(code, 8) & 0xFF)
+            if code[0] == "c" and len(code) > 1:
+                return chr(ord(code[1]) & 0x1F)
+        except (ValueError, OverflowError):     # `\U110000`: past the last character there is
+            return "\\" + code
+        return ESCAPES.get(code, "\\" + code)
+    return re.sub(r"\\(x[0-9a-fA-F]{1,2}|u[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{1,8}|[0-7]{1,3}|c.|.)", one, body,
+                  flags=re.S)
+
+
+CANNOT_READ = "The studio could not read this command, so it asks before running it."
+
+
 def risky_command(command: str, workspace: Path, in_place: bool | None = None,
-                  studio_places=()) -> str | None:
+                  studio_places=(), _depth: int = 0, _outer: str = "") -> str | None:
     """→ a one-sentence reason when the command needs the user's approval, else None.
+    A fault in the reading itself is a reason to ask: it must never let a line through, and
+    never end the request."""
+    try:
+        return _risky(command, workspace, in_place, studio_places, _depth, _outer)
+    except RecursionError:
+        return TOO_DEEP
+    except Exception:
+        return CANNOT_READ
+
+
+def _risky(command: str, workspace: Path, in_place: bool | None = None,
+           studio_places=(), _depth: int = 0, _outer: str = "") -> str | None:
+    """What `risky_command` answers, without its safety net.
 
     `in_place`: the project folder is the person's own app with their own repository (the
     studio's versions are in a separate history.git). Unset, it is read from the studio's record
@@ -639,7 +1197,25 @@ def risky_command(command: str, workspace: Path, in_place: bool | None = None,
         in_place = ws.history_dir(workspace) is not None
     places = (Path.home() / ".config" / "studio2", Path.home() / ".claude", *map(Path, studio_places))
     text, program = _split(command or "")
+    text = _ansi_c(text)
+    ctx = (_outer + "\n" + text, _depth)    # the line, and the lines it is nested in
     for pattern, reason in RULES:
         if pattern.search(text) or pattern.search(program):
             return reason
-    return _pip_reason(text) or _pip_reason(program) or _path_reason(text, workspace, in_place, places)
+    if STARTS_A_PROGRAM.search(program):     # a here-document given to another language
+        return str(RUNS_IN_CODE)
+    nested: list[str | None] = []
+    if reason := _pip_reason(text) or _pip_reason(program) or _path_reason(text, workspace, in_place, places, nested, ctx):
+        return reason
+    for inner in nested:     # each is judged as if it had been typed on its own
+        if isinstance(inner, _Reason):
+            return str(inner)
+        if inner is None:
+            return UNREADABLE
+        if not inner:
+            continue
+        if _depth >= MAX_DEPTH:
+            return TOO_DEEP
+        if reason := risky_command(inner, workspace, in_place, studio_places, _depth + 1, ctx[0]):
+            return reason
+    return None

@@ -38,12 +38,35 @@ export function attachDetail(attach: AttachRecord): string {
     }
     const left = attach.uncommitted.length;
     if (left && !attach.included_uncommitted) parts.push(`${left} uncommitted change${left === 1 ? "" : "s"} not copied`);
+    const skipped = attach.env_skipped ?? [];
+    if (skipped.length) {
+      parts.push(`${skipped.length} key file${skipped.length === 1 ? "" : "s"} not copied (${skipped.map((s) => s.name).join(", ")})`);
+    }
     parts.push("the original is not changed");
   } else {
     parts.push("Changes are written to that folder; the studio keeps its own versions");
     if (attach.address) parts.push(`shows ${attach.address}`);
   }
   return parts.join(" · ");
+}
+
+/**
+ * The key files the person ticked that the copy did not take (`env_skipped`), in plain words:
+ * each one, why, and what to do about it. Null when every ticked file was copied.
+ */
+export function envSkippedNote(attach: AttachRecord): string | null {
+  const skipped = attach.env_skipped ?? [];
+  if (!skipped.length) return null;
+  const where = shortPath(attach.path);
+  const head =
+    skipped.length === 1
+      ? `The key file ${skipped[0].name} was not copied: ${skipped[0].reason}.`
+      : `${skipped.length} key files were not copied: ${skipped.map((s) => `${s.name} (${s.reason})`).join(", ")}.`;
+  const advice: string[] = [];
+  if (skipped.some((s) => s.reason.includes("link"))) advice.push(`replace the link in ${where} with a real file`);
+  if (skipped.some((s) => s.reason.includes("not found"))) advice.push(`check that it is still in ${where}`);
+  const fix = advice.length ? `${advice.join(", or ")}, then make the copy again` : "make the copy again";
+  return `${head} The app may not start without ${skipped.length === 1 ? "it" : "them"}. If it needs ${skipped.length === 1 ? "it" : "them"}, ${fix}.`;
 }
 
 /** The default project name for a folder and a way in. */

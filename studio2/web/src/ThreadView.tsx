@@ -2,14 +2,14 @@
 
 import { VerificationCard } from "./EffortControl";
 import { RECHECK_COVERS, recheckHeadline, type Recheck } from "./effort";
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import { isDrawingAttachment } from "./drawing";
 import { baseName, checkpointLabel, costLabel, formatCount, formatDuration, isImagePath, prettyInput, truncate } from "./format";
 import { Icon, Spinner, toolIcon } from "./icons";
 import { checkPageLine } from "./library";
 import { LibraryPickCard } from "./LibraryPickCard";
 import { Markdown } from "./markdown";
-import { shownSteps, type NextStep } from "./nextSteps";
+import { draftHolds, shownSteps, type NextStep } from "./nextSteps";
 import {
   turnViewItems,
   type ActivityGroup,
@@ -45,6 +45,16 @@ export interface ThreadActions {
   onUseStep?: (step: NextStep) => void;
   /** A message is queued or being sent: the last request's chips are not shown. */
   busy?: boolean;
+  /** "Put it back": text that Stop removed from the queue goes into the chat box, and nothing is sent. */
+  onPutBack?: (item: NoticeItem) => void;
+}
+
+/** What "Put it back" needs to know to offer itself only while it would do something. */
+export interface PutBackState {
+  /** The chat box as it is now. */
+  draft: string;
+  /** Notes already put back on this page. */
+  used: ReadonlySet<string>;
 }
 
 /** Chips under the last answer. A tap only fills the chat box (CONTRACT.md, "Suggested next steps"). */
@@ -351,12 +361,33 @@ function Checkpoint({ item, onOpen }: { item: CheckpointItem; onOpen: (sha: stri
   );
 }
 
-function Notice({ item }: { item: NoticeItem }) {
+function Notice({ item, onPutBack, putBack }: { item: NoticeItem; onPutBack?: (item: NoticeItem) => void; putBack?: PutBackState }) {
   const level = item.level === "error" || item.level === "warning" ? item.level : "info";
+  const text = item.restoreText && onPutBack ? item.restoreText : null;
+  // Offered only while a tap would do something: not once used here, not while the box holds the
+  // text, not once it was sent again (that one is read from the log, so it holds after a reload).
+  let after: ReactNode = null;
+  if (text && item.resent) after = "It was sent again later.";
+  else if (text && putBack && draftHolds(putBack.draft, text)) after = "It is in the message box.";
+  else if (text && putBack?.used.has(item.key)) after = "It was put back in the message box.";
+  else if (text)
+    after = (
+      <button type="button" className="notice-action" onClick={() => onPutBack?.(item)}>
+        Put it back in the message box
+      </button>
+    );
   return (
     <div className={`notice notice-${level}`} role={level === "error" ? "alert" : "note"}>
       <Icon name={level === "error" ? "alert" : level === "warning" ? "warning" : "info"} size={14} />
-      <span>{item.message}</span>
+      <span>
+        {item.message}
+        {after && (
+          <>
+            {" "}
+            {after}
+          </>
+        )}
+      </span>
     </div>
   );
 }
@@ -521,7 +552,7 @@ const TurnView = memo(function TurnView({
             case "checkpoint":
               return <Checkpoint key={item.key} item={item} onOpen={actions.onOpenVersion} />;
             case "notice":
-              return <Notice key={item.key} item={item} />;
+              return <Notice key={item.key} item={item} onPutBack={actions.onPutBack} />;
             case "approval":
               return <ApprovalCard key={item.key} item={item} actions={actions} />;
             case "verification":
@@ -586,7 +617,7 @@ const TurnView = memo(function TurnView({
   );
 });
 
-export function ThreadView({ entries, actions }: { entries: ThreadEntry[]; actions: ThreadActions }) {
+export function ThreadView({ entries, actions, putBack }: { entries: ThreadEntry[]; actions: ThreadActions; putBack?: PutBackState }) {
   let lastTurnIndex = -1;
   for (let i = entries.length - 1; i >= 0; i--) {
     if (entries[i].type === "turn") {
@@ -609,7 +640,7 @@ export function ThreadView({ entries, actions }: { entries: ThreadEntry[]; actio
         }
         return (
           <div key={entry.key} className="thread-marker">
-            <Notice item={entry} />
+            <Notice item={entry} onPutBack={actions.onPutBack} putBack={putBack} />
           </div>
         );
       })}

@@ -9,7 +9,7 @@ import { Icon, Spinner } from "./icons";
 import { NewProjectDialog } from "./NewProjectDialog";
 import type { Navigate } from "./router";
 import type { Theme } from "./theme";
-import { attachLabel } from "./attach";
+import { attachLabel, envSkippedNote } from "./attach";
 import type { AttachRequest, Project } from "./types";
 import { IconButton, Menu, useConfirm, useToast } from "./ui";
 
@@ -220,6 +220,10 @@ export function Home({ navigate, theme, onToggleTheme }: HomeProps) {
     setCreateError(null);
     try {
       const project = await api.attachProject(request);
+      // Ticked key files the copy did not take: said here, where the copy was made, and kept in
+      // the project's "where it came from" line.
+      const skipped = project.attach ? envSkippedNote(project.attach) : null;
+      if (skipped) toast({ message: skipped, kind: "info", duration: 30000 });
       navigate(`/p/${project.id}`);
     } catch (cause) {
       setCreateError(errorMessage(cause));

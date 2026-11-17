@@ -92,8 +92,8 @@ def test_everything_is_found_and_only_skill_folders_and_connector_settings_are_t
     servers = {s["id"]: s for s in lib.servers()}
     remote = servers["plugin:legal@market:contracts"]
     assert remote["state"] == "needs-setting" and "LEGAL_TOKEN" in remote["fix"] and remote["source"] == "plugin"
-    assert lib.server_config("plugin:legal@market:local") == {
-        "command": f"{on}/bin/serve", "args": ["--root", str(on)], "type": "stdio"}
+    local = lib.server_config("plugin:legal@market:local")     # started through the studio's launcher
+    assert local["type"] == "stdio" and local["args"][4:] == [f"{on}/bin/serve", "--root", str(on)]
     monkeypatch.setenv("LEGAL_TOKEN", "tok-123")
     assert lib.server_config("plugin:legal@market:contracts")["headers"] == {"Authorization": "Bearer tok-123"}
     assert {s["id"]: s for s in lib.servers()}["plugin:legal@market:contracts"]["state"] is None
@@ -591,3 +591,45 @@ def test_an_apps_own_connector_file_is_not_filled_from_the_studios_keys(studio, 
     view = next(server for server in studio.lib.app_servers(tmp_path) if server["name"] == "notes")
     config = studio.lib.server_config(view["id"], tmp_path)
     assert config["url"] == "https://example.com/fine/" and config["headers"] == {"Authorization": "Bearer "}
+
+
+async def test_a_connector_the_agent_asks_for_is_not_added_while_it_needs_signing_in(client, studio, project, settings):
+    """The person naming a connector that needs signing in no longer adds it; the agent asking for
+    one still did. It is kept as asked for, the agent and the person are told to sign in first, and
+    it joins the first request after it is seen connected."""
+    pid = project["id"]
+    settings.home.mkdir(parents=True, exist_ok=True)
+    (settings.home / ".claude.json").write_text(json.dumps({"mcpServers": {
+        "tracker": {"type": "http", "url": "https://example.com/mcp"},
+        "chat": {"type": "http", "url": "https://example.com/chat", "oauth": {"clientId": "1"}}}}))
+    studio.record_session({"skills": [], "mcp_servers": [{"name": "tracker", "status": "needs-auth"}]})
+
+    events = await run_turn(client, studio, pid, "need connector machine:tracker")
+    result = [e for e in events if e["type"] == "tool_result"][-1]
+    said = json.loads(result["summary"])
+    assert said["connected"] is False and said["joins"] == "after signing in"
+    assert "claude mcp login tracker" in said["sign_in"] and "signing in" in said["next"]
+    notices = [e["message"] for e in events if e["type"] == "notice"]
+    assert any("tracker" in n and "claude mcp login tracker" in n for n in notices), notices   # the person sees it
+    assert studio.store.get(pid)["library"]["requested"] == ["machine:tracker"]
+
+    events = await run_turn(client, studio, pid, "go on")
+    picked = next(e for e in events if e["type"] == "library_picked")
+    assert picked["connectors"] == []
+    assert picked["note"].count("signing in") == 1 and "claude mcp login tracker" in picked["note"]
+
+    # A connector whose settings sign in and that was never seen connected is held back the same way.
+    from studio2_server import tools
+    answer = json.loads((await tools.call(studio, pid, "request_connector", {"id": "machine:chat"}))["content"][0]["text"])
+    assert answer["joins"] == "after signing in" and "claude mcp login chat" in answer["sign_in"]
+    events = await run_turn(client, studio, pid, "go on")
+    picked = next(e for e in events if e["type"] == "library_picked")
+    assert picked["connectors"] == [] and "chat" in picked["note"] and "tracker" in picked["note"]
+
+    # Signed in and seen connected: what was asked for joins, without being asked again.
+    studio.record_session({"skills": [], "mcp_servers": [{"name": "tracker", "status": "connected"},
+                                                          {"name": "chat", "status": "connected"}]})
+    events = await run_turn(client, studio, pid, "go on")
+    picked = next(e for e in events if e["type"] == "library_picked")
+    assert sorted((c["name"], c["how"]) for c in picked["connectors"]) == [("chat", "requested"), ("tracker", "requested")]
+    assert "signing in" not in (picked["note"] or "")

@@ -39,7 +39,8 @@ FREE_ENDINGS = (":free", "/free")       # OpenRouter's free variants, and its ro
 
 def free_model(model: str | None, sources: tuple = ()) -> bool:
     """A model its provider serves for free: its name says so, or a list of rates gives it 0 and 0
-    (`shipped` marks those; a gateway's own 0 and 0 is a plan route's, so `from_gateway` never does)."""
+    (`shipped` marks those, and `from_gateway` those its own settings price at 0 and 0; a 0 and 0 that
+    LiteLLM merged into `model_info` from its price list can mean "no price known", so it does not)."""
     name = str(model or "").strip().lower()
     if not name:
         return False
@@ -62,8 +63,9 @@ class Rates:
         self.label, self.as_of = label, as_of
         self.models = {str(name).lower(): rates for name, rates in models.items() if isinstance(rates, dict)}
         tails: dict[str, list[str]] = {}
-        for name in self.models:
-            tails.setdefault(last_part(name), []).append(name)
+        for name, rates in self.models.items():
+            if not rates.get("free"):      # a free entry is found by its own name only, never a looser one
+                tails.setdefault(last_part(name), []).append(name)
         self._by_tail = {tail: names[0] for tail, names in tails.items() if len(names) == 1}
 
     def find(self, model: str | None) -> dict | None:
@@ -92,12 +94,20 @@ def shipped(library_dir: Path) -> Rates:
 
 def from_gateway(model_info: object) -> Rates:
     """`GET /model/info` of a LiteLLM gateway → its own prices (per token there). An entry whose
-    input and output prices are not both above zero is not a price (a plan route says 0 and 0)."""
+    input and output prices are not both above zero is not a price, with one exception: when the
+    gateway's own settings for the route (`litellm_params`, which only its configuration fills) give
+    input and output exactly 0, the model is free there. A 0 in `model_info` alone is not that:
+    LiteLLM fills in 0 for a model its price list has no rate for."""
     models = {}
     rows = model_info.get("data") if isinstance(model_info, dict) else None
     for row in rows if isinstance(rows, list) else []:
         info = row.get("model_info") if isinstance(row, dict) else None
         if not isinstance(info, dict) or not row.get("model_name"):
+            continue
+        own = row.get("litellm_params") if isinstance(row.get("litellm_params"), dict) else {}
+        if _zero(own.get("input_cost_per_token")) and _zero(own.get("output_cost_per_token")):
+            models[str(row["model_name"])] = {**{kind: None for kind in (*KINDS, LONG_WRITE)}, "above": None,
+                                              "free": True}
             continue
         per_token = {"input": info.get("input_cost_per_token"), "output": info.get("output_cost_per_token"),
                      "cache_read": info.get("cache_read_input_token_cost"),
@@ -224,6 +234,10 @@ class Pricer:
                  if rates and isinstance(rates.get("above"), dict)
                  and isinstance(rates["above"].get("prompt_tokens"), (int, float))]
         for source, rates in found:
+            if rates and rates.get("free"):     # its own source prices it at 0 and 0: tokens times 0
+                self.requests += 1
+                self.used.add(source)
+                return 0.0
             if rates and not rates.get("above") and sizes:
                 rates = {**rates, "above": {"prompt_tokens": min(sizes)}}
             worked = cost(tokens, rates, summed)

@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import { goToSignIn, needsSignIn } from "./signIn";
+import { goToSignIn, needsSignIn, onSignInChange, signInWaiting } from "./signIn";
 import { STALL_CHECK_MS, streamStalled } from "./streamWatch";
 import { initialThread, reduceEvents, seedApp, type ThreadState } from "./thread";
 import type { AppInfo, StudioEvent } from "./types";
@@ -120,6 +120,15 @@ export function useProjectEvents(
 
     connect();
 
+    // Signed in again in another tab (the tab stayed to keep unsaved edits): open the stream again.
+    const offSignIn = onSignInChange(() => {
+      if (disposed || signInWaiting()) return;
+      if (!source || source.readyState === EventSource.CLOSED) {
+        window.clearTimeout(retry);
+        connect();
+      }
+    });
+
     // A half-open connection (after a sleep or a change of network) keeps saying "open" and
     // delivers nothing, so the thread would say "Working…" for ever. Silence for three
     // keep-alives means it is dead: open a new one from the last seq received.
@@ -133,6 +142,7 @@ export function useProjectEvents(
 
     return () => {
       disposed = true;
+      offSignIn();
       source?.close();
       window.clearTimeout(frame);
       window.clearTimeout(retry);

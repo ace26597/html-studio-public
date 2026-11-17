@@ -456,14 +456,17 @@ message); they are committed with the turn's checkpoint instead of their own.
 |---|---|---|
 | `turn_started` | also `attachments: [path]`, `queued_id` (string or null) | |
 | `turn_queued` | `queued_id`, `text`, `selection`, `attachments`, `connection`, `model` | A message is waiting for the running turn to end. `turn_id` is null |
-| `turn_unqueued` | `queued_id`, `reason` | It was removed without running. `reason`: `cancelled`, `restart` (the studio restarted) |
+| `turn_unqueued` | `queued_id`, `reason`, `text` | It was removed without running. `reason`: `cancelled` (the person removed it, or the project is being deleted), `stopped` (Stop cleared it), `restart` (the studio restarted), `not_started` (its turn came but it could not start, for example because no connection is left to send it with). `text` is the message's text, so the thread can say what was not sent and offer it again. The thread says so for every reason except `cancelled`, and offers the text back for `stopped` and `not_started` |
 | `approval_request` | `approval_id`, `tool`, `title`, `detail`, `reason` | The agent wants to do something risky and is waiting. `title` is a short line ("Run a shell command"), `detail` the command or path, `reason` why it needs approval |
 | `approval_resolved` | `approval_id`, `decision`, `by` | `decision`: `allow`, `deny`. `by`: `user`, `turn_end` (the turn ended first: always `deny`) |
 | `app_status` | `state`, `exit_code`, `run`, `slow`, `not_answering?` | The project's app changed state, or became `slow` or `not_answering` while `starting`. `turn_id` is the running turn or null |
 
 - Queued messages run in order, each as its own turn, as soon as the turn before ends —
   also after a failed turn. Stop clears the messages that were waiting when it was pressed
-  (`turn_unqueued`, `cancelled`); a message sent after the Stop ("stop, do this instead") is the
+  (`turn_unqueued`, `stopped`, with the text: the thread says each was not sent and offers to put
+  it back in the message box). Putting it back gives the text only: the note names what does
+  not come back with it (the selected element, each attached file). A message whose turn comes
+  but cannot start is `not_started`, with the same note and the same offer; a message sent after the Stop ("stop, do this instead") is the
   person's to keep and runs when the stopped turn has ended. This holds for a Stop at any point.
 - Stop counts for as long as the turn is running, including after the agent's part has ended
   while the studio is still finishing (saving the version, restarting the app, opening the page,
@@ -564,6 +567,61 @@ here-document is piped into one (`cat <<'EOF' | python3 -`). Only a body fed to 
 `bash`, `zsh`, …) is read as commands; any other reader's body gets only the rules that name
 programs. Text inside quotes (`'…'`, `"…"`) is never read as a redirection or a command
 separator: `python -c "print('<b>>~$30,000</b>')"` writes nothing.
+
+Commands inside commands are judged by the same rules, as if they had been typed on their own:
+- the text given to a shell with `-c` (`bash -c '…'`, `sh -c`, `zsh -lc`, also after `xargs`,
+  `find -exec`, `timeout` and the like), to `eval`, or to a shell as a here-string
+  (`bash <<< '…'`);
+- the command after `env NAME=value`, `env -S`, `sudo`, `nohup`, `time`, `nice`, `timeout`,
+  `command`, `exec` and `setsid`;
+- the command that `watch`, `script`, `tmux` (`new`, `new-window`, `split-window`, `respawn-pane`,
+  `run-shell`, `send-keys`), `screen`, `parallel` and `xargs` run, and what `at` or `batch` read
+  from a here-string or a pipe. Words that `echo` or `printf` pipe into `xargs` are read as its
+  arguments (`echo ~/x | xargs rm -rf` is `rm -rf ~/x`);
+- the commands inside `$( … )` and backticks, wherever they stand (also inside double quotes);
+- text that `echo` or `printf` pipes into a shell (`echo 'rm -rf ~' | sh`).
+
+The line is read the way the shell reads it first: a backslash at the end of a line joins it to the
+next (`r\` + new line + `m` is `rm`), `$'…'` text is decoded (`$'\x72m'` is `rm`), and a command
+after `(`, `{`, `!`, `if`, `then`, `else`, `do`, `while`, `until` or a `case` pattern is the
+command itself (`(rm -rf ~/x)` and `for f in a; do rm -rf ~/x; done` ask like `rm -rf ~/x`).
+For `bash -c -- '…'` the text after `--` is the script.
+
+The inner command is read from where the outer one runs, so `cd .. && bash -c 'rm -rf *'` asks
+just as `cd .. && rm -rf *` does. This goes four levels deep; a command wrapped deeper than that asks.
+
+When the inner text cannot be read before it runs, it asks:
+- the shell's text, or `eval`'s, gets a command from a variable or a substitution that the outer
+  shell fills in (`bash -c "$CMD"`, `bash -c "npm test && $NEXT"`, `eval "$(tool init)"`);
+- the shell's text holds a variable that the same line sets (`X='; rm -rf ~'; bash -c "echo $X"`,
+  also through `export`, `read` or `for X in`), or a substitution other than `$(pwd)`;
+- the program a line runs is itself a variable or a substitution (`$CMD ~/x`, `$(tool) …`). When
+  the line sets that variable only to plain text, the text is read in its place:
+  `C=/usr/bin/chromium; "$C" --headless` is read as `/usr/bin/chromium --headless`, and
+  `x=rm; $x -rf ~/x` as `rm -rf ~/x`;
+- any other program's output is piped into a shell (`base64 -d … | sh`, `cat script | bash`);
+- a shell reads a process substitution (`bash <(…)`, `source <(…)`);
+- code given to another language on the command line (`python -c`, `perl -e`, `ruby -e`,
+  `node -e`, `php -r`, `awk '…'` and the like) or as a here-document (`python3 - <<'EOF'`)
+  mentions running a program: `system(`, `subprocess`, `popen`, `exec`, `spawn(`,
+  `child_process`, and on the command line backticks in Perl, Ruby or PHP and pipes in awk.
+  `python -c "print(1)"` does not ask.
+
+These are read as usual and do not ask: `$HOME`, `$PWD`, `$USER`, `$LOGNAME`, `$TMPDIR`, the
+variables the studio gives a project's back end (`$PORT`, `$HOST`, `$STUDIO_…`), `${NAME:-default}`
+forms of these, `$(pwd)`, and anything inside single quotes, which the outer shell does not fill in.
+A variable that the line does not set and that stands where an argument goes
+(`bash -c "npm test -- $ARGS"`) is read as an argument: it comes from the environment the agent was
+started with, which its commands cannot change from one to the next.
+Running a script file (`bash build.sh`, `python3 make.py`) is not looked inside.
+
+These rules are text matching and a last check, not a wall. They catch the ordinary ways an agent
+reaches outside its project, including commands wrapped in other commands, but a determined
+attempt to hide a command (a script file written first and run later, a program in another
+language that starts a shell) can get past them. What they still cannot read: a script file's
+contents, code in another language that builds its call to a program without naming one of the
+words above (`getattr(os, 'sys' + 'tem')`), shell functions and aliases defined and then called,
+and what a variable from the agent's starting environment holds.
 
 File writes outside the project stay refused outright. `approvals: "allow"` skips the
 question (same behaviour as Step 1).
@@ -674,7 +732,7 @@ after the person attaches it to that project.
 
 ```json
 {"id": "ds_1a2b3c4d", "name": "Warehouse", "kind": "postgres", "host": "db.example.com",
- "port": 5432, "database": "analytics", "user": "reader", "ssl": "require",
+ "port": 5432, "database": "analytics", "user": "reader", "ssl": "require", "ca_file": null,
  "has_password": true, "created_at": "…", "last_test": {"ok": true, "at": "…", "message": "…"} | null}
 ```
 
@@ -688,10 +746,40 @@ the same itself):
 | `disable` | never | no |
 | `prefer` | when the server offers TLS; plain only when it offers none (a wrong password or an unreachable host is not retried in plain) | no |
 | `require` | always; the connection fails without TLS | no |
-| `verify-full` | always | yes: the certificate must be signed by an authority the computer trusts and name the host |
+| `verify-full` | always | yes: the certificate must be signed by a trusted authority and name the host |
 
 `prefer` and `require` protect against someone reading the traffic, not against someone
 pretending to be the server. For a database on another machine use `verify-full`.
+
+**Who is trusted under `verify-full`.** With `ca_file` set, only the authorities in that file.
+Without it, the public authorities in the list the studio's Python uses (Python's own default
+file, such as Homebrew's OpenSSL list on a Mac; when there is none, the `certifi` list). The
+same list for every kind. Not the macOS Keychain, and not libpq's `~/.postgresql/root.crt`
+(PostgreSQL's driver would otherwise read that file, and trust nothing when it is missing).
+
+**`ca_file`**: the full path of a PEM certificate file on the studio's computer, for a server
+whose certificate is not signed by a public authority (most private databases; cloud databases
+that publish their own bundle). A leading `~/` is expanded before it is saved. It is a setting,
+not a secret. On create, on edit and on a test before saving it must be a readable file of at
+most 1 MB holding at least one certificate; otherwise 400 `invalid_request` saying which of
+those is wrong. `""` (or `null` on create) means none. It is used only with `verify-full`: it
+is kept, and unused, while `ssl` is another mode. It is read again at every connection, so a
+file that has gone or changed into something else fails the connection with the same words.
+
+**The CA file is trusted for what it holds, not where it is.** When a source is saved with a CA
+file, and whenever its password is typed again, the studio keeps the file's SHA-256 with the
+source (not in the API's answers). At every connection that would send the saved password under
+`verify-full`, the file is read once, its SHA-256 compared, and the driver given exactly the
+bytes that were checked (PostgreSQL through a private copy that is deleted after connecting).
+When the file has changed, nothing is sent: the connection is refused with the code
+`ca_changed` and the words "The CA file … has changed since the password was saved, so the
+password was not sent. If the new file is right, type the password again to trust it." Typing
+the password again (with or without other changes) trusts the file as it is then. A cloud
+provider's updated bundle therefore needs the password once more. A source saved before the
+studio kept this fingerprint is treated the same way: until its password is typed again, a
+connection with the saved password is refused with `ca_changed`, saying the file was saved
+before the studio checked what it holds. A test before saving, and a source with no saved
+password, send no saved password and are not checked this way.
 
 **No password in clear text to a server that was not checked.** The same host and port is no
 proof of who answers: on this computer anything can listen on a free database port (a saved
@@ -705,20 +793,28 @@ password is sent. Unless `ssl` is `verify-full`:
 - MySQL refuses the `mysql_clear_password` and `dialog` methods (PyMySQL otherwise answers both
   with the password itself).
 
+Under `verify-full`, MySQL answers those two methods only after checking, at that moment, that
+the connection really is encrypted with a checked certificate and host name; otherwise it
+refuses before the password is written. `require` and `verify-full` need PyMySQL 1.2 or later
+(the studio's floor), which stops before logging in when the server offers no TLS; with an older
+PyMySQL found at run time, those two modes refuse to connect at all rather than log in first and
+check afterwards.
+
 The error says so, and how to proceed: use `verify-full`, or a server that does not ask for
 the password in clear text. **Still open:** MySQL's `caching_sha2_password` and `sha256_password`,
 when the server asks for a full authentication, send the password over the unchecked TLS of
 `prefer`/`require` or encrypt it with a public key the server itself supplies; a server that
 pretends can read it either way. For MySQL, only `verify-full` protects the password from a
-listener that is not the database.
+listener that is not the database. The form says so under the modes when the kind is MySQL
+and the mode is not `verify-full`; nothing is refused.
 
 | Method and path | Body | Returns |
 |---|---|---|
 | `GET /api/data-sources` | | `[DataSource]` |
-| `POST /api/data-sources` | `{name, kind, host, port?, database, user, password?, ssl?}` | `DataSource` (201). 400 `invalid_request` with a message naming the field; 409 `name_taken` |
-| `PATCH /api/data-sources/{id}` | any of the same fields; `password: ""` removes the stored password | `DataSource`. A new `kind`, `host`, `port` or `ssl` on one with a stored password needs `password` with it (400 `password_needed`) |
+| `POST /api/data-sources` | `{name, kind, host, port?, database, user, password?, ssl?, ca_file?}` | `DataSource` (201). 400 `invalid_request` with a message naming the field; 409 `name_taken` |
+| `PATCH /api/data-sources/{id}` | any of the same fields; `password: ""` removes the stored password; `ca_file: ""` removes the file | `DataSource`. A new `kind`, `host`, `port`, `ssl` or `ca_file` on one with a stored password needs `password` with it (400 `password_needed`): the CA file decides which server is trusted with the password, as the host does |
 | `DELETE /api/data-sources/{id}` | | 204. Also detaches it from every project and deletes the stored password |
-| `POST /api/data-sources/{id}/test` | | `{ok, message, server_version?, tables?}`; always 200 for a known id. Connects, runs a trivial query, counts visible tables. Updates `last_test` |
+| `POST /api/data-sources/{id}/test` | | `{ok, message, code?, server_version?, tables?}`; always 200 for a known id. Connects, runs a trivial query, counts visible tables. Updates `last_test` (which keeps `code` too). `code: "ca_changed"` when the CA file no longer matches the saved password |
 | `POST /api/data-sources/test` | the same body as create | the same answer, without saving anything |
 | `GET /api/projects/{id}/data-sources` | | `[{...DataSource, "attached": bool}]` |
 | `PUT /api/projects/{id}/data-sources/{ds_id}` | | 204. Attach |
@@ -905,7 +1001,7 @@ a failed item; the tool's `next` names the ids to add.
 | `POST /api/mcp-servers` | `{name, label?, transport, url? , command?, args?, headers?: {name: value}, env?: {name: value}, description?}` | `McpServer` (201). 400 `invalid_request`, 409 `name_taken` |
 | `PATCH /api/mcp-servers/{id}` | any of the same fields | `McpServer`; only `yours`. A new `url`, `transport`, `command` or `args` on one with stored secrets needs its `headers` or `env` given again, each with a value (400 `secret_needed`, "Where a key is kept"). `headers` and `env` are sent whole: an empty value is refused, never "keep the stored one" |
 | `DELETE /api/mcp-servers/{id}` | | 204; only `yours`. Removes it from every project and deletes its stored secrets |
-| `POST /api/mcp-servers/{id}/test` | | `{ok, message, tools: [{name, description}]}`; connects, lists tools (at most 200), 20 s limit. Works for every source; updates `last_test` for `yours` |
+| `POST /api/mcp-servers/{id}/test` | | `{ok, message, tools: [{name, description}]}`; connects, lists tools (at most 200), 20 s limit. Works for every source; updates `last_test` for `yours`. A stdio connector from the library starts through the launcher, as in a request (below) |
 | `POST /api/skills` | `{name, description, body}` | the skill (201); writes `data/skills/<name>/SKILL.md`. `name` as for servers, ≤ 60 |
 | `DELETE /api/skills/{name}` | | 204; only `yours` |
 | `GET /api/projects/{id}/library` | | `{"skills": [{…skill, "enabled": bool}], "mcp_servers": [{…McpServer, "enabled": bool}]}` (`built-in` skills are not listed) |
@@ -927,16 +1023,53 @@ user as the studio, so while its turn runs it can still read that file: the gain
 connector's headers and environment values are no longer one `ps` away for every process and
 every user.
 
-**Limit: a stdio connector starts in the project folder.** The agent program starts each stdio
+**A library connector starts outside the project folder.** The agent program starts each stdio
 connector with the project as its working folder, and its connector settings have no field to
-change that (the bundled program's stdio entry takes `type`, `command`, `args`, `env`, `timeout`,
-`alwaysLoad`, `bareElicitationCapability` and `role`; it spawns with its own project folder as
-`cwd`). A command that looks in its working folder first therefore runs what the agent wrote
-there, with the connector's stored `env`: `npx -y some-mcp` finds `node_modules/.bin/some-mcp`,
-`python -m pkg` finds `pkg/`. Until projects run in containers, give a connector that holds a
-secret a command that does not look in the working folder (an absolute path to an installed
-program, `uvx`/`npx` with a pinned package outside any project), or keep its token out of the
-studio.
+change that (the SDK's stdio entry has `command`, `args` and `env` only; the bundled program
+spawns with its own project folder as `cwd`). A command that looks in its working folder first
+would then run what the agent wrote there, with the connector's stored `env`: `npx -y some-mcp`
+finds `node_modules/.bin/some-mcp`, `python -m pkg` finds `pkg/`. So every stdio connector from
+the library (sources `yours`, `machine` and `plugin`) is started through a small launcher the
+studio owns:
+
+`<the studio's python> -I -S <studio2_server>/connector_launch.py <data>/run/connectors <command> <args…>`
+
+- The launcher makes a new, empty folder of mode 700 under `<data>/run/connectors` (itself mode
+  700, a real folder owned by the studio's user, never a link), changes to it, and replaces itself
+  with the real command (`exec`). The connector's own process then has that folder as its working
+  folder. A start folder (`c-` and 16 hexadecimal characters) whose last change is more than a
+  day old is removed when the studio starts and each time a connector starts: only by its exact
+  path inside `<data>/run/connectors`, after that folder is checked as above, and without
+  following a link inside it. Younger folders are left, since a connector may still be using
+  one.
+- It imports nothing but Python's own modules (`-I -S`: no working folder, script folder, user
+  site or `.pth` files on the import path), so a file planted in the project, or in the folder it
+  goes to, is never loaded by it.
+- The connector's secrets stay in its `env`, in the owner-only settings file above: the
+  launcher's command line holds only the folder, the command and its arguments, and it never
+  prints a variable.
+- Variables that point into the project folder are dropped before the command starts: a
+  variable whose value is the project or a path inside it (`CLAUDE_PROJECT_DIR`, `OLDPWD`, `INIT_CWD`), and any
+  entry inside the project in a list of paths (`PATH`, `NODE_PATH`, `PYTHONPATH`, …). A variable
+  that still mentions the project folder anywhere in its value after that
+  (`NODE_OPTIONS=--require <project>/x.js`) is dropped whole. `PWD`
+  becomes the new folder. When the project is the home folder or above it, nothing is dropped.
+- A command that is a relative path (`./serve.sh`, `bin/serve`) used to be found in the project
+  folder. It is now refused when a connector is added or changed in the studio (400
+  `invalid_request`, "give the full path"), and one from `~/.claude.json` or a plugin fails to
+  start with a sentence that says so. A relative path among the arguments (`node dist/index.js`)
+  is now read from the new, empty folder and fails too: give full paths. A connector that used
+  to work on the folder it started in (`.` as an argument, such as a file-system or git
+  connector) now sees an empty folder, without an error, and should be given the project's full
+  path instead.
+- The connector's Test starts it the same way, through the launcher (from the
+  `<data>/run/connectors` folder rather than the project).
+- An attached app's own connectors (source `app`, from the project's `.mcp.json`) belong to the
+  project: they still start in the project folder, without the launcher, and get no studio
+  variable.
+- Still open: the agent's shell runs as the same person, so it can write outside the project
+  (`<data>/run/connectors`, `~/.npmrc`, the studio's own Python), as for every other check here.
+  The launcher closes the project folder, not the machine.
 
 ## Sub-agents in the background
 
@@ -974,8 +1107,15 @@ that is not plainly local is refused with 403.
   (also from a project port), anything else gets 401 `access_denied`, a WebSocket is closed
   with 4401. Eight wrong keys from one address within five minutes → 429.
 - An open studio tab whose cookie has expired, or was made with a key that has since changed,
-  gets that 401 from `GET /api/health` or when its event stream reconnects; the UI then sends
-  the browser to `/login?next=<the current address>`. It shows "the studio is not running" only
+  gets that 401 from any API call (the health check, an event stream reconnect, or any other
+  request); the UI then sends the browser to `/login?next=<the current address>`, once, and
+  never from the sign-in page itself. Not while the file viewer holds unsaved edits: then the
+  tab stays where it is and says, in the page, that the studio needs signing in again and that
+  the edits are still here, with a link that opens the sign-in page in a new tab. While it
+  waits it checks the studio again every few seconds and whenever the tab comes back into
+  view; once a check is answered, the notice goes, the event stream reconnects, and Save works
+  without a reload. If the edits are saved or dropped while signing in is still needed, the
+  next 401 sends the browser to sign in as above. It shows "the studio is not running" only
   when nothing answered (a network error, or 502/503/504 from a proxy in front); any other
   answer is shown with its message.
 - `Project.preview_url` uses the host the request was addressed to, so a project opened
@@ -990,6 +1130,44 @@ that is not plainly local is refused with 403.
   The address to use is the name on the certificate, not the IP.
 - The sign-in page may be framed only by a page on the same host name (any port):
   `Content-Security-Policy: frame-ancestors 'self' https://<name> https://<name>:* …`.
+
+## Names the studio answers to
+
+A site can point its own name at this machine's address (DNS rebinding); the browser then
+sends the studio `Host: that-site:8200` and treats the answers as the site's own. So every
+request, HTTP and WebSocket, on the studio port and on every project page port, is checked
+**before anything else** by the name in its `Host` (port, case and a final dot ignored):
+
+- An IP address (`100.101.102.103`, `127.0.0.1`, `[::1]`) always passes: an address cannot be
+  pointed somewhere else. A bracketed address must be the whole name (`[::1]` or `[::1]:8200`);
+  `[::1].evil.example` is a name, not an address.
+- `localhost` and any name ending in `.localhost` pass.
+- This machine's own names pass, taken only from its own settings, never from a DNS answer: its
+  host name (`socket.gethostname()`); the full names that `/etc/hosts` lists on the same line as
+  that host name (such as `box.lan` on a Linux server installed with that name); the first part
+  of each alone, and `<first part>.local`; on a Mac also the Bonjour name
+  (`scutil --get LocalHostName`) and `<that>.local`. A name only the network's DNS gives this
+  machine (a LAN router's `box.lan` that the machine itself does not list) is not taken, because
+  whoever runs that DNS chooses it: add it with `STUDIO2_NAMES`.
+- The names the studio was started with pass: every name (not address) in `STUDIO2_HOSTS`, and
+  with `STUDIO2_TLS_CERT` every DNS name in the certificate (its subject alternative names; its
+  common name when it has none). A wildcard `*.example.net` covers exactly one more part in front.
+  So the tailnet name passes with `start-tailnet.sh` and no other setting: it is the name on the
+  certificate.
+- `STUDIO2_NAMES=<name>[,<name>]` adds names, for a studio reached through a proxy or a DNS name
+  of its own.
+- Any other name is refused with **421**: a short page (or, when the request does not ask for
+  HTML, `{"error": {"code": "unknown_name", …}}`) that says which name was used and how to add it.
+  A WebSocket is closed with 4421 before it is accepted. The project's app is never contacted.
+- A request with **no** `Host` is refused with 400 (`no_name`). Browsers always send one; HTTP/1.1
+  requires it.
+
+The name check only refuses; a name that passes still goes through the rules above (local,
+tailnet, access key). The project's own back end (page port + 100) listens on `127.0.0.1` and is
+the project's program, not the studio's, so the studio cannot check names there. Other
+devices reach it only through the page port, which is checked; a page open in a browser on this
+same machine could still reach `127.0.0.1:<port + 100>` by rebinding, unless the app checks its
+own `Host`.
 
 This is access for the owner on a private network, over plain HTTP unless a certificate is set. It is not a hosted,
 multi-user mode: there are no accounts, every signed-in device has the owner's full rights
@@ -1467,9 +1645,56 @@ Install commands: `package-lock.json` → `npm ci`, `pnpm-lock.yaml` → `pnpm i
 `uv venv -q && uv pip install -q -r requirements.txt`; `Gemfile` → `bundle install`;
 `composer.json` → `composer install`. `<python>` is the interpreter the proposed install
 leaves the packages in: `uv run python` after `uv sync`, `.venv/bin/python` after the
-`requirements.txt` install (it creates `.venv`; the folder need not have one yet). With no Python
+`requirements.txt` install (it creates `.venv`; the folder need not have one yet), whether or
+not a Node install comes first. With no Python
 install proposed it is `uv run python` with a `uv.lock`, `.venv/bin/python` when the folder
-already has a `.venv`, else `python3`.
+already has a `.venv`, else `python3`. A `pyproject.toml` with a `[project]` table (and no
+`uv.lock` or `requirements.txt`) → `uv sync`, with `uv run python`, but only when there is
+evidence of a Python app (below): a `pyproject.toml` that only configures tools (`[tool.*]`,
+`[build-system]`, or a `[project]` with no app beside it) is never installed.
+
+**Evidence of a Python app** is one of: a `manage.py`; a top-level `main.py`, `app.py`,
+`server.py`, `api.py` or `wsgi.py` that makes a FastAPI or Flask app; or a start command, as
+typed in the attach form, that is Python (it begins with `python`, `python3`, `uv run`,
+`.venv/bin/…`, `uvicorn`, `gunicorn` or `flask`). The install is chosen again from the typed
+start command when there is one. A folder with no `package.json` keeps its `uv.lock` or
+`requirements.txt` install whatever it holds.
+
+A folder with both a Node part (`package.json`) and a Python part (`uv.lock`, `requirements.txt`
+or a `pyproject.toml` as above):
+
+- **without evidence of a Python app**, only the Node install runs (the Python files are taken
+  as docs, tooling or scripts), and a note names the file and says its Python packages are not
+  installed;
+- **with it**, both installs run, Node first; `package_manager` names the Node one. When the
+  Python app is what starts, they are joined by `&&` (it cannot start without its packages).
+  When a Node app is what starts, the Python install may fail without stopping it:
+  `<node> && ( <python> || echo "[studio] …" )`, and the `[studio]` line in the app log says
+  the Python packages could not be installed (the lines above it say why) and that the app
+  starts without them.
+
+One command starts the app, so one part is started:
+
+- a known Node kind (the table above) wins: its dev server is started on `$PORT`. When a
+  Django, FastAPI or Flask app is also found, a note says the Python back end's packages are
+  installed but it is not started, that a failed Python install does not stop the Node app, and
+  that a start command that runs both (or the agent) is how to have both;
+- otherwise (a `package.json` that is only build tools or scripts) the Python app is started,
+  from the environment its install makes.
+
+A monorepo (a `package.json` with `workspaces`, or a `pnpm-workspace.yaml`): the studio looks
+only at the top of the folder. It installs there, starts what the top-level files show (often
+nothing), and a note says it holds several packages and that the person types the start
+command or asks the agent.
+
+A safe copy never takes `.venv`. When the detected Python app would start from the folder's
+own `.venv` and nothing in the folder can make it again (no `uv.lock`, `requirements.txt` or
+`pyproject.toml` with `[project]`), a note says, before anything is created, that a safe copy
+of this app will not start and why, and what to do: edit it in place, or add a
+`requirements.txt` and check again. The studio does not guess a package list. The copy can still
+be made; when its app is started anyway (any app whose command starts with `.venv/bin/`, has no
+install step and has no `.venv`), the app log says first, in a `[studio]` line, that the folder
+has no `.venv` and what to do.
 
 ## Attach
 
@@ -1633,7 +1858,7 @@ changed by editing the app):
   file name anywhere; one ending in `/` matches everything under that folder. A ship that
   touches one needs the project name typed on the card.
 - `back`: commands run after the studio has put the original back; null means the `after`
-  commands again.
+  commands again. Not for `branch`.
 - `timeout`: seconds per command, 10 to 3600 (default 600). At most 10 commands per list.
 - Commands run with `/bin/sh -c` in their own process group, with only the environment an app
   gets (`PATH`, `HOME`, `USER`, `LANG`, …; no studio secrets, no keys), stdin closed, output to a
@@ -1692,19 +1917,28 @@ recipe, shown on the card.
 3. Checks run in the copy.
 4. The card (`ship_ready`): the files that will change, the check results, exactly what will be
    written where (`writes`), the commands and the folder they run in, the address, protected
-   paths touched, how going back works, and the limits. The person allows or denies, every time.
+   paths touched, how going back works, and the limits that apply to its method. The person
+   allows or denies, every time. `method_label` is the same name the recipe editor uses for the
+   method. Counts are written in words that fit the number ("1 file", "2 files").
 5. On Allow the plan is made again; if the original, the branch or the copy changed while the
    card was open the ship ends `refused` and nothing is written.
 6. Apply; then the after-commands in the original; then the address.
 7. When a step after apply fails, the studio goes back by itself: `merge` resets the original's
    branch to where it was and puts the studio branch back (or removes it); `files` puts back
-   every file it wrote or removed. Then it runs `back` (or the after-commands again). Going back
+   every file it wrote or removed. Then it runs `back` (or the after-commands). This holds when
+   applying itself fails too: the after-commands then run for the first time, so that what is
+   live matches the folder, and the message says so; it says "ran again" only when they had
+   already run in this ship. A card whose recipe has `back` but nothing after the change says that
+   a failed apply runs those commands. A `branch`
+   ship that fails while the branch is fetched only puts the studio branch back (or removes it):
+   no command of its recipe runs, then or ever, and the message does not say one ran. Going back
    never discards what the studio did not put there, because the person may work in his folder
    while the after-commands run:
    - `merge` resets only when the original is still on its branch at the version the ship left
      there, and with `git reset --keep`, which keeps every edit and untracked file and refuses
      when a file the ship changed has been edited since (by the person or by an after-command).
-     What was staged is kept but no longer staged, and the result says which files. When the person has committed or
+     What was staged is kept but no longer staged, and the result's message says which files
+     (not only the record's `back` lines). When the person has committed or
      switched branches since, or the reset refuses, nothing is reset: the ship ends `back_failed`
      with the head before the ship and now, or the files in the way, for him to settle by hand.
    - The studio branch is put back only while it still points at what the ship fetched and is
@@ -1722,8 +1956,21 @@ waits and runs when the ship ends), and so are file writes, uploads, inline edit
 "Make it live" asked for by the agent during a turn starts when that turn ends (not after Stop,
 also a Stop pressed while the turn was finishing, or a failed turn). A studio restart during a ship ends it `interrupted`; a change that was
 already being applied is put back at start-up, without running the after-commands again
-(the record says so). Limits, stated on every card: data and database changes are not undone
-by going back; where the change ends up is whatever the recipe's commands do.
+(the record says so). Limits, stated on every card, only those that fit its method:
+- `merge` and `files`: going back restores the branch (`merge`) or the files (`files`) only;
+  data and database changes are not undone;
+- `merge`, `files` and `none`: where the change ends up is whatever the after-commands do, and with
+  none in the recipe, nothing is restarted or sent anywhere;
+- every method: the studio itself never pushes to GitHub or any remote (for `branch`: the branch
+  stays in the original's repository until he merges or deletes it).
+
+The `message` of a finished ship says only what happened:
+- `shipped`: where the change is, and whether after-commands ran and the address answered
+  (nothing about them when the recipe has none);
+- `rolled_back`: what failed, that the original was put back, files that are kept but no longer
+  staged, and whether the after-commands ran again;
+- `back_failed`: what failed, what going back did put back, what it left and why, and what to do
+  by hand. A command to run is written between backticks; the interface shows it as code.
 
 Known limit until containers (Step 4): the agent's shell can reach the studio's API on
 loopback, so it could answer a card by calling the route itself. The card stops a page or an
@@ -1746,7 +1993,12 @@ ordinary mistake, not an agent set on getting round it.
 `by` is `person` (the button) or `agent` (asked for in chat). Command:
 `{command, exit_code, output, duration_ms, timed_out}`; `output` keeps the last 8 KB.
 `result`: `shipped`, `denied`, `checks_failed`, `refused`, `rolled_back`, `back_failed` (the
-studio could not put everything back: the message says what to check), `failed`, `interrupted`.
+studio could not put everything back: the message says what was put back and what to check),
+`failed`, `interrupted`. The interface labels `shipped` "Live" only when after-commands ran or the
+address answered; otherwise by what happened ("Branch left", "Merged", "Files copied", "Done").
+The top-bar button uses the card's words while a ship waits ("Allow and leave the branch", "Allow
+and merge", "Allow and make it live", …) and while it runs ("Leaving the branch…", "Merging…",
+"Copying the files…", "Making it live…" only when after-commands or an address follow).
 
 ## REST
 
@@ -1866,8 +2118,14 @@ file. These checks close the API, not the machine.
   token while adding a variable that changes what the unchanged command runs (`PYTHONPATH`,
   `NODE_OPTIONS`, `DYLD_INSERT_LIBRARIES`). The set is sent whole, every value typed, or not at
   all; `{}` removes them.
-- `PATCH /api/data-sources/{id}` that changes `kind`, `host`, `port` or `ssl` of a source with a
-  stored password needs `password` with it (400 `password_needed`).
+- `PATCH /api/data-sources/{id}` that changes `kind`, `host`, `port`, `ssl` or `ca_file` of a
+  source with a stored password needs `password` with it (400 `password_needed`). A CA file is
+  who may receive the password under `verify-full`: a caller that could swap it for its own
+  could answer on the saved address with a certificate it made. What the file holds is fixed
+  too: its SHA-256 is kept when it is saved and when the password is typed again, and a
+  connection that would send the saved password to a changed file is refused (`ca_changed`)
+  until the password is typed again. A `PATCH` that names the same path again, without the
+  password, keeps the old fingerprint.
 
 ## Shared
 
@@ -2284,9 +2542,12 @@ Before every turn (`turn_started`, then one `library_picked`, then the agent sta
    never picked for words of its description. A never-tried one whose own name is in the request
    is picked (its `reason` says it may need signing in), so the first try shows whether it does.
    One that was reported `needs-auth` is left out even when named, until it is seen `connected`
-   (pinned or switched on in a project, asked for by the agent, or a successful test); the
+   (pinned or switched on in a project, or a successful test); the
    pick's `note` then says once, in one sentence, which named connectors were left out and the
-   command that signs them in.
+   command that signs them in. A connector the agent asked for (`request_connector`) that is
+   `needs-auth`, reported so or never seen connected, is not added either: it stays in the
+   project's `library.requested` and joins the first request after it is seen `connected`, and
+   until then the same sentence of the `note` names it.
 6. The skill list is kept inside the agent program's budget for it: 8,000 characters (1% of a
    200,000-token context window at about four characters a token). The studio measures names
    plus descriptions plus eight characters a skill; when it would overflow, the descriptions in
@@ -2325,7 +2586,7 @@ should search and switch on what is missing.
 |---|---|---|
 | `search_library` | `{query, kind?: "skill" \| "connector" \| "all", limit?}` | `{skills: [{id, name, description, from, loaded}], connectors: [{id, name, description, from, connected, state?, fix?}], next}`. Whole index, switched-off things left out |
 | `activate_skill` | `{id}` (or a bare name) | `{skill, id, folder, instructions, files, more_files, next}`. The skill folder is copied into the project's plugin folder (`data/projects/<id>/library/skills/<name>/`, readable by the agent, outside the project folder) and the body of its `SKILL.md` (40,000 characters at most) comes back in the answer. It counts as a use and the skill stays loaded for later requests of the project. Refused for a switched-off skill and for one above 20 MB |
-| `request_connector` | `{id, reason?}` | `{connector, connected: false, joins: "the next request", next, sign_in?}`. A running agent program cannot be given a connector, so the id is added to the project's `library.requested` and the connector joins the next request (`how: "requested"`), for the rest of the project or until the person says never. `connected: true` when it is already there. Refused for a switched-off connector and for one that needs a setting |
+| `request_connector` | `{id, reason?}` | `{connector, connected: false, joins: "the next request", next, sign_in?}`. A running agent program cannot be given a connector, so the id is added to the project's `library.requested` and the connector joins the next request (`how: "requested"`), for the rest of the project or until the person says never. `connected: true` when it is already there. Refused for a switched-off connector and for one that needs a setting. For one that is `needs-auth`: `joins: "after signing in"`, `sign_in` holds the command, `next` tells the agent it is not connected until the person signs in, and the request gets a `notice` (`warning`) that says so to the person |
 
 ## What the person says, and what is counted
 
@@ -2420,6 +2681,16 @@ the gateway turn's growth of the total as well.
 Turns written before 13 November 2026 have the running total in `cost_usd` and no
 `session_cost_usd`; the project total and the chat work their part out the same way when they read
 them. Until that day the chat showed the running total as each turn's cost.
+Gateway turns (`litellm`, `anthropic-gateway`) written before 17 November 2026 come in two shapes:
+- written before Step 2 (10 November 2026), with no `cost_estimated` at all: `cost_usd` is the agent
+  program's running total. When it is above 0 the project total and the chat take it as the
+  conversation's mark, so the turn after is not counted that turn's growth (a 0 says nothing: it is
+  not taken as a mark). The turn itself stays unpriced, as every turn of that time does.
+- written from Step 2 until 17 November 2026: the studio dropped the program's total, so the log
+  holds nothing to work the gateway turn's growth out from (its token counts are not enough: the
+  growth is the agent program's own arithmetic, at prices the studio does not have for every model
+  it reaches through a gateway). A turn after one of these in the same conversation still includes
+  that growth in its own part. The studio does not guess it.
 
 **Tagging.** On an `anthropic-gateway` connection the agent program sends one extra request
 header, `x-litellm-tags: studio-turn:<turn id>` (through `ANTHROPIC_CUSTOM_HEADERS`). The turn id is
@@ -2467,7 +2738,7 @@ never to the plan or to a route whose figure the agent program works out.
 - *Rates*, per million tokens, for input, output, cache read and cache write, looked up by the
   model's name in two places, in this order: the gateway's own price for the model
   (`GET <base_url>/model/info`, read-only, the same key; an entry whose input and output prices are
-  both 0 is not a price), then the list that ships with the studio, `library/model-prices.json`
+  both 0 is not a price, unless the gateway's own settings give it 0 and 0: see free models below), then the list that ships with the studio, `library/model-prices.json`
   (`{as_of, source, models: {"<provider>/<model>": {input, output, cache_read, cache_write, above?}}}`,
   written by `tools/prices/update.py` from OpenRouter's public model list, which carries the
   providers' list prices; `above: {prompt_tokens, …}` holds a model's higher rate for long prompts).
@@ -2477,10 +2748,18 @@ never to the plan or to a route whose figure the agent program works out.
   `qwen/qwen3-coder:free` is not the paid `qwen/qwen3-coder`.
 - *A model the provider serves for free* is priced at zero, as `reported`, never calculated: when the
   route reported a cost of 0 for a request (LiteLLM's cost, a spend-log row's `spend`) and the model's
-  name ends in `:free` or `/free`, or the shipped list gives it an input and an output rate of 0. Both
-  LiteLLM paths (the studio's own and a spend log) use this one rule. A gateway's own 0 and 0 is a plan
-  route's and does not make a model free. Any other reported 0 is LiteLLM having no price: the backup
-  below when the rates are known, else unpriced. A request with no cost at all is never taken as free.
+  name ends in `:free` or `/free`, the shipped list gives it an input and an output rate of 0, or the
+  gateway's own settings for that model do (`GET /model/info`: `litellm_params.input_cost_per_token`
+  and `litellm_params.output_cost_per_token` both exactly 0, a price only the gateway's own
+  configuration sets). Both LiteLLM paths (the studio's own and a spend log) use this one rule. A 0
+  and 0 that is only in the entry's `model_info` does not make a model free: LiteLLM fills in 0 there
+  for a model its price list has no rate for, and its list gives 0 and 0 to some models that are not
+  free (in LiteLLM 1.102.1's list, `anthropic.claude-mythos-preview` on Bedrock), so it can mean "no
+  price known". Any other reported 0 is LiteLLM having no price: the backup below when the rates are
+  known, else unpriced. A request with no cost at all is never taken as free by its name alone; where a
+  turn is priced from its own token counts (below) and the gateway's settings or the list give the
+  model 0 and 0, that is tokens times 0, shown as calculated by the studio, never the paid rate of
+  another model of that name.
 - *Complete or not at all.* A source is used for a request only when it has a rate for every kind of
   token the request used (a request that read from the cache needs a cache-read rate). When neither
   source is complete the request stays **unpriced**. Nothing is ever priced at a guessed rate.

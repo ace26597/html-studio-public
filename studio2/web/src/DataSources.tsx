@@ -4,11 +4,15 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { api, errorMessage } from "./api";
 import {
+  CA_CHANGED_NOTE,
   changeKind,
   emptyForm,
   formFromSource,
   inputFromForm,
+  needsPasswordAgain,
   patchFromForm,
+  SSL_HELP,
+  sslWarning,
   SSL_MODES,
   testMode,
   validateForm,
@@ -68,18 +72,85 @@ function LastTest({ source, now }: { source: DataSource; now: number }) {
   );
 }
 
+// ---- the encryption choice --------------------------------------------------------------
+
+interface SslChoiceProps {
+  id: string;
+  kind: string;
+  ssl: string;
+  caFile: string;
+  invalid?: boolean;
+  describedBy?: string;
+  onChange: (patch: { ssl?: string; caFile?: string }) => void;
+}
+
+/** The four TLS modes, each with its sentence, and the CA file under verify-full. */
+export function SslChoice({ id, kind, ssl, caFile, invalid, describedBy, onChange }: SslChoiceProps) {
+  const warning = sslWarning(kind, ssl);
+  return (
+    <fieldset className="field ds-span-2 ds-ssl">
+      <legend>Encryption (SSL)</legend>
+      {SSL_MODES.map((mode) => (
+        <label key={mode} className={`save-choice ds-ssl-choice${ssl === mode ? " is-on" : ""}`}>
+          <input
+            type="radio"
+            name={`${id}-mode`}
+            value={mode}
+            checked={ssl === mode}
+            aria-describedby={`${id}-${mode}-help`}
+            onChange={() => onChange({ ssl: mode })}
+          />
+          <span className="ds-ssl-text">
+            <code>{mode}</code>
+            <span id={`${id}-${mode}-help`}>{SSL_HELP[mode]}</span>
+          </span>
+        </label>
+      ))}
+      {warning && (
+        <p className="ds-ssl-hint ds-ssl-warning" role="note">
+          {warning}
+        </p>
+      )}
+      {ssl === "verify-full" && (
+        <label className="field ds-ssl-ca" htmlFor={`${id}-ca`}>
+          <span>CA file (optional)</span>
+          <input
+            id={`${id}-ca`}
+            value={caFile}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="/path/to/ca.pem"
+            aria-invalid={invalid}
+            aria-describedby={describedBy ?? `${id}-ca-help`}
+            onChange={(event) => onChange({ caFile: event.target.value })}
+          />
+          <span className="ds-ssl-hint" id={`${id}-ca-help`}>
+            For a server whose certificate is not from a public authority: the full path of the PEM file, on the
+            computer the studio runs on, that signed it (your own, or the bundle your cloud provider publishes). Leave
+            empty to trust only public authorities.
+          </span>
+        </label>
+      )}
+    </fieldset>
+  );
+}
+
 // ---- add / edit dialog --------------------------------------------------------------
 
 interface DataSourceDialogProps {
   kinds: DataKindInfo[];
   /** The source being edited, or null to add one. */
   source: DataSource | null;
+  /** Open with the password field ready: the CA file changed since the password was saved. */
+  retypePassword?: boolean;
   onSaved: (source: DataSource) => void;
   onClose: () => void;
 }
 
-export function DataSourceDialog({ kinds, source, onSaved, onClose }: DataSourceDialogProps) {
-  const [form, setForm] = useState<DataSourceForm>(() => (source ? formFromSource(source) : emptyForm(kinds)));
+export function DataSourceDialog({ kinds, source, retypePassword = false, onSaved, onClose }: DataSourceDialogProps) {
+  const [form, setForm] = useState<DataSourceForm>(() =>
+    source ? formFromSource(source, { retypePassword }) : emptyForm(kinds),
+  );
   const [fieldError, setFieldError] = useState<FieldError | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -153,11 +224,11 @@ export function DataSourceDialog({ kinds, source, onSaved, onClose }: DataSource
         }}
       >
         <div className="ds-grid">
-          <label className="field ds-span-2" htmlFor={id("name")}>
+          <label className="field" htmlFor={id("name")}>
             <span>Name</span>
             <input
               id={id("name")}
-              data-autofocus
+              data-autofocus={retypePassword ? undefined : true}
               value={form.name}
               maxLength={60}
               aria-invalid={invalid("name")}
@@ -180,17 +251,7 @@ export function DataSourceDialog({ kinds, source, onSaved, onClose }: DataSource
               ))}
             </select>
           </label>
-          <label className="field" htmlFor={id("ssl")}>
-            <span>SSL</span>
-            <select id={id("ssl")} value={form.ssl} onChange={(event) => update({ ssl: event.target.value })}>
-              {SSL_MODES.map((mode) => (
-                <option key={mode} value={mode}>
-                  {mode}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field ds-span-2" htmlFor={id("host")}>
+          <label className="field" htmlFor={id("host")}>
             <span>Host</span>
             <input
               id={id("host")}
@@ -238,8 +299,19 @@ export function DataSourceDialog({ kinds, source, onSaved, onClose }: DataSource
             />
           </label>
 
+          <SslChoice
+            id={id("ssl")}
+            kind={form.kind}
+            ssl={form.ssl}
+            caFile={form.caFile}
+            invalid={invalid("caFile")}
+            describedBy={describe("caFile")}
+            onChange={update}
+          />
+
           <div className="field ds-span-2">
             <span id={id("pw-label")}>Password</span>
+            {retypePassword && <p className="ds-note is-warn">{CA_CHANGED_NOTE}</p>}
             {form.passwordAction === "keep" && (
               <div className="ds-password-row">
                 <span className="ds-password-state">A password is stored.</span>
@@ -264,6 +336,7 @@ export function DataSourceDialog({ kinds, source, onSaved, onClose }: DataSource
                 <input
                   id={id("password")}
                   type="password"
+                  data-autofocus={retypePassword ? "" : undefined}
                   aria-labelledby={id("pw-label")}
                   autoComplete="new-password"
                   value={form.password}
@@ -347,6 +420,7 @@ export function DataSourcesManager({ kinds }: DataSourcesManagerProps) {
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [editing, setEditing] = useState<DataSource | "new" | null>(null);
+  const [retype, setRetype] = useState(false);
   const [tests, setTests] = useState<Record<string, { busy: boolean; result: DataSourceTestResult | null; error: string | null }>>({});
   const [now, setNow] = useState(() => Date.now());
 
@@ -434,6 +508,7 @@ export function DataSourcesManager({ kinds }: DataSourcesManagerProps) {
                   </span>
                   <span className="ds-item-meta">
                     {kindLabel(source.kind, kinds)} · <code>{sourceAddress(source)}</code> · SSL {source.ssl}
+                    {source.ssl === "verify-full" && source.ca_file ? " (own CA file)" : ""}
                     {source.has_password ? " · password stored" : " · no password"}
                   </span>
                   <LastTest source={source} now={now} />
@@ -442,6 +517,18 @@ export function DataSourcesManager({ kinds }: DataSourcesManagerProps) {
                     <p className="ds-error" role="alert">
                       {test.error}
                     </p>
+                  )}
+                  {needsPasswordAgain(source, test?.result) && (
+                    <button
+                      type="button"
+                      className="btn btn-small ds-retype"
+                      onClick={() => {
+                        setRetype(true);
+                        setEditing(source);
+                      }}
+                    >
+                      <Icon name="shield" size={13} /> Type the password again
+                    </button>
                   )}
                 </div>
                 <div className="ds-item-actions">
@@ -459,7 +546,10 @@ export function DataSourcesManager({ kinds }: DataSourcesManagerProps) {
                     type="button"
                     className="btn btn-small"
                     aria-label={`Edit ${source.name}`}
-                    onClick={() => setEditing(source)}
+                    onClick={() => {
+                      setRetype(false);
+                      setEditing(source);
+                    }}
                   >
                     Edit
                   </button>
@@ -484,6 +574,7 @@ export function DataSourcesManager({ kinds }: DataSourcesManagerProps) {
         <DataSourceDialog
           kinds={kinds}
           source={editing === "new" ? null : editing}
+          retypePassword={retype && editing !== "new"}
           onClose={() => setEditing(null)}
           onSaved={(saved) => {
             setEditing(null);

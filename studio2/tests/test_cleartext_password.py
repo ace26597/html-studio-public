@@ -128,3 +128,64 @@ def test_a_mysql_listener_switching_to_clear_text_does_not_get_the_password():
     assert result["ok"] is False
     assert PASSWORD.encode() not in me.received
     assert "clear text" in result["message"]
+
+
+# -- MySQL: nothing in clear text unless the connection is encrypted and checked, before sending --
+def test_the_pymysql_floor_is_the_version_that_stops_before_logging_in_without_tls():
+    import re
+    import tomllib
+    from pathlib import Path
+    project = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text())
+    spec = next(d for d in project["project"]["dependencies"] if d.lower().startswith("pymysql"))
+    floor = tuple(int(n) for n in re.search(r">=\s*([\d.]+)", spec).group(1).split("."))
+    assert floor >= (1, 2), spec       # 1.1.x went ahead in plain when given a context and offered no TLS
+
+
+@pytest.mark.parametrize("mode", ["require", "verify-full"])
+def test_an_older_pymysql_is_refused_before_it_connects(monkeypatch, mode):
+    pymysql = pytest.importorskip("pymysql")
+    from studio2_server import datasources
+    called: list = []
+    monkeypatch.setattr(pymysql, "VERSION", (1, 1, 2, "final"))
+    monkeypatch.setattr(pymysql, "connect", lambda **kw: called.append(kw))
+    with pytest.raises(datasources.DataError) as caught:
+        datasources._connect(source("mysql", 3306, mode), PASSWORD)
+    assert caught.value.code == "tls_unavailable" and "1.2" in caught.value.message and not called
+    datasources._connect(source("mysql", 3306, "prefer"), PASSWORD)     # prefer never promised TLS
+    assert len(called) == 1
+
+
+def test_under_verify_full_a_clear_text_method_is_answered_only_on_a_checked_connection(monkeypatch):
+    pymysql = pytest.importorskip("pymysql")
+    from studio2_server import datasources
+    seen: list = []
+    def connect(**kwargs):
+        seen.append(kwargs)
+        raise pymysql.err.OperationalError(2003, "stop here")
+    monkeypatch.setattr(pymysql, "connect", connect)
+    with pytest.raises(pymysql.err.OperationalError):
+        datasources._connect(source("mysql", 3306, "verify-full"), PASSWORD)
+    handlers = seen[0].get("auth_plugin_map") or {}
+    assert set(handlers) >= {"mysql_clear_password", "dialog"}
+
+    class Plain:                     # what PyMySQL looks like when the TLS did not happen
+        _secure = False
+        password = PASSWORD.encode()
+
+        def __init__(self):
+            self.written: list = []
+            self._sock = socket.socket()
+
+        def write_packet(self, data):
+            self.written.append(data)
+
+        def _process_auth(self, *args, **kwargs):
+            self.written.append(b"default answer")
+    conn = Plain()
+    try:
+        for name in ("mysql_clear_password", "dialog"):
+            with pytest.raises(datasources.DataError) as caught:
+                handlers[name](conn).authenticate(None)
+            assert caught.value.code == "cleartext_refused" and not conn.written
+    finally:
+        conn._sock.close()

@@ -303,8 +303,10 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
         if tool_name == "Bash":
             command = str(tool_input.get("command") or "")
             # In place, the folder's own .git is the person's repository: git that discards work asks.
-            reason = risky_command(command, workspace, in_place=ws.history_dir(workspace) is not None,
-                                   studio_places=studio_places)
+            # Off the event loop: reading a very long line must not hold up every other request.
+            reason = await asyncio.to_thread(risky_command, command, workspace,
+                                             in_place=ws.history_dir(workspace) is not None,
+                                             studio_places=studio_places)
             if reason and not await request.approve("Bash", "Run a shell command", command, reason):
                 return PermissionResultDeny(message=(
                     "The user did not allow this command. Do not try to reach the same result another "

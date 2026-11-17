@@ -1,7 +1,10 @@
-// A modal dialog: focus goes in and comes back, Tab stays inside, Escape and a backdrop click close it.
+// A modal dialog: focus goes in and comes back, Tab stays inside (dialogFocus.ts), Escape and a
+// backdrop click close it.
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useDialogFocus } from "./dialogFocus";
 import { isTopmostModal, MODAL_SELECTOR } from "./escape";
+import { Icon } from "./icons";
 
 interface ModalProps {
   title: string;
@@ -12,19 +15,12 @@ interface ModalProps {
   children: ReactNode;
 }
 
-const FOCUSABLE =
-  'button:not(:disabled), [href], input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]';
-
 export function Modal({ title, onClose, busy = false, wide = false, children }: ModalProps) {
   const dialog = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    const first = dialog.current?.querySelector<HTMLElement>("[data-autofocus]") ?? dialog.current?.querySelector<HTMLElement>(FOCUSABLE);
-    first?.focus();
-    return () => previous?.focus?.();
-  }, []);
+  // Focus goes in (the dialog itself while it has nothing else) and comes back; Tab stays inside.
+  useDialogFocus(dialog);
 
   // When the focused control inside is removed (a card that is answered), focus falls to the
   // page body and the dialog's own key handler no longer hears Escape: listen there too.
@@ -57,12 +53,6 @@ export function Modal({ title, onClose, busy = false, wide = false, children }: 
           event.stopPropagation();
           event.preventDefault();
           if (!busy) onClose();
-        } else if (event.key === "Tab") {
-          const items = Array.from(dialog.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
-          if (!items.length) return;
-          const index = items.indexOf(document.activeElement as HTMLElement);
-          event.preventDefault();
-          items[(index + (event.shiftKey ? items.length - 1 : 1) + items.length) % items.length]?.focus();
         }
       }}
     >
@@ -71,11 +61,25 @@ export function Modal({ title, onClose, busy = false, wide = false, children }: 
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
         ref={dialog}
       >
-        <h2 id={titleId}>{title}</h2>
+        <DialogHead titleId={titleId} title={title} onClose={onClose} busy={busy} />
         {children}
       </div>
+    </div>
+  );
+}
+
+/** The title and a close button a finger can reach: on a phone or an iPad a wide dialog fills the
+ * screen, so there is no backdrop to tap and maybe no Escape key. */
+export function DialogHead({ titleId, title, onClose, busy = false }: { titleId: string; title: string; onClose: () => void; busy?: boolean }) {
+  return (
+    <div className="dialog-head">
+      <h2 id={titleId}>{title}</h2>
+      <button type="button" className="icon-btn dialog-close" aria-label="Close" title="Close" disabled={busy} onClick={onClose}>
+        <Icon name="x" size={18} />
+      </button>
     </div>
   );
 }

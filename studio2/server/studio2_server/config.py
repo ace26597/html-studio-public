@@ -110,6 +110,7 @@ class Settings:
     access_key: str | None = None      # required when hosts is set (STUDIO2_ACCESS_KEY), unless open_tailnet
     open_tailnet: bool = False         # Tailscale devices need no key (STUDIO2_OPEN_TAILNET=1); hosts must be tailnet addresses
     tls: tuple[str, str] | None = None  # (certificate file, key file): the extra addresses then speak HTTPS
+    names: tuple[str, ...] = ()        # more DNS names the studio answers to (STUDIO2_NAMES); see access.known_names
     app_model_daily_usd: float = 2.0   # what one project's back end may spend on models per day (STUDIO2_APP_MODEL_DAILY_USD)
     generate_daily_credits: float = 100.0   # what the studio may spend on generated media per day (STUDIO2_GENERATE_DAILY_CREDITS)
     home: Path = field(default_factory=Path.home)   # where this machine's own skills and MCP servers are read from
@@ -156,6 +157,7 @@ class Settings:
         else:
             hosts = run.get("hosts") if isinstance(run.get("hosts"), list) else []
         settings.hosts = tuple(str(h).strip() for h in hosts if str(h).strip())
+        settings.names = tuple(n.strip() for n in (env.get("STUDIO2_NAMES") or "").split(",") if n.strip())
         if "STUDIO2_OPEN_TAILNET" in env:
             settings.open_tailnet = env["STUDIO2_OPEN_TAILNET"] == "1"
         else:

@@ -15,6 +15,7 @@ import logging
 import os
 import re
 import shutil
+import sys
 import uuid
 from pathlib import Path
 
@@ -39,6 +40,7 @@ LIST_OVERHEAD = 8             # per skill in the agent program's list: punctuati
 MIN_DESCRIPTION = 60
 SECRET_SERVICE = "studio2-mcp-server"
 SKILL_COPY_CAP = 20 * 1024 * 1024
+LAUNCHER = (Path(__file__).parent / "connector_launch.py").resolve()
 
 
 class LibraryError(Exception):
@@ -352,6 +354,11 @@ class Library:
             command = str(merged.get("command") or "").strip()
             if not command:
                 raise invalid("command: give the program to run.")
+            if "/" in command and not command.startswith("/"):
+                # It used to be found in the project folder; a connector now starts in an empty one.
+                raise invalid(f"command: “{command}” is a relative path. Connectors no longer start in the "
+                              "project folder: give the full path (for example /usr/local/bin/…), or a program "
+                              "name found on the PATH.")
             args = merged.get("args") or []
             if not isinstance(args, list) or len(args) > 40:
                 raise invalid("args: give a list of arguments.")
@@ -456,15 +463,31 @@ class Library:
                 raw, env = found["config"], agent_environment() if self._agent_writes(root) else os.environ
             config = expand({k: v for k, v in raw.items() if k != "description"}, root, set(), env)
             config.setdefault("type", "http" if config.get("url") else "stdio")
-            return config
+            # An app's own connector belongs to the project and starts there; a plugin's does not.
+            return config if view["source"] == "app" else self.launched(config)
         if view["source"] == "machine":
             config = dict(self._machine_servers()[view["label"]])
             config.setdefault("type", "http" if config.get("url") else "stdio")
-            return config
+            return self.launched(config)
         secrets = self.secrets.get(server_id) if view["source"] == "yours" else {}
         if view["transport"] == "http":
             return {"type": "http", "url": view["url"], "headers": secrets}
-        return {"type": "stdio", "command": view["command"], "args": view["args"], "env": secrets}
+        return self.launched({"type": "stdio", "command": view["command"], "args": view["args"], "env": secrets})
+
+    @property
+    def connector_home(self) -> Path:
+        """Where library connectors start (connector_launch.py makes a new folder here for each)."""
+        return self.settings.data_dir / "run" / "connectors"
+
+    def launched(self, config: dict) -> dict:
+        """A library stdio connector started through the studio's launcher, which moves it out of the
+        project folder the agent program starts it in (CONTRACT.md, "A library connector starts
+        outside the project folder"). The secrets stay in `env`, never on the command line."""
+        if config.get("type") != "stdio" or not config.get("command"):
+            return config
+        return {**config, "command": sys.executable,
+                "args": ["-I", "-S", str(LAUNCHER), str(self.connector_home), str(config["command"]),
+                         *(str(a) for a in config.get("args") or [])]}
 
     # -- per project ------------------------------------------------------------------------
     def for_project(self, project: dict, workspace: Path | None = None, prefs: dict | None = None) -> dict:
@@ -626,8 +649,9 @@ class Library:
         return out
 
 
-async def test_server(config: dict, timeout: float = 20.0) -> dict:
-    """Connect, list tools, disconnect → {ok, message, tools}."""
+async def test_server(config: dict, timeout: float = 20.0, cwd: Path | None = None) -> dict:
+    """Connect, list tools, disconnect → {ok, message, tools}. `cwd`: where a stdio command starts
+    (a library connector's launcher then moves on to a new folder of its own)."""
     from mcp import ClientSession
 
     async def run() -> list[dict]:
@@ -643,7 +667,7 @@ async def test_server(config: dict, timeout: float = 20.0) -> dict:
             from mcp import StdioServerParameters
             from mcp.client.stdio import stdio_client
             opened = stdio_client(StdioServerParameters(
-                command=config["command"], args=[str(a) for a in config.get("args") or []],
+                command=config["command"], args=[str(a) for a in config.get("args") or []], cwd=cwd,
                 # The connector gets its own settings' variables, not the keys in the studio's shell:
                 # those are blanked as they are for the agent, and the model endpoints with them.
                 env={**agent_environment(), **{k: str(v) for k, v in (config.get("env") or {}).items()}}))

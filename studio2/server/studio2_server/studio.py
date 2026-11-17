@@ -15,7 +15,7 @@ from pathlib import Path
 from .effort import DEEP_SKILL
 from . import attach as attaching
 from . import workspace as ws
-from .access import AccessGuard, preview_url_for
+from .access import AccessGuard, known_names, preview_url_for
 from .apps import Apps
 from .config import REPO_ROOT, Settings, model_gateway, now_iso
 from .datasources import KINDS as DATA_KINDS
@@ -46,8 +46,10 @@ class Studio:
         self.store = Store(settings)
         self.hub = EventHub()
         self.registry = Registry(settings)
+        self.names = known_names(settings)   # the DNS names every port answers to (DNS rebinding)
         self.previews = Previews(settings.hosts, tls=settings.tls, guard=lambda app: AccessGuard(
-            app, settings.access_key, settings.port, own_login=False, open_tailnet=settings.open_tailnet))
+            app, settings.access_key, settings.port, own_login=False, open_tailnet=settings.open_tailnet,
+            names=self.names))
         self.watchers = Watchers(self._files_changed)
         self.turns = TurnRunner(self)
         self.saved = Templates(settings)
@@ -632,7 +634,9 @@ class Studio:
         record = {"mode": "copy" if mode == "copy" else "in_place", "path": str(folder),
                   "framework": (found["framework"] or {}).get("id"), **facts,
                   "included_uncommitted": bool(include_uncommitted and found["git"] and mode == "copy"),
-                  "install": found["install"] if mode == "copy" and command else None,
+                  # A typed start command can be the evidence that a Python part is needed (CONTRACT.md).
+                  "install": (found["install"] if run is None or command == found["run"] else
+                              attaching.install_for(folder, command)) if mode == "copy" and command else None,
                   "address": address, "attached_at": now_iso()}
         project = self.store.create(label, self.registry.connections()[0]["id"], "attach", project_id=pid,
                                     make_workspace=False, attach=record, app_config=app_config,
@@ -708,7 +712,8 @@ class Studio:
                 self.log(pid).append("approval_resolved", turn_id, approval_id=approval_id,
                                      decision="deny", by="turn_end")
         for item in queued:
-            self.log(pid).append("turn_unqueued", None, queued_id=item["queued_id"], reason="restart")
+            self.log(pid).append("turn_unqueued", None, queued_id=item["queued_id"], reason="restart",
+                                 text=item.get("text") or "")
         for index, turn_id in enumerate(orphans):
             if index == len(orphans) - 1:  # keep whatever the interrupted agent left on disk
                 await self.checkpoint(pid, "agent", "Changes from an interrupted turn", turn_id)
