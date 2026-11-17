@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 
 from .catalog import stem, words
 from .config import now_iso
-from .library import LibraryError, invalid
+from .library import MAX_ENABLED_SERVERS, LibraryError, invalid
 from .store import write_json_atomic
 
 if TYPE_CHECKING:
@@ -229,12 +229,17 @@ class Picker:
         connectors: list[dict] = []
         requested = list((project.get("library") or {}).get("requested") or [])
         signin: list[dict] = []      # need signing in: only ever picked when the request names them
+        crowded: list[dict] = []     # switched on, and one too many for a request: named in the note
         for server in self.lib.servers() + self.lib.app_servers(workspace):
             if server["source"] == "suggested":
                 continue
             said, where = self.decision(project, "mcp_servers", server["id"], prefs)
             if said == "always":
-                add(server, "pinned", f"You said always {scope[where]}.", connectors, MAX_CONNECTORS)
+                # What the person switched on is connected, up to what one project may have on
+                # (not the smaller limit for what the studio adds by itself).
+                if not add(server, "pinned", f"You said always {scope[where]}.", connectors, MAX_ENABLED_SERVERS) \
+                        and server["id"] not in seen:
+                    crowded.append(server)
             elif check_only:
                 continue
             elif said is None and server["id"] in requested:
@@ -284,6 +289,10 @@ class Picker:
                 said = (f"Left out {', '.join(server['label'] for server in left)}: {they} signing in ({fixes}), "
                         "then switch it on for this project or test it in the Library.")
                 note = f"{note} {said}" if note else said
+        if crowded:
+            said = (f"Left out {', '.join(server['label'] for server in crowded)}: a request connects at most "
+                    f"{MAX_ENABLED_SERVERS} connectors that are switched on. Switch one off to make room.")
+            note = f"{note} {said}" if note else said
         return {"mode": mode, "skills": skills, "connectors": connectors, "library_skills": len(pool),
                 "considered": len(shortlist), "ms": int((time.monotonic() - started) * 1000), "note": note,
                 "route": route}

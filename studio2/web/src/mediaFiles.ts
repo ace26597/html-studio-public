@@ -16,10 +16,16 @@ export function mediaKind(path: string): MediaKind | null {
   return null;
 }
 
-/** `media/launch.mp4` → `media/launch.jpg` when that file is in the project, else null. */
+/**
+ * `media/launch.mp4` → `media/launch.poster.jpg` when that file is in the project (what a render
+ * writes), else `media/launch.jpg` (what renders wrote before, and still do in older projects), else null.
+ */
 export function findPoster(path: string, files: readonly { path: string }[]): string | null {
   const dot = path.lastIndexOf(".");
   if (dot <= path.lastIndexOf("/")) return null;
-  const poster = `${path.slice(0, dot)}.jpg`;
-  return files.some((file) => file.path === poster) ? poster : null;
+  const stem = path.slice(0, dot);
+  for (const poster of [`${stem}.poster.jpg`, `${stem}.jpg`]) {
+    if (files.some((file) => file.path === poster)) return poster;
+  }
+  return null;
 }

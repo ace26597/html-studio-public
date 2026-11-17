@@ -24,8 +24,8 @@ from pathlib import Path
 
 from . import gateway
 from .access import MIN_KEY, on_tailnet
-from .config import (DEFAULT_PORT, OTHER_MODELS_HEADLINE, OTHER_MODELS_LIMITS, SHARED_NO_PLAN, Settings, now_iso,
-                     read_config)
+from .config import (DEFAULT_PORT, OTHER_MODELS_HEADLINE, OTHER_MODELS_LIMITS, SHARED_NO_PLAN, Settings, environment,
+                     now_iso, read_config)
 from .keystore import ACCESS, MODEL_KEYS
 
 VERSION = 1
@@ -86,6 +86,8 @@ ACCOUNTS: dict[str, dict] = {
 }
 OTHER_GROUP = ("openai", "openrouter", "azure-openai", "gemini", "gateway")
 KIND_TO_ACCOUNT = {meta["kind"]: name for name, meta in ACCOUNTS.items() if not meta.get("provider")}
+# Where a connection sends its key: changing one of these needs the key typed again.
+ADDRESS_FIELDS = ("base_url", "resource")
 # Per-connection switches for a model reached through a translating gateway (harness/claude.py).
 OPTIONS = ("disable_betas", "max_context_tokens", "max_output_tokens")
 MAX_TOKENS = 20_000_000
@@ -191,7 +193,8 @@ def detect_claude_login(parent: dict | None = None) -> dict:
     cli = find_cli()
     if not cli:
         return {"found": False, "plan": None, "detail": "The Claude Code program was not found."}
-    env = {name: value for name, value in (parent if parent is not None else os.environ).items()
+    # environment(), not os.environ: a turn being started meanwhile has the login token popped.
+    env = {name: value for name, value in (parent if parent is not None else environment()).items()
            if name not in ENDPOINT_VARS - {"CLAUDE_CODE_OAUTH_TOKEN"}}
     try:
         done = subprocess.run([cli, "auth", "status"], capture_output=True, text=True, timeout=20, env=env,
@@ -229,7 +232,7 @@ def _models(raw, preset: dict) -> tuple[list[str], str | None]:
     return seen, default
 
 
-def _account(raw: dict, existing: list[dict], shared: bool, plan: Plan) -> list[dict]:
+def _account(raw: dict, existing: list[dict], shared: bool, plan: Plan, from_api: bool = False) -> list[dict]:
     choice = _text(raw.get("account") or KIND_TO_ACCOUNT.get(_text(raw.get("kind"))), 40).lower()
     preset = ACCOUNTS.get(choice)
     if not preset:
@@ -245,6 +248,7 @@ def _account(raw: dict, existing: list[dict], shared: bool, plan: Plan) -> list[
     if old and old.get("provider") != preset.get("provider"):
         old = None
     connection: dict = old or {}
+    was_at = {name: str((old or {}).get(name) or "").rstrip("/") for name in ADDRESS_FIELDS}
     connection.update({"id": cid, "kind": preset["kind"]})
     if preset.get("provider"):
         connection["provider"] = preset["provider"]
@@ -338,6 +342,16 @@ def _account(raw: dict, existing: list[dict], shared: bool, plan: Plan) -> list[
     key_env = _text(raw.get("api_key_env"), 100)
     if key_env and not ENV_NAME.fullmatch(key_env):
         raise SetupError("That is not a usable environment variable name.")
+    if key_env and from_api:
+        # Anything on this computer can call the API; a variable named there would let it send any
+        # of the studio's own variables to an address it chooses.
+        raise SetupError("Over the API a key is typed. To leave it in an environment variable, run "
+                         "`studio setup --key-env NAME` in a terminal.")
+    moved = old and any(str(connection.get(name) or "").rstrip("/") != was_at[name] for name in ADDRESS_FIELDS)
+    if moved and (old.get("api_key_secret") or old.get("api_key_env")) and not (key or key_env):
+        # A saved key goes only to the address it was saved with (CONTRACT.md, "Where a key is kept").
+        raise SetupError(f"The address of “{connection['label']}” changed: type its key again. A saved key "
+                         "is only sent to the address it was saved with.")
     if preset["key"] == "none":
         if key or key_env:
             raise SetupError(f"{preset['label']} does not take a key here.")
@@ -401,7 +415,7 @@ def _host(raw, tailscale) -> str:
     return str(address)
 
 
-def plan(answers: dict, settings: Settings, *, tailscale=detect_tailscale, store=None) -> Plan:
+def plan(answers: dict, settings: Settings, *, tailscale=detect_tailscale, store=None, from_api: bool = False) -> Plan:
     """Work out the new config file. Raises SetupError for an answer that cannot be used."""
     if not isinstance(answers, dict):
         raise SetupError("The answers must be a JSON object.")
@@ -428,7 +442,7 @@ def plan(answers: dict, settings: Settings, *, tailscale=detect_tailscale, store
             connections = [c for c in connections if c.get("id") != cid]
             result.changes.append(f"Remove the model account “{cid}” (its saved key, if any, stays where it is).")
     if isinstance(answers.get("account"), dict):
-        connections = _account(answers["account"], connections, shared, result)
+        connections = _account(answers["account"], connections, shared, result, from_api)
     if connections or "connections" in config:
         config["connections"] = connections
 

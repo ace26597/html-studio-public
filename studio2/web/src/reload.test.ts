@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readAutoReload, shouldReloadPreview } from "./reload";
+import { drawingHoldsReload, heldReloadNote, readAutoReload, shouldReloadPreview } from "./reload";
 
 describe("preview reload rule", () => {
   it("reloads on file changes unless the page refreshes itself", () => {
@@ -21,5 +21,23 @@ describe("preview reload rule", () => {
       expect(shouldReloadPreview(reason, true)).toBe(true);
       expect(shouldReloadPreview(reason, undefined)).toBe(true);
     }
+  });
+});
+
+describe("a drawing holds reloads back", () => {
+  it("while the person is drawing or holds marks that were not sent", () => {
+    expect(drawingHoldsReload(true, 0)).toBe(true);
+    expect(drawingHoldsReload(true, 3)).toBe(true);
+    expect(drawingHoldsReload(false, 1)).toBe(true);
+  });
+
+  it("not once the drawing is sent or removed", () => {
+    expect(drawingHoldsReload(false, 0)).toBe(false);
+  });
+
+  it("says what the page is waiting for", () => {
+    expect(heldReloadNote(true, 2)).toMatch(/sent or removed/);
+    expect(heldReloadNote(false, 1)).toMatch(/sent or removed/);
+    expect(heldReloadNote(true, 0)).toMatch(/press Done/);
   });
 });

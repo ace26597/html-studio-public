@@ -482,6 +482,10 @@ export interface AppInfo {
   address?: string | null;
   /** Step 3k: true while an attached app's first start installs its packages. */
   installing?: boolean;
+  /** True while an app is still starting past the time a start usually takes (it has not exited). */
+  slow?: boolean;
+  /** True once the studio has said the app is running but not answering on its port. */
+  not_answering?: boolean;
 }
 
 export interface AppLogLine {

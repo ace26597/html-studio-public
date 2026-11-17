@@ -277,3 +277,133 @@ async def test_an_app_that_does_not_run_from_a_lock_is_left_alone(client, studio
     (workspace / "studio.json").write_text('{"run": ' + __import__("json").dumps(SERVE.replace(" # requirements.lock", "")) + "}")
     text = await start_app(studio, pid)
     assert "Locking" not in text and not (workspace / "requirements.lock").exists() and not (tools / "calls.log").exists()
+
+
+# ---- an app that answers after the ready deadline -----------------------------------------------------------
+SLOW_RUN = f"sleep 2; exec {sys.executable} -m http.server $PORT --bind 127.0.0.1"
+
+
+async def test_an_app_that_answers_after_the_deadline_is_running_not_crashed(settings, monkeypatch):
+    from studio2_server import apps
+    monkeypatch.setattr(apps, "READY_TIMEOUT", 0.5)
+    monkeypatch.setattr(apps, "SLOW_POLL", 0.2)
+    application = create_app(settings)
+    studio = application.state.studio
+    await studio.start()
+    try:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=application),
+                                     base_url="http://127.0.0.1:8200") as client:
+            project = (await client.post("/api/projects", json={"name": "Slow"})).json()
+            pid = project["id"]
+            (studio.store.workspace(pid) / "studio.json").write_text('{"run": "%s"}' % SLOW_RUN)
+            await studio.sync_app(pid)
+            app = studio.app(pid)
+            await until(lambda: app.describe()["slow"], 5)
+            # Past the deadline and still alive: starting, said to be slow, never crashed.
+            assert app.state == "starting" and app.process.returncode is None and app.exit_code is None
+            assert any("still running" in text for _n, text in app.lines)
+            async with httpx.AsyncClient() as web:
+                page = await web.get(project["preview_url"], headers={"accept": "text/html"})
+            assert page.status_code == 503 and "Still starting" in page.text and "stopped by itself" not in page.text
+            await until(lambda: app.state == "running", 10)
+            assert not app.describe()["slow"]
+            events = [e for e in studio.log(pid).read() if e["type"] == "app_status"]
+            assert "crashed" not in [e["state"] for e in events]
+            assert any(e["state"] == "starting" and e.get("slow") for e in events)
+    finally:
+        await studio.stop()
+
+
+async def test_a_slow_app_can_be_stopped_and_is_started_again_by_a_restart_of_the_studio(settings, monkeypatch):
+    from studio2_server import apps
+    monkeypatch.setattr(apps, "READY_TIMEOUT", 0.3)
+    monkeypatch.setattr(apps, "SLOW_POLL", 0.2)
+    run = f"sleep 3; exec {sys.executable} -m http.server $PORT --bind 127.0.0.1"
+    first = create_app(settings)
+    studio = first.state.studio
+    await studio.start()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=first), base_url="http://127.0.0.1:8200") as client:
+        pid = (await client.post("/api/projects", json={"name": "Slow"})).json()["id"]
+        (studio.store.workspace(pid) / "studio.json").write_text('{"run": "%s"}' % run)
+        await studio.sync_app(pid)
+        await until(lambda: studio.app(pid).describe()["slow"], 5)
+        stopped = (await client.post(f"/api/projects/{pid}/app/stop")).json()
+        assert stopped["state"] == "stopped" and stopped["pid"] is None and not stopped["slow"]
+        await asyncio.sleep(0.5)                       # the watch ended with the process: no state after the stop
+        assert studio.app(pid).state == "stopped"
+        assert (await client.post(f"/api/projects/{pid}/app/start")).json()["state"] == "starting"
+        await until(lambda: studio.app(pid).describe()["slow"], 5)
+    await studio.stop()                                # the studio restarts while the app is slow to answer
+
+    second = create_app(settings)
+    again = second.state.studio
+    await again.start()
+    try:
+        await until(lambda: again.app(pid) is not None and again.app(pid).state == "running", 15)
+        assert not again.app(pid).describe()["slow"]
+    finally:
+        await again.stop()
+
+
+async def test_an_app_that_never_listens_is_said_plainly_to_be_running_but_not_answering(settings, monkeypatch):
+    from studio2_server import apps
+    monkeypatch.setattr(apps, "READY_TIMEOUT", 0.3)
+    monkeypatch.setattr(apps, "SLOW_POLL", 0.1)
+    monkeypatch.setattr(apps, "NOT_ANSWERING_AFTER", 1.0)
+    application = create_app(settings)
+    studio = application.state.studio
+    await studio.start()
+    try:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=application),
+                                     base_url="http://127.0.0.1:8200") as client:
+            project = (await client.post("/api/projects", json={"name": "Quiet"})).json()
+            pid = project["id"]
+            (studio.store.workspace(pid) / "studio.json").write_text('{"run": "sleep 60"}')   # never serves
+            await studio.sync_app(pid)
+            app = studio.app(pid)
+            await until(lambda: app.describe()["slow"], 5)
+            assert not app.describe()["not_answering"]
+            assert any("$PORT" in text for _n, text in app.lines)          # the waiting line says what to check
+            await until(lambda: app.describe()["not_answering"], 5)
+            await asyncio.sleep(0.5)
+            described = (await client.get(f"/api/projects/{pid}/app")).json()
+            # Alive, not exited: still starting, never crashed, and not stopped by the studio.
+            assert described["state"] == "starting" and described["slow"] and described["pid"]
+            assert app.process.returncode is None
+            plain = [text for _n, text in app.lines if "not answering" in text]
+            assert len(plain) == 1 and "$PORT" in plain[0]                  # said once
+            async with httpx.AsyncClient() as web:
+                page = await web.get(project["preview_url"], headers={"accept": "text/html"})
+            assert "running but not answering" in page.text and "$PORT" in page.text
+            # What the agent is told: wait on slow only briefly, then read the output and check the port.
+            context = studio.agent_context(pid)
+            assert "not answering on its port" in context and "minute or two" in context and "$PORT" in context
+            assert "keep waiting" not in context
+            stopped = (await client.post(f"/api/projects/{pid}/app/stop")).json()
+            assert stopped["state"] == "stopped" and not stopped["not_answering"] and not stopped["slow"]
+    finally:
+        await studio.stop()
+
+
+async def test_an_install_that_ignores_the_stop_signal_is_killed_after_the_install_limit(tmp_path, monkeypatch):
+    from studio2_server import apps
+    monkeypatch.setattr(apps, "SETUP_TIMEOUT", 0.5)
+    monkeypatch.setattr(apps, "STOP_TIMEOUT", 0.5)
+    import socket
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    (tmp_path / "ws").mkdir()
+    (tmp_path / "dir").mkdir()
+    states = []
+    app = apps.App("p1", tmp_path / "ws", tmp_path / "dir", port, "http://127.0.0.1:1/",
+                   lambda _pid, fields: states.append(fields["state"]))
+    app.configure({"run": f"exec {sys.executable} -m http.server $PORT --bind 127.0.0.1"},
+                  "trap '' TERM; sleep 60")                                 # an install that ignores SIGTERM
+    await app.sync()
+    try:
+        await until(lambda: app.state == "crashed", 8)
+        assert app.exit_code is not None and app.exit_code < 0 and states[-1] == "crashed"
+        assert any("did not finish" in text for _n, text in app.lines)
+    finally:
+        await app.shutdown()

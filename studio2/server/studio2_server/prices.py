@@ -21,10 +21,38 @@ def _rate(value) -> float | None:
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0 else None
 
 
+def _zero(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0
+
+
 def last_part(name: str) -> str:
-    """`openrouter/anthropic/claude-opus-5.5` and `claude-opus-5-5-20260401` → `claude-opus-5-5`."""
-    tail = str(name or "").strip().lower().split("/")[-1].split(":")[0].replace(".", "-")
-    return re.sub(r"-\d{8}$", "", tail)
+    """`openrouter/anthropic/claude-opus-5.5` and `claude-opus-5-5-20260401` → `claude-opus-5-5`.
+    A `:free` ending stays: the free variant is not the paid model of that name."""
+    tail = str(name or "").strip().lower().split("/")[-1]
+    free = tail.endswith(FREE_ENDINGS[0])
+    tail = re.sub(r"-\d{8}$", "", tail.split(":")[0].replace(".", "-"))
+    return tail + FREE_ENDINGS[0] if free else tail
+
+
+FREE_ENDINGS = (":free", "/free")       # OpenRouter's free variants, and its router to them
+
+
+def free_model(model: str | None, sources: tuple = ()) -> bool:
+    """A model its provider serves for free: its name says so, or a list of rates gives it 0 and 0
+    (`shipped` marks those; a gateway's own 0 and 0 is a plan route's, so `from_gateway` never does)."""
+    name = str(model or "").strip().lower()
+    if not name:
+        return False
+    if name.endswith(FREE_ENDINGS):
+        return True
+    return any(bool((source.find(name) or {}).get("free")) for source in sources if source)
+
+
+def free_request(model: str | None, reported_cost, sources: tuple = ()) -> bool:
+    """Whether a request whose route reported this cost was free: a reported 0 on a free model. A 0 on
+    any other model is the route having no price, and no cost at all is nobody saying."""
+    return (isinstance(reported_cost, (int, float)) and not isinstance(reported_cost, bool)
+            and reported_cost == 0 and free_model(model, sources))
 
 
 class Rates:
@@ -54,7 +82,8 @@ def shipped(library_dir: Path) -> Rates:
     try:
         data = json.loads((Path(library_dir) / "model-prices.json").read_text("utf-8"))
         models = {name: {**{kind: _rate(rates.get(kind)) for kind in (*KINDS, LONG_WRITE)},
-                         "above": rates.get("above") if isinstance(rates.get("above"), dict) else None}
+                         "above": rates.get("above") if isinstance(rates.get("above"), dict) else None,
+                         "free": _zero(rates.get("input")) and _zero(rates.get("output"))}
                   for name, rates in data["models"].items() if isinstance(rates, dict)}
         return Rates(models, "list", str(data.get("as_of") or "") or None)
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
@@ -77,8 +106,33 @@ def from_gateway(model_info: object) -> Rates:
         rates = {kind: (_rate(value) and round(float(value) * MILLION, 6)) or None for kind, value in per_token.items()}
         if rates["input"] is None or rates["output"] is None:
             continue
-        models[str(row["model_name"])] = {**rates, "above": None}
+        models[str(row["model_name"])] = {**rates, "above": _gateway_tier(info)}
     return Rates(models, "gateway")
+
+
+# LiteLLM's fields for a higher rate above a prompt size (`…_above_200k_tokens`; 128k, 256k, 272k and
+# 512k exist too). `_priority`/`_flex` endings are service tiers, not sizes: the `$` keeps them out.
+TIER_FIELD = re.compile(r"^(input_cost_per_token|output_cost_per_token|cache_read_input_token_cost|"
+                        r"cache_creation_input_token_cost|cache_creation_input_token_cost_above_1hr)_above_(\d+)k_tokens$")
+TIER_KINDS = {"input_cost_per_token": "input", "output_cost_per_token": "output",
+              "cache_read_input_token_cost": "cache_read", "cache_creation_input_token_cost": "cache_write",
+              "cache_creation_input_token_cost_above_1hr": LONG_WRITE}
+
+
+def _gateway_tier(info: dict) -> dict | None:
+    """A gateway's long-prompt tier in the shipped list's shape, per million; None when it has none.
+    A kind the tier gives no rate for stays None, so a request above the size that used it is unpriced."""
+    found: dict[int, dict] = {}
+    for field, value in info.items():
+        match = TIER_FIELD.match(str(field))
+        if match and _rate(value):
+            found.setdefault(int(match.group(2)) * 1000, {})[TIER_KINDS[match.group(1)]] = round(float(value) * MILLION, 6)
+    if not found:
+        return None
+    size = min(found)
+    if len(found) > 1:      # LiteLLM's list has one size per model; two would need rules nobody wrote: above the first, unpriced
+        return {"prompt_tokens": size, **{kind: None for kind in (*KINDS, LONG_WRITE)}}
+    return {"prompt_tokens": size, **{kind: found[size].get(kind) for kind in (*KINDS, LONG_WRITE)}}
 
 
 def _count(value) -> int:
@@ -114,13 +168,18 @@ def long_write(usage: object) -> int | None:
     return None
 
 
-def cost(tokens: dict, rates: dict | None) -> float | None:
-    """Tokens times rates, in dollars; None unless there is a rate for every kind that was used."""
+def cost(tokens: dict, rates: dict | None, summed: bool = False) -> float | None:
+    """Tokens times rates, in dollars; None unless there is a rate for every kind that was used.
+    `summed`: the counts are a whole turn's, added up over its requests, so the size of each prompt
+    is not known. Above a long-prompt tier that is unpriced (some requests may have been above it, or
+    none); at or below it no request can have been above, so the ordinary rate holds."""
     if not rates:
         return None
     above = rates.get("above") or {}
     if above and isinstance(above.get("prompt_tokens"), (int, float)) and \
             tokens.get("prompt", tokens["input"] + tokens["cache_read"] + tokens["cache_write"]) > above["prompt_tokens"]:
+        if summed:
+            return None
         rates = {kind: _rate(above.get(kind)) for kind in (*KINDS, LONG_WRITE)}
     total = 0.0
     for kind in ("input", "output", "cache_read"):
@@ -155,11 +214,19 @@ class Pricer:
         self.sources = [source for source in sources if source and source.models]
         self.requests, self.usd, self.used = 0, 0.0, set()
 
-    def price(self, model: str | None, tokens: dict | None) -> float | None:
+    def price(self, model: str | None, tokens: dict | None, summed: bool = False) -> float | None:
         if not tokens:
             return None
-        for source in self.sources:
-            worked = cost(tokens, source.find(model))
+        found = [(source, source.find(model)) for source in self.sources]
+        # The size above which a model costs more, from whichever source knows it. A source without a
+        # tier gets that size with no rates, so above it that source is not complete for the request.
+        sizes = [rates["above"]["prompt_tokens"] for _, rates in found
+                 if rates and isinstance(rates.get("above"), dict)
+                 and isinstance(rates["above"].get("prompt_tokens"), (int, float))]
+        for source, rates in found:
+            if rates and not rates.get("above") and sizes:
+                rates = {**rates, "above": {"prompt_tokens": min(sizes)}}
+            worked = cost(tokens, rates, summed)
             if worked is not None:
                 self.requests += 1
                 self.usd += worked

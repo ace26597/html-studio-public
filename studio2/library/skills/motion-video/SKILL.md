@@ -15,7 +15,8 @@ generation tool is available.
 ## Where things go
 - The stage page: `video/<name>.html`, with `video/stage.js` beside it. Copy the helper, do not
   retype it: `cp ../library/skills/motion-video/stage.js video/stage.js`.
-- The file: `media/<name>.mp4` (what `render_video` writes by default), poster `media/<name>.jpg`.
+- The file: `media/<name>.mp4` (what `render_video` writes by default), poster `media/<name>.poster.jpg`
+  (the `poster` in the tool's answer; an older render's poster may be `media/<name>.jpg`).
 - `index.html` (or the section of the report the video belongs to) shows the file.
 
 ## Plan before you animate

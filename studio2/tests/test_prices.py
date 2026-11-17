@@ -284,3 +284,144 @@ async def test_the_turns_own_tokens_carry_the_split_into_the_backup(client, stud
     await studio.turns.wait(pid)
     await asyncio.gather(*studio.costs.settling.values())
     assert events_of(studio, pid, "turn_cost")[-1]["source"] == "unavailable"
+
+
+def test_a_sum_over_a_turns_requests_is_not_one_long_prompt():
+    """The reviewer's case: 20 requests of 32k prompt tokens on Haiku 5.5, which has a higher rate above
+    100k. Priced as one 640k prompt it came to $0.10 for $0.02; the size of each request is not known."""
+    haiku = SHIPPED.find("claude-haiku-5-5")
+    turn = {"input": 640_000, "cache_read": 0, "cache_write": 0, "output": 2_000}
+    assert prices.cost(turn, haiku, summed=True) is None                  # above the tier: unpriced
+    small = {"input": 80_000, "cache_read": 0, "cache_write": 0, "output": 2_000}
+    assert prices.cost(small, haiku, summed=True) == pytest.approx(80_000 * 0.10 / 1e6 + 2_000 * 0.50 / 1e6)
+    # One request is still priced at the long-prompt rate when it is above the tier.
+    one = {"input": 150_000, "cache_read": 0, "cache_write": 0, "output": 1_000, "prompt": 150_000}
+    assert prices.cost(one, haiku) == pytest.approx(150_000 * 0.50 / 1e6 + 1_000 * 2.50 / 1e6)
+    assert prices.Pricer(SHIPPED).row(spent("t", "anthropic/claude-haiku-5.5", 150_000, 1_000)) == \
+        pytest.approx(150_000 * 0.50 / 1e6 + 1_000 * 2.50 / 1e6)
+    # A model with no tier is priced from a sum as before.
+    assert prices.cost(turn, SHIPPED.find("claude-opus-5-5"), summed=True) is not None
+
+
+async def test_a_turn_priced_from_its_totals_on_a_tiered_model_is_unpriced_above_the_tier(client, studio, project, monkeypatch):
+    haiku = {**CONNECTION, "models": [{"id": "claude-haiku-5-5", "label": "haiku"}], "default_model": "claude-haiku-5-5"}
+
+    class Many(Stub):
+        tokens = {"input": 640_000, "cache_read": 0, "cache_write": 0, "output": 2_000}
+
+        async def run(self, request, emit):
+            return TurnResult("completed", "sess-1", None, {"input_tokens": self.tokens["input"], "output_tokens": 2_000,
+                                                            "cost_usd": None, "duration_ms": 900, "cost_estimated": False,
+                                                            "tokens": dict(self.tokens)})
+
+    pid = project["id"]
+    monkeypatch.setattr(studio.registry, "connections", lambda: [haiku])
+    studio.registry._harnesses["anthropic-gateway"] = Many()
+    use(studio, SpendLog([[]], status=403))
+    await client.post(f"/api/projects/{pid}/turns", json={"text": "hello"})
+    await studio.turns.wait(pid)
+    await asyncio.gather(*studio.costs.settling.values())
+    assert events_of(studio, pid, "turn_cost")[-1]["source"] == "unavailable"     # not $0.10 for $0.02
+    Many.tokens = {"input": 80_000, "cache_read": 0, "cache_write": 0, "output": 2_000}
+    await client.post(f"/api/projects/{pid}/turns", json={"text": "again"})
+    await studio.turns.wait(pid)
+    await asyncio.gather(*studio.costs.settling.values())
+    cost = events_of(studio, pid, "turn_cost")[-1]
+    assert cost["source"] == "tokens" and cost["cost_usd"] == pytest.approx(80_000 * 0.10 / 1e6 + 2_000 * 0.50 / 1e6)
+
+
+# ---- a model the provider serves for free -------------------------------------------------------------------
+def test_a_free_variant_is_never_matched_to_the_paid_model_of_that_name():
+    assert SHIPPED.find("qwen/qwen3-coder") is not None
+    assert SHIPPED.find("qwen/qwen3-coder:free") is None and SHIPPED.find("orconn/qwen/qwen3-coder:free") is None
+    assert prices.last_part("openrouter/qwen/qwen3-coder:free") == "qwen3-coder:free"
+
+
+def test_a_zero_on_a_free_model_is_a_price_of_zero_on_the_studios_own_litellm(settings):
+    """The reviewer's case: LiteLLM said 0 for an OpenRouter `:free` model, and the studio priced its
+    200k tokens in and 20k out at the paid model's rate ($0.08, shown as charged)."""
+    side = gateway.Sidecar(settings)
+    side.folder.mkdir(parents=True, exist_ok=True)
+    free = {"turn": "t_free", "model": "orconn/qwen/qwen3-coder:free", "cost": 0.0, "reported": False,
+            "input": 200_000, "output": 20_000, "cached": 0, "cache_write": 0}
+    paid = {**free, "turn": "t_paid", "model": "orconn/qwen/qwen3-coder"}
+    silent = {**free, "turn": "t_silent", "cost": None}
+    side.spend_path.write_text("\n".join(json.dumps(r) for r in (free, paid, silent)) + "\n", "utf-8")
+    assert side.spend("t_free", (SHIPPED,)) == {"cost_usd": 0.0, "requests": 1, "unpriced": 0, "basis": "reported",
+                                                "backup": None}
+    # A 0 on a model that is not free is LiteLLM having no price: the backup, as before.
+    assert side.spend("t_paid", (SHIPPED,))["basis"] == "backup" and side.spend("t_paid", (SHIPPED,))["cost_usd"] > 0
+    # No cost at all on a free model is not a reported 0: unpriced, never a guess.
+    assert side.spend("t_silent", (SHIPPED,)) == {"cost_usd": None, "requests": 1, "unpriced": 1, "basis": None,
+                                                  "backup": None}
+
+
+def test_a_zero_on_a_free_model_is_a_price_of_zero_in_a_gateways_spend_log():
+    keep = costs._has_tag("t_1")
+    free = spent("t_1", "openrouter/qwen/qwen3-coder:free", 200_000, 20_000, provider="openai")
+    assert summarise([free], keep, (SHIPPED,)) == {"cost_usd": 0.0, "requests": 1, "unpriced": 0, "basis": "reported",
+                                                   "backup": None}
+    paid = spent("t_1", "openrouter/qwen/qwen3-coder", 200_000, 20_000, provider="openai")
+    assert summarise([paid], keep, (SHIPPED,))["basis"] == "backup"
+    silent = {**free, "spend": None}                                 # no cost at all is not a reported 0
+    assert summarise([silent], keep, (SHIPPED,))["unpriced"] == 1
+
+
+def test_a_model_the_list_prices_at_zero_and_zero_is_free(tmp_path):
+    (tmp_path / "model-prices.json").write_text(json.dumps({"as_of": "2026-11-17", "models": {
+        "maker/gratis": {"input": 0, "output": 0}, "maker/paid": {"input": 1.0, "output": 2.0}}}))
+    listed = prices.shipped(tmp_path)
+    assert prices.free_model("maker/gratis", (listed,)) and not prices.free_model("maker/paid", (listed,))
+    assert not prices.free_model("maker/gratis")                     # no list: only the name can say
+    assert prices.free_model("meta/llama:free") and prices.free_model("openrouter/free")
+    assert prices.free_request("maker/gratis", 0, (listed,)) and not prices.free_request("maker/gratis", None, (listed,))
+    assert not prices.free_request("maker/paid", 0, (listed,))
+    # A gateway's own 0 and 0 is a plan route's, not a price (CONTRACT.md): it does not make a model free.
+    plan = prices.from_gateway({"data": [{"model_name": "plan-route",
+                                          "model_info": {"input_cost_per_token": 0, "output_cost_per_token": 0}}]})
+    assert not prices.free_model("plan-route", (plan,))
+
+
+# ---- a long-prompt tier, whichever source has the price -----------------------------------------------------
+# The fields as LiteLLM 1.102.1's own price list names them (claude-sonnet-4-5 there, per token).
+SONNET_INFO = {"input_cost_per_token": 3e-06, "output_cost_per_token": 1.5e-05, "cache_read_input_token_cost": 3e-07,
+               "cache_creation_input_token_cost": 3.75e-06, "cache_creation_input_token_cost_above_1hr": 6e-06,
+               "input_cost_per_token_above_200k_tokens": 6e-06, "output_cost_per_token_above_200k_tokens": 2.25e-05,
+               "cache_read_input_token_cost_above_200k_tokens": 6e-07,
+               "cache_creation_input_token_cost_above_200k_tokens": 7.5e-06,
+               "cache_creation_input_token_cost_above_1hr_above_200k_tokens": 1.2e-05,
+               "input_cost_per_token_above_272k_tokens_priority": 9e-06}          # a service tier, not a size: ignored
+
+
+def test_a_gateways_own_price_carries_its_long_prompt_tier():
+    rates = prices.from_gateway({"data": [{"model_name": "sonnet", "model_info": SONNET_INFO},
+                                          {"model_name": "flash", "model_info": {
+                                              "input_cost_per_token": 7.5e-08, "output_cost_per_token": 3e-07,
+                                              "input_cost_per_token_above_128k_tokens": 1.5e-07}}]})
+    assert rates.find("sonnet")["above"] == {"prompt_tokens": 200_000, "input": 6.0, "output": 22.5, "cache_read": 0.6,
+                                             "cache_write": 7.5, "cache_write_1h": 12.0}
+    assert rates.find("flash")["above"] == {"prompt_tokens": 128_000, "input": 0.15, "output": None, "cache_read": None,
+                                            "cache_write": None, "cache_write_1h": None}
+    one = {"input": 250_000, "cache_read": 0, "cache_write": 0, "output": 1_000, "prompt": 250_000}
+    assert prices.cost(one, rates.find("sonnet")) == pytest.approx(250_000 * 6 / 1e6 + 1_000 * 22.5 / 1e6)
+    assert prices.cost(one, rates.find("sonnet"), summed=True) is None
+    # A tier with no output rate above the size: a request above it that wrote output is unpriced.
+    assert prices.cost({**one, "prompt": 130_000, "input": 130_000}, rates.find("flash")) is None
+
+
+def test_the_shipped_tier_holds_when_the_gateways_price_has_none():
+    """The reviewer's case: the gateway prices Haiku 5.5 without a tier and is asked first, so a turn of
+    640k summed prompt tokens came to $0.0645 at the ordinary rate."""
+    gateway_rates = prices.from_gateway({"data": [{"model_name": "anthropic/claude-haiku-5.5", "model_info": {
+        "input_cost_per_token": 1e-07, "output_cost_per_token": 5e-07}}]})
+    turn = {"input": 640_000, "cache_read": 0, "cache_write": 0, "output": 1_000}
+    assert prices.Pricer(gateway_rates, SHIPPED).price("anthropic/claude-haiku-5.5", turn, summed=True) is None
+    small = {"input": 80_000, "cache_read": 0, "cache_write": 0, "output": 1_000}
+    both = prices.Pricer(gateway_rates, SHIPPED)
+    assert both.price("anthropic/claude-haiku-5.5", small, summed=True) == pytest.approx(80_000 * 0.1 / 1e6 + 1_000 * 0.5 / 1e6)
+    assert both.summary()["rates"] == "gateway"                      # below the tier the gateway's own price stands
+    # One request above the tier is not priced at the gateway's ordinary rate: the list's long-prompt rate prices it.
+    one = {"input": 150_000, "cache_read": 0, "cache_write": 0, "output": 1_000, "prompt": 150_000}
+    single = prices.Pricer(gateway_rates, SHIPPED)
+    assert single.price("anthropic/claude-haiku-5.5", one) == pytest.approx(150_000 * 0.50 / 1e6 + 1_000 * 2.50 / 1e6)
+    assert single.summary()["rates"] == "list"

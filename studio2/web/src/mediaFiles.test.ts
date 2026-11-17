@@ -34,4 +34,9 @@ describe("media files", () => {
     expect(findPoster("media/other.webm", files)).toBeNull();
     expect(findPoster("media.d/noext", files)).toBeNull();
   });
+
+  it("prefers the poster a render writes now over a picture that only shares the name", () => {
+    const files = [{ path: "media/intro.mp4" }, { path: "media/intro.jpg" }, { path: "media/intro.poster.jpg" }];
+    expect(findPoster("media/intro.mp4", files)).toBe("media/intro.poster.jpg");
+  });
 });

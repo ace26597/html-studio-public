@@ -14,9 +14,11 @@ import secrets
 import shutil
 import time
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from .config import Settings, now_iso
+from .export import is_env
+from .workspace import is_git_name
 
 KINDS = {"page": "pattern", "app": "copy", "deck": "pattern", "workbook": "pattern", "document": "pattern"}
 FILE_KINDS = {".pptx": "deck", ".xlsx": "workbook", ".xlsm": "workbook", ".docx": "document"}
@@ -35,9 +37,19 @@ class TemplateError(Exception):
         self.message, self.code, self.status = message, code, status
 
 
+def private(parts: tuple[str, ...]) -> bool:
+    """What a template never carries, whatever its kind: an app's run-time data (`state/`: its
+    database, uploads) and key files (keyfiles.py). Applied at save, at export, at import and on use, so
+    a template saved before this rule loses them too."""
+    return bool(parts) and (parts[0] == "state" or is_env(parts))
+
+
 def _wanted(kind: str, relative: Path, main: str | None) -> bool:
     parts = relative.parts
-    if any(part in ALWAYS_OUT for part in parts) or relative.name.endswith((".pyc", ".stamping.xlsx")):
+    if private(parts):
+        return False
+    if any(part in ALWAYS_OUT or is_git_name(part) for part in parts) \
+            or relative.name.endswith((".pyc", ".stamping.xlsx")):
         return False
     top = parts[0]
     if kind == "app":
@@ -49,9 +61,16 @@ def _wanted(kind: str, relative: Path, main: str | None) -> bool:
             or text.startswith("files/img/"))
 
 
+def _code_names(names: list[str]) -> bool:
+    """`studio.json` at the top, or a script under `tools/`. Compared without case: on a Mac disk
+    `Studio.JSON` is the file the studio reads and runs."""
+    return any(n.lower() == "studio.json" or (PurePosixPath(n).suffix.lower() in CODE
+                                               and "tools" in [part.lower() for part in PurePosixPath(n).parts])
+               for n in names)
+
+
 def _has_code(files: Path) -> bool:
-    return (files / "studio.json").is_file() or any(
-        p.suffix.lower() in CODE for p in files.rglob("*") if p.is_file() and "tools" in p.relative_to(files).parts)
+    return _code_names([p.relative_to(files).as_posix() for p in files.rglob("*") if p.is_file()])
 
 
 def _guide(meta: dict, listing: list[str], notes: str) -> str:
@@ -203,15 +222,21 @@ class Templates:
         target = workspace / "template"
         if target.exists():
             shutil.rmtree(target)
-        shutil.copytree(self.files(template_id), target)
+        source = self.files(template_id)
+        shutil.copytree(source, target, ignore=lambda folder, names: [
+            name for name in names if is_git_name(name)
+            or private(Path(folder, name).relative_to(source).parts)])
 
     # -- export and import ----------------------------------------------------------------------
     def export(self, template_id: str) -> bytes:
         folder, out = self.root / template_id, io.BytesIO()
         with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
             for path in sorted(folder.rglob("*")):
+                relative = path.relative_to(folder)
+                if relative.parts[0] == "files" and private(relative.parts[1:]):
+                    continue
                 if path.is_file() and not path.is_symlink():
-                    archive.write(path, path.relative_to(folder).as_posix())
+                    archive.write(path, relative.as_posix())
         return out.getvalue()
 
     def import_zip(self, data: bytes, confirm: bool = False) -> dict:
@@ -239,11 +264,10 @@ class Templates:
                 linked = (member.external_attr >> 16) & 0o170000 == 0o120000
                 allowed = name in ("template.json", "preview.jpg", "preview.png") or (parts and parts[0] == "files")
                 if (linked or name.startswith(("/", "\\")) or ".." in parts or "\\" in name or not allowed
-                        or any(part in (".git",) for part in parts)):
+                        or any(is_git_name(part) for part in parts)):
                     raise TemplateError(f"The template contains a path that is not allowed ({name[:80]}).")
                 safe.append(member)
-            code = "files/studio.json" in names or any(
-                Path(n).suffix.lower() in CODE and "tools" in Path(n).parts for n in names)
+            code = _code_names([n[len("files/"):] for n in names if n.startswith("files/")])
             if code and not confirm:
                 raise TemplateError(
                     "This template contains an app or scripts. They run on this machine when a project is started "
@@ -251,8 +275,8 @@ class Templates:
             template_id = "tpl_" + secrets.token_hex(4)
             folder = self.root / template_id
             for member in safe:
-                if member.filename == "template.json":
-                    continue
+                if member.filename == "template.json" or private(Path(member.filename).parts[1:]):
+                    continue        # run-time data and key files are dropped, not refused
                 target = folder / member.filename
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(archive.read(member))

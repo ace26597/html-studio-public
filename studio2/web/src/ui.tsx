@@ -150,6 +150,8 @@ export type MenuEntry =
       danger?: boolean;
       disabled?: boolean;
       checked?: boolean;
+      /** With `checked`: a switch of its own (a tick box), not one choice among its neighbours. */
+      toggle?: boolean;
       onSelect: () => void;
     }
   | { type: "section"; label: string; note?: string | null }
@@ -262,7 +264,7 @@ export function Menu({ entries, trigger, align = "end", side = "bottom", label, 
               <button
                 key={index}
                 type="button"
-                role={entry.checked === undefined ? "menuitem" : "menuitemradio"}
+                role={entry.checked === undefined ? "menuitem" : entry.toggle ? "menuitemcheckbox" : "menuitemradio"}
                 aria-checked={entry.checked === undefined ? undefined : entry.checked}
                 className={`menu-item${entry.danger ? " is-danger" : ""}`}
                 disabled={entry.disabled}
@@ -274,7 +276,10 @@ export function Menu({ entries, trigger, align = "end", side = "bottom", label, 
                 {entry.icon && <Icon name={entry.icon} size={15} />}
                 <span className="menu-item-label">{entry.label}</span>
                 {entry.hint && <span className="menu-item-hint">{entry.hint}</span>}
-                {entry.checked && <Icon name="check" size={14} className="menu-item-check" />}
+                {/* A row that can be ticked keeps the tick's place when it is not, so nothing shifts or is squeezed. */}
+                {entry.checked !== undefined && (
+                  <Icon name="check" size={14} className={entry.checked ? "menu-item-check" : "menu-item-check is-off"} />
+                )}
               </button>
             );
           })}

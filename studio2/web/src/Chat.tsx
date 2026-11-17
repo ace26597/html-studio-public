@@ -755,12 +755,6 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
             }
           }}
         />
-        <EffortControl
-          options={options}
-          onChange={onOptionsChange}
-          onVerifyPage={onVerifyPage}
-          disabled={starting}
-        />
         <div className="composer-bar">
           <input
             ref={fileInput}
@@ -790,8 +784,11 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
               onPhaseChange={setVoicePhase}
             />
           )}
-          {/* While dictating, the model choice steps aside so Stop and Send stay on the row. */}
+          {/* While dictating, the model and depth choices step aside so Stop and Send stay on the row. */}
           {voicePhase === "idle" && <ModelPicker project={project} connections={connections} onPick={onPickModel} />}
+          {voicePhase === "idle" && (
+            <EffortControl options={options} onChange={onOptionsChange} onVerifyPage={onVerifyPage} disabled={starting} />
+          )}
           <span className="composer-spacer" />
           {running && (
             <button

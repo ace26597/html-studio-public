@@ -2,7 +2,9 @@
 
 import asyncio
 import json
+import os
 import time
+from pathlib import Path
 
 import pytest
 from claude_agent_sdk import (
@@ -95,6 +97,14 @@ def test_streamed_text_is_emitted_once_and_tools_are_mapped(tmp_path):
                              # the split is kept for the backup cost calculation: input without the cached ones
                              "tokens": {"input": 10, "cache_read": 100, "cache_write": 5, "output": 50, "cache_write_1h": None}}
     assert mapper.activity == 7
+
+
+def test_a_gateway_turn_keeps_the_agent_programs_running_total_but_never_as_its_price(tmp_path):
+    mapper = EventMapper(tmp_path, gateway=True)
+    feed(mapper, result(total_cost_usd=1.5))
+    usage = mapper.turn_result().usage
+    assert usage["cost_usd"] is None                 # the gateway prices the turn, not the agent program
+    assert usage["session_cost_usd"] == 1.5          # the conversation's total, so the next turn's part is right
 
 
 def test_unstreamed_text_plan_subagents_and_errors(tmp_path):
@@ -589,3 +599,124 @@ def test_a_clouds_own_endpoint_and_key_from_the_shell_reach_that_clouds_turns_on
     assert env["ANTHROPIC_FOUNDRY_API_KEY"] == "connection-key"
     _, scrub = child_env({"id": "subscription", "kind": "claude-subscription"}, parent)
     assert {"ANTHROPIC_BEDROCK_BASE_URL", "ANTHROPIC_VERTEX_BASE_URL", "ANTHROPIC_FOUNDRY_API_KEY"} <= scrub
+
+
+# -- connector settings stay off the agent program's command line --------------------------------
+SECRET_HEADER, SECRET_ENV = "Bearer ghp_header0123456789", "db-password-0123456789"
+CONNECTORS = {"docs": {"type": "http", "url": "https://docs.example/mcp", "headers": {"Authorization": SECRET_HEADER}},
+              "db": {"type": "stdio", "command": "db-mcp", "args": [], "env": {"DB_PASSWORD": SECRET_ENV}},
+              "studio": {"type": "sdk", "name": "studio", "instance": object()}}
+
+
+def command_line(options) -> list[str]:
+    from claude_agent_sdk._internal.transport.subprocess_cli import SubprocessCLITransport
+    return SubprocessCLITransport(prompt="hi", options=options)._build_command()
+
+
+def test_connector_secrets_are_in_an_owner_only_file_not_on_the_command_line(tmp_path, monkeypatch):
+    from studio2_server.harness.claude import write_mcp_config
+    monkeypatch.setenv("STUDIO2_CLAUDE_CLI", "/bin/echo")
+    workspace, run = tmp_path / "project", tmp_path / "data" / "run" / "mcp"
+    workspace.mkdir()
+    plugin = tmp_path / "plugin"
+    (plugin / ".claude-plugin").mkdir(parents=True)
+    request = TurnRequest("p_1", "t_1", workspace, "hi", None, GATEWAY, "gpt-sol", context="Studio project facts",
+                          plugin_dir=plugin, mcp_servers=CONNECTORS)
+    env, _scrub = child_env(GATEWAY, {"LITELLM_API_KEY": "sk-gateway-0123456789"}, "gpt-sol")
+    path = write_mcp_config(request.mcp_servers, run)
+    argv = command_line(build_options(request, env, None, mcp_file=path))
+    text = " ".join(argv)
+    for secret in (SECRET_HEADER, SECRET_ENV, "sk-gateway-0123456789"):
+        assert secret not in text
+    assert "--plugin-dir" in argv and "--append-system-prompt" in argv
+    # The studio's own tools (in the studio's process, no secret) stay inline; the rest is a file path.
+    values = [argv[i + 1] for i, item in enumerate(argv) if item == "--mcp-config"]
+    assert len(values) == 2 and json.loads(values[0]) == {"mcpServers": {"studio": {"type": "sdk", "name": "studio"}}}
+    assert values[1] == str(path) and path.parent == run and workspace not in path.parents
+    assert (path.stat().st_mode & 0o777) == 0o600 and (run.stat().st_mode & 0o777) == 0o700
+    assert json.loads(path.read_text()) == {"mcpServers": {k: v for k, v in CONNECTORS.items() if k != "studio"}}
+    # With no connectors there is no file, and a loosened folder is locked again.
+    run.chmod(0o755)
+    assert write_mcp_config({"studio": CONNECTORS["studio"]}, run) is None
+    assert write_mcp_config(CONNECTORS, run) and (run.stat().st_mode & 0o777) == 0o700
+    with pytest.raises(HarnessError):     # connectors without a file would go back on the command line
+        build_options(request, env, None)
+
+
+class FailingClient:
+    """Stands in for ClaudeSDKClient: records whether the settings file is there while the program runs."""
+    seen: list = []
+
+    def __init__(self, options):
+        self.options = options
+
+    async def connect(self):
+        path = Path(self.options.extra_args["mcp-config"])
+        FailingClient.seen.append((path, path.is_file()))
+
+    async def query(self, _prompt):
+        raise RuntimeError("the program died")
+
+    async def interrupt(self):
+        pass
+
+    async def disconnect(self):
+        path = FailingClient.seen[-1][0]
+        FailingClient.seen.append((path, path.is_file()))     # still there until the program is gone
+
+
+async def test_the_connector_file_lives_as_long_as_the_turn_and_no_longer(tmp_path, monkeypatch):
+    from studio2_server.harness import claude as harness_module
+    monkeypatch.setattr(harness_module, "ClaudeSDKClient", FailingClient)
+    run = tmp_path / "run"
+    FailingClient.seen = []
+    request = TurnRequest("p_1", "t_1", tmp_path, "hi", None, GATEWAY, "gpt-sol", mcp_servers=CONNECTORS)
+    result, _ = await ClaudeHarness("anthropic-gateway", mcp_dir=run)._attempt(request, lambda _e: None, {}, set(), None)
+    assert result.status == "failed" and "the program died" in result.error
+    (path, during), (_same, before_exit) = FailingClient.seen
+    assert during and before_exit and not path.exists() and list(run.iterdir()) == []
+
+    # A studio that was killed mid-turn leaves its file; the next start removes it.
+    registry = Registry(Settings(data_dir=tmp_path / "data", fake=True))
+    registry.mcp_dir.mkdir(parents=True)
+    (registry.mcp_dir / "mcp-old.json").write_text("{}")
+    registry.sweep()
+    assert list(registry.mcp_dir.iterdir()) == []
+
+
+async def test_a_key_in_the_environment_stays_readable_while_another_turn_starts(tmp_path, monkeypatch):
+    """The endpoint variables are taken out of the studio's environment while an agent program is
+    started, so it cannot inherit them. Everything else the studio does meanwhile must still see them."""
+    from studio2_server import config
+    from studio2_server.harness import claude as harness_module
+    monkeypatch.setenv("STUDIO2_CLAUDE_CLI", "/bin/echo")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-from-the-shell-0123")
+    api = {"id": "api", "label": "API", "kind": "anthropic-api", "api_key_env": "ANTHROPIC_API_KEY",
+           "models": [{"id": "sonnet", "label": "Sonnet"}], "default_model": "sonnet"}
+    starting, release, inherited = asyncio.Event(), asyncio.Event(), []
+
+    class SlowClient(FailingClient):
+        async def connect(self):        # the spawn and the handshake take seconds
+            inherited.append(os.environ.get("ANTHROPIC_API_KEY"))
+            starting.set()
+            await release.wait()
+
+        async def disconnect(self):
+            pass
+
+    monkeypatch.setattr(harness_module, "ClaudeSDKClient", SlowClient)
+    request = TurnRequest("p_1", "t_1", tmp_path, "hi", None, SUB, "opus")
+    _env, scrub = child_env(SUB, os.environ)
+    turn = asyncio.create_task(ClaudeHarness("claude-subscription")._attempt(request, lambda _e: None, {}, scrub, None))
+    await starting.wait()
+    try:
+        assert inherited == [None]       # the program being started does not inherit it
+        # Meanwhile a second project on the API key starts, health is asked, setup lists models.
+        assert ClaudeHarness("anthropic-api").describe(api)["available"] is True
+        assert child_env(api, config.environment())[0]["ANTHROPIC_API_KEY"] == "sk-from-the-shell-0123"
+        assert config.connection_key(api, config.environment()) == "sk-from-the-shell-0123"
+    finally:
+        release.set()
+        await turn
+    assert os.environ["ANTHROPIC_API_KEY"] == "sk-from-the-shell-0123"
+    assert config.environment()["ANTHROPIC_API_KEY"] == "sk-from-the-shell-0123"

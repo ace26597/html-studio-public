@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -9,6 +10,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Iterator
 
 log = logging.getLogger("studio2")
 
@@ -250,6 +252,34 @@ def outside_python(parent) -> dict:
     return out
 
 
+# Variables taken out of os.environ while an agent program is started (harness/claude.py: the SDK
+# lays its own variables over the studio's environment and cannot remove one, so the endpoint
+# variables are popped for the spawn). They are held here meanwhile so the rest of the studio,
+# which keeps running during the seconds that takes, still sees them.
+_HELD_FOR_SPAWN: dict[str, str] = {}
+
+
+@contextlib.contextmanager
+def without(names) -> Iterator[None]:
+    """Take `names` out of os.environ for the block (one child process inherits nothing of them),
+    while `environment()` keeps answering with them. Callers serialise (harness/claude._SPAWN_LOCK)."""
+    saved = {name: os.environ.pop(name) for name in names if name in os.environ}
+    _HELD_FOR_SPAWN.update(saved)
+    try:
+        yield
+    finally:
+        os.environ.update(saved)
+        for name in saved:
+            _HELD_FOR_SPAWN.pop(name, None)
+
+
+def environment() -> dict[str, str]:
+    """The studio's own environment, as it was given, for reading keys and endpoints. Use this,
+    not os.environ, wherever a key or endpoint is read: os.environ lacks the endpoint variables
+    while an agent program is being started."""
+    return {**os.environ, **_HELD_FOR_SPAWN}
+
+
 def connection_key(connection: dict, parent, store=None) -> str | None:
     """A connection's key: the environment variable it names (`api_key_env`) when that is set,
     otherwise the entry it names in the secret store (`api_key_secret`, written by setup)."""
@@ -271,7 +301,7 @@ def model_gateway(settings: Settings) -> dict | None:
     for item in raw if isinstance(raw, list) else []:
         if isinstance(item, dict) and item.get("kind") == "anthropic-gateway" and item.get("base_url"):
             store = settings.secret_store() if item.get("api_key_secret") else None
-            key = connection_key(item, os.environ, store)
+            key = connection_key(item, environment(), store)
             if key:
                 return {"base_url": str(item["base_url"]).rstrip("/"), "key": key}
     return None

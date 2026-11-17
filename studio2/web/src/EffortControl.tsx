@@ -1,24 +1,21 @@
-import { useId, useRef, useState } from "react";
-import { effortSummary } from "./effortRow";
+import { useMemo, useState } from "react";
+import { effortLabel, effortSummary } from "./effortRow";
 import { Icon } from "./icons";
+import { Menu, type MenuEntry } from "./ui";
 import {
   DEPTHS,
   MATCH_MEANS,
   STATUS_LABEL,
-  VERIFY_LINE,
-  depthLine,
-  stepDepth,
   verificationHeadline,
   verificationTone,
-  type Depth,
   type TurnOptions,
   type VerificationItem,
 } from "./effort";
 
 /**
- * Quick / Standard / Deep, the Check switch and "Check this page", above the composer's buttons.
- * Folded to one row ("Deep · Check on" + "Check this page") so a phone keeps room for the
- * conversation; the row's button opens the steps, the switch and the explanation.
+ * How much to do, in the composer's bar beside the model: a quiet button that names the depth
+ * (with a tick when the result will be checked) and opens a menu with the three steps, the
+ * check switch and "Check this page now". Nothing is added to the composer's height.
  */
 export function EffortControl({
   options,
@@ -31,89 +28,52 @@ export function EffortControl({
   onVerifyPage: () => void;
   disabled?: boolean;
 }) {
-  const lineId = useId();
-  const panelId = useId();
-  const [open, setOpen] = useState(false);
-  const toggle = useRef<HTMLButtonElement>(null);
-  const pick = (depth: Depth) => depth !== options.depth && onChange({ ...options, depth });
+  const entries = useMemo<MenuEntry[]>(
+    () => [
+      { type: "section", label: "How much to do" },
+      ...DEPTHS.map(
+        (step): MenuEntry => ({
+          label: step.label,
+          hint: step.short,
+          checked: options.depth === step.id,
+          onSelect: () => step.id !== options.depth && onChange({ ...options, depth: step.id }),
+        }),
+      ),
+      { type: "separator" },
+      {
+        label: "Check the result",
+        hint: options.verify ? "on" : "off",
+        checked: options.verify,
+        toggle: true,
+        onSelect: () => onChange({ ...options, verify: !options.verify }),
+      },
+      { type: "separator" },
+      { label: "Check this page now", icon: "shield", disabled, onSelect: onVerifyPage },
+    ],
+    [options, onChange, onVerifyPage, disabled],
+  );
   return (
-    <div className={open ? "effort is-open" : "effort"}>
-      <div className="effort-row">
+    <Menu
+      label="How much to do"
+      side="top"
+      align="start"
+      entries={entries}
+      trigger={(props) => (
         <button
-          ref={toggle}
           type="button"
-          className="effort-toggle"
-          aria-expanded={open}
-          aria-controls={panelId}
-          title={open ? "Hide how much to do" : "Change how much to do and whether the result is checked"}
-          onClick={() => setOpen(!open)}
+          className="model-btn effort-btn"
+          aria-label={effortSummary(options)}
+          data-tip="How much to do, and whether the result is checked"
+          data-tip-side="top"
+          data-tip-align="start"
+          {...props}
         >
-          <span className="sr-only">How much to do: </span>
-          {effortSummary(options)}
-          <Icon name="chevron-down" size={13} strokeWidth={2} className="effort-chevron" />
+          <span>{effortLabel(options)}</span>
+          {options.verify && <Icon name="check" size={12} strokeWidth={2.4} className="effort-btn-check" />}
+          <Icon name="chevron-down" size={12} strokeWidth={2} />
         </button>
-        <button type="button" className="effort-check-page" disabled={disabled} onClick={onVerifyPage}>
-          Check this page
-        </button>
-      </div>
-      {open && (
-        <div
-          id={panelId}
-          className="effort-panel"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.stopPropagation();
-              setOpen(false);
-              toggle.current?.focus();
-            }
-          }}
-        >
-          <div className="effort-row">
-            <div
-              className="effort-steps"
-              role="radiogroup"
-              aria-label="How much to do"
-              aria-describedby={lineId}
-              onKeyDown={(event) => {
-                const next = stepDepth(options.depth, event.key);
-                if (next) {
-                  event.preventDefault();
-                  pick(next);
-                  (event.currentTarget.querySelector(`[data-depth="${next}"]`) as HTMLElement | null)?.focus();
-                }
-              }}
-            >
-              {DEPTHS.map((step) => (
-                <button
-                  key={step.id}
-                  type="button"
-                  role="radio"
-                  data-depth={step.id}
-                  aria-checked={options.depth === step.id}
-                  tabIndex={options.depth === step.id ? 0 : -1}
-                  className={options.depth === step.id ? "effort-step on" : "effort-step"}
-                  onClick={() => pick(step.id)}
-                >
-                  {step.label}
-                </button>
-              ))}
-            </div>
-            <label className="effort-verify" title={VERIFY_LINE}>
-              <input
-                type="checkbox"
-                checked={options.verify}
-                onChange={(event) => onChange({ ...options, verify: event.target.checked })}
-              />
-              Check the result
-            </label>
-          </div>
-          <p id={lineId} className="effort-line">
-            {depthLine(options.depth)}
-            {options.verify && " The result is checked before the request ends."}
-          </p>
-        </div>
       )}
-    </div>
+    />
   );
 }
 

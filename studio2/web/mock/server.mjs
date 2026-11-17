@@ -2121,7 +2121,7 @@ async function handleApi(req, res, url) {
       if (event.seq > after) res.write(`id: ${event.seq}\ndata: ${JSON.stringify(event)}\n\n`);
     }
     project.listeners.add(res);
-    const ping = setInterval(() => res.write(": ping\n\n"), 15_000);
+    const ping = setInterval(() => res.write("event: ping\ndata: {}\n\n"), 15_000);
     req.on("close", () => {
       clearInterval(ping);
       project.listeners.delete(res);

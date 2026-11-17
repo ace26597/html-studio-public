@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Callable
 import httpx
 
 from . import prices
-from .config import connection_key
+from .config import connection_key, environment
 
 if TYPE_CHECKING:
     from .studio import Studio
@@ -86,11 +86,15 @@ def provider_reported(row: dict) -> bool:
     return _is_price((usage or {}).get("cost")) if isinstance(usage, dict) else False
 
 
-def reported_free(row: dict) -> bool:
-    """OpenRouter sends a cost with every answer; when that cost is 0 the request was not billed."""
+def reported_free(row: dict, rates: tuple = ()) -> bool:
+    """OpenRouter sends a cost with every answer; when that cost is 0 the request was not billed. A
+    `spend` of 0 on a model served for free is the same (prices.free_request, the rule the studio's
+    own LiteLLM uses too)."""
     usage = (row.get("metadata") or {}).get("usage_object") if isinstance(row.get("metadata"), dict) else None
     cost = (usage or {}).get("cost") if isinstance(usage, dict) else None
-    return row.get("custom_llm_provider") == "openrouter" and _number(cost) and cost == 0
+    if row.get("custom_llm_provider") == "openrouter" and _number(cost) and cost == 0:
+        return True
+    return prices.free_request(row.get("model") or row.get("model_group"), row.get("spend"), rates)
 
 
 def basis_of(priced: int, reported: int) -> str | None:
@@ -117,7 +121,7 @@ def summarise(rows: list[dict], keep: Callable[[dict], bool], rates: tuple = ())
             reported += provider_reported(row)
         elif row.get("status") == "success":
             requests += 1
-            if reported_free(row):      # the provider said this one cost nothing: a price, not a gap
+            if reported_free(row, rates):       # the provider said this one cost nothing: a price, not a gap
                 priced += 1
                 reported += 1
             else:
@@ -193,6 +197,31 @@ async def fetch_rows(client: httpx.AsyncClient, base_url: str, key: str, since: 
     return rows
 
 
+def _windows(turns: list[dict]) -> dict[str, tuple[datetime, datetime, bool]]:
+    """Each finished turn's window for recovery: {turn_id: (low, high, high is the next turn's start)}.
+    The padding (SLACK) never reaches into a neighbouring turn of the same session, so a row belongs
+    to one turn: a queued follow-up starts a second after the turn before it ends. The gap between two
+    turns is the earlier one's, up to the later one's start."""
+    windows: dict[str, tuple[datetime, datetime, bool]] = {}
+    sessions: dict[str, list[dict]] = {}
+    for turn in turns:
+        if turn.get("start") and turn.get("end") and turn.get("session"):
+            sessions.setdefault(turn["session"], []).append(turn)
+    for group in sessions.values():
+        group.sort(key=lambda t: t["start"])
+        floor = None        # where the turn before stopped
+        for index, turn in enumerate(group):
+            low = turn["start"] - SLACK[0]
+            low = max(low, floor) if floor else low
+            high, until_next = turn["end"] + SLACK[1], False
+            later = group[index + 1]["start"] if index + 1 < len(group) else None
+            if later is not None and later <= high:
+                high, until_next = later, True
+            windows[turn["turn_id"]] = (low, high, until_next)
+            floor = high if until_next else high + timedelta(microseconds=1)     # its last instant is its own
+    return windows
+
+
 def _has_tag(turn_id: str) -> Callable[[dict], bool]:
     wanted = TAG_PREFIX + turn_id
     return lambda row: wanted in (row.get("request_tags") or [])
@@ -224,7 +253,7 @@ class Costs:
 
     def _credentials(self, connection: dict) -> tuple[str, str]:
         base = str(connection.get("base_url") or "")
-        key = connection_key(connection, os.environ, self.studio.settings.secret_store())
+        key = connection_key(connection, environment(), self.studio.settings.secret_store())
         if not base or not key:
             raise SpendLogError("This connection has no address or key to read the gateway's spend log with.")
         return base, key
@@ -288,7 +317,7 @@ class Costs:
         except Exception:   # noqa: BLE001 - no gateway prices: the shipped list is the only source
             pass
         pricer = prices.Pricer(gateway, self.shipped)
-        if pricer.price(model, counts) is None:
+        if pricer.price(model, counts, summed=True) is None:     # a sum over requests, not one long prompt
             return None
         return {**pricer.summary(), "requests": None}       # the turn as a whole, not counted requests
 
@@ -379,6 +408,7 @@ class Costs:
                 turns[turn]["priced"] = event.get("cost_usd") is not None
         wanted = [t for t in turns.values() if t["end"] and t["start"] and t["session"] and not t["priced"]
                   and (connections.get(t["connection"]) or {}).get("kind") == GATEWAY_KIND]
+        windows = _windows(list(turns.values()))
         report: dict = {"recovered": 0, "unmatched": 0, "turns": [], "reason": None}
         by_connection: dict[str, list[dict]] = {}
         for turn in wanted:
@@ -395,11 +425,18 @@ class Costs:
                 report["unmatched"] += len(group)
                 continue
             for turn in group:
-                low, high = turn["start"] - SLACK[0], turn["end"] + SLACK[1]
+                low, high, until_next = windows[turn["turn_id"]]
 
-                def keep(row: dict, turn=turn, low=low, high=high) -> bool:
+                def keep(row: dict, turn=turn, low=low, high=high, until_next=until_next) -> bool:
+                    if row.get("session_id") != turn["session"]:
+                        return False
+                    tags = [tag for tag in row.get("request_tags") or [] if str(tag).startswith(TAG_PREFIX)]
+                    if tags:    # a tagged row is its turn's whatever its time: a gateway's clock can run ahead
+                        return TAG_PREFIX + turn["turn_id"] in tags
                     when = parse_time(row.get("startTime"))
-                    return row.get("session_id") == turn["session"] and when is not None and low <= when <= high
+                    if when is None or when < low:
+                        return False
+                    return not (when > high or (until_next and when == high))     # the next turn's from its start on
 
                 found = summarise(rows, keep, rates)
                 if not found["requests"]:

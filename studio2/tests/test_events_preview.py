@@ -24,7 +24,9 @@ def parse(frames: list[str]) -> list[dict]:
 async def collect(log, after):
     frames = []
     async for frame in log.stream(after, ping_seconds=0.05):
-        if frame.startswith(": ping"):
+        if frame.startswith("event: ping"):
+            # A named event the page can see (a comment would never reach it), with no id.
+            assert frame == "event: ping\ndata: {}\n\n"
             break
         frames.append(frame)
     return frames
@@ -76,7 +78,7 @@ async def test_sse_endpoint_over_http_with_last_event_id(settings):
                     async for line in response.aiter_lines():
                         if line.startswith("data: "):
                             events.append(json.loads(line[6:]))
-                        elif line.startswith(": ping"):   # 0.2 s of silence: the turn is long over
+                        elif line == "event: ping":   # 0.2 s of silence: the turn is long over
                             pinged = True
                             break
                 return events, pinged
@@ -246,6 +248,98 @@ async def test_a_socket_from_another_site_never_reaches_the_app(tmp_path):
         await app.client.aclose()
 
 
+STARLETTE_APP = '''
+import os, sys
+import uvicorn
+from starlette.applications import Starlette
+from starlette.responses import JSONResponse, RedirectResponse, Response
+from starlette.routing import Route
+
+PORT = int(sys.argv[1])
+
+async def items(request):
+    return Response("items", headers={"content-location": str(request.url_for("items"))})
+
+async def go(request):
+    return RedirectResponse(request.url_for("items"))
+
+async def local(request):
+    return RedirectResponse(f"http://localhost:{PORT}/items/?from=local")
+
+async def away(request):
+    return RedirectResponse(f"https://elsewhere.example/items/?not=127.0.0.1:{PORT}")
+
+async def other_port(request):
+    return RedirectResponse(f"http://127.0.0.1:{PORT + 1}/items/")
+
+async def seen(request):
+    return JSONResponse({"headers": dict(request.headers), "client": request.client.host})
+
+async def cookie(request):
+    response = Response("ok")
+    response.set_cookie("a", "1", domain="127.0.0.1")
+    response.set_cookie("b", "2", domain="example.org", secure=True)
+    response.set_cookie("c", "3", secure=True)
+    return response
+
+app = Starlette(routes=[Route("/items/", items, name="items"), Route("/go", go), Route("/local", local),
+                        Route("/away", away), Route("/other-port", other_port), Route("/seen", seen),
+                        Route("/cookie", cookie)])
+uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="warning")
+'''
+
+
+async def test_the_apps_redirects_to_its_own_private_address_come_back_to_the_project_address(tmp_path):
+    """A real Starlette app behind the proxy: its trailing-slash redirect and url_for name
+    http://127.0.0.1:<its port>, which the browser must never be sent to."""
+    import socket
+    import sys
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    script = tmp_path / "app.py"
+    script.write_text(STARLETTE_APP)
+    process = await asyncio.create_subprocess_exec(sys.executable, str(script), str(port))
+    preview = PreviewApp(tmp_path, target=lambda: ("proxy", port, None))
+    try:
+        async with httpx.AsyncClient() as probe_client:
+            for _ in range(200):
+                try:
+                    await probe_client.get(f"http://127.0.0.1:{port}/seen")
+                    break
+                except httpx.TransportError:
+                    await asyncio.sleep(0.05)
+        for origin in ("http://127.0.0.1:8201", "http://console.example.ts.net:8201",
+                       "https://console.example.ts.net:8201"):
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=preview), base_url=origin) as web:
+                slash = await web.get("/items?x=1")
+                assert slash.status_code == 307 and slash.headers["location"] == f"{origin}/items/?x=1"
+                assert (await web.get("/go")).headers["location"] == f"{origin}/items/"
+                assert (await web.get("/local")).headers["location"] == f"{origin}/items/?from=local"
+                body = await web.get("/items/")
+                assert body.text == "items" and body.headers["content-location"] == f"{origin}/items/"
+                # Addresses that are not the app's own origin are passed on as they are.
+                away = await web.get("/away")
+                assert away.headers["location"] == f"https://elsewhere.example/items/?not=127.0.0.1:{port}"
+                assert (await web.get("/other-port")).headers["location"] == f"http://127.0.0.1:{port + 1}/items/"
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=preview),
+                                     base_url="https://console.example.ts.net:8201") as web:
+            # The app learns who asked, and is told no other host or scheme than the origin it is shown.
+            seen = (await web.get("/seen", headers={"x-forwarded-host": "evil.example", "x-forwarded-proto": "https",
+                                                    "forwarded": "host=evil"})).json()
+            cookies = (await web.get("/cookie")).headers.get_list("set-cookie")
+        assert seen["headers"]["host"] == f"127.0.0.1:{port}" and seen["headers"]["x-forwarded-for"] == "127.0.0.1"
+        assert not {"x-forwarded-host", "x-forwarded-proto", "forwarded"} & set(seen["headers"])
+        by_name = {c.split("=", 1)[0]: c.lower() for c in cookies}
+        assert "domain" not in by_name["a"] and by_name["a"].startswith("a=1")   # the browser's own host instead
+        assert "domain=example.org" in by_name["b"] and "secure" in by_name["b"] and "secure" in by_name["c"]
+    finally:
+        process.terminate()
+        await process.wait()
+        await preview.client.aclose()
+
+
 async def test_preview_port_is_served_and_released(client, studio, project):
     async with httpx.AsyncClient() as http:
         page = await http.get(project["preview_url"])
@@ -291,3 +385,45 @@ async def test_preview_moves_when_its_port_is_taken(studio, project, settings):
     finally:
         squatter.close()
         await reborn.stop()
+
+
+def test_a_torn_last_line_is_cut_off_so_the_next_event_is_kept(tmp_path):
+    from studio2_server.events import EventLog
+    path = tmp_path / "events.jsonl"
+    whole = [json.dumps({"seq": 1, "ts": "x", "type": "turn_started", "turn_id": "t_1"}),
+             json.dumps({"seq": 2, "ts": "x", "type": "notice", "turn_id": "t_1"})]
+    path.write_text("\n".join(whole) + '\n{"seq":3,"type":"turn_star', "utf-8")   # a crash mid-write
+
+    log = EventLog(path)
+    assert log.seq == 2
+    log.append("turn_finished", "t_1", status="failed")
+    events = EventLog(path).read()
+    assert [(e["seq"], e["type"]) for e in events] == [(1, "turn_started"), (2, "notice"), (3, "turn_finished")]
+    assert path.read_text("utf-8").endswith("\n") and path.read_text("utf-8").count("\n") == 3
+    assert (tmp_path / "events.jsonl.torn").read_bytes() == b'{"seq":3,"type":"turn_star'   # kept, not destroyed
+
+    # A last event that was whole but lost only its newline is kept, not cut.
+    path.write_text("\n".join(whole), "utf-8")
+    log = EventLog(path)
+    assert log.seq == 2
+    log.append("turn_finished", "t_1")
+    assert [e["seq"] for e in EventLog(path).read()] == [1, 2, 3]
+
+
+def test_appends_from_threads_never_share_a_line(tmp_path):
+    import threading
+
+    from studio2_server.events import EventLog
+    log = EventLog(tmp_path / "events.jsonl")
+    big = "x" * 70_000      # larger than one buffered write
+
+    def write(n):
+        for _ in range(25):
+            log.append("notice", None, message=f"{n}{big}")
+    threads = [threading.Thread(target=write, args=(n,)) for n in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    lines = (tmp_path / "events.jsonl").read_text("utf-8").splitlines()
+    assert len(lines) == 200 and sorted(json.loads(line)["seq"] for line in lines) == list(range(1, 201))

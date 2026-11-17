@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping
 
-from .config import STUDIO2_ROOT, Settings, connection_key, now_iso
+from .config import STUDIO2_ROOT, Settings, connection_key, environment, now_iso
 
 log = logging.getLogger("studio2")
 
@@ -476,7 +476,7 @@ class Sidecar:
     async def ensure(self, connections: list[dict], parent: Mapping[str, str] | None = None) -> Endpoint:
         """Make sure the proxy runs with these connections; → where it is and its key. Starts it,
         or starts it again when it has died or the connections or their keys changed."""
-        parent = os.environ if parent is None else parent
+        parent = environment() if parent is None else parent
         async with self._lock:
             if not self.command and not installed()["installed"]:
                 raise GatewayError(installed()["detail"])
@@ -594,6 +594,9 @@ class Sidecar:
                 total += float(row["cost"])
                 priced += 1
                 reported += row.get("reported") is True
+            elif prices.free_request(row.get("model"), row.get("cost"), rates):
+                priced += 1         # a 0 on a model served for free: a price of zero, reported, not worked out
+                reported += 1
             elif isinstance(row.get("cached"), int) and isinstance(row.get("input"), int) and isinstance(row.get("output"), int):
                 read, write = row["cached"], row.get("cache_write") or 0
                 worked = pricer.price(row.get("model"), {

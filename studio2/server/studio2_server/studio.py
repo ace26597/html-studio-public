@@ -33,6 +33,7 @@ from .preview import Previews
 from .sources import Sources
 from .store import ProjectNotFound, Store
 from .templates import TemplateError, Templates
+from .templates import private as template_private
 from .turns import TurnRunner
 from .watcher import Watchers
 
@@ -61,9 +62,11 @@ class Studio:
         self.data = DataSources(settings.data_dir / "data-sources.json",
                                 MemorySecrets() if settings.fake else KeychainSecrets(settings.secret_store()))
         self.lib = Library(settings, MemoryJson() if settings.fake else KeychainJson(store=settings.secret_store()))
+        self.lib.project_folders = lambda: self.store.in_place_folders()   # where the agent writes, besides data/
         self.picker = Picker(self)
         self._locks: dict[str, asyncio.Lock] = {}
         self._background: set[asyncio.Task] = set()
+        self.deleting: set[str] = set()   # projects being deleted: nothing new starts for them
 
     # -- plumbing ---------------------------------------------------------------------------
     def log(self, project_id: str) -> EventLog:
@@ -322,6 +325,8 @@ class Studio:
                                  "STUDIO_MODEL_URL": self.model_url(project_id)})
 
     async def sync_app(self, project_id: str, restart: bool = False) -> None:
+        if project_id in self.deleting:     # its app is being dropped; starting it again would leave it running
+            return
         try:
             project, app = self.store.get(project_id), self.app(project_id)
         except ProjectNotFound:
@@ -351,7 +356,12 @@ class Studio:
             "not survive and the person would not see it. Short commands and scripts are fine.",
             "- The studio restarts the app when your turn ends. To test during your turn: "
             f"`curl -s -X POST {api}/restart`, then `curl -s {api}` until \"state\" is \"running\" "
-            f"(or \"crashed\"), then request your own pages at http://127.0.0.1:{app.port}/.",
+            f"(or \"crashed\"), then request your own pages at http://127.0.0.1:{app.port}/. "
+            "\"starting\" with \"slow\": true means it is alive but has not answered on its port within 90 s. "
+            "Wait on that for a minute or two at most, then read its output: if nothing there is still "
+            "installing or compiling, check that it listens on $PORT and fix it rather than waiting on. "
+            "\"not_answering\": true means it has been running for minutes and never answered: it is not "
+            "crashed, but it is almost certainly on another port or not serving.",
             f"- The app's output (stdout and stderr) is in {app.log_path}. Read it when something fails.",
             "- Prefer `uv run --with <package>` or a `.venv` in the project over installing packages globally. "
             "A Python app lists its packages in `requirements.txt` (names; a version only where you need one) and "
@@ -473,7 +483,10 @@ class Studio:
                          "The studio never starts, restarts or stops it; it reloads by itself when files change.")
         elif app.run:
             lines.append(f"- Current app: `{app.run}` — state {app.state}"
-                         + (f", exit code {app.exit_code}" if app.state == "crashed" else "") + ".")
+                         + (f", exit code {app.exit_code}" if app.state == "crashed" else "")
+                         + ((" (running for minutes and not answering on its port: read its output and check "
+                             "that it listens on $PORT)") if app.not_answering else
+                            " (alive, not answering on its port after 90 s)" if app.slow else "") + ".")
         else:
             lines.append("- This project has no back end yet (no studio.json); it is served as static files.")
         return "\n".join(lines)
@@ -651,6 +664,7 @@ class Studio:
     # -- lifecycle --------------------------------------------------------------------------
     async def start(self) -> None:
         await self.checks.sweep()       # scratch projects of a model check that was cut short
+        self.registry.sweep()           # connector settings files of turns a killed studio left behind
         for project in self.store.list():
             try:
                 await self._close_orphaned_turns(project)
@@ -750,7 +764,8 @@ class Studio:
         # A copied template becomes the project's own files. A pattern leaves the page empty and
         # is put beside it for the agent to follow: its content must not show up as the new page.
         first = await asyncio.to_thread(ws.init_workspace, self.store.workspace(pid), name,
-                                        files if files.is_dir() and not pattern else None, label)
+                                        files if files.is_dir() and not pattern else None, label, False,
+                                        template_private if chosen.get("source") == "yours" else None)
         self.store.update(pid, head=first["sha"])
         if pattern:
             await self.use_template(pid, template)
@@ -762,17 +777,26 @@ class Studio:
 
     async def delete_project(self, project_id: str) -> None:
         self.store.get(project_id)
-        if project_id in self.turns.active:
-            self.turns.stop(project_id, self.turns.active[project_id])
-            await self.turns.wait(project_id)
         if project_id in self.ships.running:
             raise shipping.ShipRunning(project_id)
-        await self.watchers.stop(project_id)
-        await self.apps.drop(project_id)
-        await self.previews.stop(project_id)
-        self.hub.drop(project_id)
-        self._locks.pop(project_id, None)
-        self.store.delete(project_id)
+        # Claimed before the first await: a queued message, a ship or an app start that would
+        # begin while the project is being taken apart would work in a folder that is going away.
+        self.deleting.add(project_id)
+        try:
+            for item in list(self.turns.queue.get(project_id, [])):
+                self.turns.unqueue(project_id, item["queued_id"])
+            if project_id in self.turns.active:
+                self.turns.stop(project_id, self.turns.active[project_id])
+                await self.turns.wait(project_id)
+            await self.watchers.stop(project_id)
+            await self.apps.drop(project_id)
+            await self.previews.stop(project_id)
+            self.hub.drop(project_id)
+            self._locks.pop(project_id, None)
+            self.store.delete(project_id)
+        finally:
+            self.deleting.discard(project_id)
+            self.turns.queue.pop(project_id, None)
 
     # -- checkpoints ------------------------------------------------------------------------
     def record_checkpoint(self, project_id: str, checkpoint: dict, turn_id: str | None = None) -> None:

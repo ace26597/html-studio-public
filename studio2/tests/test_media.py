@@ -154,6 +154,8 @@ async def test_a_page_becomes_a_video_file_with_a_poster_and_a_sheet(tmp_path):
         looked = await media.render_video(looker, url, workspace, "video/moving.html", tmp_path / "looks",
                                           check=True, times=[0.5, 1.5])
         assert "file" not in looked and looked["sheet_times"] == [0.5, 1.5] and not (workspace / "media").exists()
+        (workspace / "media").mkdir()
+        Image.new("RGB", (7, 5), "white").save(workspace / "media" / "moving.jpg")     # a picture the project owns
         made = await media.render_video(looker, url, workspace, "video/moving.html", tmp_path / "looks", frames=4)
         gif = await media.render_video(looker, url, workspace, "video/moving.html", tmp_path / "looks", fmt="gif",
                                        duration=1)
@@ -162,7 +164,9 @@ async def test_a_page_becomes_a_video_file_with_a_poster_and_a_sheet(tmp_path):
     assert made["file"] == "media/moving.mp4" and made["frames"] == 20 and made["declared_by_page"]
     data = (workspace / made["file"]).read_bytes()
     assert data[4:8] == b"ftyp" and made["bytes"] == len(data)
-    assert Image.open(workspace / made["poster"]).size == (320, 120)
+    assert made["poster"] == "media/moving.poster.jpg" and Image.open(workspace / made["poster"]).size == (320, 120)
+    assert Image.open(workspace / "media" / "moving.jpg").size == (7, 5)        # never overwritten by the poster
+    assert 'poster="media/moving.poster.jpg"' in made["embed"]
     assert Image.open(made["sheet"]).width > 320 and "<video" in made["embed"]
     assert (workspace / gif["file"]).read_bytes()[:6] in (b"GIF89a", b"GIF87a") and gif["embed"].startswith("<img")
     json.dumps(made)        # the tool's answer is plain data

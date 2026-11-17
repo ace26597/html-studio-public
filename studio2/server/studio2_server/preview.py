@@ -7,6 +7,7 @@ import contextlib
 import html
 import logging
 import mimetypes
+import re
 import socket
 from pathlib import Path
 
@@ -51,6 +52,14 @@ pre{{font:12px/1.5 ui-monospace,Menlo,monospace;background:color-mix(in srgb,Can
 border-radius:10px;padding:.9rem 1rem;max-height:50vh;overflow:auto;white-space:pre-wrap;word-break:break-word}}</style>
 </head><body><main><h1>{title}</h1><p>{message}</p>{log}</main>
 <script>setTimeout(function(){{location.reload()}},{reload});</script></body></html>"""
+# What the app may name itself in an absolute address it builds from its Host, besides the address
+# the studio sends it to.
+LOOPBACK_NAMES = ("127.0.0.1", "localhost", "[::1]", "::1", "0.0.0.0")
+# Not passed on from the browser and not added: the app is shown its own origin and host
+# (_own_origin), and these would contradict them. Next's Server Actions compare Origin with
+# X-Forwarded-Host before Host, and Rails compares Origin with an address that follows
+# X-Forwarded-Proto, so either would make them refuse the page's own forms.
+NOT_FORWARDED = ("x-forwarded-host", "x-forwarded-proto", "x-forwarded-port", "forwarded")
 HOP_BY_HOP = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers",
               "transfer-encoding", "upgrade", "content-length", "content-encoding"}
 INJECT_LIMIT = 8 * 1024 * 1024
@@ -59,8 +68,18 @@ INJECT_LIMIT = 8 * 1024 * 1024
 def status_page(app) -> bytes:
     """Shown at the project URL while its app is not answering."""
     state = app.state if app else "none"
+    if state == "starting" and getattr(app, "slow", False):
+        state = "quiet" if getattr(app, "not_answering", False) else "slow"
     title, message, reload = {
         "starting": ("Starting the app…", "This page loads by itself as soon as the app answers.", 1000),
+        "slow": ("Still starting the app…", "It is running but has not answered on its port yet. A first "
+                 "start that downloads packages or compiles can take minutes. This page loads by itself as "
+                 "soon as it answers. If the output below shows no install or compile going on, check "
+                 "that the app listens on the port in $PORT.", 3000),
+        "quiet": ("The app is running but not answering", "It has been running for minutes and has never "
+                  "answered on its port. It has not crashed; most likely it listens on another port than the "
+                  "one in $PORT, or does not serve at all. Ask the assistant to look at its output below. This "
+                  "page loads by itself if it answers.", 5000),
         "stopped": ("The app is stopped", "Start it from the app menu in the studio.", 3000),
         "crashed": ("The app stopped by itself", f"Exit code {app.exit_code}. The last output is below; "
                     "ask the assistant to fix it, or restart the app from the studio.", 3000),
@@ -229,10 +248,12 @@ class PreviewApp:
             url += "?" + query.decode("latin-1")
         request_headers = [(k, v) for k, v in scope["headers"]
                            if k.decode("latin-1").lower() not in (
-                               "host", "accept-encoding", "connection", "if-none-match", "if-modified-since")]
+                               "host", "accept-encoding", "connection", "if-none-match", "if-modified-since",
+                               *NOT_FORWARDED)]
         request_headers.append((b"host", upstream_host.encode()))
         request_headers = self._own_origin(scope, request_headers, upstream_host)
         request_headers.append((b"accept-encoding", b"identity"))
+        request_headers = self._forwarded_for(scope, request_headers)
 
         async def body():
             while True:
@@ -261,6 +282,7 @@ class PreviewApp:
             # files (frameworks' static handlers invite heuristic caching with ETag/Last-Modified).
             out = [(k, v) for k, v in out if k not in (b"cache-control", b"etag", b"last-modified", b"expires")]
             out = self._frameable(out)
+            out = self._back_to_page(scope, out, port, upstream_host)
             out.append((b"cache-control", b"no-store"))
             if kind.startswith("text/html") and self._is_page_load(scope) and scope["method"] != "HEAD" and (
                     length is None or int(length) <= INJECT_LIMIT):
@@ -301,6 +323,42 @@ class PreviewApp:
         if not origin or origin.split(b"://", 1)[-1] != host:
             return headers
         return [(k, v) for k, v in headers if k.lower() != b"origin"] + [(b"origin", f"http://{upstream_host}".encode())]
+
+    @staticmethod
+    def _forwarded_for(scope, headers: list) -> list:
+        """The app learns which address asked (uvicorn and most servers trust this from loopback);
+        without it every request through the studio would look like one from the Mac itself."""
+        client = (scope.get("client") or ("", 0))[0]
+        if not client:
+            return headers
+        given = [v.decode("latin-1").strip() for k, v in headers if k.lower() == b"x-forwarded-for"]
+        chain = ", ".join([*filter(None, given), client])
+        return [(k, v) for k, v in headers if k.lower() != b"x-forwarded-for"] + [(b"x-forwarded-for", chain.encode("latin-1"))]
+
+    @staticmethod
+    def _back_to_page(scope, headers: list, port: int, upstream_host: str) -> list:
+        """The app builds absolute addresses from the Host it was sent, which is its own private one
+        (127.0.0.1 and its port). Followed by the browser, a redirect there leaves the project's
+        address: on a phone 127.0.0.1 is the phone, and on the Mac the app's own port has no bridge.
+        Such an origin in Location or Content-Location becomes the one the request came in on; a
+        cookie scoped to the app's loopback host by name becomes one for whatever host the browser used."""
+        host = dict(scope["headers"]).get(b"host", b"").decode("latin-1")
+        own = {upstream_host.lower(), *(f"{name}:{port}" for name in LOOPBACK_NAMES)}
+        out = []
+        for name, value in headers:
+            if host and name in (b"location", b"content-location"):
+                text = value.decode("latin-1")
+                match = re.match(r"(?:https?:)?//([^/?#]*)", text, re.I)
+                if match and match.group(1).lower() in own:
+                    value = f"{scope.get('scheme', 'http')}://{host}{text[match.end():]}".encode("latin-1")
+            elif name == b"set-cookie":
+                parts = value.decode("latin-1").split(";")
+                kept = [part for part in parts[1:] if not (
+                    part.strip().lower().startswith("domain=")
+                    and part.split("=", 1)[1].strip().lstrip(".").lower() in LOOPBACK_NAMES)]
+                value = ";".join([parts[0], *kept]).encode("latin-1")
+            out.append((name, value))
+        return out
 
     @staticmethod
     def _frameable(headers: list) -> list:

@@ -9,6 +9,8 @@ interface DrawToolbarProps {
   tool: DrawTool;
   color: string;
   count: number;
+  /** Why the page shown is not the newest (a reload waits for the drawing), or null. */
+  note?: string | null;
   onTool: (tool: DrawTool) => void;
   onColor: (color: string) => void;
   onUndo: () => void;
@@ -29,7 +31,7 @@ function arrowKeys<T>(items: readonly T[], current: T, pick: (value: T) => void)
   };
 }
 
-export function DrawToolbar({ tool, color, count, onTool, onColor, onUndo, onClear, onDone }: DrawToolbarProps) {
+export function DrawToolbar({ tool, color, count, note, onTool, onColor, onUndo, onClear, onDone }: DrawToolbarProps) {
   const tools = DRAW_TOOLS.map((item) => item.id);
   const colors = DRAW_COLORS.map((item) => item.value);
   return (
@@ -83,6 +85,11 @@ export function DrawToolbar({ tool, color, count, onTool, onColor, onUndo, onCle
         </button>
       </div>
       <p className="draw-hint">{toolLine(tool)}</p>
+      {note && (
+        <p className="draw-hint draw-note" role="status">
+          {note}
+        </p>
+      )}
     </div>
   );
 }

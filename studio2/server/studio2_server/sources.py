@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import re
+import threading
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -160,6 +161,18 @@ def extract(data: bytes, content_type: str, name: str) -> tuple[str, str, str, i
     return "text", "", tidy(decoded), None
 
 
+# One lock per project folder. Research helpers fetch in parallel and each save runs in its own thread:
+# without it two saves read the same index, both pick the next id, and each overwrites the other's text.
+_LOCKS: dict[str, threading.Lock] = {}
+_LOCKS_GUARD = threading.Lock()
+
+
+def _lock(workspace: Path) -> threading.Lock:
+    key = str(Path(workspace).resolve())
+    with _LOCKS_GUARD:
+        return _LOCKS.setdefault(key, threading.Lock())
+
+
 def same_address(url: str | None) -> str:
     """An address reduced to what makes it the same page: no fragment, no trailing slash, host in lower case."""
     url = str(url or "").strip().split("#", 1)[0]
@@ -218,11 +231,18 @@ class Sources:
 
     def save(self, *, text: str, title: str, kind: str, url: str | None, pages: int | None = None,
              original: bytes | None = None, original_ext: str = "", requested: str | None = None,
-             into: str | None = None) -> tuple[dict, bool]:
+             into: str | None = None, reuse_address: bool = False) -> tuple[dict, bool]:
         """→ (source, created). The same URL with the same text returns the existing source.
         `requested` is the address that was asked for, kept when it differs from where it ended up.
         `into`: an existing source whose text file is missing (a copy of an example ships the list
-        without the text): the text is written back under that id, so the page's marks still point at it."""
+        without the text): the text is written back under that id, so the page's marks still point at it.
+        `reuse_address`: an address already saved (with its text) is returned as it is, even when this
+        download's text differs: two fetches of one address that ran together end with one source."""
+        with _lock(self.workspace):  # read the index, pick the id, write text and index: one step per project
+            return self._save(text=text, title=title, kind=kind, url=url, pages=pages, original=original,
+                              original_ext=original_ext, requested=requested, into=into, reuse_address=reuse_address)
+
+    def _save(self, *, text, title, kind, url, pages, original, original_ext, requested, into, reuse_address):
         asked = [requested] if requested and same_address(requested) != same_address(url) else []
         text = text[:MAX_TEXT]
         if len(text.strip()) < 20:
@@ -238,6 +258,11 @@ class Sources:
                 (self.workspace / item["path"]).write_text(text, "utf-8")
                 write_json_atomic(self.index_path, {"sources": items})
                 return item, True
+        if reuse_address:
+            for address in (requested, url):
+                found = self.by_url(address) if address else None
+                if found is not None and self.has_text(found):
+                    return found, False
         for item in items:
             if item.get("sha256") == digest and item.get("url") == url:
                 if asked and asked[0] not in (item.get("asked") or []):  # another way to the same page
@@ -288,12 +313,14 @@ class Sources:
         if path.stat().st_size > MAX_DOWNLOAD:
             raise SourceError("The file is larger than 25 MB.")
         kind, found_title, text, pages = extract(path.read_bytes(), "", path.name)
-        item, created = self.save(text=text, title=title or found_title or path.name, kind=kind,
-                                  url=None, pages=pages)
-        if created:  # remember which project file it came from
-            items = self.list()
-            for entry in items:
-                if entry["id"] == item["id"]:
-                    entry["original"] = item["original"] = relative
-            write_json_atomic(self.index_path, {"sources": items})
+        with _lock(self.workspace):  # the save and the note of where it came from, with no save in between
+            item, created = self._save(text=text, title=title or found_title or path.name, kind=kind, url=None,
+                                       pages=pages, original=None, original_ext="", requested=None, into=None,
+                                       reuse_address=False)
+            if created:  # remember which project file it came from
+                items = self.list()
+                for entry in items:
+                    if entry["id"] == item["id"]:
+                        entry["original"] = item["original"] = relative
+                write_json_atomic(self.index_path, {"sources": items})
         return item, created

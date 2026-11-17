@@ -88,7 +88,7 @@ def register(app: FastAPI, settings: Settings) -> None:
 
         tailscale = (await detected())["tailscale"]
         try:
-            result = setup.plan(body.answers, settings, tailscale=lambda: tailscale)
+            result = setup.plan(body.answers, settings, tailscale=lambda: tailscale, from_api=True)
         except setup.SetupError as exc:
             return JSONResponse({"error": {"code": "invalid_setup", "message": str(exc)}}, status_code=400)
         running = (settings.port, tuple(settings.hosts), settings.open_tailnet, settings.shared)

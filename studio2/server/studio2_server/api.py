@@ -640,7 +640,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.patch("/api/mcp-servers/{server_id}")
     async def update_server(server_id: str, request: Request):
-        return studio.lib.update_server(server_id, await json_object(request))
+        fields = await json_object(request)
+        current = studio.lib.server(server_id)
+        if current.get("source") == "yours" and current.get("secret_names"):
+            # Stored headers and environment values go only where they were saved for: anything on
+            # this computer can call this route, so a new address or command that kept them would
+            # hand them to whoever is there (CONTRACT.md, "Where a key is kept").
+            transport = fields.get("transport") or current["transport"]
+            moved = transport != current["transport"] or any(
+                fields.get(name) is not None and fields[name] != current.get(name) for name in ("url", "command")) \
+                or (fields.get("args") is not None and [str(a) for a in fields["args"] or []] != current.get("args"))
+            given = fields.get("headers" if transport == "http" else "env")
+            if moved and not (isinstance(given, dict) and all(str(v) != "" for v in given.values())):
+                raise ApiError(400, "secret_needed", "This connector now points somewhere else: give its "
+                                                     + ("headers" if transport == "http" else "environment values")
+                                                     + " again. Saved ones are only sent where they were saved for.")
+        return studio.lib.update_server(server_id, fields)
 
     @app.delete("/api/mcp-servers/{server_id}", status_code=204)
     async def delete_server(server_id: str):
@@ -842,12 +857,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/projects/{project_id}/export/folder")
     async def export_folder(project_id: str):
         project = studio.store.get(project_id)
+        # Written to a temporary file and sent from there (like the project download): a folder with a
+        # large video never sits in memory whole. The file is removed once it has been sent.
+        handle = tempfile.NamedTemporaryFile(prefix="studio2-export-", suffix=".zip", delete=False)
+        handle.close()
+        target = Path(handle.name)
         try:
-            data = await asyncio.to_thread(exporting.folder_zip, studio.store.workspace(project_id), project)
-        except exporting.ExportUnavailable as exc:
-            raise ApiError(409, "export_unavailable", str(exc)) from None
-        return Response(data, media_type="application/zip", headers={
-            "content-disposition": f'attachment; filename="{_export_name(project)}-export.zip"', "cache-control": "no-store"})
+            await asyncio.to_thread(exporting.folder_zip, studio.store.workspace(project_id), project, target)
+        except BaseException as exc:
+            target.unlink(missing_ok=True)
+            if isinstance(exc, exporting.ExportUnavailable):
+                raise ApiError(409, "export_unavailable", str(exc)) from None
+            raise
+        return FileResponse(target, media_type="application/zip", headers={
+            "content-disposition": f'attachment; filename="{_export_name(project)}-export.zip"', "cache-control": "no-store"},
+            background=BackgroundTask(target.unlink, missing_ok=True))
 
     @app.delete("/api/projects/{project_id}", status_code=204)
     async def delete_project(project_id: str):

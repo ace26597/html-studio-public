@@ -138,3 +138,120 @@ async def test_the_agent_can_save_a_template(studio, project):
     assert not answer.get("is_error"), answer
     assert json.loads(answer["content"][0]["text"])["kind"] == "page"
     assert [t["label"] for t in studio.saved.list()] == ["From chat"]
+
+
+# -- a template cannot replace the project's .git, in any spelling ------------------------------------
+def _zip(entries):
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        for name, data in entries.items():
+            z.writestr(name, data)
+    return out.getvalue()
+
+
+def _hostile_config(marker):
+    return f'[core]\n\tfsmonitor = "touch {marker}; false"\n'
+
+
+def test_an_import_refuses_a_git_folder_in_any_case(studio, tmp_path):
+    import pytest
+    from studio2_server.templates import TemplateError
+    meta = json.dumps({"label": "Evil", "kind": "app"})
+    for name in ("files/.GIT/config", "files/.Git/HEAD", "files/sub/.gIt/config", "files/.g‌it/config"):
+        with pytest.raises(TemplateError) as caught:
+            studio.saved.import_zip(_zip({"template.json": meta, "files/index.html": "x",
+                                          name: _hostile_config(tmp_path / "ran")}), confirm=True)
+        assert caught.value.code == "invalid_template", name
+    assert not studio.saved.list()
+
+
+def test_a_studio_json_in_another_case_still_needs_confirmation(studio):
+    import pytest
+    from studio2_server.templates import TemplateError
+    meta = json.dumps({"label": "App", "kind": "app"})
+    for name in ("files/Studio.JSON", "files/TOOLS/build.py"):
+        with pytest.raises(TemplateError) as caught:
+            studio.saved.import_zip(_zip({"template.json": meta, "files/index.html": "x", name: "{}"}))
+        assert caught.value.code == "needs_confirmation", name
+
+
+def test_starting_a_project_never_copies_a_template_git_folder_over_its_own(tmp_path):
+    from studio2_server import workspace as ws
+    template = tmp_path / "template"
+    (template / "dot-git").mkdir(parents=True)
+    (template / "index.html").write_text("<h1>{{title}}</h1>")
+    marker = tmp_path / "ran"
+    # Named in upper case on purpose: on a Mac disk this is the project's .git once copied.
+    (template / "dot-git" / "config").write_text(_hostile_config(marker))
+    (template / "dot-git").rename(template / ".GIT")
+    workspace = tmp_path / "project"
+    ws.init_workspace(workspace, "New", template=template)
+    ws.git(workspace, "status")
+    assert not marker.exists()
+    assert "fsmonitor" not in (workspace / ".git" / "config").read_text()
+    assert (workspace / "index.html").read_text() == "<h1>New</h1>"
+
+
+def test_the_studios_git_ignores_settings_in_a_project_config_that_run_commands(tmp_path):
+    import subprocess
+    from studio2_server import workspace as ws
+    workspace = tmp_path / "project"
+    ws.init_workspace(workspace, "New")
+    marker = tmp_path / "ran"
+    with (workspace / ".git" / "config").open("a") as config:
+        config.write(_hostile_config(marker))
+    (workspace / "index.html").write_text("<h1>changed</h1>")
+    ws.git(workspace, "status")
+    ws.checkpoint(workspace, "user", "A change")
+    assert not marker.exists()
+    # Plain git does run it: the test above proves something.
+    subprocess.run(["git", "status"], cwd=workspace, capture_output=True)
+    assert marker.exists()
+
+
+# -- a template never carries an app's run-time data or env files -------------------------------------
+def _private_files(workspace):
+    (workspace / "studio.json").write_text('{"run": "python3 server.py"}')
+    (workspace / "server.py").write_text("print('hi')")
+    (workspace / ".env").write_text("STRIPE_KEY=sk_live_secret\n")
+    (workspace / "api").mkdir(exist_ok=True)
+    (workspace / "api" / ".env.production").write_text("DB=postgres://secret\n")
+    (workspace / "state" / "uploads").mkdir(parents=True, exist_ok=True)
+    (workspace / "state" / "app.db").write_bytes(b"customer rows")
+    (workspace / "state" / "uploads" / "invoice.pdf").write_bytes(b"%PDF")
+    (workspace / "src" / "state").mkdir(parents=True, exist_ok=True)
+    (workspace / "src" / "state" / "store.js").write_text("export const store = {}")   # app code, kept
+
+
+async def test_saving_an_app_leaves_out_state_and_env_files(client, studio, project):
+    workspace = studio.store.workspace(project["id"])
+    (workspace / "index.html").write_text("<h1>App</h1>")
+    _private_files(workspace)
+    saved = (await client.post(f"/api/projects/{project['id']}/template", json={"name": "Billing app"})).json()
+    assert saved["kind"] == "app"
+    files = studio.saved.files(saved["id"])
+    kept = sorted(p.relative_to(files).as_posix() for p in files.rglob("*") if p.is_file())
+    assert not [k for k in kept if k.startswith("state/") or ".env" in k], kept
+    assert "src/state/store.js" in kept and "server.py" in kept and "studio.json" in kept
+    names = zipfile.ZipFile(io.BytesIO((await client.get(f"/api/templates/{saved['id']}/export")).content)).namelist()
+    assert not [n for n in names if n.startswith("files/state/") or ".env" in n], names
+
+
+async def test_a_template_saved_before_the_rule_loses_state_and_env_files_on_export_and_use(client, studio, project):
+    workspace = studio.store.workspace(project["id"])
+    (workspace / "index.html").write_text("<h1>App</h1>")
+    (workspace / "studio.json").write_text('{"run": "python3 server.py"}')
+    saved = (await client.post(f"/api/projects/{project['id']}/template", json={"name": "Old app"})).json()
+    _private_files(studio.saved.files(saved["id"]))          # as an older studio would have saved it
+    names = zipfile.ZipFile(io.BytesIO((await client.get(f"/api/templates/{saved['id']}/export")).content)).namelist()
+    assert not [n for n in names if n.startswith("files/state/") or ".env" in n], names
+    started = (await client.post("/api/projects", json={"name": "From the old one", "template": saved["id"]})).json()
+    new = studio.store.workspace(started["id"])
+    assert not (new / ".env").exists() and not (new / "state" / "app.db").exists()
+    assert not (new / "api" / ".env.production").exists() and (new / "src" / "state" / "store.js").is_file()
+    data = _zip({"template.json": json.dumps({"label": "Shared", "kind": "app"}), "files/index.html": "x",
+                 "files/.env": "KEY=1", "files/state/app.db": "rows"})
+    imported = studio.saved.import_zip(data, confirm=True)
+    kept = [p.relative_to(studio.saved.files(imported["id"])).as_posix()
+            for p in studio.saved.files(imported["id"]).rglob("*") if p.is_file()]
+    assert kept == ["index.html"]

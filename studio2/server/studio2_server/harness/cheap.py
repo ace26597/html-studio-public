@@ -14,6 +14,7 @@ import os
 from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, ClaudeSDKClient, ResultMessage, TextBlock
 
 from .. import costs
+from ..config import environment, without
 from . import claude as agent
 
 CHEAP_MODEL = "haiku"   # an alias: child_env pins what it means on gateways and cloud accounts
@@ -26,11 +27,12 @@ class CheapCallFailed(Exception):
 async def ask(connection: dict, system: str, prompt: str, timeout: float, secrets=None,
               workdir: str | None = None, endpoint=None) -> str:
     """→ the model's text. Raises CheapCallFailed on any failure and asyncio.TimeoutError on time."""
+    parent = environment()      # os.environ lacks the endpoint variables while another program starts
     try:
-        env, scrub = agent.child_env(connection, os.environ, None, secrets, endpoint)
+        env, scrub = agent.child_env(connection, parent, None, secrets, endpoint)
     except agent.HarnessError as exc:
         raise CheapCallFailed(str(exc)) from None
-    env = {**agent.hidden_secrets(os.environ), **agent.outside_python(os.environ), **env}
+    env = {**agent.hidden_secrets(parent), **agent.outside_python(parent), **env}
     header = costs.turn_header(str(connection.get("kind")), costs.CURRENT_TURN.get())
     if header:      # a request of the turn it helps: its spend is counted in the turn
         env["ANTHROPIC_CUSTOM_HEADERS"] = header
@@ -43,11 +45,8 @@ async def ask(connection: dict, system: str, prompt: str, timeout: float, secret
 
     async def run() -> None:
         async with agent._SPAWN_LOCK:
-            saved = {name: os.environ.pop(name) for name in scrub if name in os.environ}
-            try:
+            with without(scrub):
                 await client.connect()
-            finally:
-                os.environ.update(saved)
         await client.query(prompt)
         async for message in client.receive_messages():
             if isinstance(message, AssistantMessage):

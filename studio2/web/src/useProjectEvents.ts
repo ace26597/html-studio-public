@@ -3,6 +3,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { goToSignIn, needsSignIn } from "./signIn";
+import { STALL_CHECK_MS, streamStalled } from "./streamWatch";
 import { initialThread, reduceEvents, seedApp, type ThreadState } from "./thread";
 import type { AppInfo, StudioEvent } from "./types";
 
@@ -42,6 +44,8 @@ export function useProjectEvents(
     let frame = 0;
     let retry = 0;
     let lastSeq = 0;
+    // When anything (an event, a keep-alive, the connection opening) last arrived.
+    let heardAt = Date.now();
     receivedRef.current = 0;
     // The contract has no "replay finished" marker, so an event counts as live
     // when its timestamp is not older than this page's first connection.
@@ -58,15 +62,28 @@ export function useProjectEvents(
       setThread((state) => reduceEvents(state, batch));
     };
 
+    const reconnectLater = () => {
+      if (disposed) return;
+      window.clearTimeout(retry);
+      retry = window.setTimeout(connect, 2000);
+    };
+
     const connect = () => {
       if (disposed) return;
       // The browser reconnects by itself with Last-Event-ID; `after` covers the
       // case where we have to open a fresh EventSource.
       source = new EventSource(api.eventsUrl(projectId, lastSeq));
+      heardAt = Date.now();
       source.onopen = () => {
+        heardAt = Date.now();
         if (!disposed) setStream("open");
       };
+      // The server's keep-alive: nothing to apply, only proof that the connection is alive.
+      source.addEventListener("ping", () => {
+        heardAt = Date.now();
+      });
       source.onmessage = (message) => {
+        heardAt = Date.now();
         let event: StudioEvent;
         try {
           event = JSON.parse(message.data) as StudioEvent;
@@ -87,19 +104,39 @@ export function useProjectEvents(
         setStream("reconnecting");
         if (source?.readyState === EventSource.CLOSED) {
           source.close();
-          window.clearTimeout(retry);
-          retry = window.setTimeout(connect, 2000);
+          // The browser gave up on an answer that was not a stream. A 401 means the access key
+          // expired or changed: that is the sign-in page, not a retry every 2 s for ever.
+          api.health().then(
+            () => reconnectLater(),
+            (error) => {
+              if (disposed) return;
+              if (needsSignIn(error)) goToSignIn();
+              else reconnectLater();
+            },
+          );
         }
       };
     };
 
     connect();
 
+    // A half-open connection (after a sleep or a change of network) keeps saying "open" and
+    // delivers nothing, so the thread would say "Working…" for ever. Silence for three
+    // keep-alives means it is dead: open a new one from the last seq received.
+    const watch = window.setInterval(() => {
+      if (disposed || !source || source.readyState === EventSource.CLOSED) return;
+      if (!streamStalled(heardAt, Date.now())) return;
+      source.close();
+      setStream("reconnecting");
+      connect();
+    }, STALL_CHECK_MS);
+
     return () => {
       disposed = true;
       source?.close();
       window.clearTimeout(frame);
       window.clearTimeout(retry);
+      window.clearInterval(watch);
     };
   }, [projectId, enabled]);
 

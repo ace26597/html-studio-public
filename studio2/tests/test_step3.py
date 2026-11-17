@@ -233,6 +233,53 @@ async def test_an_address_already_saved_is_not_downloaded_or_repeated_and_a_sour
     assert all(len(by_name[name]) < 520 for name in ("search_web", "fetch_source", "read_source"))
 
 
+@pytest.fixture
+def slow_index(monkeypatch):
+    """Writing the index takes a moment, so saves that run together really overlap."""
+    import time
+
+    from studio2_server import sources as sources_module
+    real = sources_module.write_json_atomic
+
+    def slow(path, data):
+        time.sleep(0.05)
+        real(path, data)
+    monkeypatch.setattr(sources_module, "write_json_atomic", slow)
+
+
+async def test_parallel_saves_each_get_their_own_id_paired_with_their_own_text(tmp_path, slow_index):
+    import asyncio
+    store = Sources(tmp_path)
+    pages = [(f"https://example.com/page{n}", f"Page {n} says the figure is {n * 111} units, plainly.")
+             for n in range(6)]
+    results = await asyncio.gather(*(asyncio.to_thread(store.save, text=text, title=url, kind="text", url=url)
+                                     for url, text in pages))
+    assert sorted(item["id"] for item, _ in results) == [f"s{n}" for n in range(1, 7)]
+    listed = {item["id"]: item for item in store.list()}
+    assert len(listed) == 6
+    for (item, created), (url, text) in zip(results, pages):
+        assert created and listed[item["id"]]["url"] == url and store.text(item["id"]) == text
+    assert not list((tmp_path / "sources").glob("*.tmp"))       # no temporary index left behind
+
+
+async def test_two_fetches_of_one_address_at_once_end_with_one_source(monkeypatch, studio, project, slow_index):
+    import asyncio
+    calls = []
+
+    async def download(url):  # a page that changes on every load (a clock, an ad), so the texts differ
+        calls.append(url)
+        await asyncio.sleep(0.02)
+        return (f"<title>Live</title><p>The live page, loaded as number {len(calls)}, with enough words.</p>".encode(),
+                "text/html", url)
+    monkeypatch.setattr(tools, "download", download)
+    results = await asyncio.gather(*(tools.call(studio, project["id"], "fetch_source", {"url": "https://example.com/live"})
+                                     for _ in range(2)))
+    views = [json.loads(result["content"][0]["text"]) for result in results]
+    assert len(calls) == 2                                       # both had started before either was saved
+    assert {view["id"] for view in views} == {"s1"} and sorted(v["already_saved"] for v in views) == [False, True]
+    assert [item["id"] for item in Sources(studio.store.workspace(project["id"])).list()] == ["s1"]
+
+
 async def test_studio_tools_work_inside_a_project(client, studio, project):
     pid, workspace = project["id"], studio.store.workspace(project["id"])
     (workspace / "data").mkdir(exist_ok=True)
@@ -292,7 +339,8 @@ async def test_skills_and_servers_are_listed_added_and_chosen_per_project(client
     assert (await client.post("/api/mcp-servers", json={"name": "studio", "transport": "http", "url": "https://x.y"})).status_code == 400
     assert (await client.post("/api/mcp-servers", json={"name": "docs", "transport": "http", "url": "https://x.y"})).status_code == 409
     assert (await client.patch("/api/mcp-servers/machine:notes", json={"label": "x"})).status_code == 404
-    kept = await client.patch(f"/api/mcp-servers/{sid}", json={"label": "Docs", "headers": {"Authorization": "", "X-Team": "t1"}})
+    # Headers are given whole (an empty value no longer keeps a stored one: test_saved_keys.py).
+    kept = await client.patch(f"/api/mcp-servers/{sid}", json={"label": "Docs", "headers": {"Authorization": "Bearer abc123", "X-Team": "t1"}})
     assert kept.json()["label"] == "Docs" and kept.json()["secret_names"] == ["Authorization", "X-Team"]
     assert studio.lib.server_config(sid)["headers"] == {"Authorization": "Bearer abc123", "X-Team": "t1"}
 

@@ -11,6 +11,7 @@ import shutil
 import os
 import re
 import subprocess
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -39,7 +40,45 @@ GIT_BASE = [
     "git", "-c", "user.name=Studio", "-c", "user.email=studio@localhost",
     "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
     "-c", "core.quotepath=false", "-c", "core.autocrlf=false", "-c", "init.defaultBranch=main",
+    # A project's own .git/config must never make the studio's git run a command (the agent can
+    # write that file): these settings name programs, or make git look for one, and a value given
+    # here wins over the repository's. Programs named under a name of the project's choosing
+    # (filter.<x>, diff.<x>, merge.<x>) cannot be listed here: see HELD_ATTRIBUTES.
+    "-c", "core.fsmonitor=false", "-c", "core.sshCommand=ssh", "-c", "core.pager=cat",
+    "-c", "core.editor=true", "-c", "sequence.editor=true", "-c", "core.askPass=true",
+    "-c", "credential.helper=", "-c", "core.alternateRefsCommand=true", "-c", "merge.default=text",
+    "-c", "log.showSignature=false", "-c", "merge.verifySignatures=false", "-c", "gpg.program=false",
+    "-c", "submodule.recurse=false", "-c", "fetch.recurseSubmodules=false",
+    # The studio only ever reads other repositories by their path on this disk: no network, no
+    # `ext::` command transport, whatever `url.<x>.insteadOf` the project sets.
+    # A `protocol.<name>.allow` outranks `protocol.allow`, so each transport git has is named.
+    "-c", "protocol.allow=never", "-c", "protocol.file.allow=always",
+    *[item for name in ("ext", "fd", "git", "ssh", "http", "https", "ftp", "ftps")
+      for item in ("-c", f"protocol.{name}.allow=never")],
 ]
+# Held as the whole of `info/attributes` in the git directory before every studio git command.
+# That file outranks every `.gitattributes` in the tree, so no attribute the project sets can name
+# a filter, diff or merge driver (each runs a program from config). Works on every git version
+# (`GIT_ATTR_SOURCE`, git 2.41 and later, would leave `info/attributes` itself, which the agent can
+# also write). `!x` means "as if never set": git's own text handling, diffs and merges.
+HELD_ATTRIBUTES = ("# Written by the studio before each of its git commands, so that no attribute names a\n"
+                   "# program. Edits here are replaced.\n* !filter !diff !merge\n")
+# What git gets from the studio's environment: enough to find programs and its temp folder, never
+# the studio's keys (a program that did run would have them).
+GIT_ENV_KEEP = ("PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TZ", "SYSTEMROOT")
+# Diffs: no external diff program and no text conversion, whatever the config says.
+_DIFF_COMMANDS = {"diff", "show", "log"}
+# Code points HFS+ ignores in a name, so ".g\u200cit" is ".git" there (git refuses them the same way).
+_HFS_IGNORED = dict.fromkeys([0x200C, 0x200D, 0x200E, 0x200F, *range(0x202A, 0x202F), *range(0x206A, 0x2070),
+                              0xFEFF])
+
+
+def is_git_name(part: str) -> bool:
+    """A path part a Mac disk would treat as `.git` (case, Unicode form and ignored code points aside).
+    Written into a project, such a folder replaces the studio's own repository, and its config can
+    run commands."""
+    folded = unicodedata.normalize("NFC", part).translate(_HFS_IGNORED).casefold()
+    return folded == ".git"
 
 BLANK_INDEX = """<!doctype html>
 <html lang="en">
@@ -139,31 +178,68 @@ def list_files(workspace: Path, limit: int = 5000, kept_only: bool = False) -> l
     return files
 
 
-def git(workspace: Path, *args: str, check: bool = True) -> str:
-    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
-           "GIT_TERMINAL_PROMPT": "0"}
-    for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
-        env.pop(name, None)
+def git_env(workspace: Path) -> dict:
+    """The environment of the studio's git on a project: short, and with the studio's history
+    directory for a project edited in place."""
+    env = {name: os.environ[name] for name in GIT_ENV_KEEP if name in os.environ}
+    env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1", GIT_TERMINAL_PROMPT="0")
     outside = history_dir(workspace)
     if outside is not None:
         env.update(GIT_DIR=str(outside), GIT_WORK_TREE=str(Path(workspace).resolve()))
-    proc = subprocess.run([*GIT_BASE, *args], cwd=workspace, env=env, capture_output=True)
+    return env
+
+
+def hold_attributes(workspace: Path) -> None:
+    """Make `info/attributes` in the project's git directory exactly HELD_ATTRIBUTES (see there).
+    Never writes through a link: one the agent put there is removed first."""
+    git_dir = history_dir(workspace) or Path(workspace) / ".git"
+    if not git_dir.exists() and not git_dir.is_symlink():
+        return                              # before `git init`
+    if git_dir.is_symlink() or not git_dir.is_dir():
+        raise GitError(f"{git_dir} is not a folder, so the studio will not run git there.")
+    info = git_dir / "info"
+    if info.is_symlink() or (info.exists() and not info.is_dir()):
+        info.unlink()
+    info.mkdir(exist_ok=True)
+    target = info / "attributes"
+    if target.is_symlink():
+        target.unlink()
+    elif target.is_dir():
+        shutil.rmtree(target)
+    try:
+        if target.read_text("utf-8") == HELD_ATTRIBUTES:
+            return
+    except (OSError, UnicodeDecodeError):
+        pass
+    target.write_text(HELD_ATTRIBUTES, "utf-8")
+
+
+def git(workspace: Path, *args: str, check: bool = True) -> str:
+    hold_attributes(workspace)
+    if args and args[0] in _DIFF_COMMANDS:
+        args = (args[0], "--no-ext-diff", "--no-textconv", *args[1:])
+    proc = subprocess.run([*GIT_BASE, *args], cwd=workspace, env=git_env(workspace), capture_output=True)
     if check and proc.returncode != 0:
         raise GitError(proc.stderr.decode("utf-8", "replace").strip() or f"git {args[0]} failed")
     return proc.stdout.decode("utf-8", "replace")
 
 
 def init_workspace(workspace: Path, title: str, template: Path | None = None, label: str = "Blank page",
-                   exact: bool = False) -> dict:
+                   exact: bool = False, leave_out=None) -> dict:
     """Create the workspace. `template` is a folder whose files are copied in; "{{title}}" in
-    text files becomes the project name, unless `exact` (an example: its files are copied as they are)."""
+    text files becomes the project name, unless `exact` (an example: its files are copied as they are).
+    `leave_out(parts)` → True for a template path not to copy."""
     workspace.mkdir(parents=True, exist_ok=True)
     git(workspace, "init", "-q")
     if template and template.is_dir():
         for source in sorted(template.rglob("*")):
-            if source.is_dir():
+            relative = source.relative_to(template)
+            # Never over the studio's own .git, whatever case the template spells it in.
+            if source.is_dir() or source.is_symlink() or any(is_git_name(part) for part in relative.parts):
                 continue
-            target = workspace / source.relative_to(template)
+            if leave_out is not None and leave_out(relative.parts):
+                continue
+            target = workspace / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             if exact:
                 shutil.copyfile(source, target)

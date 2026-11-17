@@ -97,7 +97,15 @@ export function AppControl({
   const run = app.run ?? info?.run ?? null;
   const live = app.state === "running" || app.state === "starting";
   const external = app.state === "external";
-  const label = app.state === "starting" && info?.installing ? "Installing packages" : stateLabel;
+  const starting = app.state === "starting";
+  const label =
+    starting && info?.installing
+      ? "Installing packages"
+      : starting && info?.not_answering
+        ? "Not answering"
+        : starting && info?.slow
+          ? "Still starting"
+          : stateLabel;
   const entries: MenuEntry[] = external
     ? [
         { type: "section", label: "A server the studio did not start", note: info?.address ?? null },

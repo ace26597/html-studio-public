@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from . import workspace as ws
+from . import keyfiles, workspace as ws
 
 SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__", ".next", ".nuxt", ".svelte-kit", ".astro",
              ".turbo", ".vite", ".parcel-cache", ".angular", ".cache", "dist", "build", ".output", "target",
@@ -26,7 +26,10 @@ COUNT_LIMIT = 50_000
 GIT_LIMIT_BYTES, GIT_LIMIT_FILES = 2 * 1024 ** 3, 50_000
 FOLDER_LIMIT_BYTES, FOLDER_LIMIT_FILES = 500 * 1024 ** 2, 20_000
 UNCOMMITTED_LIMIT = 200
-ENV_RE = re.compile(r"^\.env(\..+)?$")
+# Key files (keyfiles.py, one rule for the whole studio) are kept out of every version, in a copy
+# and in place, and out of a patch of uncommitted changes taken into a copy.
+ENV_EXCLUDED = keyfiles.GIT_PATTERNS
+ENV_PATHSPEC = keyfiles.PATHSPEC_EXCLUDES
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 ALWAYS_EXCLUDED = ["node_modules/", ".venv/", "__pycache__/"]
 BUILD_EXCLUDED = [".next/", ".nuxt/", ".svelte-kit/", ".astro/", ".turbo/", ".vite/", ".parcel-cache/",
@@ -81,6 +84,12 @@ def git_info(folder: Path) -> dict | None:
         changes.append({"path": path, "status": kind})
     return {"branch": branch.strip() or None, "head": head.strip() or None, "subject": subject.strip(),
             "uncommitted": changes[:UNCOMMITTED_LIMIT], "uncommitted_more": max(0, len(changes) - UNCOMMITTED_LIMIT)}
+
+
+def is_env(name: str) -> bool:
+    """A key file (an env file and the like), at any depth: copied into a project only when ticked,
+    never versioned."""
+    return keyfiles.is_key_file(name)
 
 
 def _tracked(folder: Path) -> list[str]:
@@ -317,7 +326,7 @@ def inspect(path: str, protected: list[Path], home: Path, taken: set[Path]) -> d
     folder = Path(os.path.normpath(raw))
     result: dict = {"path": str(folder), "name": folder.name or str(folder), "exists": folder.is_dir(),
                     "readable": False, "writable": False, "git": None, "framework": None, "run": None,
-                    "package_manager": None, "install": None, "env_files": [],
+                    "package_manager": None, "install": None, "env_files": [], "env_links": [],
                     "size": {"files": 0, "bytes": 0, "history_bytes": 0, "partial": False},
                     "refused": {"copy": None, "in_place": None}, "notes": []}
     if not result["exists"]:
@@ -341,8 +350,10 @@ def inspect(path: str, protected: list[Path], home: Path, taken: set[Path]) -> d
     result["git"] = info
     result.update(detect(folder))
     try:
-        result["env_files"] = sorted(entry.name for entry in folder.iterdir()
-                                     if entry.is_file() and ENV_RE.match(entry.name))
+        keys = [entry for entry in folder.iterdir() if entry.is_file() and keyfiles.is_key_name(entry.name)]
+        # A link is never copied (it could point anywhere), so it is not offered for ticking.
+        result["env_files"] = sorted(entry.name for entry in keys if not entry.is_symlink())
+        result["env_links"] = sorted(entry.name for entry in keys if entry.is_symlink())
     except OSError:
         pass
     if info is not None:
@@ -367,6 +378,11 @@ def inspect(path: str, protected: list[Path], home: Path, taken: set[Path]) -> d
                      "starts from the last commit unless you include them.")
     if result["env_files"]:
         notes.append("Env files are copied only if you tick them, and never kept in versions.")
+    if result["env_links"]:
+        names = ", ".join(result["env_links"])
+        notes.append(f"{names} {'is a link' if len(result['env_links']) == 1 else 'are links'}, which the studio "
+                     "never copies, so a copy starts without it. Copy the file itself into the project if the "
+                     "app needs it.")
     return result
 
 
@@ -398,21 +414,29 @@ def _exclude(git_dir: Path, names: list[str]) -> None:
                       + "".join(f"{line}\n" for line in lines), "utf-8")
 
 
-def _copy_env(original: Path, workspace: Path, env_files: list[str], allowed: list[str]) -> list[str]:
-    copied = []
+def _copy_env(original: Path, workspace: Path, env_files: list[str], allowed: list[str]) -> tuple[list[str], list[dict]]:
+    """→ (copied, skipped): every ticked name that was not copied is said, with why."""
+    copied, skipped = [], []
     for name in env_files:
-        if name not in allowed or not ENV_RE.match(name):
-            continue
         source = original / name
-        if source.is_file() and not source.is_symlink():
+        if "/" in name or not keyfiles.is_key_name(name):
+            reason = "not a key file at the top of the folder"
+        elif source.is_symlink():
+            reason = "it is a link, and the studio never copies links"
+        elif name not in allowed or not source.is_file():
+            reason = "not found in the folder"
+        else:
             shutil.copyfile(source, workspace / name)
             copied.append(name)
-    return copied
+            continue
+        skipped.append({"name": name, "reason": reason})
+    return copied, skipped
 
 
 def _take_uncommitted(original: Path, workspace: Path) -> None:
-    """The original's uncommitted changes and untracked files, applied to the copy."""
-    _code, patch = _git_read(original, "diff", "--binary", "HEAD")
+    """The original's uncommitted changes and untracked files, applied to the copy. Env files are
+    left out: only the ticked ones are copied (`_copy_env`), and those are kept out of versions."""
+    _code, patch = _git_read(original, "diff", "--binary", "HEAD", "--", ".", *ENV_PATHSPEC)
     if patch.strip():
         proc = subprocess.run(["git", "apply", "--whitespace=nowarn", "-"], cwd=workspace, input=patch.encode(),
                               capture_output=True)
@@ -422,7 +446,8 @@ def _take_uncommitted(original: Path, workspace: Path) -> None:
     _code, out = _git_read(original, "ls-files", "-z", "--others", "--exclude-standard")
     for name in (n for n in out.split("\0") if n):
         source = original / name
-        if source.is_file() and not source.is_symlink() and not SKIP_DIRS.intersection(name.split("/")):
+        if source.is_file() and not source.is_symlink() and not SKIP_DIRS.intersection(name.split("/")) \
+                and not is_env(name):
             target = workspace / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
@@ -449,13 +474,13 @@ def make_copy(original: Path, workspace: Path, branch: str, studio_json: dict | 
         ws.git(workspace, "init", "-q")
         for name in names:
             source = original / name
-            if source.is_symlink() or not source.is_file():
-                continue
+            if source.is_symlink() or not source.is_file() or is_env(name):
+                continue        # key files come only through `_copy_env`, when ticked
             target = workspace / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
-    copied = _copy_env(original, workspace, env_files, allowed_env)
-    excluded = [*ALWAYS_EXCLUDED, *copied]
+    copied, skipped = _copy_env(original, workspace, env_files, allowed_env)
+    excluded = [*ALWAYS_EXCLUDED, *ENV_EXCLUDED, *copied]
     if studio_json is not None:
         (workspace / "studio.json").write_text(json.dumps(studio_json, indent=2) + "\n", "utf-8")
         excluded.append("studio.json")
@@ -465,7 +490,8 @@ def make_copy(original: Path, workspace: Path, branch: str, studio_json: dict | 
     first = ws.checkpoint(workspace, "init", label, allow_empty=True)
     return {"kind": "git" if info else "folder", "branch": (info or {}).get("branch"), "started_from": started,
             "studio_branch": branch if info else None, "import_commit": first["sha"],
-            "uncommitted": (info or {}).get("uncommitted") or [], "env_files": copied}
+            "uncommitted": (info or {}).get("uncommitted") or [], "env_files": copied,
+            "env_skipped": skipped}
 
 
 def start_history(folder: Path, git_dir: Path) -> dict:
@@ -474,9 +500,9 @@ def start_history(folder: Path, git_dir: Path) -> dict:
     proc = subprocess.run(["git", "init", "-q", "--bare", str(git_dir)], capture_output=True)
     if proc.returncode != 0:
         raise AttachError("copy_failed", "The studio could not start its history for this folder.")
-    _exclude(git_dir, [*ALWAYS_EXCLUDED, ".env", ".env.*", *BUILD_EXCLUDED])
+    _exclude(git_dir, [*ALWAYS_EXCLUDED, *ENV_EXCLUDED, *BUILD_EXCLUDED])
     ws.register_history(folder, git_dir)
     first = ws.checkpoint(folder, "init", f"Start editing {folder} in place", allow_empty=True)
     return {"kind": "git" if info else "folder", "branch": (info or {}).get("branch"),
             "started_from": (info or {}).get("head"), "studio_branch": None, "import_commit": first["sha"],
-            "uncommitted": (info or {}).get("uncommitted") or [], "env_files": []}
+            "uncommitted": (info or {}).get("uncommitted") or [], "env_files": [], "env_skipped": []}

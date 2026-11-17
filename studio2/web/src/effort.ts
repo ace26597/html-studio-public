@@ -8,12 +8,14 @@ export interface TurnOptions {
   check_only?: boolean;
 }
 
-export const DEPTHS: { id: Depth; label: string; line: string }[] = [
-  { id: "quick", label: "Quick", line: "Quick: the smallest thing that answers, few sources, short." },
-  { id: "standard", label: "Standard", line: "Standard: the usual amount of work." },
+/** `short` is what the composer's menu says beside the step; `line` is the full sentence. */
+export const DEPTHS: { id: Depth; label: string; short: string; line: string }[] = [
+  { id: "quick", label: "Quick", short: "short, few sources", line: "Quick: the smallest thing that answers, few sources, short." },
+  { id: "standard", label: "Standard", short: "the usual", line: "Standard: the usual amount of work." },
   {
     id: "deep",
     label: "Deep",
+    short: "slower, costs more",
     line: "Deep: plans first, many more sources, a fuller result and a check at the end. Takes longer and uses more of your model allowance or money.",
   },
 ];

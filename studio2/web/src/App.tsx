@@ -6,6 +6,7 @@ import { LibraryPage } from "./LibraryPage";
 import { ProjectPage } from "./Project";
 import { useRoute } from "./router";
 import { SetupPage } from "./SetupPage";
+import { goToSignIn, healthFailure, type HealthFailure } from "./signIn";
 import { useTheme } from "./theme";
 import type { Health } from "./types";
 import { ConfirmProvider, ToastProvider } from "./ui";
@@ -48,10 +49,30 @@ function ServerDown({ onRetry, checking }: { onRetry: () => void; checking: bool
   );
 }
 
+/** The studio answered, but not with its health: say what it said instead of "not running". */
+function ServerError({ message, onRetry, checking }: { message: string; onRetry: () => void; checking: boolean }) {
+  return (
+    <div className="fullpage">
+      <div className="fullpage-card" role="alert">
+        <h1>The studio couldn’t be opened</h1>
+        <p>{message}</p>
+        <div className="fullpage-actions">
+          <button type="button" className="btn" onClick={onRetry} disabled={checking}>
+            {checking ? <Spinner size={13} /> : <Icon name="refresh" size={14} />}
+            Check again
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type Failed = { failed: Exclude<HealthFailure, { kind: "sign-in" }> };
+
 export function App() {
   const [route, navigate] = useRoute();
   const [theme, toggleTheme] = useTheme();
-  const [health, setHealth] = useState<Health | "down" | null>(null);
+  const [health, setHealth] = useState<Health | Failed | null>(null);
   const [checking, setChecking] = useState(false);
 
   const check = useCallback(() => {
@@ -61,8 +82,11 @@ export function App() {
         setHealth(result);
         setChecking(false);
       },
-      () => {
-        setHealth("down");
+      (error) => {
+        const failure = healthFailure(error);
+        // An expired or changed access key: the sign-in page, which brings the person back here.
+        if (failure.kind === "sign-in") goToSignIn();
+        else setHealth({ failed: failure });
         setChecking(false);
       },
     );
@@ -72,12 +96,13 @@ export function App() {
     check();
   }, [check]);
 
-  // While the server is down, keep looking for it.
+  // While the server is down (or answers with an error), keep looking for it.
+  const failed = health !== null && "failed" in health;
   useEffect(() => {
-    if (health !== "down") return;
+    if (!failed) return;
     const timer = window.setInterval(check, 3000);
     return () => window.clearInterval(timer);
-  }, [health, check]);
+  }, [failed, check]);
 
   let page;
   if (health === null) {
@@ -86,8 +111,13 @@ export function App() {
         <Spinner size={18} />
       </div>
     );
-  } else if (health === "down") {
-    page = <ServerDown onRetry={check} checking={checking} />;
+  } else if ("failed" in health) {
+    page =
+      health.failed.kind === "down" ? (
+        <ServerDown onRetry={check} checking={checking} />
+      ) : (
+        <ServerError message={health.failed.message} onRetry={check} checking={checking} />
+      );
   } else if (route.name === "setup" || (route.name === "home" && health.setup?.needed)) {
     // Nothing is configured yet: the first-run screen stands in for the home page until it is
     // saved or skipped. `/setup` opens the same screen at any time.

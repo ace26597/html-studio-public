@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import html
 import json
 import logging
@@ -130,6 +131,10 @@ class TurnRunner:
         self.active: dict[str, str] = {}            # project id → running turn id
         self.tasks: dict[str, asyncio.Task] = {}
         self.cancellable: set[str] = set()          # turns still inside the harness, not yet stopped
+        self.stopped_with: dict[str, set[str]] = {}   # turn id → the queued ids waiting when Stop was pressed
+        self.late_stop: set[str] = set()            # turns stopped after the agent's part had ended
+        self.announced: set[str] = set()            # turns whose turn_finished is written
+        self.followed: set[str] = set()             # turns whose ending has dealt with the queue
         self.harness_tasks: dict[str, asyncio.Task] = {}
         self.queue: dict[str, list[dict]] = {}      # project id → messages waiting for the running turn
         self.pending: dict[str, dict[str, asyncio.Future]] = {}  # turn id → approval id → answer
@@ -144,6 +149,8 @@ class TurnRunner:
               options: dict | None = None) -> str:
         """Accept a turn. Synchronous on purpose: no await between the check and the claim."""
         studio, pid = self.studio, project["id"]
+        if pid in studio.deleting:      # its folder is about to go to the trash
+            raise ProjectNotFound(pid)
         if pid in self.active:
             raise TurnRunning(pid)
         if pid in studio.ships.running:   # a ship works from the saved version; nothing may change under it
@@ -171,6 +178,8 @@ class TurnRunner:
     def enqueue(self, project: dict, text: str, selection: dict | None, connection_id: str | None,
                 model: str | None, attachments: list[str] | None = None, options: dict | None = None) -> str:
         pid = project["id"]
+        if pid in self.studio.deleting:
+            raise ProjectNotFound(pid)
         item = {"queued_id": "q_" + secrets.token_hex(4), "text": text, "selection": selection,
                 "attachments": list(attachments or []), "connection": connection_id, "model": model,
                 "options": effort.clean(options)}
@@ -189,6 +198,9 @@ class TurnRunner:
     def _start_next(self, pid: str) -> None:
         waiting = self.queue.get(pid, [])
         if pid in self.studio.ships.running:   # they run when the ship ends
+            return
+        if pid in self.studio.deleting:
+            waiting.clear()
             return
         while waiting and pid not in self.active:
             item = waiting.pop(0)
@@ -239,13 +251,23 @@ class TurnRunner:
 
     def stop(self, project_id: str, turn_id: str) -> None:
         """Idempotent: cancels the harness once; later calls and unknown turns are no-ops."""
-        if self.active.get(project_id) == turn_id and turn_id in self.cancellable:
+        if self.active.get(project_id) != turn_id:
+            return
+        # What was waiting at this moment is what the Stop clears; a message sent after it is kept.
+        self.stopped_with.setdefault(turn_id, {item["queued_id"] for item in self.queue.get(project_id, [])})
+        inner = self.harness_tasks.get(turn_id)
+        if turn_id in self.cancellable and not (inner is not None and inner.done()):
             self.cancellable.discard(turn_id)
             # Only the harness call is cancelled, never the turn's own task: a task cancelled
             # before its first step would end without recording `turn_finished`.
-            inner = self.harness_tasks.get(turn_id)
             if inner is not None:
                 inner.cancel()
+        else:
+            # The agent's part is over and the studio is finishing (saving, restarting the app,
+            # looking at the page). Nothing is left to cancel, but the person said stop: the turn
+            # ends stopped and nothing that would follow it by itself runs (CONTRACT.md).
+            self.cancellable.discard(turn_id)
+            self.late_stop.add(turn_id)
 
     async def stop_all(self) -> None:
         for pid, turn_id in list(self.active.items()):
@@ -297,9 +319,67 @@ class TurnRunner:
                                     agrees=read and not problems)
         return len(problems)
 
-    async def _run(self, pid: str, turn_id: str, text: str, selection: dict | None,
-                   connection: dict, model: str | None, attachments: list[str],
-                   options: dict | None = None) -> None:
+    async def _run(self, pid: str, turn_id: str, *args) -> None:
+        """One turn, and whatever raises in it or in its ending, the project is released: a turn
+        left in `active` would refuse every later message until the studio restarts."""
+        me, failure = asyncio.current_task(), None
+        try:
+            await self._turn(pid, turn_id, *args)
+        except Exception as exc:  # noqa: BLE001 - e.g. a full disk, or the project's folder went away under it
+            log.exception("Turn %s did not end cleanly", turn_id)
+            failure = exc
+        finally:
+            ours = self.active.get(pid) == turn_id      # a queued follow-up may already hold the project
+            if ours:
+                self.active.pop(pid, None)
+                self.studio.approvers.pop(pid, None)
+            if self.tasks.get(pid) is me:
+                self.tasks.pop(pid, None)
+            for held in (self.cancellable, self.late_stop, self.verified):
+                held.discard(turn_id)
+            for held in (self.harness_tasks, self.checked_pages, self.reports, self.proposed):
+                held.pop(turn_id, None)
+            for future in self.pending.pop(turn_id, {}).values():
+                if not future.done():
+                    future.cancel()
+            if ours:
+                try:
+                    if self.studio.store.get(pid).get("running_turn") == turn_id:
+                        self.studio.store.update(pid, running_turn=None)
+                except Exception:  # noqa: BLE001 - the project is gone; there is no record to clear
+                    pass
+            if turn_id not in self.announced:
+                # The page shows a request as running until its turn_finished: always write one.
+                with contextlib.suppress(Exception):
+                    self.studio.picker.finish(pid, "failed")
+                try:
+                    why = f"{failure.__class__.__name__}: {failure}" if failure else "it was interrupted"
+                    self.studio.log(pid).append(
+                        "turn_finished", turn_id, status="failed", usage={**empty_usage(), "duration_ms": None},
+                        error=f"The studio could not finish this request ({why}).", session_id=None)
+                except Exception:  # noqa: BLE001 - the log itself is gone (e.g. the project was deleted)
+                    log.exception("Could not record the end of turn %s", turn_id)
+            if turn_id not in self.followed and failure is not None and pid not in self.studio.deleting:
+                try:    # the queue goes on, as after any failed request: nothing waits for ever
+                    self._clear_stopped(pid, turn_id)
+                    self.studio.ships.from_agent.pop(pid, None)
+                    self._start_next(pid)
+                except Exception:  # noqa: BLE001
+                    log.exception("Could not start the queue after turn %s", turn_id)
+            self.stopped_with.pop(turn_id, None)
+            self.announced.discard(turn_id)
+            self.followed.discard(turn_id)
+
+    def _clear_stopped(self, pid: str, turn_id: str) -> None:
+        """A Stop clears what was waiting when it was pressed, never what was sent after it."""
+        waiting = self.stopped_with.get(turn_id)
+        for item in list(self.queue.get(pid, [])):
+            if waiting is not None and item["queued_id"] in waiting:
+                self.unqueue(pid, item["queued_id"])
+
+    async def _turn(self, pid: str, turn_id: str, text: str, selection: dict | None,
+                    connection: dict, model: str | None, attachments: list[str],
+                    options: dict | None = None) -> None:
         studio = self.studio
         events, workspace = studio.log(pid), studio.store.workspace(pid)
         project = studio.store.get(pid)
@@ -355,8 +435,12 @@ class TurnRunner:
             log.exception("Turn %s failed", turn_id)
             status, error = "failed", str(exc) or exc.__class__.__name__
         studio.approvers.pop(pid, None)
+
+        def halted() -> bool:   # Stop pressed, also after the agent's part had ended (stop())
+            return status == "stopped" or turn_id in self.late_stop
+
         reported, still_wrong = turn_id in self.verified, 0
-        if reported:     # the studio checks the agent's claims itself (never sends it back)
+        if reported and not halted():     # the studio checks the agent's claims itself (never sends it back)
             try:
                 still_wrong = await self._recheck(pid, turn_id, workspace)
             except Exception:  # noqa: BLE001 - a failed re-check only loses the extra line
@@ -366,15 +450,15 @@ class TurnRunner:
             events.append("notice", turn_id, level="warning", message=effort.NOT_REPORTED)   # never a silent pass
         self.verified.discard(turn_id)
         report, proposed = self.reports.pop(turn_id, {}), self.proposed.pop(turn_id, [])
-        studio.picker.finish(pid, status)
         self.cancellable.discard(turn_id)  # from here on the turn only records its outcome
         self.harness_tasks.pop(turn_id, None)
         self._close_approvals(pid, turn_id)
 
-        changed_files = False
+        changed_files, unsaved = False, False
         try:
             changed_files = await self._checkpoint(pid, turn_id, text, project.get("head"))
         except Exception as exc:
+            unsaved = True
             log.exception("Checkpoint after turn %s failed", turn_id)
             events.append("notice", turn_id, level="error", message=f"Could not save a version: {exc}")
         try:  # the project's own back end picks up what the agent changed
@@ -382,12 +466,12 @@ class TurnRunner:
         except Exception:
             log.exception("Could not restart the app of %s", pid)
         page_errors = 0
-        if status == "completed" and changed_files:
+        if status == "completed" and changed_files and not halted():
             try:    # the studio opens the page once itself: a page that is broken when it loads is said, not found later
                 page_errors = await self._look_after(pid, turn_id, workspace)
             except Exception:  # noqa: BLE001 - the look is an extra; the request still ends properly
                 log.exception("The look at the page after turn %s failed", turn_id)
-        if status == "completed":    # chips under the answer; a tap only fills the chat box (nextsteps.py)
+        if status == "completed" and not halted():    # chips under the answer; a tap only fills the chat box (nextsteps.py)
             try:
                 steps = nextsteps.compose(
                     {"changed": changed_files, "verify": bool((options or {}).get("verify")), "reported": reported,
@@ -398,6 +482,17 @@ class TurnRunner:
                     events.append("next_steps", turn_id, steps=steps)
             except Exception:  # noqa: BLE001 - suggestions are an extra; the request still ends properly
                 log.exception("Could not suggest next steps after turn %s", turn_id)
+        if status == "completed" and turn_id in self.late_stop:
+            # Truthful about both: the person stopped it, and the agent's work had already ended.
+            # A failed request stays failed: its error is what the person needs to see.
+            status = "stopped"
+            kept_as = ("what it changed is saved as a version" if changed_files
+                       else "what it changed could not be saved as a version (see above)" if unsaved
+                       else "it had changed no files")
+            events.append("notice", turn_id, level="info",
+                          message=f"Stopped after the agent had already finished its part: {kept_as}; "
+                                  "nothing that would have followed was started.")
+        studio.picker.finish(pid, status)
         if usage.get("duration_ms") is None:
             usage["duration_ms"] = int((time.monotonic() - started) * 1000)
         if status == "failed" and not error:
@@ -412,6 +507,9 @@ class TurnRunner:
             usage["cost_basis"] = ("plan" if usage.get("cost_estimated")
                                    else "calculated" if connection["kind"] in AGENT_PRICED else None)
             kept = {"session_cost": {"session_id": session["id"], "total_usd": total}}
+        elif isinstance(usage.get("session_cost_usd"), (int, float)) and connection["kind"] in SELF_PRICED:
+            # A gateway prices this turn itself, but the conversation's total ran on: keep it as the mark.
+            kept = {"session_cost": {"session_id": session["id"], "total_usd": usage["session_cost_usd"]}}
         self.active.pop(pid, None)
         self.tasks.pop(pid, None)
         try:  # release the project before announcing the end, so a follow-up turn is accepted
@@ -426,17 +524,24 @@ class TurnRunner:
             usage["cost_pending"] = True     # the gateway's own figure is read back after the turn (costs.py)
         events.append("turn_finished", turn_id, status=status, error=error, usage=usage,
                       session_id=session["id"])
+        self.announced.add(turn_id)
         if usage.get("cost_pending"):
             studio.costs.settle(pid, turn_id, connection, started_at)
-        if status == "stopped":  # Stop means stop: the follow-ups and an asked-for ship do not run either
+        if status == "stopped" and turn_id not in self.stopped_with:   # stopped by something else: all of it
+            self.stopped_with[turn_id] = {item["queued_id"] for item in self.queue.get(pid, [])}
+        if turn_id in self.stopped_with:
+            # Stop means stop: what was queued before it and an asked-for ship do not run. A message
+            # sent after the Stop is the person's next request and runs now.
             studio.ships.from_agent.pop(pid, None)
-            for item in list(self.queue.get(pid, [])):
-                self.unqueue(pid, item["queued_id"])
+            self._clear_stopped(pid, turn_id)
         else:
             if status == "failed":
                 studio.ships.from_agent.pop(pid, None)
             await studio.ships.after_turn(pid)   # "make it live" asked for during this turn
-            self._start_next(pid)
+        self._start_next(pid)
+        # Only now has this ending dealt with the queue: marked earlier, a failure in the lines
+        # above would have told _run's safety net there was nothing left for it to do.
+        self.followed.add(turn_id)
 
     LOOK_WAIT = 8.0         # how long an app may take to come back up before the look is skipped
 

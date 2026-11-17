@@ -28,11 +28,11 @@ import time
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
-from . import workspace as ws
+from . import keyfiles, workspace as ws
 from .apps import APP_ENV
 from .attach import NODE_HOMES, _git_read
 from .config import now_iso
-from .store import write_json_atomic
+from .store import ProjectNotFound, write_json_atomic
 
 if TYPE_CHECKING:
     from .studio import Studio
@@ -277,14 +277,9 @@ def _has_commit(workspace: Path, sha: str | None) -> bool:
 
 
 def _blob(workspace: Path, commit: str, path: str) -> bytes | None:
-    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
-    for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
-        env.pop(name, None)
-    outside = ws.history_dir(workspace)
-    if outside is not None:
-        env.update(GIT_DIR=str(outside), GIT_WORK_TREE=str(Path(workspace).resolve()))
-    proc = subprocess.run(["git", "cat-file", "blob", f"{commit}:{path}"], cwd=workspace, env=env,
-                          capture_output=True)
+    # Raw bytes (no --filters or --textconv), the studio's own settings, and its short environment.
+    proc = subprocess.run([*ws.GIT_BASE, "cat-file", "blob", f"{commit}:{path}"], cwd=workspace,
+                          env=ws.git_env(workspace), capture_output=True)
     return proc.stdout if proc.returncode == 0 else None
 
 
@@ -425,7 +420,50 @@ def plan(project: dict, workspace: Path) -> dict:
             result["refusal"] = "Nothing new since the last ship: no file changed since then."
             return result
         result["writes"] = [f"Nothing is moved: the project is {folder} itself, edited in place."]
+        return result
+    refusal = _key_file_refusal(workspace, method, result["base"], head, result["files"])
+    if refusal:
+        result["refusal"], result["next"] = refusal
+        result["writes"] = []
     return result
+
+
+def _key_file_refusal(workspace: Path, method: str, base: str | None, head: str,
+                      files: list[dict]) -> tuple[str, str] | None:
+    """Key files (keyfiles.py) are never versioned in a copy, so none should reach a ship; one that
+    does (a version forced past the rule, or a copy made before it) would put a secret in the
+    original. → (refusal, next) or None.
+
+    A branch or merge ship carries every version between `base` and `head` into the original's
+    repository, so every version is looked at, not only the end result: a key added in one version
+    and removed in a later one is still in the history. A key file the original already tracks
+    at `base` is his own file, and the usual key-free names (`.env.example`) are ordinary files."""
+    if method in ("branch", "merge"):
+        span = f"{base}..{head}" if base else head
+        # -m: without it git lists nothing for a merge commit, so a file that is in neither parent
+        # and was added in the merge itself would be carried unseen.
+        touched = {line for line in ws.git(workspace, "log", "-m", "--format=", "--name-only", "--no-renames",
+                                           span).splitlines() if line}
+        keys = sorted(path for path in touched if keyfiles.is_key_file(path) and not keyfiles.is_key_free(path))
+        if keys and base:
+            tracked = set(ws.git(workspace, "ls-tree", "-r", "--name-only", base, "--", *keys).splitlines())
+            keys = [path for path in keys if path not in tracked]
+        if not keys:
+            return None
+        shown = ", ".join(keys[:5]) + (" …" if len(keys) > 5 else "")
+        return ((f"A version this ship would carry adds or changes key files ({shown}). A {method} ship carries "
+                 "every version into the original's repository, not only the end result, so a key removed in a "
+                 "later version would still arrive there. The studio never ships key files."),
+                ("Removing the file in a new version is not enough. Make the change again in a fresh copy (bring "
+                 "the app in again), or make it in the original by hand; put keys into the original yourself."))
+    keys = [item["path"] for item in files
+            if keyfiles.is_key_file(item["path"]) and not keyfiles.is_key_free(item["path"])]
+    if not keys:
+        return None
+    shown = ", ".join(keys[:5]) + (" …" if len(keys) > 5 else "")
+    return ((f"The change includes key files ({shown}). The studio never ships key files into the original."),
+            ("Restore those files in the copy to how they were, then ship again (this way of shipping carries "
+             "no history, so that is enough). Change key files in the original by hand."))
 
 
 # -- the person's original, written only here ----------------------------------------------
@@ -449,19 +487,22 @@ def _apply(project: dict, workspace: Path, planned: dict, backup: Path) -> list[
         written = []
         for item in planned["files"]:
             target = _target(folder, item["path"])
+            data = None
+            if item["status"] != "deleted":
+                data = _blob(workspace, head, item["path"])
+                if data is None:
+                    raise ShipError("apply_failed", f"Could not read {item['path']} from the copy.")
             if target.exists():
                 keep = backup / item["path"]
                 keep.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(target, keep)
-            written.append(item)
+            # What is about to be there, so going back can tell the ship's write from a later edit.
+            written.append({**item, "wrote": _sha(data)})
             # Record each step before taking it, so a crash half way can still be undone.
             write_json_atomic(backup.parent / "applied.json", {"files": written})
             if item["status"] == "deleted":
                 target.unlink(missing_ok=True)
                 continue
-            data = _blob(workspace, head, item["path"])
-            if data is None:
-                raise ShipError("apply_failed", f"Could not read {item['path']} from the copy.")
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
             os.chmod(target, 0o755 if _mode(workspace, head, item["path"]) == "100755" else 0o644)
@@ -469,39 +510,115 @@ def _apply(project: dict, workspace: Path, planned: dict, backup: Path) -> list[
     return done
 
 
+def _in_the_way(folder: Path, before: str, shipped: str) -> list[str]:
+    """Files the ship changed that also have local changes in the original now (read only)."""
+    _code, changed = _git_read(folder, "diff", "--name-only", "--no-renames", before, shipped)
+    _code, status = _git_read(folder, "status", "--porcelain=v1", "--untracked-files=all", "--no-renames")
+    local = {line[3:].strip('"') for line in status.splitlines() if len(line) > 3}
+    return [path for path in changed.splitlines() if path in local]
+
+
+def _not_undone(folder: Path, expected: str, on: str | None, before: str | None, now: str | None,
+                shipped: str | None) -> ShipError:
+    if on != expected:
+        moved = (f"{folder} is now on {on or 'a detached commit'}, not on {expected} where the ship left it "
+                 f"(someone switched branches since)")
+    else:
+        moved = (f"{expected} in {folder} is at {(now or 'nothing')[:7]}, not at {(shipped or '?')[:7]} where the "
+                 f"ship left it (someone committed since)")
+    return ShipError("back_failed", (
+        f"The ship could not be undone automatically: {moved}. Before the ship {expected} was at "
+        f"{(before or 'nothing')[:7]}. The studio changed nothing, so that work is kept; settling it is yours "
+        "to do by hand."))
+
+
 def _go_back(project: dict, planned: dict, backup: Path) -> list[str]:
-    """Put the original back as it was before `_apply`. → lines saying what was done. Raises ShipError."""
+    """Put the original back as it was before `_apply`, without ever discarding what the studio did not
+    put there: the person may have edited or committed in his folder while the after-commands ran.
+    → lines saying what was done. Raises ShipError (`back_failed`) when something is left for him."""
     attach, method, folder = project["attach"], planned["method"], Path(project["attach"]["path"])
-    done = []
+    shipped, done = planned.get("head"), []
     if method in ("branch", "merge"):
         branch, before = attach["studio_branch"], planned["before"]
         if method == "merge" and before.get("head"):
-            code, out = _git_write(folder, "reset", "--hard", "-q", before["head"])
-            if code != 0:
-                raise ShipError("back_failed", f"git reset in the original failed: {out[:500]}")
-            done.append(f"{attach['branch']} in {folder} is back at {before['head'][:7]}.")
-        if before.get("ref"):
-            code, out = _git_write(folder, "update-ref", f"refs/heads/{branch}", before["ref"])
+            now = _read(folder, "rev-parse", "-q", "--verify", "HEAD") or None
+            on = _read(folder, "symbolic-ref", "-q", "--short", "HEAD") or None
+            if now == before["head"] and on == attach["branch"]:
+                done.append(f"{attach['branch']} in {folder} was still at {before['head'][:7]}.")
+            elif now != shipped or on != attach["branch"]:
+                raise _not_undone(folder, attach["branch"], on, before["head"], now, shipped)
+            else:
+                # --keep, never --hard: it refuses rather than lose a local change to a file the ship
+                # changed, and leaves every other edit and untracked file as it is. It does unstage
+                # what was staged (the content stays), so that is said.
+                _code, staged = _git_read(folder, "diff", "--cached", "--name-only", "--no-renames")
+                code, out = _git_write(folder, "reset", "--keep", "-q", before["head"])
+                if code != 0:
+                    in_way = _in_the_way(folder, before["head"], shipped)
+                    named = ", ".join(in_way[:10]) if in_way else out[:500]
+                    raise ShipError("back_failed", (
+                        f"{attach['branch']} in {folder} was not put back: these files changed by the ship have "
+                        f"been edited there since (by you or by an after-command), and going back would lose "
+                        f"that: {named}. The studio changed "
+                        f"nothing. To go back by hand, keep those edits somewhere, then "
+                        f"`git reset --keep {before['head'][:7]}`."))
+                done.append(f"{attach['branch']} in {folder} is back at {before['head'][:7]}; other edits there are kept.")
+                unstaged = [line for line in staged.splitlines() if line]
+                if unstaged:
+                    done.append("Kept, but no longer staged (stage them again if you want): "
+                                + ", ".join(unstaged[:10]) + (" …" if len(unstaged) > 10 else "") + ".")
+        current, target = _ref(folder, branch), before.get("ref")
+        if current == target:
+            done.append(f"Branch {branch} in {folder} was " + (f"still at {target[:7]}." if target else "not there."))
+        elif current != shipped or _read(folder, "symbolic-ref", "-q", "--short", "HEAD") == branch:
+            raise ShipError("back_failed", (
+                f"The branch {branch} in {folder} was left as it is: it is at {(current or 'nothing')[:7]}"
+                f"{' and checked out' if current == shipped else ''}, not where the ship left it "
+                f"({(shipped or '?')[:7]}), so someone is using it. Before the ship it was at "
+                f"{(target or 'nothing')[:7]}."))
         else:
-            code, out = _git_write(folder, "update-ref", "-d", f"refs/heads/{branch}")
-        if code != 0:
-            raise ShipError("back_failed", f"Putting the branch {branch} back failed: {out[:500]}")
-        done.append(f"Branch {branch} in {folder} is " + (f"back at {before['ref'][:7]}." if before.get("ref")
-                                                            else "removed again."))
+            # The old value makes git refuse if the branch moves between the look above and this write.
+            if target:
+                code, out = _git_write(folder, "update-ref", f"refs/heads/{branch}", target, current)
+            else:
+                code, out = _git_write(folder, "update-ref", "-d", f"refs/heads/{branch}", current)
+            if code != 0:
+                raise ShipError("back_failed", f"Putting the branch {branch} back failed: {out[:500]}")
+            done.append(f"Branch {branch} in {folder} is " + (f"back at {target[:7]}." if target else "removed again."))
     elif method == "files":
         try:
             applied = json.loads((backup.parent / "applied.json").read_text("utf-8"))["files"]
         except (OSError, ValueError, KeyError):
             applied = []
+        left = []
         for item in reversed(applied):
-            target = _target(folder, item["path"])
+            try:
+                target = _target(folder, item["path"])
+            except ShipError:
+                left.append(item["path"])         # now a link, or under one: never written through
+                continue
             keep = backup / item["path"]
+            if "wrote" in item:   # records from before 17 November 2026 do not say what was written
+                if target.exists() and not target.is_file():
+                    left.append(item["path"])
+                    continue
+                current = _sha(target.read_bytes()) if target.is_file() else None
+                original = _sha(keep.read_bytes()) if keep.is_file() else None
+                if current not in (item["wrote"], original):
+                    left.append(item["path"])     # edited after the ship wrote it: his now
+                    continue
             if keep.is_file():
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(keep, target)
             else:
                 target.unlink(missing_ok=True)
-        done.append(f"{len(applied)} file(s) in {folder} put back as they were.")
+        done.append(f"{len(applied) - len(left)} file(s) in {folder} put back as they were.")
+        if left:
+            shown = ", ".join(left[:10]) + (" …" if len(left) > 10 else "")
+            raise ShipError("back_failed", (
+                f"{done[-1]} These changed in {folder} after the ship wrote them (edited, or now a link), so the "
+                f"studio left them as "
+                f"they are: {shown}. What each was before the ship is kept in the ship's record (backup/)."))
     return done
 
 
@@ -609,6 +726,8 @@ class Shipper:
     async def start(self, project_id: str, by: str = "person", turn_id: str | None = None) -> str:
         studio = self.studio
         project = studio.store.get(project_id)
+        if project_id in studio.deleting:   # it is being deleted; there is nothing left to ship from
+            raise ProjectNotFound(project_id)
         if not project.get("attach"):
             raise ShipError("not_attached", "Only a project brought in from a folder can be made live.", 400)
         if not (project.get("ship") or {}).get("recipe"):
@@ -862,7 +981,8 @@ class Shipper:
             project = self.studio.store.get(project_id)
             message = "The studio restarted during this ship."
             if record.get("phase") in ("applying", "after", "address", "back") and project.get("attach"):
-                planned = {"method": record["plan"]["method"], "before": record["plan"]["before"]}
+                planned = {"method": record["plan"]["method"], "before": record["plan"]["before"],
+                           "head": record["plan"].get("head")}
                 try:
                     record["back"] = await asyncio.to_thread(
                         _go_back, project, planned, self.folder(project_id, record["id"]) / "backup")
@@ -901,11 +1021,15 @@ class Shipper:
             raise ShipError("ship_refused", "The original has no commit to bring in.")
         await studio.checkpoint(project_id, "user", "Changes before bringing the copy up to date")
         async with studio.lock(project_id):
-            env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}  # the original is only read by the fetch
-            proc = await asyncio.to_thread(subprocess.run, [*ws.GIT_BASE, "fetch", "--no-tags", "-q", str(folder),
+            # The original is only read by the fetch. The copy's config is the agent's to write, so the
+            # program that reads the original is named here (a `remote.<path>.uploadpack` there would
+            # otherwise be used), and git gets the studio's short environment, not its keys.
+            env = {**ws.git_env(workspace), "GIT_OPTIONAL_LOCKS": "0"}
+            await asyncio.to_thread(ws.hold_attributes, workspace)
+            proc = await asyncio.to_thread(subprocess.run, [*ws.GIT_BASE, "fetch", "--no-tags", "-q",
+                                                            "--upload-pack=git-upload-pack", str(folder),
                                                             f"refs/heads/{branch}" if branch else "HEAD"],
-                                           cwd=workspace, env={**env, "GIT_CONFIG_GLOBAL": os.devnull,
-                                                                "GIT_TERMINAL_PROMPT": "0"}, capture_output=True)
+                                           cwd=workspace, env=env, capture_output=True)
             if proc.returncode != 0:
                 raise ShipError("update_failed", "Reading the original's commits failed: "
                                 + proc.stderr.decode("utf-8", "replace")[:300])

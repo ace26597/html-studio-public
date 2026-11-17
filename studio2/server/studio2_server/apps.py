@@ -28,6 +28,12 @@ log = logging.getLogger("studio2")
 APP_PORT_OFFSET = 100
 TAIL_LINES, LINE_CAP, LOG_FILE_CAP = 2_000, 2_000, 5 * 1024 * 1024
 READY_TIMEOUT, STOP_TIMEOUT = 90.0, 5.0
+# After READY_TIMEOUT the port is still checked, less often: a first start that downloads packages or
+# compiles for minutes is slow, not crashed.
+SLOW_POLL = 2.0
+# Alive and never answering this long after the start: said once, plainly. The app is not stopped
+# (it may still be compiling), but most likely it listens on another port or does not serve at all.
+NOT_ANSWERING_AFTER = 300.0
 LOCK_TIMEOUT = 180.0
 REQUIREMENTS, LOCKED = "requirements.txt", "requirements.lock"
 BARE_PYTHON = re.compile(r"^\s*(?:exec\s+)?python3?(?:\.\d+)?(?:\s|$)")
@@ -157,6 +163,8 @@ class App:
         self.run: str | None = None
         self.error: str | None = None
         self.state = "none"
+        self.slow = False   # starting, alive, and nothing has answered within READY_TIMEOUT
+        self.not_answering = False   # slow, and still nothing NOT_ANSWERING_AFTER after the start
         self.process: asyncio.subprocess.Process | None = None
         self.exit_code: int | None = None
         self.started_at: str | None = None
@@ -206,15 +214,18 @@ class App:
                 "state": self.state, "address": self.address, "installing": self.installing,
                 "pid": self.process.pid if self.process and self.process.returncode is None else None,
                 "port": self.port, "exit_code": self.exit_code, "started_at": self.started_at,
-                "error": self.error, "last_line": self.last_line}
+                "error": self.error, "last_line": self.last_line, "slow": self.slow,
+                "not_answering": self.not_answering}
 
     def logs(self, after: int = 0) -> dict:
         return {"lines": [{"n": n, "text": text} for n, text in self.lines if n > after], "last": self.last_line}
 
-    def _set(self, state: str) -> None:
-        if state != self.state:
-            self.state = state
-            self.on_status(self.project_id, {"state": state, "exit_code": self.exit_code, "run": self.run})
+    def _set(self, state: str, slow: bool = False) -> None:
+        if state != self.state or slow != self.slow:
+            self.state, self.slow = state, slow
+            self.not_answering = self.not_answering and slow
+            self.on_status(self.project_id, {"state": state, "exit_code": self.exit_code, "run": self.run,
+                                             "slow": slow})
 
     def _line(self, text: str, handle=None) -> None:
         self.last_line += 1
@@ -470,24 +481,53 @@ class App:
             self._set("crashed")
 
     async def _ready(self, process: asyncio.subprocess.Process) -> None:
+        """Watch for the port to answer for as long as the process lives. Past READY_TIMEOUT the app
+        is `slow`, not crashed: only an exit (seen by _pump) makes it crashed, and a stop ends the
+        watch because the process is no longer this app's."""
         loop = asyncio.get_running_loop()
-        deadline = loop.time() + READY_TIMEOUT
+        began = loop.time()
+        deadline = began + READY_TIMEOUT
+        note = None   # when to say again how long it has waited
         while process.returncode is None and process is self.process:
             if await port_answers(self.port):
-                self._set("running")
+                if process is self.process and not self._stopping:
+                    self._set("running")
                 return
             if self.installing:   # the clock for answering starts once the install is done
                 deadline = max(deadline, loop.time() + READY_TIMEOUT)
                 if loop.time() - (self._install_began or loop.time()) > SETUP_TIMEOUT:
-                    self._line(f"[studio] The install did not finish within {int(SETUP_TIMEOUT // 60)} minutes.")
-                    self._set("crashed")
+                    # Stopped, so that "crashed" is true: _pump records the exit.
+                    self._line(f"[studio] The install did not finish within {int(SETUP_TIMEOUT // 60)} minutes, "
+                               "so it was stopped.")
+                    # As a Stop does: the whole group, and SIGKILL for whatever ignored SIGTERM (an
+                    # install that keeps the output open would otherwise leave the app starting for ever).
+                    kill_group(process.pid, signal.SIGTERM)
+                    with contextlib.suppress(asyncio.TimeoutError):
+                        await asyncio.wait_for(process.wait(), STOP_TIMEOUT)
+                    kill_group(process.pid, signal.SIGKILL)
                     return
-            if loop.time() > deadline:
-                self._line(f"[studio] Nothing answered on 127.0.0.1:{self.port} after {int(READY_TIMEOUT)} s. "
-                           "The app must listen on the port in $PORT.")
-                self._set("crashed")
-                return
-            await asyncio.sleep(0.25)
+            if loop.time() > deadline and not self.slow and self.state == "starting":
+                self._line(f"[studio] Nothing has answered on 127.0.0.1:{self.port} after {int(READY_TIMEOUT)} s. "
+                           "The app is still running, so the studio keeps checking; a first start that downloads "
+                           "packages or compiles can take minutes. If the output above shows no install or "
+                           f"compile going on, check that the app listens on the port in $PORT ({self.port}).")
+                self._set("starting", slow=True)
+                note = loop.time() + 60
+            elif self.slow and not self.not_answering and loop.time() - began > NOT_ANSWERING_AFTER:
+                self._line(f"[studio] The app has been running for {int(loop.time() - began)} s and has never "
+                           f"answered on 127.0.0.1:{self.port}: it is running but not answering. It has not "
+                           "crashed; most likely it listens on another port or does not serve at all. It must "
+                           f"listen on the port in $PORT ({self.port}). The studio does not stop it (it may still "
+                           "be compiling) and keeps checking.")
+                self.not_answering = True
+                self.on_status(self.project_id, {"state": self.state, "exit_code": self.exit_code, "run": self.run,
+                                                 "slow": True, "not_answering": True})
+            elif note is not None and loop.time() > note:
+                self._line(f"[studio] Still waiting for 127.0.0.1:{self.port} to answer, "
+                           f"{int(loop.time() - began)} s after the start. Check that the app listens on $PORT "
+                           f"({self.port}) if nothing in its output says it is still installing or compiling.")
+                note += 60
+            await asyncio.sleep(SLOW_POLL if self.slow else 0.25)
 
     async def _stop(self) -> None:
         process, self._stopping = self.process, True

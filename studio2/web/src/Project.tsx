@@ -24,10 +24,13 @@ import { useCompact, useKeyboardInset } from "./media";
 import { ProjectLibraryPanel } from "./ProjectLibraryPanel";
 import { SaveTemplateDialog } from "./SaveTemplateDialog";
 import { Preview, type PreviewHandle } from "./Preview";
+import { refreshFailure, REFRESH_RETRY_MS } from "./projectLoad";
+import { mayDiscard } from "./discard";
+import { escapeTarget, MODAL_SELECTOR } from "./escape";
 import type { Navigate } from "./router";
 import { loadString, saveString } from "./storage";
 import type { Theme } from "./theme";
-import { shouldReloadPreview, type ReloadReason } from "./reload";
+import { drawingHoldsReload, heldReloadNote, shouldReloadPreview, type ReloadReason } from "./reload";
 import { optionsForText } from "./nextSteps";
 import { lastTurn, runningChangedPaths, waitingApprovals, type ApprovalItem, type Turn } from "./thread";
 import type { DecisionState } from "./ThreadView";
@@ -142,17 +145,29 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   const reopenChat = useRef(false);
 
   // ---- project record -------------------------------------------------------
+  // Read by a refresh that fails: only a page with nothing to show yet gets the error screen.
+  const hasProject = useRef(false);
+  hasProject.current = project !== null;
+  const refreshRetry = useRef(0);
   const refreshProject = useCallback(() => {
-    api.getProject(id).then(
-      (record) => {
-        setProject(record);
-        setLoadError(null);
-      },
-      (error) => {
-        setLoadError({ missing: error instanceof ApiError && error.status === 404, message: errorMessage(error) });
-      },
-    );
+    const load = () => {
+      window.clearTimeout(refreshRetry.current);
+      api.getProject(id).then(
+        (record) => {
+          setProject(record);
+          setLoadError(null);
+        },
+        (error) => {
+          const failure = refreshFailure(hasProject.current, error);
+          if (failure) setLoadError(failure);
+          // The page stays as it was; the record is read again shortly (or by the next event).
+          else refreshRetry.current = window.setTimeout(load, REFRESH_RETRY_MS);
+        },
+      );
+    };
+    load();
   }, [id]);
+  useEffect(() => () => window.clearTimeout(refreshRetry.current), []);
 
   useEffect(() => {
     refreshProject();
@@ -168,8 +183,15 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   // ---- events -----------------------------------------------------------------
   // The visible page's `ready.auto_reload`: false for pages that refresh themselves.
   const autoReload = useRef<boolean | undefined>(undefined);
+  // Set below from the draw state: a reload would wipe a drawing, so it waits (`reloadWaiting`).
+  const reloadHeld = useRef(false);
+  const [reloadWaiting, setReloadWaiting] = useState(false);
   const scheduleReload = useCallback((reason: ReloadReason) => {
     if (!shouldReloadPreview(reason, autoReload.current)) return;
+    if (reloadHeld.current) {
+      setReloadWaiting(true);
+      return;
+    }
     window.clearTimeout(reloadTimer.current);
     reloadTimer.current = window.setTimeout(() => setReloadToken((token) => token + 1), 250);
   }, []);
@@ -367,6 +389,14 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   useEffect(() => {
     drawRef.current = draw;
   });
+  const holdReload = drawingHoldsReload(effectiveMode === "draw", draw.count);
+  reloadHeld.current = holdReload;
+  // The drawing was sent or removed: the page the person looks at catches up now.
+  useEffect(() => {
+    if (holdReload || !reloadWaiting) return;
+    setReloadWaiting(false);
+    setReloadToken((token) => token + 1);
+  }, [holdReload, reloadWaiting]);
   const clearDrawing = useCallback(() => {
     preview.current?.send({ type: "draw-clear" });
     dispatchDraw({ type: "forget" });
@@ -653,6 +683,16 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
     }
   }, [logsOpen, closeRight, openRight]);
 
+  // Unsaved edits in the file viewer: closing Files from the top bar or with Escape asks first,
+  // the same as the panel's own close button.
+  const filesDirty = useRef(false);
+  const onFilesDirty = useCallback((dirty: boolean) => {
+    filesDirty.current = dirty;
+  }, []);
+  const closeFiles = useCallback(() => {
+    if (mayDiscard(filesDirty.current, (question) => window.confirm(question))) setFilesOpen(false);
+  }, []);
+
   // ---- keyboard ---------------------------------------------------------------------
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -662,16 +702,24 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
         return;
       }
       if (event.key === "Escape" && !event.defaultPrevented) {
-        // Focus is outside every panel: close the most recently relevant thing.
-        if (selectedSha) setSelectedSha(null);
-        else if (rightPanel) closeRight();
-        else if (chatOpen) setChatOpen(false);
-        else if (filesOpen) setFilesOpen(false);
+        // Focus is outside every panel: close the most recently relevant thing. An open dialog
+        // closes itself (its own listener may run after this one), so the page leaves it alone.
+        const target = escapeTarget({
+          modalOpen: document.querySelector(MODAL_SELECTOR) !== null,
+          versionSelected: selectedSha !== null,
+          rightPanel: rightPanel !== null,
+          chatOpen,
+          filesOpen,
+        });
+        if (target === "version") setSelectedSha(null);
+        else if (target === "right") closeRight();
+        else if (target === "chat") setChatOpen(false);
+        else if (target === "files") closeFiles();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [openChatAndFocus, selectedSha, rightPanel, filesOpen, chatOpen, setChatOpen, closeRight]);
+  }, [openChatAndFocus, selectedSha, rightPanel, filesOpen, chatOpen, setChatOpen, closeRight, closeFiles]);
 
   // ---- rename -------------------------------------------------------------------------
   const commitName = () => {
@@ -910,7 +958,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             label="Files"
             tip={filesOpen ? "Hide files" : "Files"}
             active={filesOpen}
-            onClick={() => setFilesOpen((open) => !open)}
+            onClick={() => (filesOpen ? closeFiles() : setFilesOpen(true))}
           />
           <span className="topbar-divider" aria-hidden="true" />
           {renaming ? (
@@ -1139,7 +1187,12 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
       )}
 
       <main className="stage">
-        {offered && !renaming && effectiveMode === "browse" && (
+        {reloadWaiting && effectiveMode !== "draw" && (
+          <div className="stage-note" role="status">
+            {heldReloadNote(false, draw.count)}
+          </div>
+        )}
+        {offered && !renaming && effectiveMode === "browse" && !reloadWaiting && (
           <div className="name-suggest" role="status">
             <span className="name-suggest-text">
               Name this page <strong>{offered}</strong>?
@@ -1162,6 +1215,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             tool={draw.tool}
             color={draw.color}
             count={draw.count}
+            note={reloadWaiting ? heldReloadNote(true, draw.count) : null}
             onTool={(tool) => dispatchDraw({ type: "tool", tool })}
             onColor={(color) => dispatchDraw({ type: "color", color })}
             onUndo={() => preview.current?.send({ type: "draw-undo" })}
@@ -1232,6 +1286,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             onUpload={uploadToWorkspace}
             downloadUrl={api.downloadUrl(id)}
             onClose={() => setFilesOpen(false)}
+            onDirtyChange={onFilesDirty}
           />
         )}
 

@@ -271,7 +271,7 @@ async def test_recovery_prices_old_turns_only_from_rows_of_their_session_and_win
     lines = [json.loads(line) for line in path.read_text().splitlines()]
     stamps = {("turn_started", "t_a"): "2026-11-12T19:00:22.874Z", ("turn_finished", "t_a"): "2026-11-12T19:25:40.000Z",
               ("turn_started", "t_b"): "2026-11-12T20:00:00.000Z", ("turn_finished", "t_b"): "2026-11-12T20:05:00.000Z",
-              ("turn_started", "t_c"): "2026-11-12T19:00:22.874Z", ("turn_finished", "t_c"): "2026-11-12T19:25:40.000Z"}
+              ("turn_started", "t_c"): "2026-11-12T19:39:00.000Z", ("turn_finished", "t_c"): "2026-11-12T19:45:00.000Z"}
     for line in lines:
         line["ts"] = stamps.get((line["type"], line["turn_id"]), line["ts"])
     path.write_text("".join(json.dumps(line) + "\n" for line in lines))
@@ -287,6 +287,50 @@ async def test_recovery_prices_old_turns_only_from_rows_of_their_session_and_win
     (written,) = events_of(studio, pid, "turn_cost")
     assert written["turn_id"] == "t_a" and written["source"] == "recovered"
     assert (written["cost_usd"], written["requests"]) == (4.25, 2)
+
+
+async def test_recovery_gives_each_row_to_one_turn(studio, project, monkeypatch):
+    """The reviewer's case: a queued follow-up starts a second after the turn before it ends, so their
+    padded windows overlapped and a row was counted in both ($5 for $3 spent)."""
+    pid = project["id"]
+    monkeypatch.setattr(studio.registry, "connections", lambda: [CONNECTION])
+    events = studio.log(pid)
+    times = {"t_1": ("10:00:00", "10:00:30"), "t_2": ("10:00:31", "10:01:00"),      # back to back
+             "t_3": ("10:05:00", "10:05:20"), "t_4": ("10:05:21", "10:05:40")}      # after a gap; t_4 already priced
+    for turn in times:
+        old_turn(events, turn, 0, 0)
+    events.append("turn_cost", "t_4", cost_usd=0.5, requests=1, unpriced=0, source="gateway", reason=None,
+                  basis="reported", backup=None)
+    path = studio.store.events_path(pid)
+    lines = [json.loads(line) for line in path.read_text().splitlines()]
+    for line in lines:
+        if line["turn_id"] in times and line["type"] in ("turn_started", "turn_finished"):
+            line["ts"] = f"2026-11-12T{times[line['turn_id']][line['type'] == 'turn_finished']}.000Z"
+    path.write_text("".join(json.dumps(line) + "\n" for line in lines))
+    studio.hub.drop(pid)
+
+    def at(spend, clock, tags=()):
+        return row(None, spend, session="5217", start=f"2026-11-12T{clock}.000000Z", tags=list(tags))
+
+    rows = [at(1.0, "10:00:10"), at(2.0, "10:00:35"),               # one in each of the back-to-back turns
+            at(4.0, "10:00:25", [costs.TAG_PREFIX + "t_other"]),     # another turn's tag: nobody's here
+            at(8.0, "10:00:20", [costs.TAG_PREFIX + "t_1"]),         # its own tag: its own
+            at(16.0, "10:01:05"),                                     # just after t_2 ended: the gap is t_2's
+            at(32.0, "10:04:57"),                                     # just before t_3 started, after a long gap
+            at(64.0, "10:05:25"),                                     # inside t_4, which t_3's padding reached
+            # A gateway whose clock runs ahead logs t_1's last request just past t_2's start: its tag says
+            # whose it is, whatever the time (the second review's case: nobody took it).
+            {**at(128.0, "10:00:31", [costs.TAG_PREFIX + "t_1"]), "startTime": "2026-11-12T10:00:31.500000Z"},
+            at(256.0, "10:05:10", [costs.TAG_PREFIX + "t_1"]),        # tagged t_1, in t_3's window: still t_1's
+            {**at(512.0, "10:00:20", [costs.TAG_PREFIX + "t_1"]), "session_id": "other"}]   # another session: nobody's
+    use(studio, SpendLog([rows]))
+    report = await studio.costs.recover(pid)
+    assert report["recovered"] == 3
+    found = {e["turn_id"]: e["cost_usd"] for e in events_of(studio, pid, "turn_cost") if e["source"] == "recovered"}
+    assert found == {"t_1": 393.0, "t_2": 18.0, "t_3": 32.0}
+    # Nothing counted twice: what is left is the other turn's row, the one of t_4 (already priced) and
+    # the row of another session.
+    assert sum(found.values()) + 4.0 + 64.0 + 512.0 == sum(r["spend"] for r in rows)
 
 
 async def test_recovery_with_no_matching_row_writes_nothing(studio, project, monkeypatch):
@@ -462,6 +506,92 @@ async def test_each_turn_keeps_its_own_part_and_the_project_total_is_not_counted
     total = (await client.get(f"/api/projects/{pid}/cost")).json()
     assert total["plan_equivalent_usd"] == pytest.approx(11.65) and total["charged_usd"] == 0
     assert studio.store.get(pid)["session_cost"] == {"session_id": "sess-plan", "total_usd": 11.65}
+
+
+class Conversation:
+    """One conversation of the agent program that moves between connections: a changed connection
+    resumes the same session (turns.start passes the project's session id whatever the connection),
+    and the program's `total_cost_usd` keeps running. Each kind's usage is what ClaudeHarness hands
+    back for it: the plan's and a key's total as `cost_usd`, a gateway's own figure (or none) with
+    the program's total beside it."""
+
+    def __init__(self, steps):
+        self.steps, self.total = list(steps), 0.0      # (kind, what the agent program's total grows by, gateway figure)
+
+    def harness(self, kind):
+        conversation = self
+
+        class Harness:
+            async def run(self, request, emit):
+                expected, grows, figure = conversation.steps.pop(0)
+                assert request.connection["kind"] == expected and request.session_id in (None, "sess-1")
+                conversation.total = round(conversation.total + grows, 6)
+                usage = {"input_tokens": 100, "output_tokens": 10, "duration_ms": 5}
+                if kind in costs.SELF_PRICED:
+                    usage.update(cost_usd=figure, cost_estimated=False, session_cost_usd=conversation.total)
+                    if figure is not None:
+                        usage.update(cost_basis="reported", requests=1, unpriced_requests=0)
+                else:
+                    usage.update(cost_usd=conversation.total, cost_estimated=kind == "claude-subscription")
+                return TurnResult("completed", "sess-1", None, usage)
+
+            describe = Stub.describe
+
+        Harness.kind = kind
+        return Harness()
+
+
+@pytest.mark.parametrize("gateway_kind", ["litellm", "anthropic-gateway"])
+async def test_a_gateway_turn_in_the_middle_of_a_conversation_is_counted_once(client, studio, project, monkeypatch,
+                                                                              gateway_kind):
+    pid = project["id"]
+    plan = {**CONNECTION, "id": "plan", "kind": "claude-subscription"}
+    key = {**CONNECTION, "id": "key", "kind": "anthropic-api"}
+    via = {**CONNECTION, "id": "via", "kind": gateway_kind}
+    monkeypatch.setattr(studio.registry, "connections", lambda: [plan, key, via])
+    # The plan reaches $1; the gateway turn adds $0.50 to the program's total (its own guess at a price it
+    # cannot know) and the gateway says $0.30; the key turn costs $0.20; the plan again $0.10.
+    gateway_figure = 0.3 if gateway_kind == "litellm" else None    # an anthropic-gateway turn's comes later, read back
+    talk = Conversation([("claude-subscription", 1.0, None), (gateway_kind, 0.5, gateway_figure),
+                         ("anthropic-api", 0.2, None), ("claude-subscription", 0.1, None)])
+    for kind in ("claude-subscription", "anthropic-api", gateway_kind):
+        studio.registry._harnesses[kind] = talk.harness(kind)
+    use(studio, SpendLog([[]], status=404))       # an anthropic-gateway turn's read-back finds nothing
+    for connection in ("plan", "via", "key", "plan"):
+        await client.post(f"/api/projects/{pid}/turns", json={"text": "go", "connection": connection})
+        await studio.turns.wait(pid)
+    await asyncio.gather(*studio.costs.settling.values())
+    usages = [e["usage"] for e in events_of(studio, pid, "turn_finished")]
+    assert [u["cost_usd"] for u in usages] == [1.0, gateway_figure, 0.2, 0.1]     # not 0.7 and not 0.6
+    assert [u["session_cost_usd"] for u in usages] == [1.0, 1.5, 1.7, 1.8]
+    assert studio.store.get(pid)["session_cost"] == {"session_id": "sess-1", "total_usd": 1.8}
+    # The project's total, replayed from the log, agrees with what each turn recorded.
+    total = (await client.get(f"/api/projects/{pid}/cost")).json()
+    assert [t["cost_usd"] for t in total["turns"]] == [1.0, gateway_figure, 0.2, 0.1]
+    assert total["plan_equivalent_usd"] == pytest.approx(1.1)
+    assert total["charged_usd"] == pytest.approx(0.5 if gateway_kind == "litellm" else 0.2)
+
+
+async def test_the_replay_reads_an_older_conversation_the_same_way_as_the_live_path(client, studio, project, monkeypatch):
+    """Turns written before turns recorded their own part, replayed: a gateway turn that kept the
+    agent program's total moves the conversation's mark, so the turn after it is not charged for it."""
+    pid = project["id"]
+    monkeypatch.setattr(studio.registry, "connections", lambda: [{**CONNECTION, "id": "plan", "kind": "claude-subscription"},
+                                                                  {**CONNECTION, "id": "key", "kind": "anthropic-api"},
+                                                                  {**CONNECTION, "id": "own", "kind": "litellm"}])
+    events = studio.log(pid)
+
+    def turn(name, connection, usage):
+        events.append("turn_started", name, text="x", connection=connection, model="m")
+        events.append("turn_finished", name, status="completed", error=None, session_id="s1",
+                      usage={"input_tokens": 1, "output_tokens": 1, **usage})
+
+    turn("t_1", "plan", {"cost_usd": 1.0, "cost_estimated": True})                         # a running total
+    turn("t_2", "own", {"cost_usd": 0.3, "cost_estimated": False, "session_cost_usd": 1.5})
+    turn("t_3", "key", {"cost_usd": 1.7, "cost_estimated": False})                         # a running total
+    total = (await client.get(f"/api/projects/{pid}/cost")).json()
+    assert [t["cost_usd"] for t in total["turns"]] == [1.0, 0.3, pytest.approx(0.2)]
+    assert total["charged_usd"] == pytest.approx(0.5) and total["plan_equivalent_usd"] == pytest.approx(1.0)
 
 
 async def test_older_turns_that_stored_the_running_total_are_read_as_their_own_part(client, studio, project, monkeypatch):

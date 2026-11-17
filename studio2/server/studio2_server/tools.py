@@ -54,6 +54,8 @@ async def t_fetch_source(studio, project_id, args):
     max_chars = max(500, min(int(args.get("max_chars") or 6000), 40_000))
     sources = Sources(_workspace(studio, project_id))
     render, fetched = bool(args.get("render")), None
+    # Not refreshing: an address saved while this download ran (a helper fetching the same page in parallel)
+    # is the answer too, checked again inside the save where no other save can come between.
     saved = None if args.get("refresh") else await asyncio.to_thread(sources.by_url, url)
     # Listed, but its text is not in the project (a copy of an example): fetch it again under its own id.
     restore = saved["id"] if saved is not None and not sources.has_text(saved) else None
@@ -79,7 +81,8 @@ async def t_fetch_source(studio, project_id, args):
             kind, title, text, pages = await asyncio.to_thread(extract, data, content_type, final)
             item, created = await asyncio.to_thread(
                 sources.save, text=text, title=title, kind=kind, url=final, pages=pages, requested=url,
-                original=data if kind == "pdf" else None, original_ext=".pdf" if kind == "pdf" else "", into=restore)
+                original=data if kind == "pdf" else None, original_ext=".pdf" if kind == "pdf" else "", into=restore,
+                reuse_address=not args.get("refresh"))
         except SourceError as exc:
             # Nothing readable in what was downloaded: the page is built by scripts. Read it in a browser
             # straight away instead of sending the agent back to ask for that.
@@ -95,7 +98,7 @@ async def t_fetch_source(studio, project_id, args):
             raise ToolError(f"The browser could not load {url} ({' '.join(str(exc).split())[:200]}).") from None
         title, text = html_to_text(markup)
         item, created = await asyncio.to_thread(sources.save, text=text, title=title, kind="html", url=final,
-                                                requested=url, into=restore)
+                                                requested=url, into=restore, reuse_address=not args.get("refresh"))
     view = _source_view(item, created, sources.text(item["id"]), max_chars)
     if by_itself:
         view["rendered"] = True     # read in a browser because the plain download held nothing readable

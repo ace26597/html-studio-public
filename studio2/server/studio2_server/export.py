@@ -9,13 +9,15 @@ from __future__ import annotations
 
 import base64
 import datetime
-import io
+import html as entities
 import json
 import mimetypes
 import re
 import shlex
 import zipfile
 from pathlib import Path, PurePosixPath
+
+from . import keyfiles
 
 LEFT_OUT = {".git", "research", "attachments", "template", "notes", "state", "looks", "node_modules", "__pycache__",
             ".venv", ".pytest_cache", ".DS_Store"}
@@ -31,8 +33,13 @@ README = "EXPORT-README.md"
 ATTR = re.compile(r"""([^\s"'=<>/]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))""")
 LINK = re.compile(r"<link\b[^>]*>", re.I)
 SCRIPT = re.compile(r"<script\b([^>]*)>(.*?)</script\s*>", re.I | re.S)
-STYLE = re.compile(r"(<style\b[^>]*>)(.*?)(</style\s*>)", re.I | re.S)
-MEDIA = re.compile(r"<(?:img|source|video|audio|track|embed|input)\b[^>]*>", re.I)
+# The parts of a page that are text, not tags: comments, and the insides of the elements whose content the
+# browser never reads as markup. A tag written inside them (an HTML string in a script) is left alone.
+TEXT = re.compile(r"<!--.*?-->|(<(script|style|textarea|title|xmp)\b[^>]*>)(.*?)(</\2\s*>)", re.I | re.S)
+BASE = re.compile(r"<base\b[^>]*>", re.I)
+MEDIA = re.compile(r"<(?:img|image|source|video|audio|track|embed|input|object)\b[^>]*>", re.I)
+STYLED = re.compile(r"<[a-z][^>]*\bstyle\s*=[^>]*>", re.I)
+USE = re.compile(r"<use\b[^>]*>", re.I)
 ANCHOR = re.compile(r"<(?:a|iframe)\b[^>]*>", re.I)
 CSS_URL = re.compile(r"""url\(\s*(?:"([^"]*)"|'([^']*)'|([^)'"\s]+))\s*\)""", re.I)
 CSS_IMPORT = re.compile(r"""@import\s+(?:url\(\s*)?["']?([^"')\s;]+)["']?\s*\)?\s*;""", re.I)
@@ -72,6 +79,11 @@ class ExportUnavailable(Exception):
 
 
 # -- which files ------------------------------------------------------------------------------------
+def is_env(parts: tuple[str, ...]) -> bool:
+    """A key file, or anything under a folder named like one (keyfiles.py): it never leaves."""
+    return keyfiles.is_key_file(tuple(parts))
+
+
 def kept(workspace: Path) -> list[PurePosixPath]:
     """The project's files an export may hold, as paths from the project's root."""
     root, found = workspace.resolve(), []
@@ -79,7 +91,7 @@ def kept(workspace: Path) -> list[PurePosixPath]:
         relative = PurePosixPath(path.relative_to(root).as_posix())
         if not path.is_file() or path.is_symlink() or LEFT_OUT & set(relative.parts):
             continue
-        if any(part.startswith(".env") for part in relative.parts) or relative.suffix in (".pyc", ".pyo"):
+        if is_env(relative.parts) or relative.suffix in (".pyc", ".pyo"):
             continue
         if relative.parts[0] == "sources" and relative.as_posix() != "sources/index.json":
             continue        # the saved text of sources is other people's writing
@@ -101,6 +113,48 @@ def _is_local(ref: str) -> bool:
     return bool(ref) and not re.match(r"(?:[a-z][a-z0-9+.-]*:|//|#)", ref, re.I)
 
 
+def _srcset(value: str) -> list[tuple[str, str]]:
+    """A srcset → [(address, descriptor)], read the way the HTML standard reads it: an address runs to
+    the next space, so the commas inside a data: address stay part of it; the descriptor keeps its space."""
+    found, at, size = [], 0, len(value)
+    while at < size:
+        while at < size and (value[at].isspace() or value[at] == ","):
+            at += 1
+        start = at
+        while at < size and not value[at].isspace():
+            at += 1
+        url = value[start:at]
+        if not url:
+            break
+        if url.endswith(","):
+            found.append((url.rstrip(","), ""))
+            continue
+        start, depth = at, 0
+        while at < size and (value[at] != "," or depth):
+            depth += {"(": 1, ")": -1}.get(value[at], 0)
+            at += 1
+        descriptor = value[start:at].strip()
+        found.append((url, " " + descriptor if descriptor else ""))
+    return found
+
+
+def _rewrite(tag: str, change) -> str:
+    """Changes only the values of a tag's attributes: `change(name, value)` gets each value as the
+    browser reads it and answers a new one or None. The rest of the tag, its quotes included, is kept
+    as written, so an alt text that happens to repeat an address is never touched."""
+    def one(match: re.Match) -> str:
+        name = match.group(1)
+        raw = next((v for v in match.groups()[1:] if v is not None), "")
+        new = change(name.lower(), entities.unescape(raw))
+        if new is None or new == entities.unescape(raw):
+            return match.group(0)
+        quote = "'" if match.group(3) is not None else '"'      # kept: the tag may sit in a script's string
+        return f"{name}={quote}{entities.escape(new, quote=True)}{quote}"
+    head = re.match(r"<[^\s>/]+", tag)
+    at = head.end() if head else 0
+    return tag[:at] + ATTR.sub(one, tag[at:])
+
+
 def _host(ref: str) -> str | None:
     match = re.match(r"(?:https?:)?//([^/?#]+)", ref.strip(), re.I)
     return match.group(1).lower() if match else None
@@ -115,9 +169,14 @@ def _data_uri(path: Path, relative: PurePosixPath) -> str:
 
 
 class _Page:
-    """One page being turned into one file: what it found on the way is kept for the answer."""
+    """One page being turned into one file: what it found on the way is kept for the answer.
 
-    def __init__(self, workspace: Path, page: str):
+    `measure`: build it without reading any picture, clip or data file, from their sizes alone. Each
+    data: address is only its prefix and `extra` counts the base64 it stands for, so the size comes out
+    to the byte and a 300 MB clip costs nothing to describe or to refuse."""
+
+    def __init__(self, workspace: Path, page: str, measure: bool = False):
+        self.measure, self.extra = measure, 0
         self.root = workspace.resolve()
         self.page = PurePosixPath(page)
         self.allowed = set(kept(workspace))
@@ -125,11 +184,13 @@ class _Page:
         self.external: set[str] = set()
         self.notes: list[str] = []
         self.missing: set[str] = set()
+        self.unheld: set[str] = set()
+        self.scripted: set[str] = set()
         self.blocked: str | None = None
 
-    def find(self, ref: str, base: PurePosixPath) -> PurePosixPath | None:
+    def find(self, ref: str, base: PurePosixPath, quiet: bool = False) -> PurePosixPath | None:
         """A reference in a file under `base` → the project file it names, or None (noted when it
-        names nothing)."""
+        names nothing, unless `quiet`)."""
         clean = re.split(r"[?#]", ref.strip(), maxsplit=1)[0]
         if not clean:
             return None
@@ -145,10 +206,37 @@ class _Page:
                 parts.append(part)
         target = PurePosixPath(*parts) if parts else None
         if target is None or target not in self.allowed:
-            if target is not None and not re.search(r"\$\{|\{\{|<%", ref):     # not a template string in a script
+            if target is not None and not quiet and not re.search(r"\$\{|\{\{|<%", ref):   # not a template string
                 self.missing.add(clean)
             return None
         return target
+
+    def uri(self, target: PurePosixPath) -> str:
+        if not self.measure:
+            return _data_uri(self.root / target, target)
+        self.extra += 4 * (((self.root / target).stat().st_size + 2) // 3)
+        return f"data:{_type(target)};base64,"
+
+    def text(self, target: PurePosixPath) -> str:
+        """A stylesheet or script, read to see what it names; one that alone is over the limit is not read."""
+        if self.measure and (size := (self.root / target).stat().st_size) > MAX_BYTES:
+            self.extra += size
+            return ""
+        return (self.root / target).read_text("utf-8", "replace")
+
+    def address(self, ref: str, base: PurePosixPath) -> str:
+        """A picture's, clip's or icon's address → a data: address when it names a project file; any
+        other address is kept as it is (another site's is noted as still needed)."""
+        if not _is_local(ref):
+            host = _host(ref)
+            if host:
+                self.external.add(host)
+            return ref
+        target = self.find(ref, base)
+        if target is None:
+            return ref
+        self.inlined.add(target)
+        return self.uri(target)
 
     def outside(self, code: str) -> None:
         """The other sites a script imports from (a module's imports, an import map): still needed."""
@@ -167,7 +255,7 @@ class _Page:
             if target is None or depth >= 3:
                 return match.group(0)
             self.inlined.add(target)
-            return self.css((self.root / target).read_text("utf-8", "replace"), target.parent, depth + 1)
+            return self.css(self.text(target), target.parent, depth + 1)
 
         def url(match: re.Match) -> str:
             ref = next(group for group in match.groups() if group is not None)
@@ -180,21 +268,66 @@ class _Page:
             if target is None:
                 return match.group(0)
             self.inlined.add(target)
-            return f'url("{_data_uri(self.root / target, target)}")'
+            return f'url("{self.uri(target)}")'
 
         return CSS_URL.sub(url, CSS_IMPORT.sub(imported, text))
 
+    def markup_in(self, code: str, base: PurePosixPath) -> None:
+        """A script that builds markup naming the project's pictures (`'<img src="a.png">'`): those cannot
+        go inside without editing the script, which could break it, so they are only noted."""
+        for tag in MEDIA.findall(code) + STYLED.findall(code):
+            for name, value in _attrs(tag.replace('\\"', '"').replace("\\'", "'")).items():
+                if name == "srcset":
+                    refs = [url for url, _ in _srcset(value)]
+                elif name == "style":
+                    refs = [next(g for g in m.groups() if g is not None) for m in CSS_URL.finditer(value)]
+                elif name in ("src", "poster", "href", "data"):
+                    refs = [value]
+                else:
+                    continue
+                for ref in refs:
+                    ref = ref.strip("\\\"'` ")
+                    if _is_local(ref) and (target := self.find(ref, base, quiet=True)) is not None:
+                        self.scripted.add(target.as_posix())
+
+    def where(self, html: str) -> PurePosixPath:
+        """The folder the page's relative addresses start from: its own, or a `<base href>` inside the
+        project. A base elsewhere (another site, outside the project) is noted and the page's folder kept."""
+        here = self.page.parent
+        found = next((m.group(0) for part, text in _parts(html) if part == "tags" for m in [BASE.search(text)] if m), None)
+        href = _attrs(found).get("href", "").strip() if found else ""
+        if not href:
+            return here
+        folder = href.split("?")[0].split("#")[0]
+        folder = folder[:folder.rfind("/") + 1]
+        parts: list[str] | None = [] if folder.startswith("/") else list(here.parts)
+        for part in folder.split("/"):
+            if part == "..":
+                if not parts:
+                    parts = None
+                    break
+                parts.pop()
+            elif part not in ("", "."):
+                parts.append(part)
+        if not _is_local(href) or parts is None:
+            self.notes.append(f"The page sets <base href=\"{href}\">, which is not a folder of the project: its "
+                              "relative addresses were read from the page's own folder, so they may differ from what "
+                              "a browser loads. Use the folder.")
+            return here
+        return PurePosixPath(*parts) if parts else PurePosixPath(".")
+
     def build(self) -> str:
-        base = self.page.parent
         html = (self.root / self.page).read_text("utf-8", "replace")
+        base = self.where(html)
 
         def link(match: re.Match) -> str:
             tag, attrs = match.group(0), _attrs(match.group(0))
             rel, href = attrs.get("rel", "").lower().split(), attrs.get("href", "")
             if not href:
                 return tag
+            icon = any("icon" in word for word in rel)       # icon, apple-touch-icon, mask-icon
             if not _is_local(href):
-                if "stylesheet" in rel or "icon" in rel or "preload" in rel:
+                if "stylesheet" in rel or icon or "preload" in rel:
                     self.external.add(_host(href) or href)
                 return tag
             target = self.find(href, base)
@@ -203,15 +336,13 @@ class _Page:
             if "stylesheet" in rel:
                 self.inlined.add(target)
                 media = f' media="{attrs["media"]}"' if attrs.get("media") else ""
-                sheet = self.css((self.root / target).read_text("utf-8", "replace"), target.parent)
+                sheet = self.css(self.text(target), target.parent)
                 return f"<style{media}>\n{sheet.replace('</style', '<\\/style')}\n</style>"
-            if "icon" in rel:
-                self.inlined.add(target)
-                return tag.replace(href, _data_uri(self.root / target, target))
+            if icon:
+                return _rewrite(tag, lambda name, value: self.address(value, base) if name == "href" else None)
             return tag
 
-        def script(match: re.Match) -> str:
-            attrs_text, body = match.group(1), match.group(2)
+        def script(whole: str, attrs_text: str, body: str) -> str:
             attrs = _attrs("<script " + attrs_text + ">")
             src = attrs.get("src", "")
             kind = attrs.get("type", "").lower()
@@ -221,47 +352,73 @@ class _Page:
                 if kind == "module" and LOCAL_IMPORT.search(body):
                     self.blocked = ("The page's own script imports other files of the project, which a browser "
                                     "will not load for a page opened from a file. Use the folder.")
-                return match.group(0)
+                self.markup_in(body, base)
+                return whole
             if not _is_local(src):
                 self.external.add(_host(src) or src)
-                return match.group(0)
+                return whole
             target = self.find(src, base)
             if target is None:
-                return match.group(0)
-            code = (self.root / target).read_text("utf-8", "replace")
+                return whole
+            code = self.text(target)
             self.outside(code)
             if kind == "module" and LOCAL_IMPORT.search(code):
                 self.blocked = (f"{target} is a module that imports other files of the project, which one file "
                                 "cannot hold. Use the folder.")
-                return match.group(0)
+                return whole
+            self.markup_in(code, base)
             self.inlined.add(target)
             kept_attrs = re.sub(r"""\s*\bsrc\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)""", "", attrs_text, flags=re.I)
             return f"<script{kept_attrs}>\n{re.sub(r'</(script)', r'<\\/\1', code, flags=re.I)}\n</script>"
 
         def media(match: re.Match) -> str:
-            tag, attrs = match.group(0), _attrs(match.group(0))
-            for name in ("src", "poster"):
-                ref = attrs.get(name, "")
-                if not ref:
-                    continue
-                if not _is_local(ref):
-                    host = _host(ref)
-                    if host:
-                        self.external.add(host)
-                    continue
-                target = self.find(ref, base)
-                if target is not None:
-                    self.inlined.add(target)
-                    tag = tag.replace(ref, _data_uri(self.root / target, target))
-            return tag
+            # A screen at 2x (every Mac and phone) loads the srcset candidate, not src: each one goes inside,
+            # with its descriptor. Browsers take data: addresses in a srcset (an address runs to a space).
+            element = re.match(r"<([a-z]+)", match.group(0), re.I).group(1).lower()
 
-        html = LINK.sub(link, html)
-        html = SCRIPT.sub(script, html)
-        html = STYLE.sub(lambda m: m.group(1) + self.css(m.group(2), base) + m.group(3), html)
-        html = MEDIA.sub(media, html)
+            def change(name: str, value: str) -> str | None:
+                if not value.strip():
+                    return None
+                if name == "srcset":
+                    return ", ".join(self.address(url, base) + descriptor for url, descriptor in _srcset(value))
+                if name in ("src", "poster") or (element == "object" and name == "data") \
+                        or (element == "image" and name in ("href", "xlink:href")):
+                    return self.address(value, base)
+                return None
+            return _rewrite(match.group(0), change)
+
+        def styled(match: re.Match) -> str:
+            return _rewrite(match.group(0), lambda name, value: self.css(value, base) if name == "style" else None)
+
+        def use(match: re.Match) -> str:
+            # An SVG <use> of another file cannot be loaded by a page opened from a file, nor from a data:
+            # address (browsers refuse both), so it is said rather than changed.
+            for name, value in _attrs(match.group(0)).items():
+                if name in ("href", "xlink:href") and _is_local(value) and not value.startswith("#"):
+                    target = self.find(value, base)
+                    if target is not None:
+                        self.unheld.add(target.as_posix())
+            return match.group(0)
+
+        # Tags are changed only where they are tags: never inside a script, a style, a textarea, a title or a
+        # comment, where `<div style=\"…\">` is a string of a script and a rewrite would break it.
+        out, anchors = [], []
+        for part, text in _parts(html):
+            if part == "tags":
+                for pattern, change in ((LINK, link), (MEDIA, media), (STYLED, styled), (USE, use)):
+                    text = pattern.sub(change, text)
+                anchors += ANCHOR.findall(text)
+            elif part == "script":
+                match = SCRIPT.fullmatch(text)
+                text = script(text, match.group(1), match.group(2)) if match else text
+            elif part == "style":
+                opening, inside, closing = TEXT.fullmatch(text).group(1, 3, 4)
+                text = opening + self.css(inside, base) + closing
+            out.append(text)
+        html = "".join(out)
 
         others = set()
-        for tag in ANCHOR.findall(html):
+        for tag in anchors:
             ref = _attrs(tag).get("href") or _attrs(tag).get("src") or ""
             if _is_local(ref) and re.search(r"\.html?(?:[?#]|$)", ref, re.I):
                 target = self.find(ref, base)
@@ -271,15 +428,28 @@ class _Page:
             self.notes.append(f"It links to {len(others)} other page{'s' if len(others) != 1 else ''} of the project "
                               f"({', '.join(sorted(others)[:4])}{'…' if len(others) > 4 else ''}), which are not in "
                               "the file. Use the folder to keep them together.")
+        if self.unheld:
+            self.notes.append(f"Its SVG <use> names {', '.join(sorted(self.unheld)[:4])}, which a page opened from "
+                              "a file cannot load: those drawings will be missing. Use the folder, or put the "
+                              "drawing inside the page.")
+        if self.scripted:
+            self.notes.append(f"A script of the page builds markup naming {', '.join(sorted(self.scripted)[:4])}"
+                              f"{'…' if len(self.scripted) > 4 else ''}: those are not inside the file (changing "
+                              "the script could break it), so they will be missing when it is opened. Use the folder.")
         for name in sorted(self.missing)[:5]:
             self.notes.append(f"The page names “{name}”, which is not among the project's files.")
 
         files = {}
         for path in sorted(self.allowed):
             if path.suffix.lower() in DATA_TYPES and path not in self.inlined and path != self.page:
-                files[path.as_posix()] = {"t": _type(path),
-                                          "b": base64.b64encode((self.root / path).read_bytes()).decode("ascii")}
-        self.embedded = {"files": len(files), "bytes": sum(len(item["b"]) * 3 // 4 for item in files.values())}
+                size = (self.root / path).stat().st_size
+                if self.measure:        # base64 has no character JSON escapes: its length is all it adds
+                    self.extra += 4 * ((size + 2) // 3)
+                    files[path.as_posix()] = {"t": _type(path), "b": "", "n": size}
+                else:
+                    files[path.as_posix()] = {"t": _type(path), "n": size,
+                                              "b": base64.b64encode((self.root / path).read_bytes()).decode("ascii")}
+        self.embedded = {"files": len(files), "bytes": sum(item.pop("n") for item in files.values())}
         if files:
             folder = "" if str(base) == "." else base.as_posix() + "/"
             shim = SHIM.replace("__FILES__", json.dumps(files, separators=(",", ":")).replace("<", "\\u003c")) \
@@ -295,8 +465,23 @@ class _Page:
         return html[:at] + banner + html[at:]
 
 
-def one_file(workspace: Path, page: str = "index.html") -> dict:
-    """→ {available, reason, html, bytes, inlined, embedded, external, notes} for one page."""
+def _parts(html: str) -> list[tuple[str, str]]:
+    """The page cut into ("tags", markup), ("script", element), ("style", element) and ("text", a
+    comment or a textarea, title or xmp element) in order; joined again they are the page."""
+    found, at = [], 0
+    for match in TEXT.finditer(html):
+        found.append(("tags", html[at:match.start()]))
+        name = (match.group(2) or "").lower()
+        found.append((name if name in ("script", "style") else "text", match.group(0)))
+        at = match.end()
+    found.append(("tags", html[at:]))
+    return found
+
+
+def one_file(workspace: Path, page: str = "index.html", build: bool = True) -> dict:
+    """→ {available, reason, html, bytes, inlined, embedded, external, notes} for one page. It is
+    measured first from file sizes, and refused past the limit before a byte is put inside; `build`
+    False stops there (the dialog only shows what the file would be)."""
     empty = {"available": False, "reason": None, "html": None, "bytes": 0, "inlined": 0,
              "embedded": {"files": 0, "bytes": 0}, "external": [], "notes": []}
     if (workspace / "studio.json").is_file():
@@ -304,17 +489,19 @@ def one_file(workspace: Path, page: str = "index.html") -> dict:
                                    "Use the folder: it says how to run the app."}
     if PurePosixPath(page) not in set(kept(workspace)) or PurePosixPath(page).suffix.lower() not in (".html", ".htm"):
         return {**empty, "reason": f"There is no page at {page} in this project."}
-    built = _Page(workspace, page)
-    html = built.build()
-    size = len(html.encode("utf-8"))
-    answer = {**empty, "inlined": len(built.inlined), "embedded": built.embedded, "external": sorted(built.external),
-              "notes": built.notes, "bytes": size}
-    if built.blocked:
-        return {**answer, "reason": built.blocked}
+    measured = _Page(workspace, page, measure=True)
+    size = len(measured.build().encode("utf-8")) + measured.extra
+    answer = {**empty, "inlined": len(measured.inlined), "embedded": measured.embedded,
+              "external": sorted(measured.external), "notes": measured.notes, "bytes": size}
+    if measured.blocked:
+        return {**answer, "reason": measured.blocked}
     if size > MAX_BYTES:
         return {**answer, "reason": f"As one file this page would be {size / 1e6:.0f} MB (the limit is "
                                     f"{MAX_BYTES // 1_000_000} MB). Use the folder."}
-    return {**answer, "available": True, "html": html}
+    if not build:
+        return {**answer, "available": True}
+    html = _Page(workspace, page).build()
+    return {**answer, "available": True, "html": html, "bytes": len(html.encode("utf-8"))}
 
 
 # -- a folder to host or run --------------------------------------------------------------------------
@@ -418,12 +605,14 @@ exec sh -c __RUN__
 """
 
 
-def folder_zip(workspace: Path, project: dict) -> bytes:
+def folder_zip(workspace: Path, project: dict, target: Path) -> None:
+    """Writes the archive to `target`, a file, one project file at a time: a project with a rendered
+    video of hundreds of MB never sits in memory whole."""
     info = folder_info(workspace, project)
     if not info["available"]:
         raise ExportUnavailable(info["reason"])
-    root, out = workspace.resolve(), io.BytesIO()
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
+    root = workspace.resolve()
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in kept(workspace):
             archive.write(root / path, path.as_posix())
         note = zipfile.ZipInfo(README, date_time=datetime.datetime.now().timetuple()[:6])
@@ -435,13 +624,12 @@ def folder_zip(workspace: Path, project: dict) -> bytes:
             entry.external_attr = 0o755 << 16
             entry.compress_type = zipfile.ZIP_DEFLATED
             archive.writestr(entry, RUN_SH.replace("__RUN__", shlex.quote(info["run"])))
-    return out.getvalue()
 
 
 def describe(workspace: Path, project: dict, page: str = "index.html") -> dict:
     """What `GET …/export` answers."""
     listing = pages(workspace)
-    html = one_file(workspace, page)
+    html = one_file(workspace, page, build=False)       # sizes only: opening the dialog builds nothing
     html.pop("html", None)
     folder = folder_info(workspace, project)
     return {"name": project.get("name"), "app": (workspace / "studio.json").is_file(), "pages": listing, "page": page,

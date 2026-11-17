@@ -236,6 +236,87 @@ async def test_a_copy_can_take_the_uncommitted_work_when_asked(client, studio, t
     assert snapshot(app) == before
 
 
+def test_uncommitted_env_files_are_neither_copied_unticked_nor_versioned(tmp_path):
+    """The .gitignore does not list them, so `git ls-files --others` offers them as ordinary files."""
+    app = make_app(tmp_path / "apps")
+    (app / ".gitignore").write_text(".next/\nnode_modules/\n")
+    (app / ".env.shared").write_text("SHARED=committed\n")
+    run_git(app, "add", "-A", ".gitignore", ".env.shared")
+    run_git(app, "commit", "-qm", "Env files no longer ignored")
+    (app / ".env.shared").write_text("SHARED=changed, not committed\n")
+    (app / "api").mkdir()
+    (app / "api" / ".env.production").write_text("DEEP=secret\n")
+    workspace = tmp_path / "copy"
+    attach.make_copy(app, workspace, "studio/site-1", None, env_files=[".env", ".env.local"],
+                     allowed_env=[".env.local"], include_uncommitted=True)
+    assert not (workspace / ".env").exists() and not (workspace / "api" / ".env.production").exists()
+    assert (workspace / ".env.local").read_text() == "LOCAL=1\n"       # ticked: copied
+    assert (workspace / ".env.shared").read_text() == "SHARED=committed\n"   # its uncommitted change is not taken
+    tracked = run_git(workspace, "ls-files").split()
+    assert not {".env", ".env.local", "api/.env.production"} & set(tracked)   # never in a version
+    assert subprocess.run(["git", "show", "HEAD:.env.local"], cwd=workspace, capture_output=True).returncode != 0
+
+
+def test_a_plain_folder_copy_leaves_unticked_env_files_out_and_never_versions_ticked_ones(tmp_path):
+    folder = tmp_path / "plain"
+    (folder / "server").mkdir(parents=True)
+    (folder / "index.html").write_text("<h1>Plain</h1>")
+    (folder / ".env").write_text("SECRET=1\n")
+    (folder / ".env.local").write_text("LOCAL=1\n")
+    (folder / "server" / ".env").write_text("DEEP=1\n")
+    for ticked in ([], [".env.local"]):
+        workspace = tmp_path / f"copy-{len(ticked)}"
+        attach.make_copy(folder, workspace, "unused", None, env_files=[".env", ".env.local"],
+                         allowed_env=ticked, include_uncommitted=False)
+        files = sorted(p.relative_to(workspace).as_posix() for p in workspace.rglob("*")
+                       if p.is_file() and ".git" not in p.parts)
+        assert files == sorted(["index.html", *ticked])
+        assert run_git(workspace, "show", "--name-only", "--format=", "HEAD").split() == ["index.html"]
+
+
+KEY_FILES = [".envrc", ".dev.vars", ".dev.vars.staging", ".netrc", ".pypirc", "id_ed25519", "sub/.envrc",
+             "deploy/id_rsa"]
+
+
+def test_one_rule_says_which_files_hold_keys():
+    from studio2_server import keyfiles
+    for path in [".env", ".env.local", "api/.env.production", *KEY_FILES, ".env/lib/site.py"]:
+        assert keyfiles.is_key_file(path), path
+    for path in ["README.md", ".npmrc", "environment.ts", ".envoy.yaml", "id_rsa.pub", "src/env.js",
+                 "config/keys.md", "cert.pem"]:
+        assert not keyfiles.is_key_file(path), path
+    from studio2_server import export, templates
+    assert all(templates.private(tuple(p.split("/"))) for p in KEY_FILES)
+    assert export.is_env(("a", ".envrc")) and not export.is_env(("environment.ts",))
+
+
+async def test_key_files_other_than_env_are_neither_copied_unticked_nor_versioned(client, tmp_path):
+    folder = tmp_path / "plain"
+    for path in [*KEY_FILES, "index.html", ".npmrc"]:
+        (folder / path).parent.mkdir(parents=True, exist_ok=True)
+        (folder / path).write_text(f"{path}: TOKEN=secret\n")
+    found = (await client.post("/api/apps/inspect", json={"path": str(folder)})).json()
+    assert {".envrc", ".dev.vars", ".netrc", "id_ed25519"} <= set(found["env_files"])
+    workspace = tmp_path / "copy"
+    attach.make_copy(folder, workspace, "unused", None, env_files=found["env_files"], allowed_env=[".envrc"],
+                     include_uncommitted=False)
+    files = sorted(p.relative_to(workspace).as_posix() for p in workspace.rglob("*")
+                   if p.is_file() and ".git" not in p.parts)
+    assert files == [".envrc", ".npmrc", "index.html"]                 # only the ticked one, and ordinary files
+    assert run_git(workspace, "ls-files").split() == [".npmrc", "index.html"]
+    # A git folder, taking its untracked files: the same.
+    app = make_app(tmp_path / "apps")
+    (app / ".gitignore").write_text(".next/\nnode_modules/\n")
+    run_git(app, "commit", "-qam", "Nothing ignored")
+    for path in KEY_FILES:
+        (app / path).parent.mkdir(parents=True, exist_ok=True)
+        (app / path).write_text("TOKEN=secret\n")
+    copy = tmp_path / "git-copy"
+    attach.make_copy(app, copy, "studio/x-1", None, env_files=[], allowed_env=[], include_uncommitted=True)
+    assert not [p for p in KEY_FILES if (copy / p).exists()]
+    assert not set(KEY_FILES) & set(run_git(copy, "ls-files").split())
+
+
 async def test_a_plain_folder_is_copied_without_what_its_gitignore_and_build_folders_leave_out(client, studio, tmp_path):
     folder = tmp_path / "plain"
     (folder / "node_modules" / "x").mkdir(parents=True)
@@ -445,3 +526,21 @@ async def test_in_place_survives_a_studio_restart(settings, tmp_path):
         assert run_git(app_folder, "rev-list", "--count", "HEAD").strip() == "2"
     finally:
         await second.state.studio.stop()
+
+
+async def test_a_key_file_that_is_a_link_is_not_offered_and_a_ticked_one_not_copied_is_said(client, studio, tmp_path):
+    folder = tmp_path / "plain"
+    folder.mkdir()
+    (folder / "index.html").write_text("<h1>x</h1>")
+    (tmp_path / "real.env").write_text("KEY=secret\n")
+    (folder / ".env").symlink_to(tmp_path / "real.env")
+    (folder / ".env.local").write_text("LOCAL=1\n")
+    found = (await client.post("/api/apps/inspect", json={"path": str(folder)})).json()
+    assert found["env_files"] == [".env.local"] and found["env_links"] == [".env"]
+    assert any(".env" in note and "link" in note for note in found["notes"])
+    project = (await client.post("/api/projects/attach", json={
+        "path": str(folder), "run": "", "env_files": [".env", ".env.local"]})).json()
+    assert project["attach"]["env_files"] == [".env.local"]
+    skipped = project["attach"]["env_skipped"]
+    assert [item["name"] for item in skipped] == [".env"] and "link" in skipped[0]["reason"]
+    assert not (studio.store.workspace(project["id"]) / ".env").exists()

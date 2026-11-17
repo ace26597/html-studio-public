@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from ..config import Settings, load_connections
 from .base import Harness, TurnRequest, TurnResult, empty_usage, public_connection
 
@@ -35,8 +37,21 @@ class Registry:
             else:  # imported lazily: the fake/test path never loads the SDK
                 from .claude import ClaudeHarness
                 self._harnesses[kind] = ClaudeHarness(kind, self.settings.secret_store(), self.sidecar,
-                                                      self.connections)
+                                                      self.connections, self.mcp_dir,
+                                                      (self.settings.data_dir, self.settings.config_path.parent))
         return self._harnesses[kind]
+
+    @property
+    def mcp_dir(self) -> Path:
+        """Where a turn's connector settings are written for the agent program (mode 700, outside
+        every project; harness/claude.py write_mcp_config). Each file goes when its turn ends."""
+        return self.settings.data_dir / "run" / "mcp"
+
+    def sweep(self) -> None:
+        """Remove connector settings left by a studio that was killed mid-turn. Called once at start,
+        before any turn runs."""
+        for path in self.mcp_dir.glob("mcp-*.json") if self.mcp_dir.is_dir() else []:
+            path.unlink(missing_ok=True)
 
     def connections(self) -> list[dict]:
         """Resolved configs (server-internal; may name key variables)."""

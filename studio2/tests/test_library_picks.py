@@ -515,3 +515,79 @@ async def test_connector_descriptions_are_kept_or_come_from_their_tools(client, 
     plan = {"id": "subscription", "kind": "claude-subscription", "models": ["haiku"]}
     await studio.picker.pick(project, "What is the weather forecast for Paris", plan)
     assert "Tools: get_weather, get_forecast" in prompts[0].split("Connectors:")[1]
+
+
+async def test_every_connector_switched_on_for_a_project_is_connected(client, studio, project, settings):
+    """A project may have twelve connectors on; a request used to connect eight and drop the rest without a word."""
+    pid = project["id"]
+    settings.home.mkdir(parents=True, exist_ok=True)
+    names = [f"conn{n:02d}" for n in range(12)]
+    (settings.home / ".claude.json").write_text(json.dumps({"mcpServers": {name: {"command": f"{name}-mcp"} for name in names}}))
+    saved = await client.put(f"/api/projects/{pid}/library", json={"mcp_servers": {f"machine:{name}": True for name in names}})
+    assert saved.status_code == 200, saved.text
+    events = await run_turn(client, studio, pid, "Tidy the page")
+    picked = next(e for e in events if e["type"] == "library_picked")
+    assert sorted(c["name"] for c in picked["connectors"]) == names
+    assert all(c["how"] == "pinned" for c in picked["connectors"])
+
+    # "Always, on this computer" has no such limit of its own: what does not fit is named, not dropped silently.
+    more = [f"more{n:02d}" for n in range(3)]
+    (settings.home / ".claude.json").write_text(json.dumps({"mcpServers": {name: {"command": f"{name}-mcp"} for name in names + more}}))
+    await client.put("/api/library/prefs", json={"mcp_servers": {f"machine:{name}": "always" for name in more}})
+    events = await run_turn(client, studio, pid, "Tidy the page")
+    picked = next(e for e in events if e["type"] == "library_picked")
+    assert len(picked["connectors"]) == 12
+    left = sorted(set(names + more) - {c["name"] for c in picked["connectors"]})
+    assert len(left) == 3 and all(name in picked["note"] for name in left) and "12" in picked["note"]
+
+
+def test_a_broken_file_in_one_skill_does_not_stop_the_request(studio, settings, tmp_path):
+    """A dangling link (or an unreadable file) inside a skill's folder used to fail the copy, and
+    with it every request that loads that skill."""
+    folder = settings.home / ".claude" / "skills"
+    skill(folder, "good", "A skill that is fine.")
+    skill(folder, "broken", "A skill with a dangling link in its folder.")
+    (folder / "broken" / "gone.md").symlink_to(tmp_path / "nowhere.md")
+    library = studio.lib
+    library.catalog.ensure()
+    ids = {entry["name"]: entry["id"] for entry in library.catalog.skills(("machine", "plugin"))}
+    made = library.materialise({"id": "p_x", "library": {}}, tmp_path / "plugin", picked=[ids["good"], ids["broken"]])
+    loaded = {library.skill(skill_id)["name"] for skill_id in made["loaded"]}
+    assert "good" in loaded and (tmp_path / "plugin" / "skills" / "good" / "SKILL.md").is_file()
+    # The broken skill is loaded without the file that could not be copied.
+    assert "broken" in loaded and (tmp_path / "plugin" / "skills" / "broken" / "SKILL.md").is_file()
+    assert not (tmp_path / "plugin" / "skills" / "broken" / "gone.md").exists()
+
+
+async def test_a_connector_being_tested_does_not_get_the_studios_keys(client, studio, tmp_path, monkeypatch):
+    """The Library's Test starts a connector's command. It used to hand it the whole environment
+    of the studio's shell, keys and all."""
+    import sys
+    monkeypatch.setenv("SOME_SERVICE_API_KEY", "sk-from-the-shell")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-from-the-shell")
+    seen = tmp_path / "seen.json"
+    script = tmp_path / "connector.py"
+    script.write_text("import json, os, sys\njson.dump(dict(os.environ), open(sys.argv[1], 'w'))\n")
+    made = await client.post("/api/mcp-servers", json={
+        "name": "peek", "transport": "stdio", "command": sys.executable, "args": [str(script), str(seen)],
+        "env": {"ITS_OWN_SETTING": "kept"}})
+    assert made.status_code == 201, made.text
+    tested = await client.post(f"/api/mcp-servers/{made.json()['id']}/test")
+    assert tested.status_code == 200 and tested.json()["ok"] is False      # it is not a real connector
+    got = json.loads(seen.read_text())
+    assert got.get("ITS_OWN_SETTING") == "kept" and got.get("PATH")
+    assert not got.get("SOME_SERVICE_API_KEY") and not got.get("ANTHROPIC_API_KEY")
+
+
+def test_an_apps_own_connector_file_is_not_filled_from_the_studios_keys(studio, tmp_path, monkeypatch):
+    """The file sits in the project, where the agent writes: `${ANTHROPIC_API_KEY}` in its address
+    would otherwise send the studio's own key wherever the agent liked."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-from-the-shell")
+    monkeypatch.setenv("SOME_SERVICE_API_KEY", "sk-from-the-shell")
+    monkeypatch.setenv("PLAIN_SETTING", "fine")
+    (tmp_path / ".mcp.json").write_text(json.dumps({"mcpServers": {"notes": {
+        "type": "http", "url": "https://example.com/${PLAIN_SETTING}/${ANTHROPIC_API_KEY}",
+        "headers": {"Authorization": "Bearer ${SOME_SERVICE_API_KEY}"}}}}))
+    view = next(server for server in studio.lib.app_servers(tmp_path) if server["name"] == "notes")
+    config = studio.lib.server_config(view["id"], tmp_path)
+    assert config["url"] == "https://example.com/fine/" and config["headers"] == {"Authorization": "Bearer "}

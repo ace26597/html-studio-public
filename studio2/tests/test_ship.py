@@ -475,6 +475,231 @@ async def test_a_restart_during_a_folder_copy_puts_the_files_back(client, studio
     assert studio.ships.record(pid, "s_0000beef")["result"] == "interrupted"
 
 
+# -- going back never discards what the studio did not put there ---------------------------------
+def shipped_by_merge(tmp_path: Path) -> tuple[Path, dict, dict, str, str]:
+    """An original whose main was fast-forwarded to a studio branch, as a merge ship leaves it."""
+    site = make_site(tmp_path)
+    before = run_git(site, "rev-parse", "HEAD").strip()
+    run_git(site, "checkout", "-qb", "studio/site-1")
+    (site / "index.html").write_text("<h1>Shipped</h1>\n")
+    run_git(site, "commit", "-qam", "Shipped")
+    head = run_git(site, "rev-parse", "HEAD").strip()
+    run_git(site, "checkout", "-q", "main")
+    run_git(site, "merge", "-q", "--ff-only", "studio/site-1")
+    project = {"attach": {"path": str(site), "branch": "main", "studio_branch": "studio/site-1"}}
+    planned = {"method": "merge", "head": head, "before": {"head": before, "branch": "main", "ref": None}}
+    return site, project, planned, before, head
+
+
+def test_merge_go_back_keeps_the_persons_edits_to_other_files(tmp_path):
+    site, project, planned, before, _head = shipped_by_merge(tmp_path)
+    with (site / "public" / "robots.txt").open("a") as handle:
+        handle.write("Disallow: /drafts\n")       # edited while the after-commands ran
+    (site / "notes.txt").write_text("mine\n")    # and an untracked file
+    lines = shipping._go_back(project, planned, tmp_path / "backup")
+    assert run_git(site, "rev-parse", "HEAD").strip() == before
+    assert (site / "index.html").read_text() == "<!doctype html><title>Site</title><h1>Hello</h1>\n"
+    assert (site / "public" / "robots.txt").read_text() == "User-agent: *\nDisallow: /drafts\n"
+    assert (site / "notes.txt").read_text() == "mine\n"
+    assert not run_git(site, "branch", "--list", "studio/site-1").strip()
+    assert any("back at" in line for line in lines)
+
+
+def test_merge_go_back_refuses_to_lose_an_edit_to_a_shipped_file(tmp_path):
+    site, project, planned, _before, head = shipped_by_merge(tmp_path)
+    (site / "index.html").write_text("edited by hand after the ship\n")
+    with pytest.raises(shipping.ShipError) as caught:
+        shipping._go_back(project, planned, tmp_path / "backup")
+    assert "index.html" in caught.value.message
+    assert run_git(site, "rev-parse", "HEAD").strip() == head
+    assert (site / "index.html").read_text() == "edited by hand after the ship\n"
+
+
+def test_merge_go_back_leaves_commits_made_since_the_ship(tmp_path):
+    site, project, planned, before, head = shipped_by_merge(tmp_path)
+    (site / "later.txt").write_text("committed after the ship\n")
+    run_git(site, "add", "later.txt")
+    run_git(site, "commit", "-qm", "Later")
+    now = run_git(site, "rev-parse", "HEAD").strip()
+    with pytest.raises(shipping.ShipError) as caught:
+        shipping._go_back(project, planned, tmp_path / "backup")
+    message = caught.value.message
+    assert "could not be undone automatically" in message and before[:7] in message and now[:7] in message
+    assert run_git(site, "rev-parse", "HEAD").strip() == now
+    assert (site / "later.txt").exists()
+    # The studio branch the ship fetched is left as it is too: the person settles this by hand.
+    assert run_git(site, "rev-parse", "refs/heads/studio/site-1").strip() == head
+
+
+def test_branch_go_back_leaves_a_branch_someone_moved(tmp_path):
+    site, project, planned, _before, head = shipped_by_merge(tmp_path)
+    run_git(site, "reset", "-q", "--hard", planned["before"]["head"])   # main as before: a branch ship
+    run_git(site, "checkout", "-q", "studio/site-1")
+    (site / "extra.txt").write_text("x\n")
+    run_git(site, "add", "extra.txt")
+    run_git(site, "commit", "-qm", "On the studio branch, by hand")
+    moved = run_git(site, "rev-parse", "HEAD").strip()
+    run_git(site, "checkout", "-q", "main")
+    with pytest.raises(shipping.ShipError) as caught:
+        shipping._go_back(project, {**planned, "method": "branch"}, tmp_path / "backup")
+    assert "studio/site-1" in caught.value.message
+    assert run_git(site, "rev-parse", "refs/heads/studio/site-1").strip() == moved != head
+
+
+def test_files_go_back_keeps_a_file_edited_after_the_ship_wrote_it(tmp_path):
+    site = make_site(tmp_path, git=False)
+    backup = tmp_path / "ship" / "backup"
+    (backup / "public").mkdir(parents=True)
+    (backup / "index.html").write_text("<h1>Before</h1>\n")
+    (backup / "public" / "robots.txt").write_text("User-agent: *\n")
+    # What the ship wrote, as _apply records it.
+    (site / "index.html").write_text("<h1>Shipped</h1>\n")
+    (site / "public" / "robots.txt").write_text("Shipped robots\n")
+    (site / "public" / "new.html").write_text("<p>new</p>\n")
+    applied = [{"path": "index.html", "status": "modified", "wrote": shipping._sha(b"<h1>Shipped</h1>\n")},
+               {"path": "public/robots.txt", "status": "modified", "wrote": shipping._sha(b"Shipped robots\n")},
+               {"path": "public/new.html", "status": "added", "wrote": shipping._sha(b"<p>new</p>\n")}]
+    (backup.parent / "applied.json").write_text(json.dumps({"files": applied}))
+    (site / "index.html").write_text("edited by hand after the ship\n")
+    project = {"attach": {"path": str(site)}}
+    with pytest.raises(shipping.ShipError) as caught:
+        shipping._go_back(project, {"method": "files"}, backup)
+    assert "index.html" in caught.value.message
+    assert (site / "index.html").read_text() == "edited by hand after the ship\n"
+    assert (site / "public" / "robots.txt").read_text() == "User-agent: *\n"
+    assert not (site / "public" / "new.html").exists()
+
+
+async def test_a_restart_after_a_merge_ship_leaves_commits_made_since(client, studio, tmp_path):
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid = project["id"]
+    await set_recipe(client, pid, method="merge")
+    await change(client, pid)
+    planned = shipping.plan(studio.store.get(pid), studio.store.workspace(pid))
+    record = {"id": "s_0000cafe", "project": pid, "started_at": "x", "phase": "after", "result": None,
+              "plan": {k: planned[k] for k in ("method", "base", "head", "before", "where", "writes")},
+              "attach": {"path": str(site)}}
+    studio.ships.save(pid, record)
+    shipping._apply(studio.store.get(pid), studio.store.workspace(pid), planned,
+                    studio.ships.folder(pid, record["id"]) / "backup")
+    (site / "later.txt").write_text("mine\n")
+    run_git(site, "add", "later.txt")
+    run_git(site, "commit", "-qm", "Mine, after the ship")
+    mine = run_git(site, "rev-parse", "HEAD").strip()
+    await studio.ships.recover(pid)
+    assert run_git(site, "rev-parse", "HEAD").strip() == mine
+    done = studio.ships.record(pid, "s_0000cafe")
+    assert done["result"] == "interrupted" and "could not be undone automatically" in done["message"]
+
+
+async def test_a_restart_after_a_merge_ship_goes_back_when_nothing_moved(client, studio, tmp_path):
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid = project["id"]
+    await set_recipe(client, pid, method="merge")
+    await change(client, pid)
+    before = git_state(site)
+    planned = shipping.plan(studio.store.get(pid), studio.store.workspace(pid))
+    record = {"id": "s_0000f00d", "project": pid, "started_at": "x", "phase": "after", "result": None,
+              "plan": {k: planned[k] for k in ("method", "base", "head", "before", "where", "writes")},
+              "attach": {"path": str(site)}}
+    studio.ships.save(pid, record)
+    shipping._apply(studio.store.get(pid), studio.store.workspace(pid), planned,
+                    studio.ships.folder(pid, record["id"]) / "backup")
+    assert git_state(site) != before
+    await studio.ships.recover(pid)
+    assert git_state(site) == before
+
+
+@pytest.mark.parametrize("git, method", [(True, "branch"), (True, "merge"), (False, "files")])
+async def test_an_env_file_in_the_change_is_never_shipped(client, studio, tmp_path, git, method):
+    """A copy keeps env files out of its versions; one forced into a version anyway (or a copy made
+    before that rule) must not reach the original."""
+    site = make_site(tmp_path, git=git)
+    project = await attach(client, site)
+    pid = project["id"]
+    await set_recipe(client, pid, method=method)
+    await change(client, pid)
+    workspace = studio.store.workspace(pid)
+    (workspace / "config").mkdir()
+    (workspace / "config" / ".env.production").write_text("KEY=secret\n")
+    run_git(workspace, "add", "-f", "config/.env.production")
+    run_git(workspace, "commit", "-qm", "Forced")
+    before = snapshot(site)
+    refused = await client.post(f"/api/projects/{pid}/ships")
+    body = refused.json()["error"]
+    assert refused.status_code == 409 and body["code"] == "ship_refused"
+    assert "config/.env.production" in body["message"]
+    assert snapshot(site) == before
+
+
+@pytest.mark.parametrize("method", ["branch", "merge"])
+async def test_a_key_in_any_version_is_never_shipped_even_when_a_later_version_removed_it(client, studio, tmp_path,
+                                                                                           method):
+    """A branch or merge ship carries every version, not just the end result."""
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid = project["id"]
+    await set_recipe(client, pid, method=method)
+    await change(client, pid)
+    workspace = studio.store.workspace(pid)
+    (workspace / ".envrc").write_text("export KEY=supersecret123\n")
+    run_git(workspace, "add", "-f", ".envrc")
+    run_git(workspace, "commit", "-qm", "Forced")
+    run_git(workspace, "rm", "-q", "--cached", ".envrc")
+    run_git(workspace, "commit", "-qm", "Removed again")
+    refused = await client.post(f"/api/projects/{pid}/ships")
+    body = refused.json()["error"]
+    assert refused.status_code == 409 and body["code"] == "ship_refused", body
+    assert ".envrc" in body["message"] and "every version" in body["message"]
+    assert "remove them from its versions" not in body["message"]
+    assert "supersecret123" not in run_git(site, "log", "--all", "-p")
+
+
+async def test_editing_a_tracked_env_example_ships_like_any_file(client, studio, tmp_path, live_address):
+    site = make_site(tmp_path)
+    (site / ".env.example").write_text("API_URL=\n")
+    run_git(site, "add", "-f", ".env.example")
+    run_git(site, "commit", "-qm", "Example settings")
+    project = await attach(client, site)
+    pid = project["id"]
+    await set_recipe(client, pid, method="merge", address=live_address)
+    await change(client, pid, ".env.example", "API_URL=\nNEW_FLAG=\n")
+    record = await ship(client, studio, pid)
+    assert record["result"] == "shipped", record["message"]
+    assert (site / ".env.example").read_text() == "API_URL=\nNEW_FLAG=\n"
+
+
+async def test_a_key_file_the_original_already_tracks_is_not_refused(client, studio, tmp_path, live_address):
+    """His repository already holds it; the copy changing it is an ordinary change to his file."""
+    site = make_site(tmp_path)
+    (site / "config").mkdir()
+    (site / "config" / ".env").write_text("MODE=dev\n")
+    run_git(site, "add", "-f", "config/.env")
+    run_git(site, "commit", "-qm", "Tracked settings")
+    project = await attach(client, site)
+    pid = project["id"]
+    await set_recipe(client, pid, method="branch")
+    await change(client, pid, "config/.env", "MODE=prod\n")
+    record = await ship(client, studio, pid)
+    assert record["result"] == "shipped", record["message"]
+
+
+async def test_a_plain_folder_ships_a_new_example_file_but_not_a_key_file(client, studio, tmp_path, live_address):
+    site = make_site(tmp_path, git=False)
+    project = await attach(client, site)
+    pid = project["id"]
+    await set_recipe(client, pid, method="files", address=live_address)
+    workspace = studio.store.workspace(pid)
+    (workspace / ".env.sample").write_text("API_URL=\n")
+    run_git(workspace, "add", "-f", ".env.sample")
+    run_git(workspace, "commit", "-qm", "Sample settings")
+    record = await ship(client, studio, pid)
+    assert record["result"] == "shipped", record["message"]
+    assert (site / ".env.sample").read_text() == "API_URL=\n"
+
+
 def test_protected_patterns():
     hits = shipping.protected_hits(["a/.env.local", "db/migrations/1.sql", "src/app.js", ".env"],
                                    [".env*", "db/migrations/"])
@@ -502,3 +727,125 @@ def test_writes_to_the_original_happen_only_in_apply_and_go_back():
     text = ast.unparse(run)
     assert text.index("allowed = await future") < text.index("_apply")
     assert text.index("if not allowed") < text.index("_apply")
+
+
+def test_key_free_names_are_the_usual_example_files_only():
+    from studio2_server import keyfiles
+    for path in [".env.example", "api/.env.sample", ".env.local.template", ".env.dist", ".env.defaults",
+                 ".dev.vars.example"]:
+        assert keyfiles.is_key_free(path), path
+    for path in [".env", ".env.local", ".envrc", "id_rsa", ".env.example/real", ".env/x.example", "README.example"]:
+        assert not keyfiles.is_key_free(path), path
+
+
+async def test_bringing_the_copy_up_to_date_runs_no_program_the_copy_names(client, studio, tmp_path):
+    """The fetch reads the original by its path; the copy's config is the agent's to write."""
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid = project["id"]
+    workspace = studio.store.workspace(pid)
+    marker = tmp_path / "ran"
+    command = f"sh -c 'touch {marker}; exec git-upload-pack \"$@\"' upload"
+    for key, value in ((f"remote.{site}.url", str(site)), (f"remote.{site}.uploadpack", command),
+                       ("core.alternateRefsCommand", f"touch {marker}")):
+        subprocess.run(["git", "config", key, value], cwd=workspace, check=True)
+    (site / "public" / "other.txt").write_text("someone else\n")
+    run_git(site, "add", "-A")
+    run_git(site, "commit", "-qm", "Moved on")
+    response = await client.post(f"/api/projects/{pid}/ship/update-copy")
+    assert not marker.exists()
+    assert response.status_code == 200 and response.json()["updated"], response.text
+    # The original's path rewritten to git's command transport: the fetch is refused, nothing runs.
+    for key, value in (("protocol.ext.allow", "always"), (f"url.ext::sh -c touch% {marker}.insteadOf", str(site))):
+        subprocess.run(["git", "config", key, value], cwd=workspace, check=True)
+    (site / "public" / "third.txt").write_text("again\n")
+    run_git(site, "add", "-A")
+    run_git(site, "commit", "-qm", "Again")
+    response = await client.post(f"/api/projects/{pid}/ship/update-copy")
+    assert not marker.exists()
+    assert response.status_code == 409 and response.json()["error"]["code"] == "update_failed"
+
+
+# -- going back says what happened, and keeps going past a file it must leave --------------------
+def test_go_back_says_the_branch_changed_when_the_commit_did_not(tmp_path):
+    site, project, planned, _before, head = shipped_by_merge(tmp_path)
+    run_git(site, "checkout", "-q", "-b", "feature")
+    with pytest.raises(shipping.ShipError) as caught:
+        shipping._go_back(project, planned, tmp_path / "backup")
+    message = caught.value.message
+    assert "feature" in message and "main" in message and f"{head[:7]}, not at {head[:7]}" not in message
+    assert run_git(site, "rev-parse", "HEAD").strip() == head
+
+
+def test_go_back_does_not_blame_the_person_for_an_after_command(tmp_path):
+    site, project, planned, _before, _head = shipped_by_merge(tmp_path)
+    (site / "index.html").write_text("rebuilt\n")
+    with pytest.raises(shipping.ShipError) as caught:
+        shipping._go_back(project, planned, tmp_path / "backup")
+    assert "by you or by an after-command" in caught.value.message
+
+
+def test_go_back_says_staged_files_are_kept_but_no_longer_staged(tmp_path):
+    site, project, planned, before, _head = shipped_by_merge(tmp_path)
+    (site / "new.txt").write_text("mine\n")
+    run_git(site, "add", "new.txt")
+    lines = shipping._go_back(project, planned, tmp_path / "backup")
+    assert run_git(site, "rev-parse", "HEAD").strip() == before
+    assert (site / "new.txt").read_text() == "mine\n"
+    assert any("new.txt" in line and "no longer staged" in line for line in lines), lines
+
+
+def test_files_go_back_carries_on_past_a_file_that_became_a_link(tmp_path):
+    site = make_site(tmp_path, git=False)
+    backup = tmp_path / "ship" / "backup"
+    (backup / "public").mkdir(parents=True)
+    (backup / "index.html").write_text("<h1>Before</h1>\n")
+    (backup / "public" / "robots.txt").write_text("User-agent: *\n")
+    (site / "index.html").write_text("<h1>Shipped</h1>\n")
+    (site / "public" / "robots.txt").write_text("Shipped robots\n")
+    applied = [{"path": "index.html", "status": "modified", "wrote": shipping._sha(b"<h1>Shipped</h1>\n")},
+               {"path": "public/robots.txt", "status": "modified", "wrote": shipping._sha(b"Shipped robots\n")}]
+    (backup.parent / "applied.json").write_text(json.dumps({"files": applied}))
+    (site / "public" / "robots.txt").unlink()
+    (site / "public" / "robots.txt").symlink_to(tmp_path / "elsewhere.txt")   # last in the list, first undone
+    with pytest.raises(shipping.ShipError) as caught:
+        shipping._go_back({"attach": {"path": str(site)}}, {"method": "files"}, backup)
+    assert caught.value.code == "back_failed" and "public/robots.txt" in caught.value.message
+    assert (site / "index.html").read_text() == "<h1>Before</h1>\n"        # put back all the same
+    assert (site / "public" / "robots.txt").is_symlink()
+
+
+def test_a_key_file_added_in_a_merge_itself_is_seen(tmp_path):
+    """`git log --name-only` leaves out what a merge commit changes unless asked (-m), so a key
+    file that is in neither parent and is added in the merge itself was not seen, though it is in
+    the tree the ship carries."""
+    import subprocess
+
+    from studio2_server import ship
+
+    repo = tmp_path / "copy"
+    repo.mkdir()
+
+    def git(*args: str) -> str:
+        return subprocess.run(["git", "-c", "user.name=T", "-c", "user.email=t@example.com", "-C", str(repo), *args],
+                              check=True, capture_output=True, text=True).stdout.strip()
+
+    git("init", "-q", "-b", "main")
+    (repo / "a.txt").write_text("a\n")
+    git("add", "a.txt"); git("commit", "-q", "-m", "base")
+    base = git("rev-parse", "HEAD")
+    git("checkout", "-q", "-b", "side")
+    (repo / "s.txt").write_text("s\n")
+    git("add", "s.txt"); git("commit", "-q", "-m", "side")
+    git("checkout", "-q", "main")
+    (repo / "m.txt").write_text("m\n")
+    git("add", "m.txt"); git("commit", "-q", "-m", "main")
+    git("merge", "-q", "--no-commit", "--no-ff", "side")
+    (repo / ".env").write_text("SECRET=only_in_the_merge\n")
+    git("add", "-f", ".env"); git("commit", "-q", "-m", "merge")
+    head = git("rev-parse", "HEAD")
+
+    refused = ship._key_file_refusal(repo, "merge", base, head, [])
+    assert refused and ".env" in refused[0]
+    # A history with no key file is still let through.
+    assert ship._key_file_refusal(repo, "merge", base, git("rev-parse", "HEAD^1"), []) is None

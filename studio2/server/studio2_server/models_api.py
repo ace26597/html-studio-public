@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from . import gateway, setup
 from .access import is_local
-from .config import Settings, connection_key
+from .config import Settings, connection_key, environment
 from .modelcheck import CheckError
 
 
@@ -102,8 +102,15 @@ def register(app: FastAPI, studio, settings: Settings) -> None:
         saved = next((c for c in studio.registry.connections() if c["id"] == wanted and c.get("kind") == preset["kind"]
                       and c.get("provider") == preset.get("provider")), None)
         if not key and saved:
-            import os
-            key = connection_key(saved, os.environ, settings.secret_store())
+            # The saved key goes only to the address saved with it. Anything on this computer can
+            # call this route, the agent's shell included, so an address from the body with the
+            # saved key would hand the key to whoever listens there.
+            saved_url = str(saved.get("base_url") or "").rstrip("/") or None
+            if base_url and base_url.rstrip("/") != saved_url:
+                return problem(400, "key_needed", "A saved key is only sent to the address it was saved with. "
+                                                  "Type the key for this address too.")
+            base_url = saved_url
+            key = connection_key(saved, environment(), settings.secret_store())
         try:
             if own_gateway:
                 found = await gateway.list_gateway_models(base_url or str((saved or {}).get("base_url") or ""), key)

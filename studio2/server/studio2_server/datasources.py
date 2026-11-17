@@ -169,13 +169,41 @@ def _connect(source: dict, password: str | None):
     if kind in ("postgres", "redshift"):
         import psycopg
         extra = {"client_encoding": "utf8"} if kind == "redshift" else {}
-        conn = psycopg.connect(host=source["host"], port=source["port"], dbname=source["database"],
-                               user=source["user"], password=password or None, sslmode=source["ssl"],
-                               connect_timeout=CONNECT_TIMEOUT, application_name="studio", **extra)
+        if source["ssl"] != "verify-full" and psycopg.pq.version() >= 160000:
+            # A server nobody checked may be anything listening on that port: it must not get the
+            # password in clear text (libpq refuses AuthenticationCleartextPassword before sending).
+            extra["require_auth"] = "!password"
+        try:
+            conn = psycopg.connect(
+                host=source["host"], port=source["port"], dbname=source["database"],
+                user=source["user"], password=password or None, sslmode=source["ssl"],
+                connect_timeout=CONNECT_TIMEOUT, application_name="studio", **extra)
+        except psycopg.OperationalError as exc:
+            # libpq: 'authentication method requirement "!password" failed: server requested a cleartext password'
+            if "require_auth" in extra and '"!password"' in str(exc):
+                raise DataError(400, "cleartext_refused", CLEARTEXT_REFUSED) from None
+            raise
         conn.prepare_threshold = None
         conn.read_only = True  # every transaction starts as BEGIN READ ONLY
         return conn
     return _connect_mysql(source, password)
+
+
+CLEARTEXT_REFUSED = ("The server asked for the password in clear text, and nothing checked that it is the "
+                     "database you saved (ssl is not verify-full), so the password was not sent. Use ssl "
+                     "verify-full, or a server that does not ask for the password in clear text.")
+
+
+class _RefuseCleartext:
+    """PyMySQL authentication methods that send the password itself (mysql_clear_password, and the
+    dialog plugin's "Password:" prompt): refused unless the server was checked (verify-full).
+    PyMySQL asks a mapped handler's `authenticate` first, before it would write anything."""
+
+    def __init__(self, _conn):
+        pass
+
+    def authenticate(self, _packet):
+        raise DataError(400, "cleartext_refused", CLEARTEXT_REFUSED)
 
 
 def _connect_mysql(source: dict, password: str | None):
@@ -188,6 +216,8 @@ def _connect_mysql(source: dict, password: str | None):
     common = dict(host=source["host"], port=source["port"], database=source["database"], user=source["user"],
                   password=password or "", connect_timeout=CONNECT_TIMEOUT,
                   read_timeout=STATEMENT_TIMEOUT_MS // 1000 + 5, autocommit=False)
+    if mode != "verify-full":
+        common["auth_plugin_map"] = {"mysql_clear_password": _RefuseCleartext, "dialog": _RefuseCleartext}
     if mode == "disable":
         return pymysql.connect(**common, ssl_disabled=True)
     # verify-full: the trusted authorities and the host name, both checked. A dict such as
@@ -476,7 +506,14 @@ class DataSources:
         clean = self.normalise(fields, current)
         if any(i["id"] != source_id and i["name"].lower() == clean["name"].lower() for i in items):
             raise DataError(409, "name_taken", "Another data source already has that name.")
-        if "password" in fields and fields["password"] is not None:
+        typed = "password" in fields and fields["password"] is not None
+        moved = any(clean[k] != current.get(k) for k in ("kind", "host", "port", "ssl"))
+        if moved and not typed and self.secrets.get(source_id) is not None:
+            # The stored password goes only to the server it was saved for: anything on this
+            # computer can call this route, and a database server picks how a password is sent.
+            raise DataError(400, "password_needed", "This data source now points somewhere else: type its "
+                                                    "password again. A saved one is only sent where it was saved for.")
+        if typed:
             if fields["password"] == "":
                 self.secrets.delete(source_id)
             else:

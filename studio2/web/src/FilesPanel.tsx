@@ -9,6 +9,7 @@ import { findPreview, OFFICE_KIND_LABEL, officeKind, orderTreeItems, type Office
 import { Icon, Spinner } from "./icons";
 import type { FileEntry } from "./types";
 import { IconButton, useToast } from "./ui";
+import { latestOnly, mayDiscard } from "./discard";
 
 interface FilesPanelProps {
   projectId: string;
@@ -20,6 +21,8 @@ interface FilesPanelProps {
   onUpload: (files: File[]) => Promise<void>;
   downloadUrl: string;
   onClose: () => void;
+  /** Whether the open file has unsaved edits, so a close from outside the panel can ask first. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 interface DirNode {
@@ -73,6 +76,7 @@ export function FilesPanel({
   onUpload,
   downloadUrl,
   onClose,
+  onDirtyChange,
 }: FilesPanelProps) {
   const toast = useToast();
   const [files, setFiles] = useState<FileEntry[] | null>(null);
@@ -94,9 +98,23 @@ export function FilesPanel({
     dirtyRef.current = Boolean(dirty);
     openRef.current = openFile;
   });
+  const dirtyChange = useRef(onDirtyChange);
+  dirtyChange.current = onDirtyChange;
+  useEffect(() => {
+    dirtyChange.current?.(Boolean(dirty));
+  }, [dirty]);
+  useEffect(() => () => dirtyChange.current?.(false), []);
 
+  // Every way of closing the panel or the viewer asks the same question first.
+  const discardOk = () => mayDiscard(Boolean(dirty), (question) => window.confirm(question));
+  const close = () => {
+    if (discardOk()) onClose();
+  };
+
+  const loads = useRef(latestOnly());
   const loadFile = useCallback(
     async (path: string, quiet = false) => {
+      const ticket = loads.current.begin();
       if (!quiet) setOpenFile({ state: "loading", path });
       setStale(false);
       const media = mediaKind(path);
@@ -111,9 +129,12 @@ export function FilesPanel({
       }
       try {
         const file = await api.getFile(projectId, path);
+        // Another file was opened (or the viewer closed) while this one was on its way.
+        if (!loads.current.isLatest(ticket)) return;
         setOpenFile({ state: "text", path, saved: file.content, hash: file.hash });
         setBuffer(file.content);
       } catch (error) {
+        if (!loads.current.isLatest(ticket)) return;
         if (error instanceof ApiError && error.status === 415) {
           setOpenFile({ state: "unsupported", path, message: error.message });
         } else if (error instanceof ApiError && error.status === 404 && quiet) {
@@ -167,12 +188,13 @@ export function FilesPanel({
 
   const select = (path: string) => {
     if (openFile?.path === path) return;
-    if (dirty && !window.confirm("Discard your unsaved changes to this file?")) return;
+    if (!discardOk()) return;
     void loadFile(path);
   };
 
   const closeViewer = () => {
-    if (dirty && !window.confirm("Discard your unsaved changes to this file?")) return;
+    if (!discardOk()) return;
+    loads.current.begin();
     setOpenFile(null);
     setStale(false);
   };
@@ -277,7 +299,7 @@ export function FilesPanel({
         onKeyDown={(event) => {
           if (event.key === "Escape" && !event.defaultPrevented) {
             event.stopPropagation();
-            onClose();
+            close();
           }
         }}
         onDragEnter={(event) => {
@@ -341,7 +363,7 @@ export function FilesPanel({
           >
             <Icon name="download" size={16} />
           </a>
-          <IconButton icon="x" label="Close files" tip="Close (Esc)" tipAlign="end" onClick={onClose} />
+          <IconButton icon="x" label="Close files" tip="Close (Esc)" tipAlign="end" onClick={close} />
         </header>
         <div className="panel-body">
           {files === null && !listError && (

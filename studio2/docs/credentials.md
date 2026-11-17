@@ -13,6 +13,22 @@ One rule for every secret, whatever it is for. The contract is in
   shown again.
 - **A service's own variable wins.** When the environment already has the variable a service
   documents for its key, the studio uses that and saves nothing.
+- **A saved secret goes only where it was saved for.** Pointing a model account, a connector or a
+  data source somewhere else needs its key, token or password typed again in the same change; the
+  studio refuses to send the saved one to the new address. A connector's headers or environment
+  values are always given whole: an empty value never keeps a stored one. Over the API a model key cannot be named
+  by an environment variable (`studio setup --key-env` does that). This holds for the studio's
+  HTTP API only: the agent's shell runs as you, so until projects run in containers it can still
+  run `studio setup`, edit the config file or register a plugin. Details in CONTRACT.md, "Where a
+  key is kept".
+- **No database password in clear text to an unchecked server.** Unless a data source is
+  `verify-full`, a server asking for the password in clear text is refused (PostgreSQL, Redshift,
+  and MySQL's clear-text methods). MySQL's other methods can still give the password to a server
+  that pretends: use `verify-full` for MySQL. CONTRACT.md, "Data sources".
+- **Never on a command line.** A connector's secrets reach the agent program in a file only its
+  owner can read (`<data>/run/mcp/`, removed when the turn ends), not as an argument that `ps`
+  shows to everyone on the machine. The agent runs as the same user, so it can still read that
+  file during its turn; that is the limit until projects run in containers.
 - **Nothing leaves in an export.** `.env` files and what an app saved while running are left out of
   every export.
 

@@ -31,6 +31,38 @@ projects/<id>/
 
 `<id>` is `p_` + 8 lowercase hex characters.
 
+The studio's own git commands on a project (versions, restore, diffs, bringing a copy up to
+date) are held against a project's `.git/config` and `.gitattributes`, which the agent can
+write. What is held, and how:
+
+- Settings that name a program are fixed on the command line, where they outrank the
+  repository: `core.hooksPath=/dev/null` (no hook of the project runs), `core.fsmonitor`,
+  `core.sshCommand`, `core.pager`, `core.editor`, `sequence.editor`, `core.askPass`,
+  `credential.helper`, `core.alternateRefsCommand`, `gpg.program` (with signature checks off),
+  `merge.default`, submodule recursion off.
+- Programs a project names under a name of its own (`filter.<x>.clean/smudge/process`,
+  `diff.<x>.textconv/command`, `merge.<x>.driver`) run only when an attribute selects them.
+  Before every command the studio writes the git directory's `info/attributes` (which outranks
+  every `.gitattributes`) as `* !filter !diff !merge`, replacing whatever is there and never
+  writing through a link. Every git version honours that file. Diffs also pass
+  `--no-ext-diff --no-textconv`, so `diff.external` is not used. A side effect: Git LFS is a
+  filter, so in the studio's own versions of a copy an LFS file stays the small pointer file it
+  is in the repository (the large file is not fetched or stored), and an attribute that names a
+  custom diff or merge program has no effect there. `text` and `eol` attributes still apply.
+- Only local paths are read: every transport but `file` is refused, so a `url.<x>.insteadOf`
+  cannot turn the original's path into `ext::` (a command) or a network address. The fetch from
+  the original names its reading program (`--upload-pack=git-upload-pack`).
+- Git gets a short environment (`PATH`, `HOME`, the locale, `TMPDIR`, `TZ`) and no global or
+  system config, never the studio's keys.
+
+Not held: an alias the project defines is never used (the studio calls git's own commands,
+which aliases cannot replace); a program on `PATH` that the agent replaces is the agent acting
+as this user, which only containers stop (Step 4). Git commands on the person's original folder
+(ship, inspect) run with his own configuration on purpose, as "Ship: make it live" says.
+
+Nothing the studio writes into a project from a template or an example ever lands in its
+`.git`, however the name is spelt (`.GIT`, `.Git`, or with code points a Mac disk ignores).
+
 ## Project record
 
 ```json
@@ -69,7 +101,7 @@ not come back after later turns. The interface shows the offer as a small bar un
 | `POST /api/projects` | `{name?}` | `Project` (201). Workspace gets a blank `index.html` and an initial commit |
 | `GET /api/projects/{id}` | | `Project` |
 | `PATCH /api/projects/{id}` | `{name?, connection?, model?, name_suggestion?: null}` | `Project`. `name_suggestion: null` drops the offered name (above) |
-| `DELETE /api/projects/{id}` | | 204. Moves the folder to `projects/.trash/` |
+| `DELETE /api/projects/{id}` | | 204. Moves the folder to `projects/.trash/`. From the moment it is called the project's queue is emptied (`turn_unqueued`, `cancelled`) and a new turn, queued message, ship or app start for it is refused (404 `project_not_found`); a running turn is stopped and waited for first |
 | `GET /api/projects/{id}/files` | | `[{path, size, modified_at}]`, excludes `.git`, `node_modules`, `__pycache__`, `.venv` |
 | `GET /api/projects/{id}/file?path=` | | `{path, content, hash}` for UTF-8 text up to 1 MB; 415 otherwise |
 | `PUT /api/projects/{id}/file` | `{path, content, base_hash?}` | `{path, hash, checkpoint}`. 409 `stale_file` if `base_hash` no longer matches. Creates a `user` checkpoint |
@@ -125,8 +157,9 @@ What each kind needs (all run the same agent program; only its environment diffe
 
 Any kind may carry `model_ids`, which pins the short names to the provider's own ids:
 `{"model_ids": {"sonnet": "apac.anthropic.…", "haiku": "…"}}`. A connection never falls through
-to another: whatever names a different endpoint is removed from what the agent program inherits.
-That includes each cloud's own names (`ANTHROPIC_FOUNDRY_API_KEY`, `_AUTH_TOKEN`, `_BASE_URL`,
+to another: whatever names a different endpoint is removed from what the agent program inherits
+(only from that: while it starts, another project's turn, health, setup and the plan's sign-in
+check still read the studio's own environment whole). That includes each cloud's own names (`ANTHROPIC_FOUNDRY_API_KEY`, `_AUTH_TOKEN`, `_BASE_URL`,
 `_RESOURCE`, `ANTHROPIC_VERTEX_PROJECT_ID`, `ANTHROPIC_VERTEX_BASE_URL`, `ANTHROPIC_BEDROCK_BASE_URL`,
 `AWS_BEARER_TOKEN_BEDROCK`): a turn sees them only when its connection is that cloud, and then
 only the ones the connection sets or that cloud's sign-in reads. A private address for Bedrock
@@ -184,7 +217,18 @@ id: <seq>
 data: <one event as JSON>
 ```
 
-A comment line (`: ping`) is sent every 15 seconds. The browser reconnects with
+After 15 seconds with nothing to send, the server sends a keep-alive as a named event, which
+pages can see (a comment line would never reach them):
+
+```
+event: ping
+data: {}
+```
+
+It has no `id:` and no `seq`, and is not an event of the project. A page that has heard
+nothing at all (no event, no ping) for 45 seconds takes the connection for dead (a half-open
+socket after a laptop sleeps or a phone changes networks still reports "open"), closes it and
+opens a new one with `after=<the last seq it has>`. The browser reconnects by itself with
 `Last-Event-ID`; the server honours it the same as `after`.
 
 Every event has `seq` (integer, starts at 1, per project), `ts`, `type`, and
@@ -205,7 +249,11 @@ Every event has `seq` (integer, starts at 1, per project), `ts`, `type`, and
 | `turn_cost` | `cost_usd`, `requests`, `unpriced`, `source`, `reason` | Written after `turn_finished` once what a gateway turn cost has been read back from the gateway (see "Cost per request and per project"). `turn_id` is the turn it prices |
 
 Rules:
-- Events are written to `events.jsonl` before they are sent.
+- Events are written to `events.jsonl` before they are sent, one whole line each.
+- A last line cut short by a crash is cut off when the log is next opened (the cut bytes are kept
+  in `events.jsonl.torn` beside it, replaced each time), so the next event starts on its own line
+  and takes the number after the last whole event. A last event that is whole but lost only its
+  newline is kept.
 - A turn always ends with exactly one `turn_finished`, including after Stop, a crash
   or a server restart (startup closes orphaned turns as `failed` with
   `error: "The studio restarted during this turn."`).
@@ -338,6 +386,22 @@ A file `studio.json` in the workspace root turns the project into an app:
   `Origin` (not a browser) is passed on. `X-Frame-Options` and the `frame-ancestors` part of a
   `Content-Security-Policy` are dropped from the app's answers, because the page is shown
   inside the studio.
+- An app that builds absolute addresses from its `Host` (Starlette and FastAPI's trailing-slash
+  redirect, `url_for`) answers with its own private address (`http://127.0.0.1:$PORT/…`, or
+  `localhost`, `[::1]`, `0.0.0.0` at that port). In a `Location` or `Content-Location` header that
+  origin is replaced with the scheme and `Host` the request came in on, so the browser stays on the
+  project's address (on a phone 127.0.0.1 is the phone; on the Mac the app's own port has no
+  bridge). Every other address is passed on as it is. A `Set-Cookie` whose `Domain` names the
+  app's loopback host loses that attribute, so the cookie belongs to whatever host the browser used;
+  `Secure` is left alone (the browser treats 127.0.0.1 and localhost as secure, and the tailnet
+  address is HTTPS).
+- The app gets `X-Forwarded-For` (the browser's address appended to any it sent). It does not get
+  `X-Forwarded-Host`, `X-Forwarded-Proto` or `Forwarded`, and those sent by the browser are removed:
+  the app sees its own origin and host (above), and these would contradict them. Next's Server
+  Actions compare `Origin` with `X-Forwarded-Host` first, and Rails compares `Origin` with a base
+  address that follows `X-Forwarded-Proto`, so either header would make them refuse the page's
+  forms. Addresses an app writes into page bodies from its `Host` therefore still name
+  127.0.0.1; links relative to the page work everywhere.
 - stdout and stderr go to `projects/<id>/app.log` (truncated at each start, capped at
   5 MB) and to an in-memory tail of 2,000 lines.
 
@@ -345,12 +409,27 @@ A file `studio.json` in the workspace root turns the project into an app:
 
 ```json
 {"configured": true, "run": "…", "state": "running", "pid": 123, "port": 8301,
- "exit_code": null, "started_at": "…", "error": null, "last_line": 57}
+ "exit_code": null, "started_at": "…", "error": null, "last_line": 57, "slow": false,
+ "not_answering": false}
 ```
 
 `state`: `none` (no valid `studio.json`), `starting` (process alive, port not answering
-yet), `running`, `stopped` (stopped on request), `crashed` (exited by itself, or never
-answered within 90 s; see `exit_code`). `error` explains an invalid `studio.json`.
+yet), `running`, `stopped` (stopped on request), `crashed` (the process exited; see
+`exit_code`). Only an exited process is `crashed`. An app that has not answered within 90 s
+(a first start that downloads packages, a slow first compile) stays `starting` with
+`slow: true`: the studio keeps checking every 2 s and it becomes `running` when its port
+answers. A line in its output says so, and again each minute with how long it has waited and
+to check that the app listens on `$PORT`; the page at the project address says the same. Five
+minutes after the start, an app that is still alive and has never answered gets `not_answering:
+true` and one plain line in its output: it is running but not answering on its port, most likely
+listening on another port or not serving at all. It is still `starting` (it has not exited) and is
+never stopped by the studio, since it may still be compiling; the studio keeps checking and it
+becomes `running` if it answers. The project address then says it is running but not answering.
+`slow` and `not_answering` are false in every other state. The agent is told to wait on `slow` for a
+minute or two at most, then read the app's output and check the port, not to keep waiting. An
+attached app's install that runs past its own limit is stopped like a Stop: SIGTERM to the app's
+whole process group, then SIGKILL after 5 s; it is then `crashed` with its exit code.
+`error` explains an invalid `studio.json`.
 `Project` gains `app: {configured, state}`.
 
 ## REST additions
@@ -380,11 +459,24 @@ message); they are committed with the turn's checkpoint instead of their own.
 | `turn_unqueued` | `queued_id`, `reason` | It was removed without running. `reason`: `cancelled`, `restart` (the studio restarted) |
 | `approval_request` | `approval_id`, `tool`, `title`, `detail`, `reason` | The agent wants to do something risky and is waiting. `title` is a short line ("Run a shell command"), `detail` the command or path, `reason` why it needs approval |
 | `approval_resolved` | `approval_id`, `decision`, `by` | `decision`: `allow`, `deny`. `by`: `user`, `turn_end` (the turn ended first: always `deny`) |
-| `app_status` | `state`, `exit_code`, `run` | The project's app changed state. `turn_id` is the running turn or null |
+| `app_status` | `state`, `exit_code`, `run`, `slow`, `not_answering?` | The project's app changed state, or became `slow` or `not_answering` while `starting`. `turn_id` is the running turn or null |
 
 - Queued messages run in order, each as its own turn, as soon as the turn before ends —
-  also after a failed turn, but not after Stop: Stop also clears the queue
-  (`turn_unqueued`, `cancelled`).
+  also after a failed turn. Stop clears the messages that were waiting when it was pressed
+  (`turn_unqueued`, `cancelled`); a message sent after the Stop ("stop, do this instead") is the
+  person's to keep and runs when the stopped turn has ended. This holds for a Stop at any point.
+- Stop counts for as long as the turn is running, including after the agent's part has ended
+  while the studio is still finishing (saving the version, restarting the app, opening the page,
+  the re-check). A Stop that arrives then no longer cancels anything: what the agent changed is
+  still saved as a version (`checkpoint` before `turn_finished`) and the app is still restarted
+  on it, while the queue is cleared as above, a ship the agent asked for is not begun, and the
+  steps not yet started are skipped (the look at the page, the re-check, `next_steps`). A turn
+  that had completed ends with `status: "stopped"` and a `notice` (`info`) saying the agent had
+  already finished and what became of its changes (saved as a version; could not be saved; or it
+  changed no files). A turn that had failed stays `failed` with its error.
+- When the studio's own ending of a turn fails (a disk that is full, say) before `turn_finished`
+  was written, it still writes one, `status: "failed"` with what went wrong, and the queue goes
+  on as after any failed turn (not for a project being deleted).
 - Every `approval_request` is followed by exactly one `approval_resolved` before the
   turn's `turn_finished`.
 - `usage` gains `cost_estimated` (bool). On a subscription connection `cost_usd` is what
@@ -401,10 +493,69 @@ With `approvals: "ask"` the agent pauses before:
   download such as `playwright install`); deleting, moving or redirecting to paths outside
   the project; `git push`, `gh`; piping a download into a shell; process and service
   control (`kill`, `pkill`, `pm2`, `launchctl`, `crontab`); `ssh`/`scp`/`rsync` to another host; `docker`.
+- a setting that makes git run a program or read other settings, in any scope (`git config`
+  with `--local`, `--global`, `--file`/`-f`, or none): `core.fsmonitor`, `core.hooksPath`,
+  `core.sshCommand`, `core.pager`, `core.editor`, `core.askPass`, `core.gitProxy`, `filter.*`,
+  `diff.external`, `diff.*.textconv`, `diff.*.command`, `merge.*.driver`, `alias.*`,
+  `credential.*`, `include.*`, `includeIf.*`, `gpg.*`, `url.*`, `protocol.*`; and anything that
+  writes or redirects into the project's own `.git/` folder (`.git/config`, `.git/hooks/…`,
+  `.git/info/attributes`). The reason says that this would let git run a program. Reading a
+  setting, removing one, and ordinary settings (`user.name`, `pull.rebase`, …) do not ask.
+- anything that would change the studio's own settings or state: the studio's command line when it
+  changes something (`studio setup`, `keys`, `library add`/`remove`, `litellm …`, `access-key`,
+  `login`, `stop`, `start`; also as `python -m studio2_server.cli …` or the virtual environment's
+  `studio` by its path; `studio status`, `doctor`, `library` and `--help` only read and do not ask),
+  and writing, moving, deleting or redirecting into `~/.config/studio2/`, `~/.claude/` (plugins,
+  settings, skills) or the studio's data folder (outside the project's own folder; this also asks
+  when the project's folder holds the data folder, as the studio's own repository brought in place
+  does). The reason says that this would change the studio's own settings. Reading them does not ask.
+- in a project edited in place (its folder is the person's own app, with their own repository),
+  a `git` command that can discard or rewrite work there:
+  - `checkout` of paths (`checkout -- <path>`, `checkout .`, `checkout <commit> <path>`, a single
+    argument that is a file in the folder), `checkout -f`, `checkout -B`;
+  - `switch -C`, `switch -f`/`--discard-changes`;
+  - `restore` of the working tree (no `--staged`, or with `--worktree`/`-W`);
+  - `reset --hard`/`--merge`/`--keep`, and a `reset` that moves the branch to another commit
+    (`reset HEAD~1`, `reset --soft HEAD~2`);
+  - `clean` (not `-n`); `stash drop`, `stash clear`, `stash pop`;
+  - `branch -D`, `-f`/`--force`, `-M`, `-C`;
+  - `rebase`, `commit --amend`, `push`, `pull` (not `--ff-only`), `merge`, `cherry-pick`, `revert`;
+  - what removes the means of recovery: `reflog expire`/`delete`, `gc --prune`, `prune`, `tag -d`;
+    and `filter-branch`, `filter-repo`, `update-ref`.
+
+  These do not ask, because git itself refuses to lose anything in them, or they only read:
+  `checkout -b`, `switch -c`, a plain `switch <branch>`/`checkout <branch>`, `restore --staged`,
+  `stash`/`stash push`/`save`/`list`/`show`, `branch -d`/`-m`, `pull --ff-only`, a plain
+  `reset` of the index (`reset`, `reset HEAD`, `reset -- <path>`: it only unstages; no commit
+  moves and no file changes), `status`, `log`, `diff`, `show`, `ls-files`, `rev-parse`,
+  `blame`, `branch`, `add`, `commit`, `tag`, `fetch`, `gc`. In a project of the studio's own all
+  of these touch only the project's own history and do not ask (`push` always asks).
 - nothing else. Reads, edits inside the project, ordinary commands and web access do not ask.
 
+How paths are judged:
+- Against the project folder, from where the command runs: a `cd` or `pushd` (and `popd`) earlier on
+  the same line moves that, so `cd .. && rm -rf *` asks while `cd src && rm -rf build` does not.
+  `cd` alone, `cd ~` and `cd $HOME` go to the home folder. A `cd` to a scratch folder (`/tmp`, …)
+  makes relative paths there fine. A `cd` to a place that cannot be read from the text (`cd "$dir"`)
+  leaves the judgement where it was.
+- `git -C <dir>` (and `--git-dir`/`--work-tree`) out of the project, or `git` after a `cd` out of
+  it, asks for anything but reading. git's own options before the subcommand (`-C`, `-c k=v`,
+  `--git-dir=…`, `--work-tree=…`) are skipped when looking for `push` and the other subcommands.
+- `find … -delete`, `find … -exec rm …` (also `rmdir`, `unlink`, `shred`) and `find … | xargs rm`
+  delete what `find` finds: judged by `find`'s starting points.
+- `>|` is a redirection like `>`. `ln` changes only its last argument (the link), not what it points at.
+- A path that starts with `~`, `$HOME` or `${HOME}` is expanded to the home folder and judged by
+  where it leads, so a path into an app that lives under the home folder is inside it.
+- A download's target is a write: `curl -o`/`--output`/`--output-dir` (and `-O` into the current
+  folder), `wget -O`/`--output-document`/`-P` (and its default, the current folder).
+- git's own path arguments are writes: the folder of `clone` (and `--separate-git-dir`,
+  `--template`), `worktree add <dir>`, `init <dir>`, `archive -o <file>`.
+- A substitution (`$(…)`, `` `…` ``, `$VAR`) is never evaluated; a target of a writing or deleting
+  command, or of a redirection, in which one is followed by `..` asks.
+
 The rules read the command, not a file's text: the body of a here-document that `cat` or `tee`
-writes to a file (`cat > notes.py <<'EOF' … EOF`) is skipped, while where it writes and
+writes to a file (`cat > notes.py <<'EOF' … EOF`), or that `git` reads as a message
+(`git commit -F - <<'EOF'`, `git tag -F -`, `git notes add -F -`), is skipped, while where it writes and
 everything after it are still checked. A here-document handed to another language (`python3 - <<'EOF'`, `node`, …)
 is a program, not shell: only the rules that name programs apply to it, not the checks on
 redirections and file commands. That holds when the interpreter is started through a runner
@@ -542,11 +693,30 @@ the same itself):
 `prefer` and `require` protect against someone reading the traffic, not against someone
 pretending to be the server. For a database on another machine use `verify-full`.
 
+**No password in clear text to a server that was not checked.** The same host and port is no
+proof of who answers: on this computer anything can listen on a free database port (a saved
+`localhost:5432` whose database is not running), and the database server chooses how the
+password is sent. Unless `ssl` is `verify-full`:
+
+- PostgreSQL and Redshift connect with libpq's `require_auth=!password`, so a server that asks
+  for the password in clear text (`AuthenticationCleartextPassword`) is refused before anything
+  is sent; MD5 and SCRAM go on as before. This needs libpq 16 or later (the studio's psycopg
+  carries 18); with an older libpq the option is left out and the limit stands.
+- MySQL refuses the `mysql_clear_password` and `dialog` methods (PyMySQL otherwise answers both
+  with the password itself).
+
+The error says so, and how to proceed: use `verify-full`, or a server that does not ask for
+the password in clear text. **Still open:** MySQL's `caching_sha2_password` and `sha256_password`,
+when the server asks for a full authentication, send the password over the unchecked TLS of
+`prefer`/`require` or encrypt it with a public key the server itself supplies; a server that
+pretends can read it either way. For MySQL, only `verify-full` protects the password from a
+listener that is not the database.
+
 | Method and path | Body | Returns |
 |---|---|---|
 | `GET /api/data-sources` | | `[DataSource]` |
 | `POST /api/data-sources` | `{name, kind, host, port?, database, user, password?, ssl?}` | `DataSource` (201). 400 `invalid_request` with a message naming the field; 409 `name_taken` |
-| `PATCH /api/data-sources/{id}` | any of the same fields; `password: ""` removes the stored password | `DataSource` |
+| `PATCH /api/data-sources/{id}` | any of the same fields; `password: ""` removes the stored password | `DataSource`. A new `kind`, `host`, `port` or `ssl` on one with a stored password needs `password` with it (400 `password_needed`) |
 | `DELETE /api/data-sources/{id}` | | 204. Also detaches it from every project and deletes the stored password |
 | `POST /api/data-sources/{id}/test` | | `{ok, message, server_version?, tables?}`; always 200 for a known id. Connects, runs a trivial query, counts visible tables. Updates `last_test` |
 | `POST /api/data-sources/test` | the same body as create | the same answer, without saving anything |
@@ -647,6 +817,11 @@ appear in events as `tool_call` with `name: "mcp__studio__<tool>"`.
 line `[page N]`). A source is never rewritten: fetching the same URL again makes a new id
 only when the text changed. Limits: 25 MB download, 2,000,000 characters of text.
 
+Saving is one step per project: helpers that fetch in parallel each get their own id, and an id is
+always paired with the text that was read for it. Two fetches of the same address at the same time
+(without `refresh`) end with one source; the second answers `already_saved: true` with the first's id.
+The index is written to a temporary file and renamed over the old one, so it is never half written.
+
 ### The page check
 
 Marking in the page (any HTML file in the project):
@@ -728,7 +903,7 @@ a failed item; the tool's `next` names the ids to add.
 | Method and path | Body | Returns |
 |---|---|---|
 | `POST /api/mcp-servers` | `{name, label?, transport, url? , command?, args?, headers?: {name: value}, env?: {name: value}, description?}` | `McpServer` (201). 400 `invalid_request`, 409 `name_taken` |
-| `PATCH /api/mcp-servers/{id}` | any of the same fields | `McpServer`; only `yours` |
+| `PATCH /api/mcp-servers/{id}` | any of the same fields | `McpServer`; only `yours`. A new `url`, `transport`, `command` or `args` on one with stored secrets needs its `headers` or `env` given again, each with a value (400 `secret_needed`, "Where a key is kept"). `headers` and `env` are sent whole: an empty value is refused, never "keep the stored one" |
 | `DELETE /api/mcp-servers/{id}` | | 204; only `yours`. Removes it from every project and deletes its stored secrets |
 | `POST /api/mcp-servers/{id}/test` | | `{ok, message, tools: [{name, description}]}`; connects, lists tools (at most 200), 20 s limit. Works for every source; updates `last_test` for `yours` |
 | `POST /api/skills` | `{name, description, body}` | the skill (201); writes `data/skills/<name>/SKILL.md`. `name` as for servers, ≤ 60 |
@@ -741,6 +916,27 @@ the person's deviations from the defaults. At most 12 MCP servers enabled per pr
 
 A turn that could not connect to an enabled MCP server still runs; it carries a `notice`
 (`warning`) naming the server.
+
+A turn's connectors reach the agent program in a file, never on its command line (where `ps`
+shows every argument to every process and user on the machine): `<data>/run/mcp/mcp-<random>.json`,
+mode 600, in a folder of mode 700, outside every project. Only the studio's own tools, which run
+inside the studio and hold no secret, stay on the command line. The file is kept while the
+program runs (it may read it again to reconnect) and removed when the turn ends, however it ends;
+files a killed studio left behind are removed when the studio starts. The agent runs as the same
+user as the studio, so while its turn runs it can still read that file: the gain is that a
+connector's headers and environment values are no longer one `ps` away for every process and
+every user.
+
+**Limit: a stdio connector starts in the project folder.** The agent program starts each stdio
+connector with the project as its working folder, and its connector settings have no field to
+change that (the bundled program's stdio entry takes `type`, `command`, `args`, `env`, `timeout`,
+`alwaysLoad`, `bareElicitationCapability` and `role`; it spawns with its own project folder as
+`cwd`). A command that looks in its working folder first therefore runs what the agent wrote
+there, with the connector's stored `env`: `npx -y some-mcp` finds `node_modules/.bin/some-mcp`,
+`python -m pkg` finds `pkg/`. Until projects run in containers, give a connector that holds a
+secret a command that does not look in the working folder (an absolute path to an installed
+program, `uvx`/`npx` with a pinned package outside any project), or keep its token out of the
+studio.
 
 ## Sub-agents in the background
 
@@ -777,6 +973,11 @@ that is not plainly local is refused with 403.
   cookie: a page request is redirected to `http://<host>:<studio port>/login?next=…`
   (also from a project port), anything else gets 401 `access_denied`, a WebSocket is closed
   with 4401. Eight wrong keys from one address within five minutes → 429.
+- An open studio tab whose cookie has expired, or was made with a key that has since changed,
+  gets that 401 from `GET /api/health` or when its event stream reconnects; the UI then sends
+  the browser to `/login?next=<the current address>`. It shows "the studio is not running" only
+  when nothing answered (a network error, or 502/503/504 from a proxy in front); any other
+  answer is shown with its message.
 - `Project.preview_url` uses the host the request was addressed to, so a project opened
   from `http://100.x.y.z:8200/` gets `http://100.x.y.z:<port>/`. Clients must use it as
   sent and never build project addresses themselves.
@@ -1002,14 +1203,17 @@ can be exported as a file and imported on another studio.
   put in the project's `template/` folder for the agent to follow, and the page itself starts
   empty. A pattern carries the look and the way it was built, never the facts: the agent is
   told not to reuse the template's figures, names, dates or sources.
-- `has_code`: the template contains `studio.json` or scripts. `imported`: it came from a file.
+- `has_code`: the template contains `studio.json` or scripts under `tools/` (names compared
+  without case: on a Mac disk `Studio.JSON` is the file the studio runs). `imported`: it came from a file.
 - Built-in templates have `source: "studio"`, `mode: "copy"`, `kind` `app` or `page`,
   `preview: null`.
 
 ## What is saved
 
 A copy of the project's files as they are, without `.git`, `sources/`, `checks/`,
-`attachments/`, `research/`, dependency folders and caches, and:
+`attachments/`, `research/`, dependency folders and caches, never with `state/` (what an app
+writes while it runs: its database, uploads) or key files (see "Key files" under "Bring an app
+by its folder"; the one rule the whole studio uses), and:
 
 | Kind | Also left out | Kept |
 |---|---|---|
@@ -1020,6 +1224,8 @@ A copy of the project's files as they are, without `.git`, `sources/`, `checks/`
 Plus `TEMPLATE.md` (what it is, its files, how to use it, the person's description and any
 notes on how it was made) and a preview image (a screenshot of the page, or the first page of
 the Office file). At most 2,000 files and 40 MB; otherwise 413 `template_too_large`.
+`state/` and key files are also dropped from a template's files when it is exported, imported
+or used to start a project, so a template saved before this rule does not pass them on.
 
 ## REST
 
@@ -1030,7 +1236,7 @@ the Office file). At most 2,000 files and 40 MB; otherwise 413 `template_too_lar
 | `DELETE /api/templates/{id}` | | 204. Projects that use it keep their copy |
 | `GET /api/templates/{id}/preview` | | the preview image, or 404 |
 | `GET /api/templates/{id}/export` | | `application/zip`, named `<label>.studio-template.zip` |
-| `POST /api/templates/import` | multipart `file`, optional form field `confirm=1` | 201 Template. A template with `has_code` needs `confirm=1`: without it 409 `needs_confirmation`, because an app template runs on this machine when a project is started from it. 400 `invalid_template` for a file that is not a template; paths that leave the template, links and oversize files are refused |
+| `POST /api/templates/import` | multipart `file`, optional form field `confirm=1` | 201 Template. A template with `has_code` needs `confirm=1`: without it 409 `needs_confirmation`, because an app template runs on this machine when a project is started from it. 400 `invalid_template` for a file that is not a template; paths that leave the template, links, any `.git` (in any letter case) and oversize files are refused |
 | `POST /api/projects` | `{name?, template?}` | `template` may be a saved template's id |
 | `PUT /api/projects/{id}/uses-template` | `{template}` | Project. Puts the template's files in `template/` (replacing an earlier one) and records it; an `app` template used this way is a pattern too. Idle projects only |
 | `DELETE /api/projects/{id}/uses-template` | | Project. Removes `template/` and the record |
@@ -1098,7 +1304,9 @@ It answers `{page, width, height, fps, duration, frames, declared_by_page, drive
 file, bytes, sound, poster, embed, sheet, sheet_times, seconds_taken, console,
 failed_requests, next}`. `sheet` is a contact sheet (a grid of frames, each labelled with its
 time) saved outside the project, which the agent opens to see its own motion; `poster` is
-`<out>.jpg` beside the file; `embed` is a `<video>` (or `<img>` for a GIF) with a download
+`<name>.poster.jpg` beside the file (`media/intro.mp4` → `media/intro.poster.jpg`), a name that
+cannot replace a picture of the project called `intro.jpg`; a video rendered before this has its
+poster at `<name>.jpg`, which is left as it is and still works wherever a page names it; `embed` is a `<video>` (or `<img>` for a GIF) with a download
 link. With `check` there is no `file`, `poster` or `embed`. A render runs for at most 15
 minutes and one runs at a time. On this Mac a 12-second 1920 × 1080 video takes about 18
 seconds.
@@ -1212,7 +1420,7 @@ with `GIT_OPTIONAL_LOCKS=0`, so not even git's index is refreshed). `~` is expan
  "git": {"branch": "main", "head": "<sha>", "subject": "…", "uncommitted": [{"path": "a.txt", "status": "modified"}],
          "uncommitted_more": 0},
  "framework": {"id": "next", "label": "Next.js"}, "run": "exec npx next dev -p $PORT -H 127.0.0.1",
- "package_manager": "npm", "install": "npm ci", "env_files": [".env", ".env.local"],
+ "package_manager": "npm", "install": "npm ci", "env_files": [".env", ".env.local"], "env_links": [],
  "size": {"files": 225, "bytes": 9100000, "history_bytes": 217000000, "partial": false},
  "refused": {"copy": null, "in_place": "The studio's own data is inside this folder."},
  "notes": ["…"]}
@@ -1224,7 +1432,9 @@ with `GIT_OPTIONAL_LOCKS=0`, so not even git's index is refreshed). `~` is expan
 - `framework`/`run` come from a table of known kinds (below); both null when nothing matched.
   `run` names the Node or Python found for the app (`PATH=<dir>:$PATH …`) when the studio's
   own `PATH` would not find it. `install` is null when there is nothing to install.
-- `env_files`: names only (`.env`, `.env.*`), never contents.
+- `env_files`: names only of the key files at the top of the folder (see "Key files"), never contents.
+  A key file that is a link is not in this list (the studio never copies links); it is in
+  `env_links`, and a note says the copy starts without it.
 - `size.files`/`size.bytes`: what a copy would take (tracked files for git; for a plain folder,
   the files its `.gitignore` keeps, without `node_modules`, `.venv`, build output and caches).
   `history_bytes` is the size of `.git`. `partial` is true when the count stopped at 50,000 files.
@@ -1283,6 +1493,22 @@ already has a `.venv`, else `python3`.
   changes and untracked files into the first version. Default false: they are reported, not taken.
 - `name`: default "<folder name> (copy)" or "<folder name> (in place)".
 
+### Key files
+
+One rule says which files hold keys, for attach, ship, templates and export alike
+(`keyfiles.py`). A path is a key file when any part of it is one of:
+
+- `.env`, `.env.<anything>`, `.envrc` (direnv);
+- `.dev.vars`, `.dev.vars.<anything>` (Cloudflare wrangler's local secrets);
+- `.netrc`, `.pypirc` (passwords for servers and package indexes);
+- `id_rsa`, `id_dsa`, `id_ecdsa`, `id_ed25519` (SSH private keys).
+
+A folder with such a name counts too (a virtualenv called `.env`). Not on the list, on purpose:
+`.npmrc` (usually a registry address; a token in it is normally read from the environment),
+`*.pem` and `*.key` (public certificates and Keynote files share those endings) and `*.pub`.
+Refusing those would refuse ordinary work; keep a key in one of them out of an attached copy
+yourself.
+
 ### Safe copy
 
 - A git folder becomes `git clone --no-hardlinks <path> workspace` (the app's whole history
@@ -1293,8 +1519,13 @@ already has a `.venv`, else `python3`.
   caches) in a new git repository.
 - Refused above 2 GB (history plus files) or 50,000 files for a git folder, and above 500 MB or
   20,000 files for a plain folder.
-- `studio.json` (`{"run": …, "restart": "never"}`, when there is a command), the copied env files,
-  `node_modules/`, `.venv/` and `__pycache__/` are listed in the copy's `.git/info/exclude`:
+- Key files (at any depth) reach the copy only when ticked
+  in `env_files`; unticked ones are left out of the copied files, of the uncommitted changes and
+  of the untracked files that `include_uncommitted` takes, even when the folder's `.gitignore`
+  does not list them. (A key file the original's git already tracks comes with its history, as
+  committed; its uncommitted changes are not taken.)
+- `studio.json` (`{"run": …, "restart": "never"}`, when there is a command), the key-file
+  names above as patterns, `node_modules/`, `.venv/` and `__pycache__/` are listed in the copy's `.git/info/exclude`:
   they never enter a version, so the studio branch holds only the app's own files.
 - The import is the first version (`kind` `init`, message "Import from <path> at <sha7>"),
   made even when nothing changed. Versions list only that commit and what came after it;
@@ -1309,7 +1540,7 @@ already has a `.venv`, else `python3`.
   directory, `projects/<id>/history.git`, with the folder as its work tree: the app's own
   `.git`, index and branches are never read for writing or changed by the studio. Its first
   version is the folder as found. Its `info/exclude` lists `node_modules/`, `.venv/`,
-  `__pycache__/`, `.env` and `.env.*`; the app's own `.gitignore` files apply too.
+  `__pycache__/` and the key-file names; the app's own `.gitignore` files apply too.
 - Refused for: the home folder, a disk root or mount point, a folder that contains or is inside
   the studio's data folder or the studio's own repository, a folder another project already
   edits in place, and a folder that is not both readable and writable.
@@ -1336,14 +1567,18 @@ already has a `.venv`, else `python3`.
 "attach": {"mode": "copy", "path": "/Users/me/dev/site", "kind": "git", "framework": "next",
            "branch": "main", "started_from": "<sha>", "studio_branch": "studio/site-1a2b3c4d",
            "import_commit": "<sha>", "uncommitted": [{"path": "a.txt", "status": "modified"}],
-           "included_uncommitted": false, "env_files": [".env.local"], "install": "npm ci",
+           "included_uncommitted": false, "env_files": [".env.local"],
+           "env_skipped": [{"name": ".env", "reason": "it is a link, and the studio never copies links"}],
+           "install": "npm ci",
            "address": null, "attached_at": "…"},
 "app_config": null
 ```
 
 `attach` is null for other projects. `kind` is `git` or `folder`; `branch`, `started_from` and
 `studio_branch` are null for a plain folder; `studio_branch` is null in place.
-`uncommitted` is what the original had at that moment (at most 200 entries).
+`uncommitted` is what the original had at that moment (at most 200 entries). `env_files` is
+what was copied; `env_skipped` names every ticked file that was not, with why (always empty in
+place).
 
 `app_config` is `{run?, restart?, address?}` or null. When it is not null it is the app's
 declaration and `studio.json` is not read. In place it is always set (`{}` when there is
@@ -1437,8 +1672,21 @@ recipe, shown on the card.
 
 1. Refused (409) when the project is not attached (`not_attached`, 400), has no recipe
    (`no_recipe`), a turn is running (`turn_running`), a ship is running (`ship_running`), there
-   is nothing new (`nothing_to_ship`), or the original is not in a state the method can take
-   (`ship_refused`, message with the reason and "Next: …").
+   is nothing new (`nothing_to_ship`), the original is not in a state the method can take, or
+   the ship would carry a key file (`ship_refused`, message with the reason and "Next: …").
+   Key files (see "Key files") are never shipped: a copy keeps them out of its versions, so one
+   in a ship was forced in or predates that rule.
+   - `branch` and `merge` carry every version between the original's commit and the copy's
+     into the original's repository, so every one of those versions is looked at, not only the
+     end result: a key added in one version and removed in a later one still refuses the ship.
+     Removing it in a new version does not help; the way out is a fresh copy, or the change made
+     in the original by hand.
+   - `files` carries no history, so only the files it would write are looked at.
+   - Not refused: a key file the original's repository already tracks at the ship's base (his
+     own file, changed like any other), and the usual key-free names `.env.example`, `.sample`,
+     `.template`, `.dist` and `.defaults` (committed on purpose, edited with every new setting).
+     The copy side stays cautious: those names still reach a copy only when ticked.
+   - `none` (in place) moves nothing, so nothing is looked at.
 2. The workspace is saved as a version ("Changes before making it live"); the ship works from
    that saved version (`head`), never from files on disk.
 3. Checks run in the copy.
@@ -1449,17 +1697,30 @@ recipe, shown on the card.
    card was open the ship ends `refused` and nothing is written.
 6. Apply; then the after-commands in the original; then the address.
 7. When a step after apply fails, the studio goes back by itself: `merge` resets the original's
-   branch to where it was (`git reset --hard`; there were no uncommitted changes) and puts the
-   studio branch back (or removes it); `files` puts back every file it wrote or removed. Then it
-   runs `back` (or the after-commands again). Objects fetched into the original's `.git` stay
+   branch to where it was and puts the studio branch back (or removes it); `files` puts back
+   every file it wrote or removed. Then it runs `back` (or the after-commands again). Going back
+   never discards what the studio did not put there, because the person may work in his folder
+   while the after-commands run:
+   - `merge` resets only when the original is still on its branch at the version the ship left
+     there, and with `git reset --keep`, which keeps every edit and untracked file and refuses
+     when a file the ship changed has been edited since (by the person or by an after-command).
+     What was staged is kept but no longer staged, and the result says which files. When the person has committed or
+     switched branches since, or the reset refuses, nothing is reset: the ship ends `back_failed`
+     with the head before the ship and now, or the files in the way, for him to settle by hand.
+   - The studio branch is put back only while it still points at what the ship fetched and is
+     not checked out (otherwise it is left, and the message says so).
+   - `files` puts back a file only when it still holds what the ship wrote (or already holds
+     what was there before); a file edited since, or that has become a link, is left as it is
+     and named in the message, and the other files are still put back.
+   The same rules hold when a ship cut off by a restart is put back at start-up. Objects fetched into the original's `.git` stay
    there, unreferenced (git removes them in its own time). `none` has nothing to put back.
 8. A record is written: `projects/<id>/ships/<ship_id>/record.json` (with `logs/` holding each
    command's full output and `backup/` the files a `files` ship replaced).
 
 While a ship runs, turns are refused with 409 `ship_running` (a message sent with `queue: true`
 waits and runs when the ship ends), and so are file writes, uploads, inline edits and restore.
-"Make it live" asked for by the agent during a turn starts when that turn ends (not after Stop
-or a failed turn). A studio restart during a ship ends it `interrupted`; a change that was
+"Make it live" asked for by the agent during a turn starts when that turn ends (not after Stop,
+also a Stop pressed while the turn was finishing, or a failed turn). A studio restart during a ship ends it `interrupted`; a change that was
 already being applied is put back at start-up, without running the after-commands again
 (the record says so). Limits, stated on every card: data and database changes are not undone
 by going back; where the change ends up is whatever the recipe's commands do.
@@ -1573,6 +1834,41 @@ config file, mode 600, in a folder made with mode 700. `STUDIO2_SECRETS=keychain
 forces one. The fake studio uses `memory`. A key is never written to `config.json`, returned
 by the API, put in an event or logged.
 
+**A saved secret goes only where it was saved for, through the studio's HTTP API.** The API on
+this computer needs no key, so anything running here (the agent's own shell included) can call
+it; no route may then carry a saved key, password or connector secret to an address the caller
+names. Changing where a model account, a connector or a data source points therefore needs its
+secret typed again in the same request; a request that brings none is refused and the saved
+secret is left where it was.
+
+What this does not cover: the agent's shell runs as the same person as the studio. Until
+projects run in containers it can still do what that person can do without the API: run
+`studio setup` (which may name a key by an environment variable), edit
+`~/.config/studio2/config.json`, register a plugin in `~/.claude/plugins`, or read the secrets
+file. These checks close the API, not the machine.
+
+- `POST /api/setup/models` without `api_key` uses the saved key at the saved address only; a
+  different `base_url` is 400 `key_needed`.
+- Setup (`POST /api/setup`, `studio setup`): a model account whose `base_url` (or Foundry
+  `resource`) changes needs `api_key` (or, in `studio setup`, `api_key_env`) with it.
+  `POST /api/setup` refuses `api_key_env`: over the API it would let a caller send any of the
+  studio's own variables to an address it chooses. `studio setup` still accepts it; that is no
+  protection against the agent, whose shell can run the command.
+- A plugin connector whose plugin folder is inside the studio's data folder or inside a project
+  folder (including a folder edited in place) has its `${NAME}` filled from the agent's own
+  environment (keys and endpoints blanked), for a turn and for the Library's Test alike. A plugin
+  installed anywhere else is filled from the studio's environment as before.
+- `PATCH /api/mcp-servers/{id}` that changes `url`, `transport`, `command` or `args` of a
+  connector with stored headers or environment values needs `headers` (or `env`) in the same
+  request, each with a value (400 `secret_needed`); stored ones it does not name are dropped.
+- A connector's `headers` or `env`, on `POST` or `PATCH`, never carries an empty value (400
+  `secret_needed`). An empty value used to mean "keep the stored one"; that let a caller keep a
+  token while adding a variable that changes what the unchanged command runs (`PYTHONPATH`,
+  `NODE_OPTIONS`, `DYLD_INSERT_LIBRARIES`). The set is sent whole, every value typed, or not at
+  all; `{}` removes them.
+- `PATCH /api/data-sources/{id}` that changes `kind`, `host`, `port` or `ssl` of a source with a
+  stored password needs `password` with it (400 `password_needed`).
+
 ## Shared
 
 Single-owner use is the default and includes the owner's own private network as before
@@ -1627,7 +1923,9 @@ questions. Every part is optional, so a rerun changes one thing.
 - `account.account`: `plan`, `api-key`, `bedrock` (`region`), `vertex` (`region`, `project`),
   `foundry` (`resource` or `base_url`, key optional), `gateway` (`base_url`, key, `models` as
   the gateway names them, optional `small_model`). The key is `api_key` (stored, then named by
-  `api_key_secret`) or `api_key_env`. The connection gets the kind's usual id (`subscription`,
+  `api_key_secret`) or `api_key_env` (accepted by `studio setup`, refused by `POST /api/setup`; not a protection
+  against the agent's shell, see "Where a key is kept"). Changing the
+  address of an account that has a key needs the key given again ("Where a key is kept"). The connection gets the kind's usual id (`subscription`,
   `api`, `aws`, `gcp`, `azure`, `gateway`) unless `id` is given, replaces one with that id,
   and goes first; the others stay. `openai`, `openrouter`, `azure-openai` and `gemini` are
   described under "Any model".
@@ -1866,7 +2164,9 @@ their own models; names starting `openrouter/` count as `paid`); otherwise `paid
 total, suggested: [id], suggested_small_model}` (`account` is a provider key or `gateway`;
 `suggested` is the whole list when `total` ≤ 12, else the short list above; `price` in dollars per million input tokens, cheapest first), or 400
 `no_model_list` with the reason. The key typed is used for that one request and not kept;
-without one, the key already saved for the account is used.
+without one, the key already saved for the account is used, and only at the address saved with
+it: a `base_url` that differs from it (a trailing `/` aside) is 400 `key_needed` ("type the key
+for this address"), and none is sent.
 
 ## Choices made in this step
 
@@ -2032,7 +2332,9 @@ should search and switch on what is missing.
 - Project: `PUT /api/projects/{id}/library` with `{"skills"?: {id: true | false | null}, "mcp_servers"?: {…}}`.
   `true` = always in this project, `false` = never in this project, `null` = leave it to the
   studio. Choices made by hand before this step keep their meaning: they are pins (`true`) and
-  switch-offs (`false`). At most 12 pinned connectors.
+  switch-offs (`false`). At most 12 pinned connectors, and every one of them is connected for a request (the
+  smaller limit of 8 is for what the studio adds by itself). A connector pinned for the whole computer
+  that does not fit is named in the pick's `note`, never dropped silently.
 - Whole machine: `PUT /api/library/prefs` with `{"skills"?: {id: "always" | "never" | null}, "mcp_servers"?: {…}}`
   → the preferences (`data/library-prefs.json`). The project's word wins over the machine's.
 - `data/library-usage.json`, per skill id: `picked` (requests it was picked for by the model
@@ -2110,6 +2412,11 @@ every connection whose figure comes from the agent program (the subscription, `a
 three clouds) `usage.cost_usd` is that total less what the same conversation had reached at the end of
 the turn before, and `usage.session_cost_usd` carries the total itself. The project record keeps
 `session_cost: {session_id, total_usd}` for the next turn. A new conversation starts from nothing.
+A change of connection or model resumes the same conversation, and the agent program's total keeps
+running through it. So on the two LiteLLM kinds too `usage.session_cost_usd` carries the program's
+total and `session_cost` is updated, although the turn's own figure is the gateway's and the
+program's total is never used as its price: otherwise the turn after a gateway turn would be counted
+the gateway turn's growth of the total as well.
 Turns written before 13 November 2026 have the running total in `cost_usd` and no
 `session_cost_usd`; the project total and the chat work their part out the same way when they read
 them. Until that day the chat showed the running total as each turn's cost.
@@ -2146,7 +2453,11 @@ The latest `turn_cost` of a turn replaces the `cost_usd` of its `turn_finished`.
 **Turns from before tagging** have no tag. `POST /api/projects/{id}/cost/recover` looks each
 finished gateway turn that has no price up in the gateway's spend log by what the log does record:
 the agent program's session id (`turn_finished.session_id`) and the turn's time window (from
-`turn_started` to five seconds after `turn_finished`). It writes `turn_cost` with `source:
+five seconds before `turn_started` to ten seconds after `turn_finished`). A row belongs to one turn
+only. A row tagged `studio-turn:<id>` is that turn's whatever its time (in the same session; a
+gateway's clock can run ahead of the studio's), and never another turn's. The window decides only
+for untagged rows: it never reaches into a neighbouring turn of the same session (priced or not),
+the gap between two turns going to the earlier one up to the later one's start. It writes `turn_cost` with `source:
 "recovered"`. The interface says "found by session and time". It adds nothing for a turn it cannot
 match, and never writes a figure for a window in which the log has no row of that session.
 
@@ -2162,7 +2473,14 @@ never to the plan or to a route whose figure the agent program works out.
   providers' list prices; `above: {prompt_tokens, …}` holds a model's higher rate for long prompts).
   A name is matched whole, then without a leading `openrouter/`, then by its last part with dots as
   hyphens and without a trailing date (`claude-opus-5-5` is `anthropic/claude-opus-5.5`); a last
-  part that fits two listed models matches neither.
+  part that fits two listed models matches neither. A `:free` ending is never taken off:
+  `qwen/qwen3-coder:free` is not the paid `qwen/qwen3-coder`.
+- *A model the provider serves for free* is priced at zero, as `reported`, never calculated: when the
+  route reported a cost of 0 for a request (LiteLLM's cost, a spend-log row's `spend`) and the model's
+  name ends in `:free` or `/free`, or the shipped list gives it an input and an output rate of 0. Both
+  LiteLLM paths (the studio's own and a spend log) use this one rule. A gateway's own 0 and 0 is a plan
+  route's and does not make a model free. Any other reported 0 is LiteLLM having no price: the backup
+  below when the rates are known, else unpriced. A request with no cost at all is never taken as free.
 - *Complete or not at all.* A source is used for a request only when it has a rate for every kind of
   token the request used (a request that read from the cache needs a cache-read rate). When neither
   source is complete the request stays **unpriced**. Nothing is ever priced at a guessed rate.
@@ -2180,7 +2498,21 @@ never to the plan or to a route whose figure the agent program works out.
   counts, which the agent program reports and `turn_finished.usage.tokens` keeps
   (`{input, cache_read, cache_write, output}`, input without the cached ones), all at the rate of the
   turn's model. Requests a helper made on a cheaper model are priced at the turn's model too, so this
-  figure can be high; it says so. `turn_cost` then has `source: "tokens"`.
+  figure can be high; it says so. `turn_cost` then has `source: "tokens"`. These counts are summed
+  over the turn's requests, so the size of each prompt is not known: on a model with a higher rate
+  for long prompts (`above`) a turn whose summed prompt is above that size stays **unpriced**, and
+  one at or below it takes the ordinary rate (no single request can have been above). A single
+  request (a spend-log row, the studio's own LiteLLM) is checked against `above` by its own size.
+- *A long-prompt tier holds whichever source has the price.* The gateway's own price carries its
+  tier from LiteLLM's fields `input_cost_per_token_above_<N>k_tokens`,
+  `output_cost_per_token_above_<N>k_tokens`, `cache_read_input_token_cost_above_<N>k_tokens`,
+  `cache_creation_input_token_cost_above_<N>k_tokens` and
+  `cache_creation_input_token_cost_above_1hr_above_<N>k_tokens` (`N` is 128, 200, 256, 272 or 512
+  in LiteLLM 1.102.1's list; `_priority` and `_flex` variants are service tiers, not sizes, and are
+  not read). A kind the tier gives no rate for is unpriced above it. When the source that would
+  price a request has no tier but the other source knows one for that model, the size is still the
+  other's: a request above it is not priced at the first source's ordinary rate (the next source
+  prices it with its tier, or it stays unpriced), and a summed turn above it is unpriced.
 - *The studio's own LiteLLM* writes each request's token counts beside its cost; a request it could
   not price is priced the same way from the shipped list.
 
@@ -2318,7 +2650,7 @@ closing message (the card has them; the message points to it).
 
 ### The studio's own re-check
 
-When a request wrote at least one `verification` event, the studio itself runs the page check
+When a request wrote at least one `verification` event and was not stopped, the studio itself runs the page check
 once more after the agent has finished (before the version is saved), on `index.html` when it
 exists and on every other page `check_page` was run on during the request. It does not write
 `checks/<page>.json` (the agent's last check stays the saved one) and it never sends the agent
@@ -2349,10 +2681,12 @@ and a `note` saying so.
 
 ## UI
 
-The composer has a three-step **Quick / Standard / Deep** control and a **Check the result** switch,
-with one plain line saying what the step means (Deep takes longer and uses more of the model
-allowance or money). **Check this page** sends a request that only verifies (verify on, no new
-content; it sends `options: {depth: "standard", verify: true, check_only: true}`). The chat shows
+The composer's bar has one small control beside the model's: it names the depth ("Standard"),
+with a tick when the result will be checked. It opens a menu with the three steps **Quick /
+Standard / Deep**, each with a few words on what it means (Deep is slower and costs more of the
+model allowance or money), **Check the result** to switch the check on or off, and **Check this
+page now**, which sends a request that only verifies (verify on, no new content; it sends
+`options: {depth: "standard", verify: true, check_only: true}`). The chat shows
 a `verification` event as a card: counts first, findings expandable, failed ones first. A
 `verification_recheck` belongs to the turn's last card and is shown at the top of it: when it
 disagrees, "N items the studio's own check still finds wrong" with each one listed, before the
@@ -2564,8 +2898,22 @@ Built from one page of the project (`index.html` unless `page` says otherwise):
 - a local stylesheet (`<link rel="stylesheet">`) becomes a `<style>`, with the local files its
   `url(…)` names turned into `data:` addresses;
 - a local script (`<script src>`) becomes an inline script;
-- a local picture, icon, poster, audio or video source (`src`, `href` of an icon, `poster`) becomes
-  a `data:` address;
+- a local picture, icon, poster, audio or video source becomes a `data:` address: `src` (on `<img>`,
+  `<source>`, `<video>`, `<audio>`, `<track>`, `<embed>`, `<input>`), every candidate of a `srcset`
+  (on `<img>` and on `<source>` inside `<picture>`; each keeps its `1x`, `2x` or `640w`, because a
+  screen at 2x loads that candidate, not `src`), `poster`, `href` of an icon (`icon`,
+  `apple-touch-icon`, `mask-icon`), `data` of an `<object>`, `href` of an SVG `<image>`, and the
+  `url(…)` in a `style` attribute. Only the address changes: the rest of the tag (an `alt` that
+  repeats the file name, its quotes) is kept as written;
+- an SVG `<use>` that names another file is left as it is and said in `notes`: a page opened from a
+  file cannot load it, and browsers refuse it from a `data:` address too;
+- only real tags of the page are changed, never text: the inside of a `<script>` (an HTML string a
+  script builds, a JSON block), of a `<style>` other than its CSS addresses, of a `<textarea>`,
+  `<title>` or `<xmp>`, and comments are kept exactly as written. The pictures a script builds markup
+  with cannot go inside without editing the script, so they are said in `notes`;
+- addresses start from the page's folder, or from its `<base href>` when that is a folder of the
+  project (requests answered from inside the file start there too); a `<base>` anywhere else is said
+  in `notes`;
 - every other data-like file of the project (`.json .csv .tsv .txt .geojson .topojson .ndjson
   .jsonl .xml .yaml .yml .md .svg .png .jpg .jpeg .gif .webp .avif`) is put inside the file, and a
   small script at the top answers `fetch()` and `XMLHttpRequest` for it from there, so a page that
@@ -2573,17 +2921,22 @@ Built from one page of the project (`index.html` unless `page` says otherwise):
   request for anything else goes to the network as before.
 
 Left out, here and in the folder: `.git`, `research/`, `attachments/`, `template/`, `notes/`,
-`state/`, `looks/`, dependency folders and caches, any `.env*` file, and the saved text of sources
+`state/`, `looks/`, dependency folders and caches, key files (see "Key files"), and the saved text of sources
 (`sources/*` except `sources/index.json`).
 
 What is not inside is said, never hidden. `external`: the other sites the page still loads from
 (a chart library from a CDN, a font): the file needs the internet for those. `notes`: other pages
-of the project it links to (they are not in the file), and a local file it names that does not exist.
+of the project it links to (they are not in the file), a file an SVG `<use>` names, the pictures a script
+builds markup with, a `<base>` outside the project, and a local file it names that does not exist.
 
 It is **not available**, with the reason, when: the project has a back end (`studio.json`: the
 page needs its server; use the folder); a module script, in a file or in the page, imports other
 files of the project (a browser will not load those for a page opened from a file); or the file
 would be over 30 MB.
+
+The size is worked out from the files' sizes before anything is read, to the byte: opening the
+dialog builds nothing, and a page that would be over the limit is refused without reading the
+clips and pictures it names. `embedded.bytes` is the data files' own size.
 
 ## A folder to host or run
 
@@ -2607,7 +2960,7 @@ repository; **Everything** still works).
 |---|---|
 | `GET /api/projects/{id}/export?page=index.html` | `{name, app, pages, page, html, folder}`. `html`: `{available, reason, bytes, inlined, embedded: {files, bytes}, external: [host], notes: [string]}`. `folder`: `{available, reason, files, bytes, run, tools: [string], needs: [string]}` |
 | `GET /api/projects/{id}/export/page?page=index.html` | the file, `text/html`, as an attachment named after the project. 409 `export_unavailable` with the reason; 404 `unknown_page` |
-| `GET /api/projects/{id}/export/folder` | `application/zip`, as an attachment `<name>-export.zip`. 409 `export_unavailable` |
+| `GET /api/projects/{id}/export/folder` | `application/zip`, as an attachment `<name>-export.zip`, written to a temporary file and sent from it (removed afterwards), like `GET …/download`, so a large project never sits in memory. 409 `export_unavailable` |
 
 ## UI
 

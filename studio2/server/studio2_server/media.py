@@ -338,7 +338,9 @@ async def render_video(looker, url: str, workspace: Path, page_path: str, sheet_
                     result["sound"] = sound.relative_to(root).as_posix() if sound else None
                     if poster_bytes:
                         from PIL import Image
-                        poster = target.with_suffix(".jpg")
+                        # `<name>.poster.jpg`, never `<name>.jpg`: that name may be a picture the project
+                        # already has (an image export of the same design), which the poster would replace.
+                        poster = target.with_name(f"{target.stem}.poster.jpg")
                         Image.open(io.BytesIO(poster_bytes)).convert("RGB").save(poster, "JPEG", quality=90)
                         result["poster"] = poster.relative_to(root).as_posix()
             finally:

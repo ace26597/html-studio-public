@@ -1,6 +1,7 @@
 // A modal dialog: focus goes in and comes back, Tab stays inside, Escape and a backdrop click close it.
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { isTopmostModal, MODAL_SELECTOR } from "./escape";
 
 interface ModalProps {
   title: string;
@@ -36,6 +37,8 @@ export function Modal({ title, onClose, busy = false, wide = false, children }: 
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || latest.current.busy) return;
       if (document.activeElement && document.activeElement !== document.body) return;
+      // A dialog opened above this one (a confirm) is the one Escape is for.
+      if (!isTopmostModal(dialog.current, document.querySelectorAll(MODAL_SELECTOR))) return;
       event.preventDefault();
       latest.current.onClose();
     };

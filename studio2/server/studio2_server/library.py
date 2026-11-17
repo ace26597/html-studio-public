@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import os
 import re
 import shutil
 import uuid
@@ -19,6 +21,16 @@ from pathlib import Path
 from .catalog import Catalog, expand, front_matter, with_description
 from .config import Settings, now_iso
 from .store import write_json_atomic
+
+log = logging.getLogger(__name__)
+
+
+def agent_environment() -> dict[str, str]:
+    """The studio's environment as the agent may see it: keys and model endpoints blanked
+    (harness.claude.hidden_secrets, ENDPOINT_VARS). Used wherever something the agent can write
+    or start is given variables: an app's own connector file, a connector being tested."""
+    from .harness.claude import ENDPOINT_VARS, hidden_secrets
+    return {**os.environ, **hidden_secrets(os.environ), **{name: "" for name in ENDPOINT_VARS if os.environ.get(name)}}
 
 NAME = re.compile(r"[a-z0-9][a-z0-9_-]{0,59}")
 MAX_ENABLED_SERVERS = 12
@@ -230,7 +242,7 @@ class Library:
     def _found_view(server_id: str, name: str, label: str, config: dict, source: str, origin: str,
                     root: Path | None, description: str, enabled: bool = True) -> dict:
         missing: set[str] = set()
-        expand(config, root, missing)
+        expand(config, root, missing, agent_environment() if source == "app" else os.environ)
         return {"id": server_id, "name": name, "label": label, "transport": "http" if config.get("url") else "stdio",
                 "url": config.get("url"), "command": config.get("command"),
                 "args": [str(a) for a in config.get("args") or []],
@@ -350,6 +362,12 @@ class Library:
             if not isinstance(given, dict) or any(not str(k).strip() for k in given):
                 raise invalid("headers/env: give names and values.")
             secrets = {str(k).strip(): str(v) for k, v in given.items()}
+            if any(value == "" for value in secrets.values()):
+                # Never "keep the stored value": a kept token plus a new PYTHONPATH or NODE_OPTIONS
+                # would run the caller's code with it. The set is given whole or not at all.
+                raise LibraryError(400, "secret_needed", "Give every header or environment value again: an empty "
+                                                         "value does not keep a saved one. Remove the rows you "
+                                                         "don't need.")
         return record, secrets
 
     def add_server(self, fields: dict) -> dict:
@@ -381,12 +399,9 @@ class Library:
         record, secrets = self._server_fields(fields, current)
         if any(s["name"] == record["name"] and s["id"] != server_id for s in self.servers()):
             raise LibraryError(409, "name_taken", f"There is already a server called {record['name']}.")
-        if secrets is not None:
-            kept = self.secrets.get(server_id)
-            merged = {k: (v if v != "" else kept.get(k, "")) for k, v in secrets.items()}  # "" keeps a stored value
-            merged = {k: v for k, v in merged.items() if v != ""}
-            self.secrets.set(server_id, merged) if merged else self.secrets.delete(server_id)
-            record["secret_names"] = sorted(merged)
+        if secrets is not None:     # the whole set, every value typed (_server_fields refuses an empty one)
+            self.secrets.set(server_id, secrets) if secrets else self.secrets.delete(server_id)
+            record["secret_names"] = sorted(secrets)
         current.update(record)
         write_json_atomic(self.servers_path, {"servers": items})
         return self.server(server_id)
@@ -410,17 +425,36 @@ class Library:
                                 "tools": result.get("tools") or []}
         write_json_atomic(self.servers_path, {"servers": items})
 
+    # The folders of projects edited in place (store.in_place_folders); set by the studio.
+    project_folders = staticmethod(lambda: set())
+
+    def _agent_writes(self, root: Path) -> bool:
+        """Is `root` inside the studio's data folder (every project's own folder is there) or a
+        project edited in place? Only a cheap check: the agent's shell can write elsewhere too."""
+        try:
+            path = root.resolve()
+        except OSError:
+            return True
+        places = {self.settings.data_dir.resolve(), *self.project_folders()}
+        return any(path == place or place in path.parents for place in places)
+
     def server_config(self, server_id: str, workspace: Path | None = None) -> dict:
         """The config the agent CLI (and the test) connects with, secrets included. Never returned by the API."""
         view = self.server(server_id, workspace)
         if view["source"] in ("plugin", "app"):
             if view["source"] == "app":
-                raw, root = view["_config"], workspace
+                # The app's own file is written inside the project, where the agent writes too: a
+                # `${NAME}` in it is filled from what the agent itself may see, never from the keys
+                # in the studio's shell (or the agent could send one to an address of its choosing).
+                raw, root, env = view["_config"], workspace, agent_environment()
             else:
                 found = next(item for item in self.catalog.plugin_connectors
                              if f"plugin:{item['plugin']}:{item['name']}" == server_id)
-                raw, root = found["config"], Path(found["root"])
-            config = expand({k: v for k, v in raw.items() if k != "description"}, root, set())
+                root = Path(found["root"])
+                # A "plugin" kept where the agent writes (registered by its shell) gets what the agent
+                # may see, as an app's own file does; one installed elsewhere is filled as before.
+                raw, env = found["config"], agent_environment() if self._agent_writes(root) else os.environ
+            config = expand({k: v for k, v in raw.items() if k != "description"}, root, set(), env)
             config.setdefault("type", "http" if config.get("url") else "stdio")
             return config
         if view["source"] == "machine":
@@ -528,8 +562,18 @@ class Library:
             return None
         folder = target / "skills" / skill["name"]
         shutil.rmtree(folder, ignore_errors=True)
-        shutil.copytree(source, folder, symlinks=False,
-                        ignore=shutil.ignore_patterns(".git", "node_modules", "__pycache__", ".venv"))
+        try:
+            shutil.copytree(source, folder, symlinks=False, ignore_dangling_symlinks=True,
+                            ignore=shutil.ignore_patterns(".git", "node_modules", "__pycache__", ".venv"))
+        except shutil.Error as exc:
+            # One file that cannot be copied (unreadable, a link that goes round in a circle) must not
+            # fail the request: copytree has copied the rest by the time it reports, so the skill is
+            # loaded without that file, and the log says which.
+            log.warning("skill %s: some files were not copied: %s", skill.get("name"), str(exc)[:300])
+        except OSError as exc:
+            log.warning("skill %s could not be copied: %s", skill.get("name"), exc)
+            shutil.rmtree(folder, ignore_errors=True)
+            return None
         manifest = folder / "SKILL.md"
         if listed is not None and manifest.is_file():
             fields = front_matter(manifest)
@@ -596,13 +640,13 @@ async def test_server(config: dict, timeout: float = 20.0) -> dict:
                 opened = streamable_http_client(config["url"], http_client=create_mcp_http_client(
                     headers={str(k): str(v) for k, v in (config.get("headers") or {}).items()} or None))
         else:
-            import os
-
             from mcp import StdioServerParameters
             from mcp.client.stdio import stdio_client
             opened = stdio_client(StdioServerParameters(
                 command=config["command"], args=[str(a) for a in config.get("args") or []],
-                env={**os.environ, **{k: str(v) for k, v in (config.get("env") or {}).items()}}))
+                # The connector gets its own settings' variables, not the keys in the studio's shell:
+                # those are blanked as they are for the agent, and the model endpoints with them.
+                env={**agent_environment(), **{k: str(v) for k, v in (config.get("env") or {}).items()}}))
         async with opened as streams:
             async with ClientSession(streams[0], streams[1]) as session:
                 await session.initialize()

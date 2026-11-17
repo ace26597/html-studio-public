@@ -108,12 +108,13 @@ cd studio2 && STUDIO2_FAKE=1 .venv/bin/pytest -q
 cd studio2/web && npm test && npx tsc --noEmit
 ```
 
-On 17 November 2026: 496 server tests passed and 1 was skipped, in about 115 seconds; 312
+On 17 November 2026: 859 server tests passed and 3 were skipped, in about 170 seconds; 331
 interface tests passed. Neither suite calls a model, and the server suite uses an in-memory
 secret store and an empty LiteLLM folder, so it does not touch your settings.
 
-The skipped test needs a real PostgreSQL and a user that may write, to prove that the studio's
-queries are read-only:
+Two of the skipped tests are rows of a table that do not apply to their case (a git setting that
+exists only in config). The third needs a real PostgreSQL and a user that may write, to prove that
+the studio's queries are read-only:
 
 ```sh
 STUDIO2_TEST_PG=host:port:database:user:password STUDIO2_FAKE=1 .venv/bin/pytest -q

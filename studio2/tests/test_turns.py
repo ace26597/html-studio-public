@@ -250,3 +250,212 @@ async def test_look_at_page_takes_a_file_name_and_search_says_what_to_do_when_re
     assert refused.get("is_error")
     assert "WebSearch" in inspect.getsource(search.search)
     assert "unavailable" in {name: text for name, text, *_rest in tools.TOOLS}["search_web"]
+
+
+def _hold_sync_app(studio, pid, monkeypatch):
+    """Hold the finishing phase (after the agent's part) open at the app restart → (reached, release)."""
+    reached, release = asyncio.Event(), asyncio.Event()
+    real = studio.sync_app
+
+    async def held(project_id, restart=False):
+        if project_id == pid and not release.is_set():
+            reached.set()
+            await release.wait()
+        await real(project_id, restart)
+    monkeypatch.setattr(studio, "sync_app", held)
+    return reached, release
+
+
+async def test_stop_while_a_request_is_finishing_stops_what_would_follow(client, studio, project, monkeypatch):
+    pid = project["id"]
+    base = f"/api/projects/{pid}"
+    reached, release = _hold_sync_app(studio, pid, monkeypatch)
+    looked, shipped = [], []
+
+    async def problems(project_id):
+        looked.append(studio.turns.active.get(project_id))
+        return None
+    monkeypatch.setattr(studio.turns, "_problems", problems)
+
+    async def ship(*args, **kwargs):
+        shipped.append(args)
+    monkeypatch.setattr(studio.ships, "start", ship)
+
+    turn_id = (await client.post(f"{base}/turns", json={"text": "Hello studio"})).json()["turn_id"]
+    await asyncio.wait_for(reached.wait(), 5)       # the agent is done; the studio is still finishing
+    queued = (await client.post(f"{base}/turns", json={"text": "next", "queue": True})).json()["queued_id"]
+    studio.ships.from_agent[pid] = turn_id          # the agent asked to make it live during the request
+    try:
+        assert (await client.post(f"{base}/turns/{turn_id}/stop")).status_code == 202
+        # "Stop, do this instead": a message sent after the Stop is the person's to keep.
+        after = (await client.post(f"{base}/turns", json={"text": "instead", "queue": True})).json()["queued_id"]
+    finally:
+        release.set()
+    await studio.turns.wait(pid)
+    await wait_for(lambda: pid not in studio.turns.active)
+
+    events = [e for e in studio.log(pid).read() if e["type"] != "files_changed"]
+    mine = [e for e in events if e["turn_id"] == turn_id]
+    assert mine[-1]["type"] == "turn_finished" and mine[-1]["status"] == "stopped" and mine[-1]["error"] is None
+    assert any(e["type"] == "checkpoint" and e["kind"] == "agent" for e in mine)    # what it did is kept
+    assert not any(e["type"] == "next_steps" for e in mine)
+    notice = [e["message"] for e in mine if e["type"] == "notice"]
+    assert len(notice) == 1 and "already finished" in notice[0] and "saved as a version" in notice[0]
+    started = [e for e in events if e["type"] == "turn_started"]
+    assert [(e["text"], e["queued_id"]) for e in started] == [("Hello studio", None), ("instead", after)]
+    assert [(e["queued_id"], e["reason"]) for e in events if e["type"] == "turn_unqueued"] == [(queued, "cancelled")]
+    assert studio.turns.queue.get(pid) == [] and pid not in studio.turns.active
+    assert turn_id not in looked and shipped == [] and pid not in studio.ships.from_agent
+    assert turn_id not in studio.turns.stopped_with
+    assert (await client.get(base)).json()["running_turn"] is None
+
+
+async def test_a_failed_request_stopped_while_finishing_stays_failed(client, studio, project, monkeypatch):
+    pid = project["id"]
+    base = f"/api/projects/{pid}"
+    reached, release = _hold_sync_app(studio, pid, monkeypatch)
+    finished = []
+    real_finish = studio.picker.finish
+    monkeypatch.setattr(studio.picker, "finish", lambda p, status: (finished.append(status), real_finish(p, status)))
+    turn_id = (await client.post(f"{base}/turns", json={"text": "please fail now"})).json()["turn_id"]
+    await asyncio.wait_for(reached.wait(), 5)
+    queued = (await client.post(f"{base}/turns", json={"text": "next", "queue": True})).json()["queued_id"]
+    try:
+        assert (await client.post(f"{base}/turns/{turn_id}/stop")).status_code == 202
+    finally:
+        release.set()
+    await studio.turns.wait(pid)
+    mine = [e for e in studio.log(pid).read() if e["turn_id"] == turn_id]
+    assert mine[-1]["status"] == "failed" and "asked to fail" in mine[-1]["error"]
+    assert not any(e["type"] == "notice" and "already finished" in e["message"] for e in mine)
+    assert finished == ["failed"]
+    # The Stop still clears what was queued before it.
+    unqueued = [e["queued_id"] for e in studio.log(pid).read() if e["type"] == "turn_unqueued"]
+    assert unqueued == [queued] and pid not in studio.turns.active
+
+
+async def test_a_late_stop_says_what_is_true_when_nothing_was_saved(client, studio, project, monkeypatch):
+    pid = project["id"]
+    finished = []
+    real_finish = studio.picker.finish
+    monkeypatch.setattr(studio.picker, "finish", lambda p, status: (finished.append(status), real_finish(p, status)))
+    reached, release = _hold_sync_app(studio, pid, monkeypatch)
+
+    async def nothing(*_a, **_k):
+        return False
+    monkeypatch.setattr(studio.turns, "_checkpoint", nothing)      # the request changed no files
+    turn_id = studio.turns.start(studio.store.get(pid), "Hello studio", None, None, None)
+    await asyncio.wait_for(reached.wait(), 5)
+    try:
+        studio.turns.stop(pid, turn_id)
+    finally:
+        release.set()
+    await studio.turns.wait(pid)
+    mine = [e for e in studio.log(pid).read() if e["turn_id"] == turn_id]
+    notice = [e["message"] for e in mine if e["type"] == "notice"]
+    assert mine[-1]["status"] == "stopped" and len(notice) == 1
+    assert "saved as a version" not in notice[0] and "changed no files" in notice[0]
+    assert finished == ["stopped"]
+
+
+async def test_a_message_sent_after_an_ordinary_stop_still_runs(client, studio, project, monkeypatch):
+    monkeypatch.setenv("STUDIO2_FAKE_DELAY", "0.05")
+    pid = project["id"]
+    base = f"/api/projects/{pid}"
+    turn_id = (await client.post(f"{base}/turns", json={"text": "go slow"})).json()["turn_id"]
+    before = (await client.post(f"{base}/turns", json={"text": "queued before", "queue": True})).json()["queued_id"]
+    await wait_for(lambda: any(e["type"] == "tool_call" for e in studio.log(pid).read()))
+    studio.turns.stop(pid, turn_id)
+    after = (await client.post(f"{base}/turns", json={"text": "queued after", "queue": True})).json()["queued_id"]
+    await studio.turns.wait(pid)
+    await wait_for(lambda: len([e for e in studio.log(pid).read() if e["type"] == "turn_finished"]) == 2)
+    events = studio.log(pid).read()
+    assert [e["queued_id"] for e in events if e["type"] == "turn_unqueued"] == [before]
+    assert [e["queued_id"] for e in events if e["type"] == "turn_started"] == [None, after]
+
+
+
+async def test_a_stopped_request_gets_no_recheck(client, studio, project, monkeypatch):
+    monkeypatch.setenv("STUDIO2_FAKE_DELAY", "0.05")
+    pid = project["id"]
+    turn_id = (await client.post(f"/api/projects/{pid}/turns", json={"text": "go slow"})).json()["turn_id"]
+    studio.turns.verified.add(turn_id)      # as if the agent had reported a verification
+    await wait_for(lambda: any(e["type"] == "tool_call" for e in studio.log(pid).read()))
+    studio.turns.stop(pid, turn_id)
+    await studio.turns.wait(pid)
+    mine = [e for e in studio.log(pid).read() if e["turn_id"] == turn_id]
+    assert mine[-1]["status"] == "stopped" and not any(e["type"] == "verification_recheck" for e in mine)
+
+
+async def test_deleting_a_project_while_a_request_is_finishing_starts_nothing(client, studio, project, monkeypatch):
+    pid = project["id"]
+    base = f"/api/projects/{pid}"
+    reached, release = _hold_sync_app(studio, pid, monkeypatch)
+    turn_id = (await client.post(f"{base}/turns", json={"text": "Hello studio"})).json()["turn_id"]
+    await asyncio.wait_for(reached.wait(), 5)
+    assert "queued_id" in (await client.post(f"{base}/turns", json={"text": "next", "queue": True})).json()
+
+    deleting = asyncio.create_task(client.delete(base))
+    try:
+        await wait_for(lambda: pid in studio.deleting)
+        # From the moment delete begins, nothing new is accepted for the project.
+        refused = await client.post(f"{base}/turns", json={"text": "more", "queue": True})
+        assert refused.status_code == 404
+        assert studio.turns.queue.get(pid) == []
+    finally:
+        release.set()
+    assert (await deleting).status_code == 204
+    await asyncio.sleep(0.05)
+    assert pid not in studio.turns.active and pid not in studio.turns.tasks and pid not in studio.deleting
+    assert turn_id not in studio.turns.cancellable
+
+
+async def test_a_request_whose_end_raises_still_releases_the_project(studio, project, monkeypatch):
+    pid = project["id"]
+
+    calls = []
+
+    def broken(*_a, **_k):
+        calls.append(1)
+        if len(calls) == 1:
+            raise OSError("the disk is full")
+    turn_id = studio.turns.start(studio.store.get(pid), "Hello studio", None, None, None)
+    queued = studio.turns.enqueue(studio.store.get(pid), "next", None, None, None)
+    monkeypatch.setattr(studio.turns, "_close_approvals", broken)   # something in the ending raises
+    await studio.turns.wait(pid)
+    assert turn_id not in studio.turns.cancellable and turn_id not in studio.turns.harness_tasks
+    # It still ends, with what went wrong, and the queue goes on: nothing waits for ever.
+    mine = [e for e in studio.log(pid).read() if e["turn_id"] == turn_id and e["type"] == "turn_finished"]
+    assert len(mine) == 1 and mine[0]["status"] == "failed" and "the disk is full" in mine[0]["error"]
+    started = [e for e in studio.log(pid).read() if e["type"] == "turn_started"]
+    assert [e["queued_id"] for e in started] == [None, queued]
+    await studio.turns.wait(pid)
+    assert pid not in studio.turns.active and pid not in studio.turns.tasks
+    assert studio.store.get(pid)["running_turn"] is None
+
+
+async def test_nothing_starts_by_itself_for_a_project_being_deleted(studio, project, monkeypatch):
+    import pytest
+
+    from studio2_server.store import ProjectNotFound
+    pid = project["id"]
+    synced = []
+
+    class App:
+        async def sync(self, restart=False):
+            synced.append(restart)
+    monkeypatch.setattr(studio, "app", lambda _pid: App())
+    studio.deleting.add(pid)
+    try:
+        await studio.sync_app(pid, restart=True)    # e.g. spawned by a studio.json change
+        assert synced == []
+        with pytest.raises(ProjectNotFound):
+            await studio.ships.start(pid, "agent")
+        with pytest.raises(ProjectNotFound):
+            studio.turns.start(studio.store.get(pid), "hi", None, None, None)
+        with pytest.raises(ProjectNotFound):
+            studio.turns.enqueue(studio.store.get(pid), "hi", None, None, None)
+    finally:
+        studio.deleting.discard(pid)
+    await studio.sync_app(pid, restart=True)
+    assert synced == [True]

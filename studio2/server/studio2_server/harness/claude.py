@@ -16,10 +16,12 @@ import json
 import os
 import re
 import shutil
+import tempfile
 import threading
 import time
 from collections import deque
 from pathlib import Path
+from secrets import token_hex
 from typing import Any, Mapping
 
 import claude_agent_sdk
@@ -34,8 +36,9 @@ from claude_agent_sdk.types import ServerToolUseBlock
 
 from .. import costs
 from .. import gateway as managed
-from ..config import STUDIO2_ROOT, TRANSLATED_KINDS, connection_key, outside_python
+from ..config import STUDIO2_ROOT, TRANSLATED_KINDS, connection_key, environment, outside_python, without
 from ..risk import risky_command
+from .. import workspace as ws
 from .. import prices
 from .base import Emit, TurnRequest, TurnResult, empty_usage, public_connection
 
@@ -48,7 +51,9 @@ KINDS = {"Read": "read", "NotebookRead": "read", "Glob": "search", "Grep": "sear
          "web_fetch": "fetch", "Task": "agent", "Agent": "agent"}
 # The SDK merges options.env OVER the parent environment (subprocess_cli.py connect():
 # {**os.environ, ..., **options.env}); it cannot remove an inherited variable. So variables
-# that must not reach the child are popped from os.environ just while the process is spawned.
+# that must not reach the child are popped from os.environ just while the process is spawned
+# (config.without). Everything that reads a key or an endpoint uses config.environment(), which
+# still has them, so the pop changes only what the child inherits.
 _SPAWN_LOCK = asyncio.Lock()
 
 
@@ -253,8 +258,36 @@ def outside_workspace(workspace: Path, tool_input: dict) -> str | None:
     return None if target == root or root in target.parents else str(target)
 
 
-def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=None) -> ClaudeAgentOptions:
+def _external(servers: dict) -> dict:
+    """Connectors the agent program starts or calls itself; the studio's own (in-process) are left out."""
+    return {name: config for name, config in servers.items() if not (isinstance(config, dict) and config.get("type") == "sdk")}
+
+
+def write_mcp_config(servers: dict, folder: Path) -> Path | None:
+    """The turn's connectors in an owner-only file, or None when there are none.
+
+    The SDK puts a dict of connectors on the agent program's command line (`--mcp-config <json>`),
+    where `ps` shows their headers and environment values to every process and user on the
+    machine. A file of mode 600 in a folder of mode 700, outside every project, keeps them off it.
+    """
+    external = _external(servers)
+    if not external:
+        return None
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    folder.chmod(0o700)     # also when it was made before, or loosened since
+    path = folder / f"mcp-{token_hex(8)}.json"
+    handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)   # 600 from the first byte
+    with os.fdopen(handle, "w", encoding="utf-8") as out:
+        json.dump({"mcpServers": external}, out)
+    return path
+
+
+def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=None,
+                  mcp_file: Path | None = None, studio_places: tuple[Path, ...] = ()) -> ClaudeAgentOptions:
     workspace = request.workspace
+    servers = request.mcp_servers or {}
+    if _external(servers) and mcp_file is None:
+        raise HarnessError("The turn's connectors need their settings file (write_mcp_config).")
 
     async def pre_tool_use(hook_input, _tool_use_id, _context):
         target = outside_workspace(workspace, hook_input.get("tool_input") or {})
@@ -269,7 +302,9 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
             return PermissionResultDeny(message="Files outside the project folder cannot be changed.")
         if tool_name == "Bash":
             command = str(tool_input.get("command") or "")
-            reason = risky_command(command, workspace)
+            # In place, the folder's own .git is the person's repository: git that discards work asks.
+            reason = risky_command(command, workspace, in_place=ws.history_dir(workspace) is not None,
+                                   studio_places=studio_places)
             if reason and not await request.approve("Bash", "Run a shell command", command, reason):
                 return PermissionResultDeny(message=(
                     "The user did not allow this command. Do not try to reach the same result another "
@@ -313,7 +348,10 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
         setting_sources=[],
         strict_mcp_config=True,
         plugins=[{"type": "local", "path": str(plugin)}] if (plugin / ".claude-plugin").is_dir() else [],
-        mcp_servers=request.mcp_servers or {},
+        # The studio's own tools only: the SDK must hold their instance and they carry no secret.
+        # Every other connector is in `mcp_file` (the agent program reads both --mcp-config values).
+        mcp_servers={name: config for name, config in servers.items() if name not in _external(servers)},
+        extra_args={"mcp-config": str(mcp_file)} if mcp_file else {},
         system_prompt={"type": "preset", "preset": "claude_code", "append": append},
         # Thinking text is omitted by default on current Claude models; ask for the summary so
         # the activity feed can show it. Gateways opt in with "thinking": true (not every
@@ -620,7 +658,10 @@ class EventMapper:
             # Anthropic bills those at a higher rate, and the agent program writes them.
             usage["tokens"]["cache_write_1h"] = prices.long_write(raw)
         if self.gateway:
-            usage["cost_usd"] = None        # priced by the gateway, which the CLI cannot know
+            # Priced by the gateway, which the CLI cannot know. Its running total is still kept: the
+            # conversation goes on, and the next turn's part is worked out from it (turns.py).
+            usage["session_cost_usd"] = usage["cost_usd"]
+            usage["cost_usd"] = None
         else:
             # On the subscription the figure is what the tokens would cost at API prices, not a charge.
             usage["cost_estimated"] = usage["cost_usd"] is not None and not self.charged
@@ -728,8 +769,15 @@ async def gateway_problem(connection: dict, env: dict, model: str | None, max_to
 
 
 class ClaudeHarness:
-    def __init__(self, kind: str, secrets=None, sidecar: "managed.Sidecar | None" = None, connections=None):
+    def __init__(self, kind: str, secrets=None, sidecar: "managed.Sidecar | None" = None, connections=None,
+                 mcp_dir: Path | None = None, studio_places: tuple[Path, ...] = ()):
         self.kind = kind
+        # The studio's own state (its data folder, its config folder): a shell command that changes
+        # it asks first (risk.py), as do ~/.config/studio2 and ~/.claude.
+        self.studio_places = tuple(studio_places)
+        # Where a turn's connector settings are written (write_mcp_config): the studio's data folder
+        # (Registry.mcp_dir); without one, a private temporary folder of this process.
+        self.mcp_dir = mcp_dir
         self.secrets = secrets      # where setup keeps typed keys (keystore.py); None reads the environment only
         self.sidecar = sidecar      # the LiteLLM the studio runs for `litellm` connections
         self.connections = connections or (lambda: [])     # every configured connection, read when needed
@@ -784,7 +832,7 @@ class ClaudeHarness:
         if not self.sidecar.command and not managed.installed()["installed"]:
             return managed.installed()["detail"]
         try:
-            _key(connection, os.environ, self.secrets)
+            _key(connection, environment(), self.secrets)
             managed.model_entry(connection, "check")
         except (HarnessError, managed.GatewayError) as exc:
             return str(exc)
@@ -803,7 +851,7 @@ class ClaudeHarness:
             reason = self._managed_problem(connection)
         else:
             try:
-                child_env(connection, os.environ, secrets=self.secrets)
+                child_env(connection, environment(), secrets=self.secrets)
             except HarnessError as exc:
                 reason = str(exc)
         return public_connection(connection, reason is None, reason)
@@ -822,8 +870,9 @@ class ClaudeHarness:
                 return TurnResult("failed", request.session_id, str(exc))
             if endpoint.notice:
                 emit({"type": "notice", "level": "warning", "message": endpoint.notice})
-        env, scrub = child_env(request.connection, os.environ, request.model, self.secrets, endpoint)
-        env = {**hidden_secrets(os.environ), **outside_python(os.environ), **env}
+        parent = environment()
+        env, scrub = child_env(request.connection, parent, request.model, self.secrets, endpoint)
+        env = {**hidden_secrets(parent), **outside_python(parent), **env}
         if kind == "litellm":
             # Inside the studio's LiteLLM a model is named after its connection; the agent program
             # asks for it by that name. The turn id rides along so LiteLLM's price for each request
@@ -864,15 +913,16 @@ class ClaudeHarness:
                              charged=kind in ("anthropic-api", "bedrock", "vertex", "foundry"))
         started = time.monotonic()
         stderr: deque[str] = deque(maxlen=12)
-        client = ClaudeSDKClient(build_options(request, env, resume, stderr.append))
-        process = None
+        process = client = mcp_file = None
         try:
+            if self.mcp_dir is None and _external(request.mcp_servers or {}):
+                self.mcp_dir = Path(tempfile.mkdtemp(prefix="studio2-mcp-"))      # mode 700
+            # Kept while the program runs (it may read it again to reconnect), removed below.
+            mcp_file = write_mcp_config(request.mcp_servers or {}, self.mcp_dir) if self.mcp_dir else None
+            client = ClaudeSDKClient(build_options(request, env, resume, stderr.append, mcp_file, self.studio_places))
             async with _SPAWN_LOCK:
-                saved = {name: os.environ.pop(name) for name in scrub if name in os.environ}
-                try:
+                with without(scrub):    # environment() still has them for everything else meanwhile
                     await client.connect()
-                finally:
-                    os.environ.update(saved)
             process = getattr(getattr(client, "_transport", None), "_process", None)
             await client.query(request.prompt)
             stream = client.receive_messages().__aiter__()
@@ -904,12 +954,17 @@ class ClaudeHarness:
             tail = " ".join(stderr)[-600:]
             return TurnResult("failed", mapper.session_id, f"{exc} {tail}".strip()), mapper.activity
         finally:
-            # disconnect() closes stdin, waits, then SIGTERMs/SIGKILLs the child (bounded by the SDK).
-            with contextlib.suppress(Exception):
-                await client.disconnect()
-            if process is not None and process.returncode is None:
-                with contextlib.suppress(Exception):
-                    process.kill()
+            try:
+                # disconnect() closes stdin, waits, then SIGTERMs/SIGKILLs the child (bounded by the SDK).
+                if client is not None:
+                    with contextlib.suppress(Exception):
+                        await client.disconnect()
+                if process is not None and process.returncode is None:
+                    with contextlib.suppress(Exception):
+                        process.kill()
+            finally:    # however the turn ended, even when cancelled while closing
+                if mcp_file is not None:
+                    mcp_file.unlink(missing_ok=True)
         result = mapper.turn_result(" ".join(stderr)[-600:] if mapper.result is None else "")
         if mapper.result is not None:  # the CLI reports only its last turn; background sub-agents add more
             result.usage["duration_ms"] = int((time.monotonic() - started) * 1000)

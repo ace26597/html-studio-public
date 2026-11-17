@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { effortSummary } from "./effortRow";
+import { effortLabel, effortSummary } from "./effortRow";
 
-describe("compact depth row summary", () => {
-  it("names the depth and the check switch", () => {
-    expect(effortSummary({ depth: "deep", verify: true })).toBe("Deep · Check on");
-    expect(effortSummary({ depth: "quick", verify: false })).toBe("Quick · Check off");
-    expect(effortSummary({ depth: "standard", verify: false })).toBe("Standard · Check off");
+describe("the composer's depth button", () => {
+  it("shows the depth's name", () => {
+    expect(effortLabel({ depth: "deep", verify: true })).toBe("Deep");
+    expect(effortLabel({ depth: "quick", verify: false })).toBe("Quick");
+  });
+
+  it("says the depth and the check to a screen reader", () => {
+    expect(effortSummary({ depth: "deep", verify: true })).toBe("How much to do: Deep, and the result is checked");
+    expect(effortSummary({ depth: "standard", verify: false })).toBe("How much to do: Standard");
   });
 
   it("reads an unknown depth as Standard", () => {
-    expect(effortSummary({ depth: "huge" as never, verify: true })).toBe("Standard · Check on");
+    expect(effortLabel({ depth: "huge" as never, verify: true })).toBe("Standard");
   });
 });
