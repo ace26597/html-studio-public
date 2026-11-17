@@ -49,6 +49,17 @@ async def test_paths_are_confined_and_binary_is_refused(client, studio, project)
         assert response.status_code == 400, path
     assert (await client.get(f"{base}/file", params={"path": "nope.txt"})).status_code == 404
 
+    # A link is judged by where it ends: one that points into .git is refused though its own name is innocent.
+    workspace = studio.store.workspace(project["id"])
+    (workspace / "history").symlink_to(workspace / ".git")
+    (workspace / "settings.txt").symlink_to(workspace / ".git" / "config")
+    for path in ("history/config", "settings.txt"):
+        response = await client.get(f"{base}/file", params={"path": path})
+        assert response.status_code == 400 and response.json()["error"]["code"] == "invalid_path", path
+        assert (await client.put(f"{base}/file", json={"path": path, "content": "x"})).status_code == 400, path
+    (workspace / "history").unlink()
+    (workspace / "settings.txt").unlink()
+
     (studio.store.workspace(project["id"]) / "blob.bin").write_bytes(b"\xff\xfe\x00\x01")
     binary = await client.get(f"{base}/file", params={"path": "blob.bin"})
     assert binary.status_code == 415 and binary.json()["error"]["code"] == "unsupported_file"

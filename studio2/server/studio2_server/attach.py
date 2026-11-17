@@ -155,31 +155,37 @@ NODE_KINDS = [  # first match wins: a Nuxt or SvelteKit app also depends on vite
 ]
 
 
-def _install(folder: Path) -> tuple[str | None, str | None]:
-    """→ (package manager, install command)."""
+def _install(folder: Path) -> tuple[str | None, str | None, str | None]:
+    """→ (package manager, install command, the Python that install leaves the packages in).
+
+    The interpreter is said here, beside the command that makes it, because at inspect time the
+    folder has no `.venv` yet: the start command must name the environment the install will make."""
     for lock, manager, command in (("package-lock.json", "npm", "npm ci"),
                                    ("pnpm-lock.yaml", "pnpm", "pnpm install --frozen-lockfile"),
                                    ("yarn.lock", "yarn", "yarn install --frozen-lockfile"),
                                    ("bun.lock", "bun", "bun install"), ("bun.lockb", "bun", "bun install")):
         if (folder / lock).is_file():
-            return manager, command
+            return manager, command, None
     if (folder / "package.json").is_file():
-        return "npm", "npm install"
+        return "npm", "npm install", None
     if (folder / "uv.lock").is_file():
-        return "uv", "uv sync"
+        return "uv", "uv sync", "uv run python"
     if (folder / "requirements.txt").is_file():
-        return "uv", "uv venv -q && uv pip install -q -r requirements.txt"
+        return "uv", "uv venv -q && uv pip install -q -r requirements.txt", ".venv/bin/python"
     if (folder / "Gemfile").is_file():
-        return "bundler", "bundle install"
+        return "bundler", "bundle install", None
     if (folder / "composer.json").is_file():
-        return "composer", "composer install"
-    return None, None
+        return "composer", "composer install", None
+    return None, None, None
 
 
-def _python(folder: Path, install: str | None) -> str:
+def _python(folder: Path, made: str | None) -> str:
+    """The interpreter for a Python app's start command: the one the install makes, when it makes one."""
+    if made:
+        return made
     if (folder / "uv.lock").is_file():
-        return "uv run python"
-    if install and ".venv" in install or (folder / ".venv").is_dir():
+        return "uv run python"           # uv run makes the environment from the lock by itself
+    if (folder / ".venv").is_dir():
         return ".venv/bin/python"
     return "python3"
 
@@ -213,7 +219,7 @@ def _needs_path(command: str) -> str:
 
 def detect(folder: Path) -> dict:
     """→ {framework, run, package_manager, install}; nulls where nothing matched."""
-    manager, install = _install(folder)
+    manager, install, made = _install(folder)
     package = _package(folder)
     found: tuple[str, str] | None = None
     run: str | None = None
@@ -224,7 +230,7 @@ def detect(folder: Path) -> dict:
                 found, run = (kind, label), command
                 break
     if found is None:
-        python = _python(folder, install)
+        python = _python(folder, made)
         if (folder / "manage.py").is_file():
             found, run = ("django", "Django"), f"exec {python} manage.py runserver 127.0.0.1:$PORT"
         elif (made := _python_app(folder, "FastAPI")):

@@ -52,6 +52,58 @@ def test_a_sheet_is_read_with_formulas_values_and_errors(tmp_path):
     assert sheet["errors"] == [{"cell": "E4", "formula": "=D4/0", "value": "no result"}]
 
 
+def big_sheet(path, rows, with_values, broken=()):
+    """A sheet taller and wider than the preview, with a formula in every row; `broken` rows divide by zero."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    for r in range(1, rows + 1):
+        ws.cell(r, 1, r)
+        bad = r in broken
+        ws.cell(r, 2, (None if bad else r * 2) if with_values else (f"=A{r}/0" if bad else f"=A{r}*2"))
+    ws.cell(3, office.MAX_COLS + 10, 9 if with_values else "=A3*3")     # far to the right of the preview
+    wb.save(path)
+
+
+def test_formula_errors_are_found_outside_the_preview(tmp_path):
+    original, computed = tmp_path / "big.xlsx", tmp_path / "computed.xlsx"
+    rows = office.MAX_ROWS * 5
+    big_sheet(original, rows, with_values=False, broken=(1500,))
+    big_sheet(computed, rows, with_values=True, broken=(1500,))
+    sheet = office.read_workbook(original, computed)[0]
+    assert sheet["cut"] and len(sheet["cells"]) == office.MAX_ROWS     # the preview stays limited
+    assert sheet["formulas"] == rows + 1 and sheet["unchecked"] == 0    # but every formula was checked
+    assert sheet["errors"] == [{"cell": "B1500", "formula": "=A1500/0", "value": "no result"}]
+    assert sheet["error_count"] == 1
+    summary = office.workbook_result([sheet], 0, [])
+    assert "Fix every formula" in summary["next"] and summary["sheets"][0]["cut"]
+
+
+def test_a_workbook_too_big_to_check_does_not_claim_no_errors(tmp_path, monkeypatch):
+    monkeypatch.setattr(office, "MAX_CHECKED", office.MAX_ROWS + 100)
+    original, computed = tmp_path / "big.xlsx", tmp_path / "computed.xlsx"
+    rows = office.MAX_ROWS * 2
+    big_sheet(original, rows, with_values=False)
+    big_sheet(computed, rows, with_values=True)
+    sheet = office.read_workbook(original, computed)[0]
+    assert sheet["formulas"] == rows + 1 and sheet["unchecked"] == rows + 1 - (office.MAX_ROWS + 100)
+    assert sheet["errors"] == []
+    summary = office.workbook_result([sheet], 0, [])
+    text = summary["next"]
+    assert not text.startswith("No formula errors") and "were not checked" in text and "Sheet" in text
+    assert f"first {office.MAX_ROWS} rows" in text                      # and the preview is said to be cut
+
+
+def test_a_small_workbook_checked_in_full_says_so(tmp_path):
+    original, computed = tmp_path / "book.xlsx", tmp_path / "computed.xlsx"
+    workbook(original, with_values=False)
+    workbook(computed, with_values=True)
+    sheet = office.read_workbook(original, computed)[0]
+    sheet["errors"], sheet["error_count"] = [], 0                      # as if the division were fixed
+    summary = office.workbook_result([sheet], 0, [])
+    assert summary["next"].startswith("No formula errors in any of the 10 formulas.")
+    assert not summary["sheets"][0]["cut"]
+
+
 def test_the_viewer_is_one_file_with_the_data_inside(tmp_path):
     page = office.write_viewer(tmp_path, {"name": "a</script>.pptx", "kind": "presentation", "label": "PowerPoint",
                                           "file": "../a.pptx", "bytes": 10, "pages": ["page-1.png"], "page_count": 1})
@@ -136,3 +188,26 @@ def test_dates_follow_their_format():
     assert office.shown(day, "yyyy-mm-dd") == "2026-09-30"
     assert office.shown(day, "d mmm yyyy") == "30 Sep 2026"
     assert office.shown(day, "General") == "2026-09-30 00:00:00"
+
+
+def test_array_formulas_are_formulas_too(tmp_path):
+    """openpyxl hands back an array formula as an object, not as text starting with "=". They used
+    to be passed over: not counted, never checked, and the sheet was called free of errors."""
+    import openpyxl
+    from openpyxl.worksheet.formula import ArrayFormula
+    original, computed = tmp_path / "array.xlsx", tmp_path / "computed.xlsx"
+    far = office.MAX_ROWS + 50                                  # one inside the preview, one outside it
+    for path, results in ((original, False), (computed, True)):
+        book = openpyxl.Workbook()
+        sheet = book.active
+        sheet["A1"], sheet[f"A{far}"] = 1, 2
+        if results:
+            sheet["B1"], sheet[f"B{far}"] = "#DIV/0!", 4
+        else:
+            sheet["B1"] = ArrayFormula("B1", "=A1/0")
+            sheet[f"B{far}"] = ArrayFormula(f"B{far}", "=A1*4")
+        book.save(path)
+    sheet = office.read_workbook(original, computed)[0]
+    assert sheet["formulas"] == 2 and sheet["unchecked"] == 0
+    assert sheet["errors"] == [{"cell": "B1", "formula": "=A1/0", "value": "#DIV/0!"}]
+    assert "Fix every formula" in office.workbook_result([sheet], 0, [])["next"]

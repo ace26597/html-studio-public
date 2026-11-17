@@ -97,6 +97,10 @@ def safe_path(workspace: Path, rel: str) -> Path:
     target = root.joinpath(*parts).resolve()
     if root not in target.parents:
         raise InvalidPath(rel)
+    # The names in the request were checked above; a link is judged by where it ends, so one
+    # with an innocent name that points into .git is refused as well.
+    if any(part.lower() == ".git" for part in target.relative_to(root).parts):
+        raise InvalidPath(rel)
     return target
 
 

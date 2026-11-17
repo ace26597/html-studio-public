@@ -9,7 +9,7 @@ Anthropic's agent program (the one inside Claude Code), driven as a library.
 
 | Account | `studio setup --account` | What has actually been run |
 |---|---|---|
-| Your Claude plan, signed in on this computer | `plan` | Almost every run recorded in the status table, on Opus, Sonnet and Haiku |
+| Your Claude plan, signed in on this computer | `plan` | Almost every run of the studio so far, on Opus, Sonnet and Haiku |
 | An Anthropic API key | `api-key` | The environment the agent gets is tested. No paid request has been made |
 | Claude on Amazon Bedrock, Google Vertex AI or Microsoft Foundry | `bedrock`, `vertex`, `foundry` | Same: environment tested, no paid request made |
 | A gateway you already run that speaks Anthropic's message format, such as LiteLLM | `gateway` | Whole requests on a GPT model through a LiteLLM gateway, including a sourced page built in 7 minutes |

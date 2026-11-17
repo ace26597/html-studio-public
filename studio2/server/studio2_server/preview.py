@@ -145,13 +145,24 @@ class PreviewApp:
                for part in parts):
             return 404, None, None
         root = self.workspace.resolve()
+
+        def allowed(path: Path) -> bool:
+            # Checked where a link ends, not by the names in the address: a link inside the
+            # workspace can point outside it or into .git.
+            if path != root and root not in path.parents:
+                return False
+            return not any(part.lower() == ".git" for part in path.relative_to(root).parts)
+
         target = root.joinpath(*parts).resolve()
-        if target != root and root not in target.parents:
+        if not allowed(target):
             return 404, None, None
         if target.is_dir():
             if not url_path.endswith("/"):
                 return 307, None, url_path + "/"
-            target = target / "index.html"
+            # index.html is added after the folder was checked, and can itself be a link.
+            target = (target / "index.html").resolve()
+            if not allowed(target):
+                return 404, None, None
         if not target.is_file():
             return 404, (target if target == root / "index.html" else None), None
         return 200, target, None
@@ -314,6 +325,13 @@ class PreviewApp:
         upstream_host = self._host(app, port)
         url = f"ws://{upstream_host}{scope['path']}" + (f"?{query}" if query else "")
         given = dict(scope["headers"])
+        origin = given.get(b"origin", b"")
+        if origin and origin.split(b"://", 1)[-1].lower() != given.get(b"host", b"").lower():
+            # The socket carries the person's cookies and reaches the app as one from its own
+            # origin, so a page on another site must not open it. Closed before accept, the
+            # browser gets a refused handshake and the app is never contacted. No Origin means
+            # no browser (a script or test), which is let through as before.
+            return await send({"type": "websocket.close", "code": 4403})
         passed = {name.decode("latin-1"): given[name].decode("latin-1") for name in (b"cookie", b"authorization")
                   if name in given}
         try:

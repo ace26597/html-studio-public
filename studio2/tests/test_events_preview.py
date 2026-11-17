@@ -159,6 +159,93 @@ async def test_preview_serves_the_workspace_safely(tmp_path):
     assert status == 200 and b"no index.html yet" in body and BRIDGE_TAG in body   # friendly empty page
 
 
+async def test_a_link_is_checked_where_it_ends_even_behind_a_folder_address(tmp_path):
+    """A folder address appends index.html; a link there (or anywhere) to a file outside the
+    workspace, or into its .git, is refused just as the file's own address is."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "index.html").write_text("<p>secret page</p>")
+    (outside / "notes.txt").write_text("secret notes")
+    workspace = tmp_path / "workspace"
+    (workspace / ".git").mkdir(parents=True)
+    (workspace / ".git" / "config").write_text("secret config")
+    (workspace / ".git" / "index.html").write_text("<p>secret git page</p>")
+    for name in ("docs", "out"):
+        (workspace / name).mkdir()
+    (workspace / "docs" / "index.html").symlink_to(outside / "index.html")
+    (workspace / "out" / "index.html").symlink_to(workspace / ".git" / "index.html")
+    (workspace / "config.txt").symlink_to(workspace / ".git" / "config")
+    (workspace / "repo").symlink_to(workspace / ".git")
+    (workspace / "away").symlink_to(outside)
+    (workspace / "fine").mkdir()
+    (workspace / "fine" / "index.html").write_text("<p>ok</p>")
+    (workspace / "alias.html").symlink_to(workspace / "fine" / "index.html")
+    app = PreviewApp(workspace)
+
+    for blocked in ("/docs/", "/docs/index.html", "/out/", "/config.txt", "/repo/", "/repo/config",
+                    "/away", "/away/", "/away/notes.txt", "/__studio/files/docs/", "/__studio/files/config.txt",
+                    "/__studio/files/away/notes.txt"):
+        status, _, body = await call(app, blocked)
+        assert status == 404 and b"secret" not in body, blocked
+    # A link that stays inside the workspace still works, and so do folders.
+    assert (await call(app, "/alias.html"))[2].startswith(b"<p>ok</p>")
+    assert (await call(app, "/fine/"))[0] == 200
+    assert (await call(app, "/fine"))[0] == 307
+
+
+async def test_a_socket_from_another_site_never_reaches_the_app(tmp_path):
+    """The proxy hands the app the page's cookies, so a socket opened by a page on another
+    site is refused; one from the project's own page, or from no browser at all, goes through."""
+    import websockets
+
+    seen = []
+
+    async def echo(connection):
+        seen.append(connection.request.headers.get("cookie"))
+        async for message in connection:
+            await connection.send("echo:" + message)
+
+    upstream = await websockets.serve(echo, "127.0.0.1", 0)
+    port = upstream.sockets[0].getsockname()[1]
+    app = PreviewApp(tmp_path, target=lambda: ("proxy", port, None))
+
+    async def open_socket(origin):
+        sent, inbox = [], asyncio.Queue()
+        for message in ({"type": "websocket.connect"}, {"type": "websocket.receive", "text": "hi"}):
+            inbox.put_nowait(message)
+
+        async def receive():
+            return await inbox.get()
+
+        async def send(message):
+            sent.append(message)
+            if message["type"] == "websocket.send":
+                inbox.put_nowait({"type": "websocket.disconnect", "code": 1000})
+
+        headers = [(b"host", b"console.example.ts.net:8201"), (b"cookie", b"session=abc")]
+        if origin:
+            headers.append((b"origin", origin))
+        scope = {"type": "websocket", "path": "/socket", "query_string": b"", "headers": headers, "subprotocols": []}
+        await asyncio.wait_for(app(scope, receive, send), 5)
+        return sent
+
+    try:
+        for foreign in (b"https://evil.example", b"https://console.example.ts.net:8200",
+                        b"http://console.example.ts.net", b"null"):
+            sent = await open_socket(foreign)
+            assert [m["type"] for m in sent] == ["websocket.close"], foreign   # closed before accept
+        assert seen == []                                                        # never connected upstream
+        for allowed in (b"https://console.example.ts.net:8201", b"http://CONSOLE.example.ts.net:8201", None):
+            sent = await open_socket(allowed)
+            assert sent[0]["type"] == "websocket.accept", allowed
+            assert {"type": "websocket.send", "text": "echo:hi"} in sent, allowed
+        assert seen == ["session=abc"] * 3
+    finally:
+        upstream.close()
+        await upstream.wait_closed()
+        await app.client.aclose()
+
+
 async def test_preview_port_is_served_and_released(client, studio, project):
     async with httpx.AsyncClient() as http:
         page = await http.get(project["preview_url"])

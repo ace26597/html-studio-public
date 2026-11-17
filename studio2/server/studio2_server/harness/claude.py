@@ -57,6 +57,8 @@ class HarnessError(Exception):
 
 
 SECRET_NAME = re.compile(r"key|token|secret|passw|credential", re.I)
+# The same for the agent program's own variables, where a name ending in TOKENS is a number, not a secret.
+HARNESS_SECRET_NAME = re.compile(r"key|token(?!s)|secret|passw|credential", re.I)
 
 
 def hidden_secrets(parent: Mapping[str, str]) -> dict[str, str]:
@@ -65,26 +67,44 @@ def hidden_secrets(parent: Mapping[str, str]) -> dict[str, str]:
     The studio is started from the person's shell, which holds its own access key, gateway keys
     and whatever else that shell exports. None of it is the agent's to see: anything whose name
     looks like a secret is set to an empty string (the SDK can add to the child's environment but
-    not remove from it). ANTHROPIC_* and CLAUDE_* are the harness's own business (child_env), and
-    STUDIO2_AGENT_ENV names variables the person wants passed through.
+    not remove from it). The endpoint variables are the harness's own business (child_env decides
+    them for the turn's connection), and STUDIO2_AGENT_ENV names variables the person wants passed
+    through. Any other ANTHROPIC_* or CLAUDE_* name that looks like a secret (an admin key, a key
+    under another name) is blanked like the rest; a setting that only counts tokens
+    (CLAUDE_CODE_MAX_OUTPUT_TOKENS) is not a secret and stays.
     """
     allowed = {name.strip() for name in (parent.get("STUDIO2_AGENT_ENV") or "").split(",") if name.strip()}
-    return {name: "" for name, value in parent.items()
-            if value and SECRET_NAME.search(name) and name not in allowed
-            and not name.startswith(("ANTHROPIC_", "CLAUDE_")) and not name.endswith("_SOCK")}
+
+    def secret(name: str) -> bool:
+        if name in ENDPOINT_VARS or name.endswith("_SOCK"):
+            return False
+        if name.startswith(("ANTHROPIC_", "CLAUDE_")):
+            return bool(HARNESS_SECRET_NAME.search(name))
+        return bool(SECRET_NAME.search(name))
+
+    return {name: "" for name, value in parent.items() if value and name not in allowed and secret(name)}
 
 
 # Every way of naming a model endpoint to the agent program. A connection sets its own and the
 # rest are removed from what the child inherits, so one kind can never fall through to another.
+# Each cloud's own names count too: hidden_secrets leaves ANTHROPIC_* alone, so without them a
+# Foundry key exported in the studio's shell would reach a subscription or gateway turn. They are
+# removed even when STUDIO2_AGENT_ENV names them, like every other endpoint variable.
 ENDPOINT_VARS = {"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN",
-                 "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"}
-# Credentials a cloud provider's own sign-in reads from the environment. The agent program needs
-# them, so they are passed through for that kind only (hidden_secrets blanks them otherwise).
+                 "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY",
+                 "ANTHROPIC_FOUNDRY_API_KEY", "ANTHROPIC_FOUNDRY_AUTH_TOKEN", "ANTHROPIC_FOUNDRY_BASE_URL",
+                 "ANTHROPIC_FOUNDRY_RESOURCE", "ANTHROPIC_VERTEX_PROJECT_ID", "ANTHROPIC_VERTEX_BASE_URL",
+                 "ANTHROPIC_BEDROCK_BASE_URL", "AWS_BEARER_TOKEN_BEDROCK"}
+# Credentials a cloud provider's own sign-in reads from the environment, and a private endpoint
+# for that cloud set in the studio's shell (a connection has no field for one). The agent program
+# needs them, so they are passed through for that kind only, and only where the connection did
+# not set the same name itself (hidden_secrets and ENDPOINT_VARS keep them from every other kind).
 CLOUD_CREDENTIALS = {
     "bedrock": ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE",
-                "AWS_BEARER_TOKEN_BEDROCK", "AWS_SHARED_CREDENTIALS_FILE", "AWS_CONFIG_FILE"),
-    "vertex": ("GOOGLE_APPLICATION_CREDENTIALS", "CLOUDSDK_CONFIG"),
-    "foundry": ("ANTHROPIC_FOUNDRY_AUTH_TOKEN", "AZURE_CONFIG_DIR"),
+                "AWS_BEARER_TOKEN_BEDROCK", "AWS_SHARED_CREDENTIALS_FILE", "AWS_CONFIG_FILE",
+                "ANTHROPIC_BEDROCK_BASE_URL"),
+    "vertex": ("GOOGLE_APPLICATION_CREDENTIALS", "CLOUDSDK_CONFIG", "ANTHROPIC_VERTEX_BASE_URL"),
+    "foundry": ("ANTHROPIC_FOUNDRY_AUTH_TOKEN", "ANTHROPIC_FOUNDRY_API_KEY", "AZURE_CONFIG_DIR"),
 }
 MODEL_PINS = {"opus": "ANTHROPIC_DEFAULT_OPUS_MODEL", "sonnet": "ANTHROPIC_DEFAULT_SONNET_MODEL",
               "haiku": "ANTHROPIC_DEFAULT_HAIKU_MODEL", "fable": "ANTHROPIC_DEFAULT_FABLE_MODEL"}
@@ -204,7 +224,7 @@ def child_env(connection: dict, parent: Mapping[str, str], model: str | None = N
     else:
         raise HarnessError(f"Connection “{connection['id']}” has a kind this harness does not run: {kind}.")
     for name in CLOUD_CREDENTIALS.get(kind, ()):
-        if parent.get(name):
+        if parent.get(name) and name not in env:
             env[name] = parent[name]
     # `model_ids` pins the short names to this provider's own ids, e.g. {"sonnet": "us.anthropic.…"}.
     for alias, model_id in (connection.get("model_ids") or {}).items():
@@ -461,9 +481,14 @@ class EventMapper:
             # Internal event (never logged): lets the turn runner keep the session after a Stop.
             names = lambda key: [str(x.get("name") if isinstance(x, dict) else x)  # noqa: E731
                                  for x in message.data.get(key) or []]
+            # The tool names of each connector (`mcp__<name>__<tool>`): the library describes a
+            # connector that came without a description by what it can do.
+            every = names("tools")
             events.append({"type": "session", "session_id": self.session_id,
                            "skills": names("skills"),
-                           "mcp_servers": [{"name": str(s.get("name")), "status": str(s.get("status"))}
+                           "mcp_servers": [{"name": str(s.get("name")), "status": str(s.get("status")),
+                                            "tools": [t[len(f"mcp__{s.get('name')}__"):] for t in every
+                                                      if t.startswith(f"mcp__{s.get('name')}__")]}
                                            for s in message.data.get("mcp_servers") or [] if isinstance(s, dict)]})
             for server in message.data.get("mcp_servers") or []:
                 if isinstance(server, dict) and server.get("status") in ("failed", "needs-auth"):
@@ -610,33 +635,96 @@ def _plan_status(status: Any) -> str:
     return status if status in ("pending", "in_progress", "completed") else "pending"
 
 
-async def gateway_problem(connection: dict, env: dict, model: str | None, max_tokens: int = 1,
+# The agent program's output limit when nothing sets CLAUDE_CODE_MAX_OUTPUT_TOKENS: what its
+# requests through a gateway carried when they were captured (the reviewer's report, 17 November 2026).
+AGENT_OUTPUT_LIMIT = 32000
+
+
+def agent_output_limit(env: Mapping[str, str]) -> int:
+    """The max_tokens the agent program will send: the turn's own setting, else the studio's
+    environment (which the program inherits), else its default."""
+    for source in (env, os.environ):
+        try:
+            value = int(source.get("CLAUDE_CODE_MAX_OUTPUT_TOKENS") or 0)
+        except ValueError:
+            continue
+        if value > 0:
+            return value
+    return AGENT_OUTPUT_LIMIT
+
+
+# A refusal that is only about the size of the output limit. The agent program sets a smaller limit
+# by itself for the models it knows, so the check must not fail a turn that would have run.
+LIMIT_TOO_LARGE = re.compile(
+    r"max_(?:output_|completion_)?tokens.*(?:maximum|exceed|at most|too large|less than or equal|<=|>\s*\d)", re.I | re.S)
+SMALL_CHECK_LIMIT = 1024
+
+
+def _refusal(payload: Any) -> str:
+    detail = payload.get("error", {}) if isinstance(payload, dict) else payload
+    detail = detail.get("message") if isinstance(detail, dict) else detail
+    return " ".join(str(detail or "").split())[:500]
+
+
+async def gateway_problem(connection: dict, env: dict, model: str | None, max_tokens: int | None = None,
                           shown: str | None = None) -> str | None:
-    """One tiny request before the CLI starts. The CLI retries a rejected key or an unknown
+    """One small request before the CLI starts. The CLI retries a rejected key or an unknown
     model for minutes; the gateway's own answer says what is wrong in a second. `shown` is the
-    model's name as the person knows it, when the gateway is asked for it under another."""
+    model's name as the person knows it, when the gateway is asked for it under another.
+
+    It is sent the way the agent program sends its own: streamed and with the program's output
+    limit. A translating gateway can route those differently from a plain request with a tiny
+    limit (an Azure route refused max_tokens 1 while the agent's requests went through), so a
+    check of another shape could refuse what the turn would reach, or pass what it would not.
+    Only the status and the first event are read; then the connection is closed, so the check
+    does not wait for (or keep open) the reply.
+
+    One refusal is asked about again: a limit larger than the model takes. The program lowers its
+    limit by itself for the models it knows, so the check is repeated with a small limit and only
+    that answer counts. When the program would not have lowered it, the turn says so itself."""
     import httpx
     url = env["ANTHROPIC_BASE_URL"].rstrip("/") + "/v1/messages"
-    body = {"model": model, "max_tokens": max_tokens, "system": "Connection check.",
-            "messages": [{"role": "user", "content": "ok"}]}
+    limit = max_tokens or agent_output_limit(env)
+    body = {"model": model, "max_tokens": limit, "stream": True,
+            "system": "Connection check.", "messages": [{"role": "user", "content": "ok"}]}
     headers = {"x-api-key": env["ANTHROPIC_AUTH_TOKEN"], "authorization": f"Bearer {env['ANTHROPIC_AUTH_TOKEN']}",
-               "anthropic-version": "2023-06-01", "content-type": "application/json"}
+               "anthropic-version": "2023-06-01", "content-type": "application/json",
+               "accept": "text/event-stream"}
+    refused = lambda status, detail: (  # noqa: E731
+        f"“{connection['label']}” refused the model {shown or model} ({status}): {detail}")
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0), trust_env=False) as client:
-            response = await client.post(url, json=body, headers=headers)
+            async with client.stream("POST", url, json=body, headers=headers) as response:
+                if response.status_code >= 400:
+                    text = (await response.aread()).decode("utf-8", "replace")
+                    try:
+                        detail = _refusal(json.loads(text))
+                    except ValueError:
+                        detail = " ".join(text.split())[:500]
+                    if limit > SMALL_CHECK_LIMIT and LIMIT_TOO_LARGE.search(detail):
+                        return await gateway_problem(connection, env, model, SMALL_CHECK_LIMIT, shown)
+                    return refused(f"HTTP {response.status_code}", detail)
+                # Accepted. A gateway can still refuse in the stream itself, as its first event.
+                event = None
+                async for line in response.aiter_lines():
+                    if line.startswith("event:"):
+                        event = line[6:].strip()
+                    elif line.startswith("data:"):
+                        try:
+                            data = json.loads(line[5:])
+                        except ValueError:
+                            data = line[5:]
+                        if event == "error" or (isinstance(data, dict) and data.get("type") == "error"):
+                            return refused(f"HTTP {response.status_code}, in the stream", _refusal(data))
+                        return None
+                    elif not line.strip() and event:
+                        return None     # an event with no data line: accepted all the same
+                # A 2xx answer that is not a stream (some gateways ignore `stream`): accepted.
+                return None
     except httpx.ConnectError:
         return f"The gateway for “{connection['label']}” is not reachable at {env['ANTHROPIC_BASE_URL']}."
     except httpx.HTTPError as exc:
         return f"The gateway for “{connection['label']}” did not answer ({exc.__class__.__name__})."
-    if response.status_code < 400:
-        return None
-    try:
-        detail = response.json().get("error", {})
-        detail = detail.get("message") if isinstance(detail, dict) else str(detail)
-    except ValueError:
-        detail = response.text
-    detail = " ".join(str(detail or "").split())[:500]
-    return f"“{connection['label']}” refused the model {shown or model} (HTTP {response.status_code}): {detail}"
 
 
 class ClaudeHarness:
@@ -746,9 +834,8 @@ class ClaudeHarness:
             # The turn's id as a tag the gateway records, so its spend log can be read back per turn.
             env["ANTHROPIC_CUSTOM_HEADERS"] = costs.turn_header(kind, request.turn_id)
         if kind in TRANSLATED_KINDS:
-            # 16 tokens for the studio's LiteLLM: OpenAI's own endpoint refuses a smaller limit.
-            problem = await gateway_problem(request.connection, env, request.model,
-                                            16 if kind == "litellm" else 1, asked)
+            # The output limit is the agent program's own (from `env`), so no route's minimum is undercut.
+            problem = await gateway_problem(request.connection, env, request.model, shown=asked)
             if problem:
                 return TurnResult("failed", request.session_id, problem)
         result, activity = await self._attempt(request, emit, env, scrub, request.session_id)

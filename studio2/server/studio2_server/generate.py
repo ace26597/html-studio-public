@@ -166,6 +166,18 @@ class Generator:
         with self.usage_file.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps({"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **row}) + "\n")
 
+    async def _charged(self, before: float, quoted: float) -> tuple[float | None, float]:
+        """→ (balance now, credits this job cost). The fall in the balance since just before the job
+        was bought (no other studio job runs meanwhile); the quoted price when the balance cannot be read."""
+        try:
+            balance = await self.balance()
+        except GenerateError:
+            return None, quoted
+        fall = round(before - balance, 2)
+        # A balance that rose (a refund for an earlier job, the monthly credits) says nothing about
+        # this job, and a negative row would loosen the daily limit: count the quoted price.
+        return balance, (fall if fall >= 0 else quoted)
+
     @staticmethod
     async def _download(url: str) -> bytes:
         async with httpx.AsyncClient(timeout=httpx.Timeout(300, connect=20), follow_redirects=True) as http:
@@ -204,9 +216,35 @@ class Generator:
         """Make it, download it → {file (Path), credits, balance, job}. The quote was approved by the person."""
         kind = quoted["kind"]
         async with self._lock:
+            # The quote was checked when it was made, but the person approves it later: other jobs
+            # may have been bought since, or a server fault may have paused generation. Check again
+            # here, inside the lock, so nothing bought in between is missed.
+            stopped = self.halted()
+            if stopped:
+                raise GenerateError(stopped)
+            spent = self.spent_today()
+            if spent + quoted["credits"] > self.daily_credits:
+                raise GenerateError(f"Nothing was spent. This would cost {quoted['credits']:g} credits; {spent:g} have "
+                                    f"been spent through the studio today and the studio's limit is "
+                                    f"{self.daily_credits:g} a day (STUDIO2_GENERATE_DAILY_CREDITS).")
+            before = await self.balance()
+            if quoted["credits"] > before:
+                raise GenerateError(f"Nothing was spent. This would cost {quoted['credits']:g} credits and the "
+                                    f"account now has {before:g}.")
             wait = KINDS[kind]["wait"]
-            code, out, err = await self._cli("generate", "create", quoted["model"], *quoted["arguments"],
-                                             "--wait", "--wait-timeout", f"{wait // 60}m", timeout=wait + 60)
+            try:
+                code, out, err = await self._cli("generate", "create", quoted["model"], *quoted["arguments"],
+                                                 "--wait", "--wait-timeout", f"{wait // 60}m", timeout=wait + 60)
+            except GenerateError as exc:
+                if not find_cli():
+                    raise           # the command was never run: nothing was asked for
+                # The studio stopped waiting, but the service may still finish the job and charge for
+                # it. The limit counts the quoted price, and the row says that is what it is.
+                self.record(project=project_id, kind=kind, model=quoted["model"], credits=quoted["credits"],
+                            credits_basis="quoted", prompt=prompt[:300], outcome="timed_out", error=str(exc)[:300])
+                raise GenerateError(f"{exc} The job may still finish and be charged, so its quoted price "
+                                    f"({quoted['credits']:g} credits) is counted against today's limit. Do not "
+                                    "generate it again; tell the person.") from None
             said = " ".join((err or "").split()) or " ".join(out.split())[:400]
             jobs = []
             if not code:
@@ -223,7 +261,9 @@ class Generator:
                     self.record(project=project_id, kind=kind, model=quoted["model"], credits=quoted["credits"],
                                 prompt=prompt[:300], outcome="server_fault")
                     raise GenerateError(self.halted() or "The generation service failed with a server error.")
-                self.record(project=project_id, kind=kind, model=quoted["model"], credits=0, prompt=prompt[:300],
+                # A job that did not complete is usually not charged, but only the balance says so.
+                _balance, spent = await self._charged(before, 0.0)
+                self.record(project=project_id, kind=kind, model=quoted["model"], credits=spent, prompt=prompt[:300],
                             outcome=str(status))
                 raise GenerateError(f"The generation did not complete ({status}). {said[:400]} "
                                     "Do not retry with another model. Change the request only if the message "
@@ -233,21 +273,29 @@ class Generator:
             if suffix and suffix != target.suffix.lower() and not (
                     kind == "image" and suffix in KINDS["image"]["types"] and target.suffix.lower() in KINDS["image"]["types"]):
                 target = target.with_suffix(suffix)
-            data = await self._download(url)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            if kind == "image" and suffix != target.suffix.lower():
-                import io
-
-                from PIL import Image
-                image = Image.open(io.BytesIO(data))
-                (image.convert("RGB") if target.suffix.lower() in (".jpg", ".jpeg") else image).save(target, quality=92)
-            else:
-                target.write_bytes(data)
+            # From here the service has made the job and charged for it, so a failure to fetch or
+            # save it must still be recorded, or the daily limit would not count what was paid.
+            step = "download_failed"
             try:
-                balance = await self.balance()
-            except GenerateError:
-                balance = None
-            spent = round(quoted["balance"] - balance, 2) if balance is not None else quoted["credits"]
+                data = await self._download(url)
+                step = "save_failed"
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if kind == "image" and suffix != target.suffix.lower():
+                    import io
+
+                    from PIL import Image
+                    image = Image.open(io.BytesIO(data))
+                    (image.convert("RGB") if target.suffix.lower() in (".jpg", ".jpeg") else image).save(target, quality=92)
+                else:
+                    target.write_bytes(data)
+            except Exception as exc:
+                balance, spent = await self._charged(before, quoted["credits"])
+                self.record(project=project_id, kind=kind, model=quoted["model"], credits=spent, prompt=prompt[:300],
+                            outcome=step, job=job.get("id"), error=str(exc)[:300])
+                what = "downloaded" if step == "download_failed" else "saved into the project"
+                raise GenerateError(f"The service made it and {spent:g} credits were spent, but the result could not "
+                                    f"be {what} ({str(exc)[:200]}). Do not generate it again; tell the person.") from None
+            balance, spent = await self._charged(before, quoted["credits"])
             self.record(project=project_id, kind=kind, model=quoted["model"], credits=spent, prompt=prompt[:300],
                         outcome="completed", job=job.get("id"), file=target.name)
             return {"file": target, "credits": spent, "balance": balance, "job": job.get("id"),

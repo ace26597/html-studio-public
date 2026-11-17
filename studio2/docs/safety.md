@@ -65,6 +65,3 @@ runs as you too.
   is right.
 - **Picking skills** takes time before a request starts: 1.6 to 3.9 seconds when it was
   measured, on a library of 510 skills.
-
-The status table says, step by step, what was checked, how, and
-what was not. It is the only record that is kept current.

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 
 import pytest
 from claude_agent_sdk import (
@@ -42,6 +43,17 @@ def result(**overrides):
                   usage={"input_tokens": 10, "cache_creation_input_tokens": 5, "cache_read_input_tokens": 100,
                          "output_tokens": 50})
     return ResultMessage(**{**fields, **overrides})
+
+
+def test_the_start_up_report_names_each_connectors_tools(tmp_path):
+    events = feed(EventMapper(tmp_path), SystemMessage(subtype="init", data={
+        "session_id": "s1", "tools": ["Read", "mcp__weather__get_forecast", "mcp__weather__get_alerts",
+                                      "mcp__slack-legal__search"],
+        "mcp_servers": [{"name": "weather", "status": "connected"}, {"name": "slack-legal", "status": "needs-auth"}]}))
+    assert events[0]["mcp_servers"] == [
+        {"name": "weather", "status": "connected", "tools": ["get_forecast", "get_alerts"]},
+        {"name": "slack-legal", "status": "needs-auth", "tools": ["search"]}]
+    assert "“slack-legal” could not be used in this turn (needs auth)" in events[1]["message"]
 
 
 def test_streamed_text_is_emitted_once_and_tools_are_mapped(tmp_path):
@@ -373,3 +385,207 @@ def test_a_helper_agents_words_never_become_a_chat_message(tmp_path):
     )
     said = [e["text"] for e in events if e["type"] in ("message_chunk", "thought_chunk")]
     assert said == ["The page is ready."]
+
+
+# --- The check before a gateway turn, against a stand-in gateway on this machine (no model call) ---
+
+class _PickyGateway:
+    """Answers /v1/messages like a translating gateway in front of a reasoning model: a plain
+    request with a tiny limit is refused (as the reviewer's Azure route did), a stream with the
+    agent program's limit is accepted and keeps going for a while after its first event."""
+
+    def __init__(self):
+        import http.server
+        import threading
+        seen = self.seen = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *_args):
+                pass
+
+            def _json(self, status, payload):
+                data = json.dumps(payload).encode()
+                self.send_response(status)
+                self.send_header("content-type", "application/json")
+                self.send_header("content-length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["content-length"])))
+                seen.append(body)
+                if body["model"] == "unknown":
+                    return self._json(400, {"error": {"message": "Invalid model name passed in model=unknown"}})
+                if body["model"] == "small-cap" and body["max_tokens"] > 8192:
+                    return self._json(400, {"error": {"message": (
+                        f"max_tokens: {body['max_tokens']} > 8192, which is the maximum allowed number of "
+                        "output tokens for small-cap")}})
+                if body["model"] == "never-fits" and body["max_tokens"] > 16:
+                    return self._json(400, {"error": {"message": "max_tokens is too large: this model supports at most 16"}})
+                if not body.get("stream") and body["max_tokens"] < 16:
+                    return self._json(400, {"error": {"message": "Unsupported value: 'max_tokens'. "
+                                                                 "Use 'max_completion_tokens' instead."}})
+                if not body.get("stream"):
+                    return self._json(200, {"type": "message", "content": [{"type": "text", "text": "ok"}]})
+                self.send_response(200)
+                self.send_header("content-type", "text/event-stream")
+                self.end_headers()
+                if body["model"] == "refuses-in-stream":
+                    events = [("error", {"type": "error", "error": {"type": "invalid_request_error",
+                                                                    "message": "max_tokens is too large for this model"}})]
+                else:
+                    events = [("message_start", {"type": "message_start", "message": {"id": "m1"}})]
+                try:
+                    for name, data in events:
+                        self.wfile.write(f"event: {name}\ndata: {json.dumps(data)}\n\n".encode())
+                        self.wfile.flush()
+                    time.sleep(4)        # a reply still being written: the check must not wait for it
+                    self.wfile.write(b'event: message_stop\ndata: {"type": "message_stop"}\n\n')
+                except OSError:
+                    pass
+
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.server.daemon_threads = True
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.env = {"ANTHROPIC_BASE_URL": f"http://127.0.0.1:{self.server.server_port}",
+                    "ANTHROPIC_AUTH_TOKEN": "sk-stand-in"}
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+@pytest.fixture
+def picky_gateway():
+    gateway = _PickyGateway()
+    yield gateway
+    gateway.close()
+
+
+async def test_the_gateway_check_has_the_shape_of_the_agents_request(picky_gateway, monkeypatch):
+    from studio2_server.harness.claude import gateway_problem
+    monkeypatch.delenv("CLAUDE_CODE_MAX_OUTPUT_TOKENS", raising=False)
+    started = time.monotonic()
+    assert await gateway_problem(GATEWAY, picky_gateway.env, "gpt-sol") is None
+    # Read up to the first event and closed: not held open for the rest of the reply.
+    assert time.monotonic() - started < 3
+    sent = picky_gateway.seen[-1]
+    assert sent["stream"] is True and sent["max_tokens"] == 32000       # the agent program's own limit
+    assert "max_completion_tokens" not in sent
+
+    # The limit the agent program will be given for this turn is the one checked.
+    assert await gateway_problem(GATEWAY, {**picky_gateway.env, "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "8000"}, "gpt-sol") is None
+    assert picky_gateway.seen[-1]["max_tokens"] == 8000
+    monkeypatch.setenv("CLAUDE_CODE_MAX_OUTPUT_TOKENS", "12000")      # inherited by the agent program too
+    assert await gateway_problem(GATEWAY, picky_gateway.env, "gpt-sol") is None
+    assert picky_gateway.seen[-1]["max_tokens"] == 12000
+
+
+async def test_a_gateway_refusal_is_still_reported_in_its_own_words(picky_gateway):
+    from studio2_server.harness.claude import gateway_problem
+    problem = await gateway_problem(GATEWAY, picky_gateway.env, "unknown", shown="Unknown model")
+    assert problem == ("“LiteLLM” refused the model Unknown model (HTTP 400): "
+                       "Invalid model name passed in model=unknown")
+    # A refusal sent as the stream's first event is a refusal too, not a pass.
+    problem = await gateway_problem(GATEWAY, picky_gateway.env, "refuses-in-stream")
+    assert problem and "max_tokens is too large for this model" in problem and "refuses-in-stream" in problem
+
+
+async def test_a_gateway_turn_checks_the_limit_its_connection_sets(picky_gateway, monkeypatch, tmp_path):
+    monkeypatch.setenv("LITELLM_API_KEY", "sk-stand-in")
+    connection = {**GATEWAY, "base_url": picky_gateway.env["ANTHROPIC_BASE_URL"], "max_output_tokens": 9000}
+    request = TurnRequest("p_1", "t_1", tmp_path, "hi", None, connection, "unknown")
+    result = await ClaudeHarness("anthropic-gateway").run(request, lambda _event: None)
+    assert result.status == "failed" and "Invalid model name" in result.error
+    assert picky_gateway.seen[-1]["max_tokens"] == 9000 and picky_gateway.seen[-1]["stream"] is True
+
+
+def test_no_providers_credentials_or_endpoint_reach_a_turn_on_another_connection():
+    cloud = {"ANTHROPIC_FOUNDRY_API_KEY": "az-shell", "ANTHROPIC_FOUNDRY_AUTH_TOKEN": "entra-shell",
+             "ANTHROPIC_FOUNDRY_BASE_URL": "https://shell.example/anthropic", "ANTHROPIC_FOUNDRY_RESOURCE": "shell-res",
+             "ANTHROPIC_VERTEX_PROJECT_ID": "shell-project", "ANTHROPIC_VERTEX_BASE_URL": "https://vertex.example",
+             "ANTHROPIC_BEDROCK_BASE_URL": "https://bedrock.example", "AWS_BEARER_TOKEN_BEDROCK": "aws-bearer"}
+    parent = {"PATH": "/bin", "LITELLM_API_KEY": "sk-litellm", "MY_CLAUDE_KEY": "sk-ant-1", "AZ_KEY": "az-1",
+              "STUDIO2_AGENT_ENV": "AWS_BEARER_TOKEN_BEDROCK,NPM_TOKEN", "NPM_TOKEN": "keep-me", **cloud}
+    base = {"label": "x", "models": [{"id": "sonnet", "label": "Sonnet"}], "default_model": "sonnet"}
+
+    def child(connection, model=None):
+        """What the agent program would see: the parent without the scrubbed names, then options.env."""
+        env, scrub = child_env(connection, parent, model)
+        inherited = {name: value for name, value in parent.items() if name not in scrub}
+        return {**inherited, **hidden_secrets(parent), **env}
+
+    for connection in (SUB, GATEWAY, {**base, "id": "api", "kind": "anthropic-api", "api_key_env": "MY_CLAUDE_KEY"}):
+        seen = child(connection, "gpt-sol")
+        leaked = {name: seen[name] for name in cloud if seen.get(name)}
+        assert leaked == {}, connection["kind"]
+        assert seen["NPM_TOKEN"] == "keep-me"            # STUDIO2_AGENT_ENV still passes other names through
+
+    seen = child({**base, "id": "aws", "kind": "bedrock", "region": "ap-south-1"})
+    assert seen["AWS_BEARER_TOKEN_BEDROCK"] == "aws-bearer"         # Bedrock's own sign-in, on Bedrock
+    assert not any(seen.get(name) for name in cloud if "BEDROCK" not in name)
+    seen = child({**base, "id": "gcp", "kind": "vertex", "region": "asia-south1", "project": "p-1"})
+    assert seen["ANTHROPIC_VERTEX_PROJECT_ID"] == "p-1"             # the connection's own, not the shell's
+    assert seen["ANTHROPIC_VERTEX_BASE_URL"] == "https://vertex.example"   # Vertex's own private address, on Vertex
+    assert not any(seen.get(name) for name in cloud if "VERTEX" not in name)
+    seen = child({**base, "id": "az", "kind": "foundry", "resource": "my-res", "api_key_env": "AZ_KEY"})
+    assert seen["ANTHROPIC_FOUNDRY_RESOURCE"] == "my-res" and seen["ANTHROPIC_FOUNDRY_API_KEY"] == "az-1"
+    assert seen["ANTHROPIC_FOUNDRY_AUTH_TOKEN"] == "entra-shell"   # Foundry's own sign-in, on Foundry
+    assert not seen.get("ANTHROPIC_FOUNDRY_BASE_URL")               # the shell's other address does not fall through
+    assert not any(seen.get(name) for name in cloud if "FOUNDRY" not in name)
+
+
+async def test_a_limit_larger_than_the_model_takes_is_not_a_refusal_of_the_model(picky_gateway, monkeypatch):
+    """The agent program lowers its own limit for the models it knows, so a check sent with the
+    default limit must not fail a turn that would have run. It is asked again with a small limit."""
+    from studio2_server.harness.claude import SMALL_CHECK_LIMIT, gateway_problem
+    monkeypatch.delenv("CLAUDE_CODE_MAX_OUTPUT_TOKENS", raising=False)
+    assert await gateway_problem(GATEWAY, picky_gateway.env, "small-cap") is None
+    assert [body["max_tokens"] for body in picky_gateway.seen[-2:]] == [32000, SMALL_CHECK_LIMIT]
+    assert picky_gateway.seen[-1]["stream"] is True
+
+    # Asked again once only, and a model that refuses the small limit too is reported in the gateway's words.
+    before = len(picky_gateway.seen)
+    problem = await gateway_problem(GATEWAY, picky_gateway.env, "never-fits")
+    assert problem and "at most 16" in problem and len(picky_gateway.seen) == before + 2
+
+    # Any other refusal is not asked about again.
+    before = len(picky_gateway.seen)
+    assert await gateway_problem(GATEWAY, picky_gateway.env, "unknown")
+    assert len(picky_gateway.seen) == before + 1
+
+
+def test_a_secret_under_the_agent_programs_own_prefix_is_hidden_too():
+    """ANTHROPIC_* and CLAUDE_* used to be passed over whole, so an admin key or a key under
+    another name in the studio's shell reached the agent's shell."""
+    from studio2_server.harness.claude import child_env, hidden_secrets
+    parent = {"ANTHROPIC_ADMIN_KEY": "sk-ant-admin", "CLAUDE_API_KEY": "x", "ANTHROPIC_SECRET": "s",
+              "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "9000", "ANTHROPIC_MODEL": "opus", "CLAUDE_CODE_OAUTH_TOKEN": "plan",
+              "NPM_TOKEN": "n", "PATH": "/bin"}
+    hidden = hidden_secrets(parent)
+    assert hidden == {"ANTHROPIC_ADMIN_KEY": "", "CLAUDE_API_KEY": "", "ANTHROPIC_SECRET": "", "NPM_TOKEN": ""}
+    # The plan's own sign-in is child_env's to decide, and it still reaches a subscription turn.
+    env, scrub = child_env({"id": "subscription", "kind": "claude-subscription"}, parent)
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in scrub and "CLAUDE_CODE_OAUTH_TOKEN" not in {**hidden, **env}
+    # A name the person lists is still passed through.
+    assert "ANTHROPIC_ADMIN_KEY" not in hidden_secrets({**parent, "STUDIO2_AGENT_ENV": "ANTHROPIC_ADMIN_KEY"})
+
+
+def test_a_clouds_own_endpoint_and_key_from_the_shell_reach_that_clouds_turns_only():
+    """A private Bedrock or Vertex endpoint has no field in a connection: it is set in the studio's
+    shell. It must still reach that cloud's own turns, and no other."""
+    from studio2_server.harness.claude import child_env
+    parent = {"ANTHROPIC_BEDROCK_BASE_URL": "https://bedrock.internal", "ANTHROPIC_VERTEX_BASE_URL": "https://vertex.internal",
+              "ANTHROPIC_FOUNDRY_API_KEY": "shell-key", "FOUNDRY_KEY": "connection-key"}
+    env, scrub = child_env({"id": "b", "kind": "bedrock", "region": "us-east-1"}, parent)
+    assert env["ANTHROPIC_BEDROCK_BASE_URL"] == "https://bedrock.internal"
+    assert {"ANTHROPIC_VERTEX_BASE_URL", "ANTHROPIC_FOUNDRY_API_KEY"} <= scrub
+    env, scrub = child_env({"id": "v", "kind": "vertex", "region": "us-east5", "project": "p"}, parent)
+    assert env["ANTHROPIC_VERTEX_BASE_URL"] == "https://vertex.internal" and "ANTHROPIC_BEDROCK_BASE_URL" in scrub
+    # Foundry with no key of its own in the connection uses the shell's; a connection's own key wins.
+    env, _ = child_env({"id": "f", "kind": "foundry", "resource": "r"}, parent)
+    assert env["ANTHROPIC_FOUNDRY_API_KEY"] == "shell-key"
+    env, _ = child_env({"id": "f", "kind": "foundry", "resource": "r", "api_key_env": "FOUNDRY_KEY"}, parent)
+    assert env["ANTHROPIC_FOUNDRY_API_KEY"] == "connection-key"
+    _, scrub = child_env({"id": "subscription", "kind": "claude-subscription"}, parent)
+    assert {"ANTHROPIC_BEDROCK_BASE_URL", "ANTHROPIC_VERTEX_BASE_URL", "ANTHROPIC_FOUNDRY_API_KEY"} <= scrub

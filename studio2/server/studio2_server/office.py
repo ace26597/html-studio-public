@@ -29,6 +29,9 @@ KINDS = {".pptx": "presentation", ".ppt": "presentation", ".odp": "presentation"
          ".pdf": "pdf"}
 LABELS = {"presentation": "PowerPoint", "document": "Word", "workbook": "Excel", "pdf": "PDF"}
 MAX_PAGES, MAX_ROWS, MAX_COLS = 60, 400, 50
+# The preview shows at most MAX_ROWS × MAX_COLS of a sheet, but the error check looks at every
+# formula, up to this many in a workbook (the cells are in memory already; this bounds the time).
+MAX_CHECKED, MAX_ERRORS_KEPT = 200_000, 200
 PAGE_WIDTH = {"presentation": 1600, "document": 1240, "pdf": 1240}
 ERRORS = ("#REF!", "#NAME?", "#DIV/0!", "#VALUE!", "#N/A", "#NUM!", "#NULL!")
 VIEWER = Path(__file__).parent / "static" / "office-viewer.html"
@@ -208,6 +211,19 @@ def shown(value, number_format: str = "General") -> str:
     return literal(tokens[:first]) + sign + text + literal(after)
 
 
+def formula_text(value) -> str | None:
+    """A cell's formula as text, or None when it holds none. An ordinary formula is text starting
+    with "="; an array formula or a data table arrives from openpyxl as an object."""
+    if isinstance(value, str):
+        return value if value.startswith("=") else None
+    text = getattr(value, "text", None)
+    if isinstance(text, str) and text:
+        return text if text.startswith("=") else "=" + text
+    if type(value).__name__ == "DataTableFormula":
+        return f"=TABLE({getattr(value, 'ref', '')})"
+    return None
+
+
 def read_workbook(original: Path, recalculated: Path) -> list[dict]:
     """→ one entry per sheet: the cells as they display, their formulas, a little styling, and
     every formula that came out as an error."""
@@ -216,29 +232,41 @@ def read_workbook(original: Path, recalculated: Path) -> list[dict]:
 
     formulas = openpyxl.load_workbook(original)                      # formulas and styles
     values = openpyxl.load_workbook(recalculated, data_only=True)    # what they came out as
-    sheets = []
+    sheets, checked = [], 0
+
+    def failed(value, text: str) -> str | None:
+        """What a formula's result shows when it is an error or missing, else None."""
+        bad = text if text.startswith(("#", "Err:")) else (value if isinstance(value, str) and value in ERRORS else None)
+        return bad or ("no result" if value is None else None)
+
     for sheet in formulas.worksheets:
         computed = values[sheet.title] if sheet.title in values.sheetnames else None
         rows, cols = min(sheet.max_row, MAX_ROWS), min(sheet.max_column, MAX_COLS)
-        cells, errors, formula_count = [], [], 0
+        cells, errors, formula_count, error_count, unchecked = [], [], 0, 0, 0
+
+        def found(r: int, c: int, formula: str, bad: str) -> None:
+            nonlocal error_count
+            error_count += 1
+            if len(errors) < MAX_ERRORS_KEPT:
+                errors.append({"cell": f"{get_column_letter(c)}{r}", "formula": formula, "value": bad})
+
         for r in range(1, rows + 1):
             line = []
             for c in range(1, cols + 1):
                 cell = sheet.cell(r, c)
                 value = computed.cell(r, c).value if computed is not None else cell.value
-                formula = cell.value if isinstance(cell.value, str) and cell.value.startswith("=") else None
+                formula = formula_text(cell.value)
                 text = shown(value, cell.number_format)
                 entry: dict = {}
                 if text != "":
                     entry["t"] = text
                 if formula:
                     formula_count += 1
+                    checked += 1
                     entry["f"] = formula
-                    bad = text if text.startswith(("#", "Err:")) else (value if isinstance(value, str) and value in ERRORS else None)
-                    if bad or value is None:
+                    if (bad := failed(value, text)):
                         entry["e"] = 1
-                        errors.append({"cell": f"{get_column_letter(c)}{r}", "formula": formula,
-                                       "value": bad or "no result"})
+                        found(r, c, formula, bad)
                 if isinstance(value, (int, float)) and not isinstance(value, bool):
                     entry["n"] = 1
                 if cell.has_style:
@@ -253,11 +281,29 @@ def read_workbook(original: Path, recalculated: Path) -> list[dict]:
                         entry["a"] = cell.alignment.horizontal
                 line.append(entry)
             cells.append(line)
+        # The rest of the sheet, outside the preview: only the cells that exist (openpyxl keeps them
+        # in `_cells`; asking for others with .cell() would create them). Without this, a sheet past
+        # the preview limits would be called free of errors after looking at part of it.
+        computed_cells = computed._cells if computed is not None else {}
+        for (r, c) in sorted(key for key in sheet._cells if key[0] > rows or key[1] > cols):
+            cell = sheet._cells[(r, c)]
+            formula = formula_text(cell.value)
+            if not formula:
+                continue
+            formula_count += 1
+            if checked >= MAX_CHECKED:
+                unchecked += 1
+                continue
+            checked += 1
+            held = computed_cells.get((r, c))
+            value = held.value if held is not None else (None if computed is not None else cell.value)
+            if (bad := failed(value, shown(value, cell.number_format))):
+                found(r, c, formula, bad)
         widths = [round((sheet.column_dimensions[get_column_letter(c)].width or 10) * 7.2) for c in range(1, cols + 1)]
         sheets.append({"name": sheet.title, "rows": sheet.max_row, "columns": sheet.max_column,
                        "cut": sheet.max_row > rows or sheet.max_column > cols, "formulas": formula_count,
-                       "errors": errors, "cells": cells, "widths": widths, "charts": len(sheet._charts),
-                       "frozen": sheet.freeze_panes or None})
+                       "unchecked": unchecked, "errors": errors, "error_count": error_count, "cells": cells,
+                       "widths": widths, "charts": len(sheet._charts), "frozen": sheet.freeze_panes or None})
     return sheets
 
 
@@ -357,6 +403,40 @@ def _grid(sheet: dict, rows: int = 22, cols: int = 10) -> list[str]:
     return [" | ".join((cell.get("t") or "")[:18] for cell in line[:cols]) for line in sheet["cells"][:rows]]
 
 
+def _count(n: int, word: str) -> str:
+    return f"{n:,} {word}{'' if n == 1 else 's'}"
+
+
+def workbook_result(sheets: list[dict], stamped: int, pages: list) -> dict:
+    """What the agent is told about a workbook. It says "no formula errors" only when every
+    formula was checked, and says which sheets the preview shows only part of."""
+    total = sum(s["formulas"] for s in sheets)
+    unchecked = [s for s in sheets if s["unchecked"]]
+    if any(s["error_count"] for s in sheets):
+        verdict = "Fix every formula listed under errors (error_count says how many there are), then render again."
+    elif unchecked:
+        missing = sum(s["unchecked"] for s in unchecked)
+        verdict = (f"Only {total - missing:,} of the {_count(total, 'formula')} were checked, and none of those has an error; "
+                   + "; ".join(f"{_count(s['unchecked'], 'formula')} of sheet {s['name']!r} were not checked"
+                               for s in unchecked)
+                   + f" (the check stops after {MAX_CHECKED:,} formulas in a workbook), so errors may remain there.")
+    else:
+        verdict = f"No formula errors in any of the {_count(total, 'formula')}."
+    cut = [s for s in sheets if s["cut"]]
+    if cut:
+        verdict += (f" The preview and start show only the first {MAX_ROWS} rows and {MAX_COLS} columns of "
+                    + ", ".join(f"{s['name']!r} ({s['rows']:,} × {s['columns']:,})" for s in cut) + ".")
+    if not any(s["error_count"] for s in sheets):
+        verdict += " Look at the preview page with look_at_page to check the formatting."
+        if pages:
+            verdict += " The charts are drawn in chart_pages: open those images with the Read tool."
+    return {
+        "sheets": [{"name": s["name"], "rows": s["rows"], "columns": s["columns"], "cut": s["cut"],
+                    "formulas": s["formulas"], "unchecked": s["unchecked"], "charts": s["charts"],
+                    "errors": s["errors"][:30], "error_count": s["error_count"], "start": _grid(s)} for s in sheets],
+        "formula_results_stored": stamped, "next": verdict}
+
+
 def render(workspace: Path, relative: str, stamp: bool = True, max_pages: int = MAX_PAGES) -> dict:
     """Render one project file into `<file>.preview/`. Blocking; call from a thread."""
     source = (workspace / relative).resolve()
@@ -395,13 +475,7 @@ def render(workspace: Path, relative: str, stamp: bool = True, max_pages: int = 
                 pages, total = rasterise(pdf, folder, PAGE_WIDTH["presentation"], 20)
                 data.update({"pdf": "document.pdf", "pages": [p.name for p in pages], "page_count": total})
                 result["chart_pages"] = [rel(p) for p in pages]
-            result.update({
-                "sheets": [{"name": s["name"], "rows": s["rows"], "columns": s["columns"], "formulas": s["formulas"],
-                            "charts": s["charts"], "errors": s["errors"][:30], "start": _grid(s)} for s in sheets],
-                "formula_results_stored": stamped,
-                "next": ("Fix every formula listed under errors, then render again." if any(s["errors"] for s in sheets)
-                         else "No formula errors. Look at the preview page with look_at_page to check the formatting."
-                         + (" The charts are drawn in chart_pages: open those images with the Read tool." if pages else ""))})
+            result.update(workbook_result(sheets, stamped, pages))
         else:
             pdf = source if kind == "pdf" else convert(source, "pdf", work / "pdf")
             if kind != "pdf":

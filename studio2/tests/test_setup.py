@@ -396,6 +396,8 @@ def test_doctor_says_what_is_there_and_what_is_not(tmp_path, monkeypatch):
     assert account["status"] == "ok" and "a file only you can read" in account["detail"]
     assert by_name["No browser for looking at pages"]["status"] == "warn"
     assert "playwright install chromium" in by_name["No browser for looking at pages"]["fix"]
+    assert "PLAYWRIGHT_BROWSERS_PATH" in by_name["No browser for looking at pages"]["detail"]
+    assert "ms-playwright" in by_name["No browser for looking at pages"]["detail"]      # where it looked
     assert f"Python {sys.version.split()[0]}" in by_name and "Port 65000 is free" in by_name
     assert f"Data folder: {settings.data_dir}" in by_name and "Model accounts" in text
     # The plan with no sign-in is a failure with the way out, and a shared studio says why.

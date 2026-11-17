@@ -203,10 +203,11 @@ function workbook(main) {
     });
     grid.replaceChildren($("table", {}, $("thead", {}, head), body));
     grid.scrollTop = 0; grid.scrollLeft = 0;
-    const errors = sheet.errors.length;
+    const errors = sheet.error_count ?? sheet.errors.length;   // the list itself is capped
     note.className = "note" + (errors ? " bad" : "");
     note.textContent = [plural(sheet.rows, "row") + " × " + plural(sheet.columns, "column"), plural(sheet.formulas, "formula"),
       errors ? plural(errors, "formula") + " with an error: " + sheet.errors.slice(0, 6).map((e) => e.cell).join(", ") : "",
+      sheet.unchecked ? plural(sheet.unchecked, "formula") + " not checked" : "",
       sheet.cut ? "showing the first " + sheet.cells.length + " rows; download the file for all of it" : ""].filter(Boolean).join(" · ");
   }
   DATA.sheets.forEach((sheet, index) => {

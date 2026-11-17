@@ -4,8 +4,9 @@
 #   git clone <repository> html-studio && ./html-studio/studio2/install.sh
 #
 # It fetches what is missing and nothing else: uv (the official installer), through it Python 3.12
-# and the studio's packages (into studio2/.venv), and Node 20 or newer (the one on PATH when it is
-# new enough, otherwise a private copy under studio2/.tools from nodejs.org, checksum verified).
+# and the studio's packages at the versions in server-requirements.txt (into studio2/.venv), and a
+# Node the interface's build accepts, 20.19 or later in 20.x or 22.12 or later (the one on PATH when
+# it is one of those, otherwise a private copy under studio2/.tools from nodejs.org, checksum verified).
 # It builds the interface, puts a `studio` command in ~/.local/bin, and offers to run setup.
 #
 # It never uses sudo by itself: when a system package is truly needed (git) it prints the exact
@@ -29,7 +30,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"      # .../studio2
 TOOLS="$HERE/.tools"
 BIN_DIR="${STUDIO_BIN_DIR:-$HOME/.local/bin}"
 NODE_VERSION="${STUDIO_NODE_VERSION:-v24.22.2}"
-NODE_MIN=20
+# What the interface's build tool (Vite, locked in web/package-lock.json) declares it runs on.
+NODE_RANGE="20.19 or later in 20.x, or 22.12 or later"
 PYTHON_VERSION=3.12
 
 ASSUME_YES=0; RUN_SETUP=1; WITH_BROWSER=0; WITH_LITELLM=0; DEV=0; BUILD=1; LAUNCHER=1
@@ -42,7 +44,7 @@ for arg in "$@"; do
     --dev) DEV=1 ;;
     --no-build) BUILD=0 ;;
     --no-launcher) LAUNCHER=0 ;;
-    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) printf 'Unknown option: %s (see --help)\n' "$arg" >&2; exit 2 ;;
   esac
 done
@@ -167,15 +169,33 @@ else
   note "Making the Python environment (uv fetches Python $PYTHON_VERSION when this machine has none)."
   "$UV" venv --quiet --clear --python "$PYTHON_VERSION" "$VENV"
 fi
-EXTRAS="look"; [ "$DEV" = 1 ] && EXTRAS="look,dev"
-"$UV" pip install --quiet --python "$VENV/bin/python" -e "${HERE}[${EXTRAS}]"
-note "$("$VENV/bin/python" --version), packages installed"
+# The exact versions that were tested, each checked by hash, then the studio itself without its
+# dependencies: pyproject.toml only states minimums, and "the newest that day" is not tested.
+LOCK="$HERE/server-requirements.txt"; [ "$DEV" = 1 ] && LOCK="$HERE/server-dev-requirements.txt"
+"$UV" pip install --quiet --python "$VENV/bin/python" --require-hashes -r "$LOCK"
+"$UV" pip install --quiet --python "$VENV/bin/python" --no-deps -e "$HERE"
+note "$("$VENV/bin/python" --version), packages installed from $(basename "$LOCK")"
 [ -x "$VENV/bin/studio" ] || die "the studio command was not installed into $VENV/bin."
 
 # -- Node ---------------------------------------------------------------------------------------
-step "3/6  Node $NODE_MIN or newer"
-node_major() { "$1" --version 2>/dev/null | sed -n 's/^v\([0-9][0-9]*\)\..*/\1/p'; }
-new_enough() { local major; major="$(node_major "$1")"; [ -n "$major" ] && [ "$major" -ge "$NODE_MIN" ]; }
+step "3/6  Node $NODE_RANGE"
+# -- node versions (tests/test_install.py runs this block on its own) --
+# at_least 22.11.3 22.12.0 → 0 when the first version is the same as or after the second.
+at_least() {
+  local a1 a2 a3 b1 b2 b3
+  IFS=. read -r a1 a2 a3 <<<"$1"; IFS=. read -r b1 b2 b3 <<<"$2"
+  [ "$a1" -ne "$b1" ] && { [ "$a1" -gt "$b1" ]; return; }
+  [ "$a2" -ne "$b2" ] && { [ "$a2" -gt "$b2" ]; return; }
+  [ "$a3" -ge "$b3" ]
+}
+# node_accepted 20.18.1 → 0 when the interface's build tool runs on that Node (NODE_RANGE).
+node_accepted() {
+  case "$1" in [0-9]*.[0-9]*.[0-9]*) ;; *) return 1 ;; esac
+  case "$1" in 20.*) at_least "$1" 20.19.0 ;; *) at_least "$1" 22.12.0 ;; esac
+}
+node_version() { "$1" --version 2>/dev/null | sed -n 's/^v\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'; }
+new_enough() { node_accepted "$(node_version "$1")"; }
+# -- end node versions --
 
 NODE_BIN=""
 if have node && new_enough "$(command -v node)" && have npm; then
@@ -185,9 +205,9 @@ elif [ -x "$TOOLS/node/bin/node" ] && new_enough "$TOOLS/node/bin/node"; then
   NODE_BIN="$TOOLS/node/bin"
   note "Using the studio's own copy: $("$NODE_BIN/node" --version)  ($NODE_BIN)"
 else
-  if have node; then note "The Node on this machine is $(node --version 2>/dev/null || echo unusable): too old."; fi
+  if have node; then note "The Node on this machine is $(node --version 2>/dev/null || echo unusable): not one the interface's build runs on ($NODE_RANGE)."; fi
   if [ "$OS" = linux ] && (ldd --version 2>&1 || true) | grep -qi musl; then
-    die "nodejs.org publishes no build for this kind of Linux (musl). Install Node $NODE_MIN or newer with the system's package manager (Alpine: apk add nodejs npm) and run this again."
+    die "nodejs.org publishes no build for this kind of Linux (musl). Install Node $NODE_RANGE with the system's package manager (Alpine: apk add nodejs npm) and run this again."
   fi
   FILE="node-$NODE_VERSION-$OS-$ARCH.tar.gz"
   note "Fetching a private copy into $TOOLS/node: $FILE from nodejs.org (nothing on the system changes)."
@@ -271,6 +291,8 @@ else
   note "Looking at pages: no browser the assistant can drive. Without one it cannot take"
   note "  screenshots, check its own pages or render video. It is a Chromium of about 170 MB,"
   note "  downloaded by:  $VENV/bin/python -m playwright install chromium"
+  note "  The studio looks for one in \$PLAYWRIGHT_BROWSERS_PATH, else ~/Library/Caches/ms-playwright,"
+  note "  else ~/.cache/ms-playwright; point PLAYWRIGHT_BROWSERS_PATH at a cache that has one to skip the download."
   if [ "$WITH_BROWSER" = 1 ] || { interactive && ask "  Download it now?" n; }; then
     "$VENV/bin/python" -m playwright install chromium || note "The download failed; run the command above later."
     if [ "$OS" = linux ]; then

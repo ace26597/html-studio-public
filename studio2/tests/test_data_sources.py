@@ -40,6 +40,113 @@ def test_values_become_plain_json():
     assert to_json(datetime.date(2026, 11, 10)) == "2026-11-10" and to_json(b"\x00\x01") == "AAE=" and to_json(float("nan")) is None
 
 
+# -- MySQL encryption: the arguments handed to pymysql.connect, with a stand-in for the server ------
+class FakeMysql:
+    """Stands in for pymysql.connect. `answers` is what each attempt does: "tls" (an encrypted
+    connection), "plain" (connected without TLS) or an exception to raise."""
+
+    def __init__(self, *answers):
+        self.answers, self.calls = list(answers), []
+
+    def __call__(self, **kwargs):
+        import ssl
+        self.calls.append(kwargs)
+        answer = self.answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        conn = type("Conn", (), {"rollback": lambda self: None, "close": lambda self: None})()
+        conn._sock = self.TlsSocket() if answer == "tls" else object()
+        return conn
+
+    import ssl as _ssl
+
+    class TlsSocket(_ssl.SSLSocket):
+        def __init__(self):        # an encrypted socket in type only; nothing is opened
+            pass
+
+
+def mysql_source(mode):
+    return {"kind": "mysql", "host": "db.example.com", "port": 3306, "database": "shop", "user": "reader", "ssl": mode}
+
+
+@pytest.fixture
+def fake_mysql(monkeypatch):
+    import pymysql
+
+    def install(*answers):
+        fake = FakeMysql(*answers)
+        monkeypatch.setattr(pymysql, "connect", fake)
+        return fake
+    return install
+
+
+def no_tls_offered():
+    import pymysql
+    return pymysql.err.OperationalError(2026, "SSL is required but the server doesn't support it")
+
+
+def test_mysql_disable_never_tries_tls(fake_mysql):
+    from studio2_server.datasources import _connect
+    fake = fake_mysql("plain")
+    _connect(mysql_source("disable"), "pw")
+    assert fake.calls[0]["ssl_disabled"] is True and fake.calls[0].get("ssl") is None
+
+
+def test_mysql_prefer_uses_tls_when_the_server_offers_it(fake_mysql):
+    import ssl
+
+    from studio2_server.datasources import _connect
+    fake = fake_mysql("tls")
+    _connect(mysql_source("prefer"), "pw")
+    assert len(fake.calls) == 1 and isinstance(fake.calls[0]["ssl"], ssl.SSLContext)
+    assert fake.calls[0]["ssl"].verify_mode == ssl.CERT_NONE           # encrypted, but who the server is is not checked
+
+
+def test_mysql_prefer_falls_back_to_plain_only_when_the_server_has_no_tls(fake_mysql):
+    import pymysql
+
+    from studio2_server.datasources import _connect
+    fake = fake_mysql(no_tls_offered(), "plain")
+    _connect(mysql_source("prefer"), "pw")
+    assert len(fake.calls) == 2 and fake.calls[1]["ssl_disabled"] is True and fake.calls[1].get("ssl") is None
+    for failure in (pymysql.err.OperationalError(1045, "Access denied for user 'reader'"),
+                    pymysql.err.OperationalError(2003, "Can't connect to MySQL server on 'db.example.com'")):
+        fake = fake_mysql(failure)
+        with pytest.raises(pymysql.err.OperationalError):
+            _connect(mysql_source("prefer"), "pw")
+        assert len(fake.calls) == 1                                    # a wrong password or a dead host is not retried
+
+
+def test_mysql_require_encrypts_without_verifying_and_fails_without_tls(fake_mysql):
+    import ssl
+
+    from studio2_server.datasources import _connect
+    fake = fake_mysql("tls")
+    _connect(mysql_source("require"), "pw")
+    context = fake.calls[0]["ssl"]
+    assert context.verify_mode == ssl.CERT_NONE and not context.check_hostname
+    fake = fake_mysql(no_tls_offered())
+    with pytest.raises(Exception, match="support"):
+        _connect(mysql_source("require"), "pw")
+    assert len(fake.calls) == 1                                        # never retried in plain
+    fake_mysql("plain")                                                # a driver that went ahead without TLS anyway
+    with pytest.raises(DataError, match="encrypted"):
+        _connect(mysql_source("require"), "pw")
+
+
+def test_mysql_verify_full_checks_the_certificate_and_the_host_name(fake_mysql):
+    import ssl
+
+    from studio2_server.datasources import _connect
+    fake = fake_mysql("tls")
+    _connect(mysql_source("verify-full"), "pw")
+    context = fake.calls[0]["ssl"]
+    assert isinstance(context, ssl.SSLContext) and context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
+    fake_mysql("plain")
+    with pytest.raises(DataError, match="encrypted"):
+        _connect(mysql_source("verify-full"), "pw")
+
+
 async def test_sources_are_saved_without_their_password(client, studio, settings):
     made = await client.post("/api/data-sources", json={"name": " Warehouse ", "kind": "redshift", "host": "example.invalid",
                                                         "database": "analytics", "user": "reader", "password": "s3cret-value"})

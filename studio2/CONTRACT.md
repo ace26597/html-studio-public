@@ -1,6 +1,12 @@
 # Studio 2 — API and event contract (Step 1)
 
 Server and web UI are built against this file. Change it first, then both sides.
+
+The studio was built in numbered steps, and some sections are headed with the step that added
+them (Step 1 is this first part, then Step 2, 2b, 3 and 3k to 3o, in that order). A step name only
+says when a section was added; each section is complete in itself. Step 4, user accounts and a
+container per project, is not built yet.
+
 All JSON. All timestamps are ISO-8601 UTC strings. Errors are
 `{"error": {"code": "<snake_case>", "message": "<plain sentence>"}}` with a 4xx/5xx status.
 
@@ -120,6 +126,16 @@ What each kind needs (all run the same agent program; only its environment diffe
 Any kind may carry `model_ids`, which pins the short names to the provider's own ids:
 `{"model_ids": {"sonnet": "apac.anthropic.…", "haiku": "…"}}`. A connection never falls through
 to another: whatever names a different endpoint is removed from what the agent program inherits.
+That includes each cloud's own names (`ANTHROPIC_FOUNDRY_API_KEY`, `_AUTH_TOKEN`, `_BASE_URL`,
+`_RESOURCE`, `ANTHROPIC_VERTEX_PROJECT_ID`, `ANTHROPIC_VERTEX_BASE_URL`, `ANTHROPIC_BEDROCK_BASE_URL`,
+`AWS_BEARER_TOKEN_BEDROCK`): a turn sees them only when its connection is that cloud, and then
+only the ones the connection sets or that cloud's sign-in reads. A private address for Bedrock
+or Vertex (`ANTHROPIC_BEDROCK_BASE_URL`, `ANTHROPIC_VERTEX_BASE_URL`) has no field in a
+connection: set in the studio's own environment it reaches that cloud's turns and no other, and
+so does `ANTHROPIC_FOUNDRY_API_KEY` for a Foundry connection that names no key of its own.
+Any other inherited variable whose name starts with `ANTHROPIC_` or `CLAUDE_` and looks like a
+secret (a key, a token, a password) is blanked for the agent like every other secret; one that
+only counts tokens (`CLAUDE_CODE_MAX_OUTPUT_TOKENS`) is left.
 On `anthropic-api` and the three clouds the turn's `cost_usd` is a charge (`cost_estimated`
 false); on the subscription it is the API-price equivalent. Only `claude-subscription` and
 `anthropic-gateway` have been run against a real model; the others are checked by tests of the
@@ -136,7 +152,8 @@ carries `experimental: true` in the Connection's `models`, and the Connection ca
 The agent's own process does not inherit them. Every variable in the studio's environment
 whose name looks like a secret (`key`, `token`, `secret`, `passw`, `credential`) is blank in the
 agent's shell, the access key and gateway keys included; a gateway turn gets its key only under
-the name the agent program reads. `STUDIO2_AGENT_ENV=NAME,NAME` passes named variables through.
+the name the agent program reads. `STUDIO2_AGENT_ENV=NAME,NAME` passes named variables through;
+it does not pass a name that points the agent program at a model endpoint (those above).
 
 ### Selection (optional on a turn)
 
@@ -211,7 +228,10 @@ Rules:
 
 `http://127.0.0.1:<port>/…` serves files from the project's `workspace/`
 (`/` → `index.html`; a missing `index.html` gets a small "empty project" page).
-`.git` is never served. Responses are `Cache-Control: no-store`. For `text/html`
+`.git` is never served, and neither is a file outside `workspace/`: a symbolic link is
+followed and the file it ends at is checked again (inside the workspace, not inside `.git`),
+whether the address names the file or its folder (`/docs/` → `docs/index.html`); otherwise 404.
+The same holds for `/__studio/files/…`. Responses are `Cache-Control: no-store`. For `text/html`
 responses the server injects `<script src="/__studio/bridge.js"></script>` before
 `</body>` (or at the end). `/__studio/bridge.js` is served by the studio, not the workspace.
 
@@ -313,7 +333,9 @@ A file `studio.json` in the workspace root turns the project into an app:
 - A request from the project's own page reaches the app with the app's own origin
   (`http://127.0.0.1:$PORT`) and host, so a development server's origin and host checks pass
   from any device; an `Origin` from anywhere else is passed on unchanged. WebSockets carry the
-  page's cookies. `X-Frame-Options` and the `frame-ancestors` part of a
+  page's cookies, so a WebSocket whose `Origin` names another host or port than its `Host` (a
+  page on another site) is refused before it is accepted and never reaches the app; one with no
+  `Origin` (not a browser) is passed on. `X-Frame-Options` and the `frame-ancestors` part of a
   `Content-Security-Policy` are dropped from the app's answers, because the page is shown
   inside the studio.
 - stdout and stderr go to `projects/<id>/app.log` (truncated at each start, capped at
@@ -438,6 +460,18 @@ The screenshot is capped at 6,000 px tall (`cut_off`), the last 12 are kept, and
 outside the workspace so they are not versioned. 503 `look_unavailable` when no cached browser
 or no `playwright` package exists; the agent is then told it cannot see the page.
 
+Looking needs two things, and the reason says which is missing and how to get it:
+- the optional `look` extra, `playwright==1.62.0` (`uv pip install -e '.[look]'` in `studio2/`);
+- a Chromium already in the Playwright cache: `$PLAYWRIGHT_BROWSERS_PATH` when set, else
+  `~/Library/Caches/ms-playwright`, else `~/.cache/ms-playwright` (the first that exists). The
+  studio never downloads one; the person runs `<studio python> -m playwright install chromium`
+  (about 170 MB) or points `PLAYWRIGHT_BROWSERS_PATH` at a cache that already has one.
+
+A "can look" answer is kept for the life of the studio. A "cannot" answer is checked again
+when asked after 5 seconds, so a browser or package installed while the studio runs is found
+without a restart; the reason for a missing package also says to restart the studio if it is
+still reported after installing.
+
 ## Project files under an app
 
 `GET <project URL>/__studio/files/<path>` returns the workspace file at `<path>` as it is on
@@ -495,6 +529,18 @@ after the person attaches it to that project.
 
 `kind`: `postgres`, `redshift`, `mysql`. `ssl`: `disable`, `prefer`, `require`, `verify-full`
 (default `prefer`; `redshift` defaults to `require`). `name` is unique, 1–60 characters.
+The modes mean the same for every kind (PostgreSQL's own meanings; for MySQL the studio does
+the same itself):
+
+| `ssl` | Encrypted | Checks who the server is |
+|---|---|---|
+| `disable` | never | no |
+| `prefer` | when the server offers TLS; plain only when it offers none (a wrong password or an unreachable host is not retried in plain) | no |
+| `require` | always; the connection fails without TLS | no |
+| `verify-full` | always | yes: the certificate must be signed by an authority the computer trusts and name the host |
+
+`prefer` and `require` protect against someone reading the traffic, not against someone
+pretending to be the server. For a database on another machine use `verify-full`.
 
 | Method and path | Body | Returns |
 |---|---|---|
@@ -546,7 +592,17 @@ Rules for `query`:
 
 - A gateway connection is checked with one tiny request before a turn starts, so a wrong
   key, an unknown model or an unreachable gateway fails in seconds with the gateway's own
-  message instead of after the CLI's retries.
+  message instead of after the CLI's retries. It has the shape of the agent program's own
+  request where a gateway is known to tell them apart: streamed, with the output limit the
+  agent program will use (`CLAUDE_CODE_MAX_OUTPUT_TOKENS` when the connection's
+  `max_output_tokens` or the studio's environment sets it, else the program's default of
+  32000). Only the status and the first event are read, then the connection is closed. A
+  status of 400 or above, or an `error` event first, is reported with the gateway's words.
+  One refusal is asked about again: an output limit larger than the model takes. The agent
+  program lowers its limit by itself for the models it knows, so the check is repeated once
+  with a limit of 1024 and that answer counts.
+  It still sends a plain-string system prompt and no thinking or tools, so a route that
+  refuses those passes the check and fails in the turn; the model check covers that.
 - Checkpoint messages for uploads are `Upload <path>`; clients label those "Uploaded", not
   "Saved your edit".
 - `tool_call.title` for shell commands drops a leading `cd <project folder> &&`/`;`.
@@ -660,6 +716,12 @@ a failed item; the tool's `next` names the ids to add.
   object only lists their names. `machine`: read from `~/.claude.json` at the moment of use
   (the studio stores nothing about it but the name). `suggested`: a short list shipped in
   `library/mcp-suggestions.json` of public servers that need no account.
+- `description` is the one the person or the file gave (`description` in a connector's
+  settings in `~/.claude.json`, a connector file or a plugin's `.mcp.json`). When there is none
+  and the studio has seen the connector's tools (a test, or the agent program's start-up report of
+  a turn it was connected in), it is made from them: `Tools: <names> (<n> tools). <first sentence
+  of each tool's description>; …`, at most 400 characters. Otherwise it is empty; the studio does
+  not invent one.
 - `name` is what tools are called by: `mcp__<name>__<tool>`; lower-case letters, digits, `-`
   and `_`, 1–40 characters, unique, not `studio`.
 
@@ -864,7 +926,7 @@ work, and to the person, inside the page.
 |---|---|---|
 | `.pptx` `.ppt` `.odp`, `.docx` `.doc` `.rtf` `.odt` | `document.pdf`, `page-<n>.png` (1600 px wide for slides, 1240 px for pages, at most 60), `index.html` | `{file, kind, pdf, pages: [path], page_count, preview, embed, next}` |
 | `.pdf` | `page-<n>.png`, `index.html` | the same, with `pdf` the file itself |
-| `.xlsx` `.xlsm` `.xls` `.ods` | `index.html` | `{file, kind, sheets: [{name, rows, columns, formulas, errors: [{cell, formula, value}], start: [text rows]}], formula_results_stored, preview, embed, next}` |
+| `.xlsx` `.xlsm` `.xls` `.ods` | `index.html` | `{file, kind, sheets: [{name, rows, columns, cut, formulas, unchecked, errors: [{cell, formula, value}], error_count, start: [text rows]}], formula_results_stored, preview, embed, next}` |
 
 `kind` is `presentation`, `document`, `workbook` or `pdf`. `index.html` is a self-contained
 viewer (slides with a film strip, pages in a scroll, or sheets as tables with a formula bar),
@@ -873,7 +935,12 @@ in a downloaded project. `embed` is an `<iframe>` for it.
 
 For a workbook every formula is calculated (LibreOffice, set to recalculate on load) and the
 results are compared cell by cell: a formula whose result is an error value or empty is listed
-under `errors`. With `store_results` (the default) the results are also written into the
+under `errors` (at most 30 in the tool's answer; `error_count` is how many there are). The
+viewer and `start` show at most the first 400 rows and 50 columns of a sheet (`cut` is true
+when the sheet is bigger), but the error check covers every formula in the workbook (array
+formulas and data tables included), up to 200,000 formulas; `unchecked` counts a sheet's formulas past that bound, and `next` then says
+how many were checked and how many were not instead of saying there are no errors. `next` also
+says which sheets' previews are cut. With `store_results` (the default) the results are also written into the
 `.xlsx` beside their formulas, because a file written by a library holds formulas without
 results and shows empty cells in anything that does not calculate (a phone's file preview).
 Nothing else in the file is touched.
@@ -1087,9 +1154,21 @@ Every generation spends the person's credits, so:
    carries the price ("Generate a picture for 6.5 credits"), the prompt, model, settings and
    target file as `detail`, and the reason "It spends 6.5 of your 372.3 Higgsfield credits."
    Denied, or no turn running: nothing is spent and the tool says so.
-4. One job runs at a time. The result is downloaded into the project at `out` (the extension
-   follows what the service returned) and the spend (the fall in the balance) is appended to
-   `data/studio2/generation-usage.jsonl` with the project, model, prompt and outcome.
+4. One job runs at a time. Just before buying, with no other job running, the studio checks
+   again that generation is not paused, that the credits left still cover the price, and that
+   the price still fits under the daily limit given what was spent since the quote; two quotes
+   approved together cannot pass the limit between them, and a pause that began after the quote
+   is honoured. A refusal here spends nothing and says so. The result is downloaded into the
+   project at `out` (the extension follows what the service returned) and the spend (the fall
+   in the balance) is appended to `data/studio2/generation-usage.jsonl` with the project, model,
+   prompt and outcome. A job the service made but the studio could not download or save still
+   counts: it is recorded with outcome `download_failed` or `save_failed` and the credits it
+   cost (the fall in the balance, or the quoted price when the balance cannot be read), and the
+   tool says the credits were spent. A job the studio stopped waiting for is recorded as
+   `timed_out` at its quoted price (`credits_basis: "quoted"`), because the service may still
+   finish it and charge. A balance that rose while a job ran (a refund, the monthly credits) is
+   no measure of the job: the quoted price is recorded, never a negative amount. A job that did
+   not complete is recorded with whatever the balance fell by, usually nothing.
 5. **A server fault stops everything.** If the service fails with a 5xx error, generation is
    paused for six hours (recorded in `data/studio2/generation.json`) and the tool tells the
    agent not to try another model: such a failure can charge credits and deliver nothing, and
@@ -1176,8 +1255,11 @@ Install commands: `package-lock.json` → `npm ci`, `pnpm-lock.yaml` → `pnpm i
 `yarn.lock` → `yarn install --frozen-lockfile`, `bun.lock`/`bun.lockb` → `bun install`, a
 `package.json` without a lock → `npm install`; `uv.lock` → `uv sync`, `requirements.txt` →
 `uv venv -q && uv pip install -q -r requirements.txt`; `Gemfile` → `bundle install`;
-`composer.json` → `composer install`. `<python>` is `.venv/bin/python` when the install makes
-one, `uv run python` with a `uv.lock`, else `python3`.
+`composer.json` → `composer install`. `<python>` is the interpreter the proposed install
+leaves the packages in: `uv run python` after `uv sync`, `.venv/bin/python` after the
+`requirements.txt` install (it creates `.venv`; the folder need not have one yet). With no Python
+install proposed it is `uv run python` with a `uv.lock`, `.venv/bin/python` when the folder
+already has a `.venv`, else `python3`.
 
 ## Attach
 
@@ -1580,8 +1662,10 @@ questions. Every part is optional, so a rerun changes one thing.
 `studio2/install.sh`, from a clone, on macOS and Linux (x86-64 and ARM64). In order: git (if
 missing: the exact command, asked before it is run); uv (official installer, into
 `studio2/.tools/uv`, no shell profile touched) and through it Python 3.12 and the packages in
-`studio2/.venv`; Node 20 or newer (the one on PATH, else `studio2/.tools/node` from the
-nodejs.org tarball, sha256 checked against values written in the script); the interface build;
+`studio2/.venv` (the exact versions in `server-requirements.txt`, or `server-dev-requirements.txt`
+with `--dev`, installed with `--require-hashes`, then the studio itself with `--no-deps`); Node
+20.19 or later in 20.x or 22.12 or later, the range the locked Vite declares (the one on PATH,
+else `studio2/.tools/node` from the nodejs.org tarball, sha256 checked against values written in the script); the interface build;
 `~/.local/bin/studio` (`STUDIO_BIN_DIR`); a report of the optional parts. A browser for looking
 at pages is downloaded only on a yes (default no) or `--with-browser`, and never when one is
 already cached. `--yes` asks nothing and takes the defaults (no sudo, no browser, no setup).
@@ -1850,7 +1934,7 @@ Before every turn (`turn_started`, then one `library_picked`, then the agent sta
 2. Never in: anything the person said "never" for (project first, then machine); skills of
    plugins that are switched off in Claude Code (they can still be found, pinned or switched
    on by the agent); a connector that needs a setting, needed signing in or failed the last
-   time it was tried; an attached app's own connectors unless pinned (its `.mcp.json` came with
+   time it was tried (see "Signing in" below); an attached app's own connectors unless pinned (its `.mcp.json` came with
    the code, and a stdio connector runs a command the moment it is connected); a skill that
    was picked `STUDIO2_LIBRARY_UNUSED_AFTER` times in a row (5) without being used; a skill
    whose folder name is already taken by one of the studio's own skills or by a benched one
@@ -1885,10 +1969,24 @@ Before every turn (`turn_started`, then one `library_picked`, then the agent sta
    connection has no cheap model, or under the
    fake agent, the word search alone decides (`route: "words"`): up to 5 skills scoring at least 45% of the best
    match that also match at least a third of the request's own words (two at least; one for a
-   one-word request), and up to three connectors whose name appears in the request
-   (`mode: "words"`, with a `note` saying why). Shared words do not show relevance, so a long
+   one-word request), and up to three connectors whose own name appears in the request, or
+   whose description matches the request's words by the same share rule as skills
+   (`mode: "words"`, with a `note` saying why). A connector's own name is the one in its
+   settings: the plugin name the studio appends when the name is taken (`slack-legal`) is not
+   matched, so a word of the plugin's ("legal") never picks a plugin's connectors. A skill that
+   is picked never brings its plugin's connectors with it. Shared words do not show relevance, so a long
    request usually gets no skill this way and the `note` says none was added; the agent still
    has `search_library` and `activate_skill`.
+
+   **Signing in.** A connector is `needs-auth` when the agent program reported it so (it could
+   not be used in a turn because it needs signing in), or when its settings carry `oauth` and it
+   has never been seen to connect. Such a connector is never offered to the picking model and
+   never picked for words of its description. A never-tried one whose own name is in the request
+   is picked (its `reason` says it may need signing in), so the first try shows whether it does.
+   One that was reported `needs-auth` is left out even when named, until it is seen `connected`
+   (pinned or switched on in a project, asked for by the agent, or a successful test); the
+   pick's `note` then says once, in one sentence, which named connectors were left out and the
+   command that signs them in.
 6. The skill list is kept inside the agent program's budget for it: 8,000 characters (1% of a
    200,000-token context window at about four characters a token). The studio measures names
    plus descriptions plus eight characters a skill; when it would overflow, the descriptions in
@@ -1944,7 +2042,13 @@ should search and switch on what is missing.
   it). At `streak` ≥ 5 the skill is `benched`: no longer picked, still found by search.
 - What the agent program reported for each connector at the start of a turn (`connected`,
   `needs-auth`, `failed`) is kept in `data/library-status.json` and shown as `state`; for
-  `needs-auth` the `fix` is the command `claude mcp login <name>`.
+  `needs-auth` the `fix` is the command `claude mcp login <name>`. A later report that says
+  neither (`pending`, for one still connecting) keeps what was known, so `needs-auth` and
+  `failed` last until the connector is reported `connected`. A successful test
+  (`POST /api/mcp-servers/{id}/test`, any source) counts as `connected`. The same file keeps
+  each connector's tools: names from the start-up report (`mcp__<name>__<tool>` among the
+  agent program's tools), names and descriptions from a test; a report of the same names keeps
+  the descriptions already known. They make the `description` of a connector that has none.
 
 ## REST
 

@@ -412,3 +412,106 @@ async def test_a_check_of_the_page_gets_only_what_the_person_chose(client, studi
     picked = next(e for e in events if e["type"] == "library_picked")
     assert {c["how"] for c in picked["connectors"]} > {"pinned"}
     assert {s["how"] for s in picked["skills"]} > {"pinned"}
+
+
+async def test_connectors_that_sign_in_are_not_picked_for_a_word_of_their_plugin(studio, project, settings):
+    """A reviewer's contract task picked `slack-legal` and `atlassian-legal` from a legal plugin,
+    and the turn said they could not be used: they need signing in. The suffix the studio adds to a
+    taken name ("-legal") is not the connector's own name and must not match the request."""
+    plugin(settings.home, "chat@market", servers={
+        "slack": {"type": "http", "url": "https://mcp.slack.com/mcp", "oauth": {"clientId": "1", "callbackPort": 3118}},
+        "atlassian": {"type": "http", "url": "https://mcp.atlassian.com/v1/mcp"}})
+    legal = plugin(settings.home, "legal@market", servers={
+        "slack": {"type": "http", "url": "https://mcp.slack.com/mcp", "oauth": {"clientId": "1", "callbackPort": 3118}},
+        "atlassian": {"type": "http", "url": "https://mcp.atlassian.com/v1/mcp"}})
+    skill(legal / "skills", "contract-review", "Review a legal contract and flag risky clauses.")
+    fake = {"id": "fake", "kind": "fake"}
+    servers = {s["id"]: s for s in studio.lib.servers()}
+    assert servers["plugin:legal@market:slack"]["name"] == "slack-legal"
+    # A connector whose settings say it signs in (`oauth`) and that was never seen to connect.
+    assert servers["plugin:legal@market:slack"]["state"] == "needs-auth"
+    assert servers["plugin:legal@market:atlassian"]["state"] is None
+
+    picked = await studio.picker.pick(project, "Review this legal contract and flag the risky terms", fake)
+    assert picked["connectors"] == []
+    assert [s["name"] for s in picked["skills"]] == ["contract-review"]   # the plugin's skill brings no connector
+
+    # Named by the person, a connector that signs in is tried, and says so.
+    picked = await studio.picker.pick(project, "Post the contract summary to slack", fake)
+    assert [(c["id"], c["how"]) for c in picked["connectors"]] == [("plugin:chat@market:slack", "picked")]
+    assert "signing in" in picked["connectors"][0]["reason"]
+    # It could not be used: that is remembered, and a start-up that says only "pending" does not clear it.
+    studio.record_session({"skills": [], "mcp_servers": [{"name": "slack", "status": "needs-auth"}]})
+    studio.record_session({"skills": [], "mcp_servers": [{"name": "slack", "status": "pending"}]})
+    picked = await studio.picker.pick(project, "Post the contract summary to slack", fake)
+    assert picked["connectors"] == []
+    assert picked["note"].count("signing in") == 1 and "claude mcp login slack" in picked["note"]
+    # Once it has connected (pinned for a project, say), it is picked again by name.
+    studio.record_session({"skills": [], "mcp_servers": [{"name": "slack", "status": "connected"}]})
+    picked = await studio.picker.pick(project, "Post the contract summary to slack", fake)
+    assert [c["id"] for c in picked["connectors"]] == ["plugin:chat@market:slack"]
+    assert "signing in" not in (picked["note"] or "")
+
+
+async def test_the_picking_model_is_not_offered_connectors_that_need_signing_in(studio, project, settings):
+    big_library(settings)
+    plugin(settings.home, "chat@market", servers={
+        "slack": {"type": "http", "url": "https://mcp.slack.com/mcp", "oauth": {"clientId": "1"}},
+        "docs": {"type": "http", "url": "https://example.com/docs", "description": "Search product documentation."}})
+    prompts: list[str] = []
+
+    async def choose(_connection, _system, prompt):
+        prompts.append(prompt)
+        return "none"
+
+    studio.picker.ask = choose
+    plan = {"id": "subscription", "kind": "claude-subscription", "models": ["haiku"]}
+    await studio.picker.pick(project, "Find the clinical trials in the documentation", plan)
+    connectors = prompts[0].split("Connectors:")[1]
+    assert "Search product documentation." in connectors and "slack" not in connectors
+
+
+async def test_connector_descriptions_are_kept_or_come_from_their_tools(client, studio, project, settings, tmp_path):
+    """35 imported connectors all read "Configured for Claude Code on this machine.": nothing the
+    picker can choose by. A description in the file is kept; once the tools are known, they say
+    what the connector does; otherwise it stays empty."""
+    servers = tmp_path / "servers.json"
+    servers.write_text(json.dumps({"mcpServers": {
+        "described": {"command": "described-mcp", "description": "Look up company filings."},
+        "bare": {"command": "bare-mcp"}, "tested": {"type": "http", "url": "https://example.com/mcp"}}}))
+    assert (await client.put("/api/library/places", json={"connector_files": [str(servers)]})).status_code == 200
+    view = {s["name"]: s for s in studio.lib.servers()}
+    assert view["described"]["description"] == "Look up company filings."
+    assert view["bare"]["description"] == "" and view["tested"]["description"] == ""
+
+    # The agent program's start-up report names the tools of each connector it connected.
+    studio.record_session({"skills": [], "mcp_servers": [
+        {"name": "bare", "status": "connected", "tools": ["search_tickets", "create_ticket"]}]})
+    # A test of a connector lists its tools with their own descriptions.
+    studio.lib.record_test("machine:tested", {"ok": True, "message": "Connected. 2 tools.", "tools": [
+        {"name": "get_weather", "description": "Current weather for a city. Uses the public API."},
+        {"name": "get_forecast", "description": "A five-day forecast for a city."}]})
+    view = {s["name"]: s for s in studio.lib.servers()}
+    assert view["bare"]["description"].startswith("Tools: search_tickets, create_ticket")
+    tested = view["tested"]["description"]
+    assert tested.startswith("Tools: get_weather, get_forecast") and "Current weather for a city" in tested
+    assert len(tested) <= 400 and view["tested"]["state"] == "ok"
+    assert view["described"]["description"] == "Look up company filings."   # the file's own stays
+    # A later start-up that lists the same tools by name keeps their descriptions.
+    studio.record_session({"skills": [], "mcp_servers": [
+        {"name": "tested", "status": "connected", "tools": ["get_weather", "get_forecast"]}]})
+    assert "five-day forecast" in {s["name"]: s for s in studio.lib.servers()}["tested"]["description"]
+
+    # The picker uses them: the word search and the list the picking model is given.
+    picked = await studio.picker.pick(project, "What is the weather forecast for Paris", {"id": "fake", "kind": "fake"})
+    assert [c["name"] for c in picked["connectors"]] == ["tested"]
+    prompts: list[str] = []
+
+    async def choose(_connection, _system, prompt):
+        prompts.append(prompt)
+        return "C1: has the forecast"
+
+    studio.picker.ask = choose
+    plan = {"id": "subscription", "kind": "claude-subscription", "models": ["haiku"]}
+    await studio.picker.pick(project, "What is the weather forecast for Paris", plan)
+    assert "Tools: get_weather, get_forecast" in prompts[0].split("Connectors:")[1]

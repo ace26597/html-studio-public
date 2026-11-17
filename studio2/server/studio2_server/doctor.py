@@ -21,7 +21,9 @@ from .store import port_is_free
 
 OK, WARN, FAIL, INFO = "ok", "warn", "fail", "info"
 MARK = {OK: "ok  ", WARN: "warn", FAIL: "FAIL", INFO: "    "}
-NODE_MIN = 20
+# The Node releases the interface's build tool (Vite, locked in web/package-lock.json) runs on;
+# install.sh checks the same range.
+NODE_RANGE = "20.19 or later in 20.x, or 22.12 or later"
 PRIVATE_NODE = STUDIO2_ROOT / ".tools" / "node" / "bin" / "node"
 
 
@@ -63,15 +65,23 @@ def commit() -> str | None:
     return _version(["git", "-C", str(REPO_ROOT), "rev-parse", "--short", "HEAD"])
 
 
+def node_accepted(version: str | None) -> bool:
+    """Whether a `node --version` answer (v22.11.0) is one the interface's build runs on (NODE_RANGE)."""
+    match = re.match(r"v?(\d+)\.(\d+)\.(\d+)", version or "")
+    if not match:
+        return False
+    release = tuple(int(part) for part in match.groups())
+    return release >= (20, 19, 0) if release[0] == 20 else release >= (22, 12, 0)
+
+
 def node() -> tuple[str | None, str | None]:
-    """→ (path, version) of the Node the studio will use: the one on PATH when it is new enough,
+    """→ (path, version) of the Node the studio will use: the one on PATH when the build accepts it,
     otherwise the private copy the installer put under the studio's own folder."""
     for candidate in (shutil.which("node"), str(PRIVATE_NODE) if PRIVATE_NODE.is_file() else None):
         if not candidate:
             continue
         version = _version([candidate, "--version"])
-        match = re.match(r"v(\d+)\.", version or "")
-        if match and int(match.group(1)) >= NODE_MIN:
+        if node_accepted(version):
             return candidate, version
     stale = shutil.which("node")
     return (stale, _version([stale, "--version"])) if stale else (None, None)
@@ -137,10 +147,10 @@ def collect(settings: Settings, *, online: bool = False, state: dict | None = No
     add(area, OK if uv else INFO, "uv" + (f" ({_version([uv, '--version']) or 'version unknown'})" if uv else ""),
         uv or "not found (only the installer needs it)")
     node_path, node_version = node()
-    node_ok = bool(node_version and int(re.match(r"v(\d+)", node_version).group(1)) >= NODE_MIN)
+    node_ok = node_accepted(node_version)
     add(area, OK if node_ok else WARN, f"Node {node_version or 'not found'}",
         node_path or "needed to build the interface and to run JavaScript apps",
-        None if node_ok else f"Run {STUDIO2_ROOT / 'install.sh'} (it fetches a private copy of Node {NODE_MIN}+).")
+        None if node_ok else f"Run {STUDIO2_ROOT / 'install.sh'} (it fetches a private copy of a Node the build runs on: {NODE_RANGE}).")
     git = shutil.which("git")
     add(area, OK if git else FAIL, _version(["git", "--version"]) if git else "git not found", git or "",
         None if git else package_hint("xcode-select --install", "sudo apt-get install -y git", "sudo dnf install -y git"))
@@ -229,8 +239,11 @@ def collect(settings: Settings, *, online: bool = False, state: dict | None = No
 
     # -- looking at pages, and the optional extras ------------------------------------------
     area = "Looking at pages"
-    from .look import find_browser
+    from .look import PLAYWRIGHT_PIN, browser_folders, find_browser
     browser = find_browser()
+    first, second = browser_folders()
+    # Only one folder is searched: the first when it exists, else the second. Say which.
+    folders = f"{first if first.is_dir() else second}; {first} is used when it exists, else {second}"
     try:
         import playwright  # noqa: F401
         driver = True
@@ -238,14 +251,17 @@ def collect(settings: Settings, *, online: bool = False, state: dict | None = No
         driver = False
     if browser and driver:
         add(area, OK, "A browser the assistant can look with", str(browser))
-    elif not driver:
-        add(area, WARN, "The Playwright package is not installed", "the assistant cannot look at pages or render video",
-            f"cd {STUDIO2_ROOT} && uv pip install -e '.[look]'")
-    else:
+    if not driver:
+        add(area, WARN, f"The optional `look` extra ({PLAYWRIGHT_PIN}) is not installed",
+            "the assistant cannot look at pages or render video; a running studio finds it within a few "
+            "seconds of installing, or after a restart",
+            f"cd {STUDIO2_ROOT} && uv pip install --python {sys.executable} --require-hashes -r server-requirements.txt")
+    if not browser:
         add(area, WARN, "No browser for looking at pages",
-            "the assistant cannot take screenshots, check its pages or render video",
+            f"the assistant cannot take screenshots, check its pages or render video; looked in {folders} "
+            "(PLAYWRIGHT_BROWSERS_PATH names another first folder)",
             f"{sys.executable} -m playwright install chromium   (downloads about 170 MB; the studio never does "
-            "this by itself)")
+            "this by itself), or set PLAYWRIGHT_BROWSERS_PATH to a cache that already has one")
     area = "Optional"
     from . import generate, media, office, voice
     ffmpeg = media.find_ffmpeg()

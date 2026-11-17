@@ -4,8 +4,7 @@ This folder is the studio. What it is, how to install it, model accounts, attach
 safety are on the [front page](../README.md). This page is for working on the code: the
 layout, running from source, tests, every setting, and the rules.
 
-Plan and status · [API and event contract](CONTRACT.md) ·
-Handoff · [Attaching an app](ATTACH.md)
+[API and event contract](CONTRACT.md) · [Attaching an app](ATTACH.md)
 
 ## Layout
 
@@ -17,6 +16,7 @@ Handoff · [Attaching an app](ATTACH.md)
 | `library/` | What the agent is given: `system-prompt.md`, 20 skills, 2 sub-agents, 6 starting templates, 8 finished examples (`examples/`, made from real projects with `tools/examples/add.py`), the price list for the backup cost calculation (`model-prices.json`, written by `tools/prices/update.py`), suggested connectors |
 | `tests/` | Server tests. They run on the scripted agent and make no model call |
 | `install.sh` | The installer described on the front page |
+| `server-requirements.txt`, `server-dev-requirements.txt` | The server's packages at exact versions, pinned by hash, for macOS and Linux; the second adds what the tests need. Written by `tools/lock-server.sh` |
 | `litellm-requirements.txt` | LiteLLM 1.102.1 and its packages, pinned by hash |
 | `start-tailnet.sh` | Starts the server for one machine plus its owner's Tailscale devices |
 | `tools/demo-video/` | The scripts that recorded [`docs/demo/`](docs/demo/) ([how](tools/demo-video/README.md)) |
@@ -69,20 +69,27 @@ Change [CONTRACT.md](CONTRACT.md) first, then the server and the interface.
 ```sh
 cd studio2
 uv venv --python 3.12
-uv pip install -e '.[dev,look]'
+uv pip install --require-hashes -r server-dev-requirements.txt
+uv pip install --no-deps -e .
 (cd web && npm ci && npm run build)
 .venv/bin/python -m studio2_server          # http://127.0.0.1:8200, in the foreground
 ```
 
+- The packages come from the lock files, not from `pyproject.toml`, which states only minimum
+  versions. To move to newer releases on purpose: `tools/lock-server.sh --upgrade`, then install
+  from the new files into a fresh environment and run the tests before committing them.
+
 - `studio` is a console entry of the package (`.venv/bin/studio`); `studio start` runs the same
   server in the background with a pid file and a log under the data folder. Run
-  `uv pip install -e '.[dev,look]'` again in a checkout made before the command existed.
+  `uv pip install --no-deps -e .` again in a checkout made before the command existed.
 - `STUDIO2_FAKE=1`, or `studio start --fake`, uses the scripted agent: no model call. It
   branches on words in the message (`fail`, `slow`, `risky`, `dashboard`, `backend`,
   `use skill …`, `find skill …`, `need connector …`).
-- The `look` extra is Playwright. It drives a Chromium that is already in the Playwright
-  cache; the package never downloads one. Do not run `playwright install` on a machine whose
-  owner has not said yes.
+- The `look` extra is Playwright (`playwright==1.62.0`, pinned to the cached Chromium build).
+  It drives a Chromium that is already in the Playwright cache (`$PLAYWRIGHT_BROWSERS_PATH`,
+  else `~/Library/Caches/ms-playwright`, else `~/.cache/ms-playwright`); the studio never
+  downloads one. Do not run `playwright install` on a machine whose owner has not said yes.
+  Details and the order of checks: [docs/install.md](docs/install.md), "Looking at pages".
 - Interface work: run the server, then `cd web && npm run dev` (http://127.0.0.1:5200, which
   proxies the API). Or `npm run mock` for a stand-in server with no Python at all.
 - The server serves `web/dist`. `npm run build` therefore changes a running studio at once.
@@ -101,7 +108,7 @@ cd studio2 && STUDIO2_FAKE=1 .venv/bin/pytest -q
 cd studio2/web && npm test && npx tsc --noEmit
 ```
 
-On 13 November 2026: 439 server tests passed and 1 was skipped, in about 110 seconds; 312
+On 17 November 2026: 496 server tests passed and 1 was skipped, in about 115 seconds; 312
 interface tests passed. Neither suite calls a model, and the server suite uses an in-memory
 secret store and an empty LiteLLM folder, so it does not touch your settings.
 
@@ -112,8 +119,8 @@ queries are read-only:
 STUDIO2_TEST_PG=host:port:database:user:password STUDIO2_FAKE=1 .venv/bin/pytest -q
 ```
 
-Passing tests do not close a step. A step's gate is a real run in a real browser on the real
-server; the status table records each one and what it missed.
+Passing tests are not the whole check: a change is also run for real, in a real browser on the
+real server, and what that run did not reach is said plainly.
 
 ## Settings
 
@@ -195,7 +202,7 @@ forward this to the public internet.
 ## Working rules
 
 - New work goes in `studio2/` only. The earlier engine (`app/`, `hsdoc/`, `packages/`,
-  `studio_next/`) is no longer on `main`; it is on the `legacy-engine` branch. Nothing here imported from `app/`, `hsdoc/`, `packages/` or
+  `studio_next/`) is not part of this copy. Nothing here imported from `app/`, `hsdoc/`, `packages/` or
   `studio_next/`; what is ported is copied.
 - The contract changes first, then both sides.
 - `STUDIO2_FAKE=1` keeps the whole suite at zero model calls. Say what a run on a paid model
@@ -203,15 +210,11 @@ forward this to the public internet.
 - Screens: phones (360 to 430 px wide), tablets in both orientations, and desktop up to 2560
   px; touch and mouse; light and dark.
 - Loopback by default. Never a public address before accounts and a container per project
-  exist (Step 4 in the plan): the studio can run a shell.
+  exist (Step 4, not built yet): the studio can run a shell.
 - No secret in the repository, in a project or in the config file.
 - No invented data presented as real. Say plainly what was not checked.
-- Progress is recorded in one place, the status table. No
-  dated receipts.
 - Test shipping only against folders you made for the purpose, on a throwaway studio. Never
   answer a ship card on a studio that holds someone's real projects.
-- Read "Things that bit us" in HANDOFF.md before changing the harness, the
-  bridge, attach or ship.
 
 ## Links
 

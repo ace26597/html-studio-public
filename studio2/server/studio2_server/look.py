@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import importlib
 import os
 import re
 import sys
@@ -18,12 +19,19 @@ from pathlib import Path
 
 MAX_HEIGHT, KEEP = 6_000, 12
 TEXT_CAP, LIST_CAP = 300, 30
+RECHECK = 5.0       # seconds before a "cannot look" is checked again; a busy turn asks often
+PLAYWRIGHT_PIN = "playwright==1.62.0"   # the `look` extra in pyproject.toml
+
+
+def browser_folders() -> list[Path]:
+    """Where a cached Chromium is looked for, in order; the first that exists is searched."""
+    return [Path(os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or Path.home() / "Library/Caches/ms-playwright"),
+            Path.home() / ".cache/ms-playwright"]
 
 
 def find_browser() -> Path | None:
-    root = Path(os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or Path.home() / "Library/Caches/ms-playwright")
-    if not root.is_dir():
-        root = Path.home() / ".cache/ms-playwright"
+    first, second = browser_folders()
+    root = first if first.is_dir() else second
     found: list[tuple[int, int, Path]] = []
     for entry in root.glob("chromium*-*") if root.is_dir() else []:
         match = re.fullmatch(r"(chromium_headless_shell|chromium)-(\d+)", entry.name)
@@ -38,6 +46,30 @@ def find_browser() -> Path | None:
     return max(found)[2] if found else None
 
 
+def why_not() -> str | None:
+    """None when the package imports and a cached Chromium is there; otherwise what is missing and how to get it."""
+    from .config import STUDIO2_ROOT
+
+    # A package installed after the studio started is in a folder whose listing Python may have
+    # cached; forget those listings so the import below sees it.
+    importlib.invalidate_caches()
+    try:
+        import playwright.async_api  # noqa: F401
+    except ImportError:
+        return (f"The optional `look` extra ({PLAYWRIGHT_PIN}) is not installed in the studio's environment. "
+                f"Install it with `cd {STUDIO2_ROOT} && uv pip install -e '.[look]'`; the studio checks again "
+                "within a few seconds, and if it still says this, restart the studio (`studio stop`, then "
+                "`studio start`). It also needs a cached Chromium; it never downloads one.")
+    if find_browser() is None:
+        first, second = browser_folders()
+        where = str(first) if first.is_dir() else f"{first}, which does not exist, then {second}"
+        return (f"No Chromium is cached on this machine (looked in {where}), and the studio never downloads "
+                f"one. To get one, run `{sys.executable} -m playwright install chromium` yourself (about 170 MB), "
+                "or set PLAYWRIGHT_BROWSERS_PATH to a folder that already holds a Playwright Chromium and "
+                "restart the studio.")
+    return None
+
+
 class LookUnavailable(Exception):
     pass
 
@@ -48,19 +80,17 @@ class Looker:
         self._lock = asyncio.Lock()
         self._slots = asyncio.Semaphore(2)
         self._reason: str | None = None
-        self._checked = False
+        self._checked: float | None = None     # when it was last checked (monotonic seconds)
 
     def reason(self) -> str | None:
-        """None when the tool can work; otherwise why not."""
-        if not self._checked:
-            self._checked = True
-            try:
-                import playwright.async_api  # noqa: F401
-            except ImportError:
-                self._reason = "The optional playwright package is not installed in the studio's environment."
-            else:
-                if find_browser() is None:
-                    self._reason = "No Chromium is cached on this machine, and the studio never downloads one."
+        """None when the tool can work; otherwise why not, with what to do about it.
+
+        A "can work" is kept. A "cannot" is checked again after RECHECK seconds, so a package or
+        browser installed while the studio runs is found without a restart."""
+        now = time.monotonic()
+        if self._checked is not None and (self._reason is None or now - self._checked < RECHECK):
+            return self._reason
+        self._checked, self._reason = now, why_not()
         return self._reason
 
     async def _ensure(self):

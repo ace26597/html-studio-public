@@ -118,6 +118,20 @@ def test_known_kinds_are_detected(tmp_path, files, kind):
         assert found["run"] is None
 
 
+@pytest.mark.parametrize("files,python", [
+    # The install step makes `.venv` before the app starts, so the app must start from it (the
+    # folder has no `.venv` yet when it is looked at).
+    ({"requirements.txt": "fastapi\nuvicorn\n"}, ".venv/bin/python"),
+    ({"requirements.txt": "fastapi\n", "uv.lock": ""}, "uv run python"),
+    ({}, "python3"),                                        # nothing to install: the machine's own
+])
+def test_python_app_starts_from_what_the_install_makes(tmp_path, files, python):
+    for name, content in {**files, "main.py": "from fastapi import FastAPI\napi = FastAPI()\n"}.items():
+        (tmp_path / name).write_text(content)
+    found = attach.detect(tmp_path)
+    assert found["run"].startswith(f"exec {python} -m uvicorn main:api"), found["run"]
+
+
 async def test_inspect_refuses_what_must_not_be_attached(client, settings, tmp_path):
     settings.home.mkdir(parents=True, exist_ok=True)
     cases = {

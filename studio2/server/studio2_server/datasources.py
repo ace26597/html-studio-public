@@ -175,18 +175,47 @@ def _connect(source: dict, password: str | None):
         conn.prepare_threshold = None
         conn.read_only = True  # every transaction starts as BEGIN READ ONLY
         return conn
+    return _connect_mysql(source, password)
+
+
+def _connect_mysql(source: dict, password: str | None):
+    """The `ssl` modes mean what they mean to PostgreSQL (CONTRACT.md, "Data sources"). PyMySQL has
+    no such modes, so they are built here: always an explicit context or an explicit "no TLS"."""
+    import ssl as ssl_module
+
     import pymysql
-    ssl = None if source["ssl"] == "disable" else {"check_hostname": source["ssl"] == "verify-full"}
-    if ssl is not None and source["ssl"] != "verify-full":
-        import ssl as ssl_module
-        context = ssl_module.create_default_context()
-        context.check_hostname = False
+    mode = source["ssl"]
+    common = dict(host=source["host"], port=source["port"], database=source["database"], user=source["user"],
+                  password=password or "", connect_timeout=CONNECT_TIMEOUT,
+                  read_timeout=STATEMENT_TIMEOUT_MS // 1000 + 5, autocommit=False)
+    if mode == "disable":
+        return pymysql.connect(**common, ssl_disabled=True)
+    # verify-full: the trusted authorities and the host name, both checked. A dict such as
+    # {"check_hostname": True} is not enough: with no CA file PyMySQL then checks neither.
+    context = ssl_module.create_default_context()
+    if mode != "verify-full":
+        context.check_hostname = False          # prefer and require encrypt but do not check who answers
         context.verify_mode = ssl_module.CERT_NONE
-        ssl = context if source["ssl"] == "require" else None
-    conn = pymysql.connect(host=source["host"], port=source["port"], database=source["database"],
-                           user=source["user"], password=password or "", connect_timeout=CONNECT_TIMEOUT,
-                           read_timeout=STATEMENT_TIMEOUT_MS // 1000 + 5, ssl=ssl, autocommit=False)
+    try:
+        conn = pymysql.connect(**common, ssl=context)
+    except pymysql.err.OperationalError as exc:
+        # Plain is acceptable for prefer only when the server offers no TLS at all; any other
+        # failure (wrong password, host unreachable, a failed handshake) is passed on as it is.
+        if mode != "prefer" or not _no_tls_offered(exc):
+            raise
+        return pymysql.connect(**common, ssl_disabled=True)
+    # Older PyMySQL goes ahead in plain when the server has no TLS, even when given a context.
+    if mode != "prefer" and not isinstance(getattr(conn, "_sock", None), ssl_module.SSLSocket):
+        _close(conn)
+        raise DataError(400, "tls_unavailable", f"The server did not agree to an encrypted connection, and this "
+                                                f"source requires one (ssl: {mode}). The connection was closed unused.")
     return conn
+
+
+def _no_tls_offered(exc: Exception) -> bool:
+    """PyMySQL's answer when a context was given and the server does not support TLS."""
+    code = exc.args[0] if exc.args else None
+    return code == 2026 and "support" in str(exc).lower()   # CR_SSL_CONNECTION_ERROR
 
 
 def _begin(conn, kind: str) -> None:

@@ -8,15 +8,18 @@ You need macOS or Linux (x86-64 or ARM64), `git`, `bash` and `curl` or `wget`. W
 supported.
 
 ```sh
-git clone https://github.com/ace26597/html-studio-public.git
+git clone https://github.com/ace26597/html-studio-public.git html-studio
 ./html-studio/studio2/install.sh
 ```
 
 The installer fetches what is missing and nothing else:
 
-- `uv`, and through it Python 3.12 and the studio's packages, into `studio2/.venv`.
-- Node 20 or newer. It uses the one on your PATH when it is new enough; otherwise it downloads
-  a private copy from nodejs.org into `studio2/.tools` and verifies its checksum.
+- `uv`, and through it Python 3.12 and the studio's packages, into `studio2/.venv`. The
+  packages are the exact versions in `studio2/server-requirements.txt`, each checked by hash,
+  not whatever is newest that day.
+- Node 20.19 or later in 20.x, or 22.12 or later (what the interface's build tool runs on). It
+  uses the one on your PATH when it is one of those; otherwise it downloads a private copy
+  from nodejs.org into `studio2/.tools` and verifies its checksum.
 - It builds the interface and writes a `studio` command into `~/.local/bin`.
 
 It does not use sudo, and it is safe to run again. It asks up to four questions; `--yes` asks
@@ -31,6 +34,19 @@ nothing and answers no to all of them:
 
 It also reports whether `ffmpeg` (video files) and LibreOffice (PowerPoint, Word and Excel
 files) are on the machine, with the command that installs each. Both are optional.
+
+**Looking at pages** (screenshots, the page check, video) needs two things. The installer adds
+the first; the second is the browser question above.
+
+- The `look` extra: `playwright==1.62.0`, pinned to the Chromium build it drives. To add it
+  by hand: `cd studio2 && uv pip install -e '.[look]'`.
+- A Chromium already in the Playwright cache. The studio looks in `$PLAYWRIGHT_BROWSERS_PATH`
+  when it is set, else `~/Library/Caches/ms-playwright`, else `~/.cache/ms-playwright`, and
+  never downloads one itself. Get one with `studio2/.venv/bin/python -m playwright install chromium`
+  (about 170 MB), or point `PLAYWRIGHT_BROWSERS_PATH` at a cache that already has one.
+
+A running studio notices either within a few seconds of it being installed; if it still says it
+cannot look, restart it (`studio stop`, `studio start`). `studio doctor` says which one is missing.
 
 If your shell says `studio: command not found`, `~/.local/bin` is not on your PATH. The
 installer prints the line to add to your shell profile; until then use

@@ -228,6 +228,7 @@ class Picker:
         workspace = workspace if project.get("attach") else None
         connectors: list[dict] = []
         requested = list((project.get("library") or {}).get("requested") or [])
+        signin: list[dict] = []      # need signing in: only ever picked when the request names them
         for server in self.lib.servers() + self.lib.app_servers(workspace):
             if server["source"] == "suggested":
                 continue
@@ -238,9 +239,11 @@ class Picker:
                 continue
             elif said is None and server["id"] in requested:
                 add(server, "requested", "The assistant asked for it in an earlier request.", connectors, MAX_CONNECTORS)
-            elif said is None and server["source"] != "app" and server.get("plugin_enabled", True) \
-                    and server.get("state") not in ("needs-setting", "needs-auth", "failed"):
-                candidates.append(server)
+            elif said is None and server["source"] != "app" and server.get("plugin_enabled", True):
+                if server.get("state") not in ("needs-setting", "needs-auth", "failed"):
+                    candidates.append(server)
+                elif server.get("state") == "needs-auth":
+                    signin.append(server)
         room = max(0, MAX_CONNECTORS - len(connectors))
 
         mode, note, shortlist, route = "none", None, [], None
@@ -273,6 +276,14 @@ class Picker:
                 add(entry, "picked", reason, skills, MAX_SKILLS)
             for server, reason in chosen[1]:
                 add(server, "picked", reason, connectors, room)
+        if signin and room and text.strip():
+            left = self._signin(text, signin, add, connectors, room)
+            if left:   # one sentence, however many: the Library's "signin" filter has the rest
+                they = "it needs" if len(left) == 1 else "they need"
+                fixes = "; ".join(f"`{server['fix']}`" for server in left)
+                said = (f"Left out {', '.join(server['label'] for server in left)}: {they} signing in ({fixes}), "
+                        "then switch it on for this project or test it in the Library.")
+                note = f"{note} {said}" if note else said
         return {"mode": mode, "skills": skills, "connectors": connectors, "library_skills": len(pool),
                 "considered": len(shortlist), "ms": int((time.monotonic() - started) * 1000), "note": note,
                 "route": route}
@@ -290,11 +301,41 @@ class Picker:
         skills = skills[:WORDS_ONLY]
         servers = []
         for server in candidates:
-            named = {stem(w) for w in re.findall(r"[a-z0-9]+", f"{server['name']} {server['label']}".lower())}
-            hit = sorted(asked & named)
-            if hit and len(servers) < min(room, 3):
+            if len(servers) >= min(room, 3):
+                break
+            hit = sorted(asked & Picker.own_words(server))
+            told = sorted(asked & set(words(server.get("description") or "")))
+            if hit:
                 servers.append((server, f"Its name matches your words: {', '.join(hit)}."))
+            elif len(told) >= need:     # the same share as a skill must reach, from its file or its tools
+                servers.append((server, f"What it does matches your words: {', '.join(told[:4])}."))
         return skills, servers
+
+    @staticmethod
+    def own_words(server: dict) -> set[str]:
+        """The words of a connector's own name. A plugin's connector whose name was taken carries
+        the plugin's name too (`slack-legal`); that is the studio's suffix, not what the connector
+        is, so a word of the plugin's ("legal") must not pick it: its label is its own name."""
+        own = server["label"] if server["source"] in ("plugin", "app") else f"{server['name']} {server['label']}"
+        return {stem(w) for w in re.findall(r"[a-z0-9]+", own.lower())}
+
+    def _signin(self, text: str, signin: list[dict], add, connectors: list, room: int) -> list[dict]:
+        """Connectors that need signing in, named in the request. One never tried is picked (the
+        first try shows whether it really needs it); one the agent program reported as needing it
+        is left out until it is seen connected, and returned so the note can say so."""
+        asked, seen, left = set(words(text)), self.lib.statuses(), []
+        labels = {str(item["label"]).lower() for item in connectors}
+        for server in signin:
+            # Two plugins often ship the same service under one name (`slack`): the first is enough.
+            if not asked & self.own_words(server) or server["label"].lower() in labels:
+                continue
+            labels.add(server["label"].lower())
+            if (seen.get(server["name"]) or {}).get("status") == "needs-auth":
+                left.append(server)
+            else:
+                add(server, "picked", f"You named it. It may need signing in first: `{server['fix']}`.",
+                    connectors, room)
+        return left
 
     def routes(self, connection: dict) -> list[tuple[str, dict]]:
         """Where the choosing question may be asked: the connection of the request itself, when

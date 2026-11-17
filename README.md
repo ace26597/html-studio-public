@@ -84,12 +84,12 @@ You need macOS or Linux (x86-64 or ARM64), `git`, `bash` and `curl` or `wget`. W
 supported.
 
 ```sh
-git clone https://github.com/ace26597/html-studio-public.git
+git clone https://github.com/ace26597/html-studio-public.git html-studio
 ./html-studio/studio2/install.sh
 ```
 
-The installer fetches what is missing (`uv`, Python 3.12, Node 20 if needed), builds the
-interface and writes a `studio` command into `~/.local/bin`. It does not use sudo and is safe to
+The installer fetches what is missing (`uv`, Python 3.12 and the server's packages at tested
+versions, and Node when the one here is too old for the build), builds the interface and writes a `studio` command into `~/.local/bin`. It does not use sudo and is safe to
 run again. It asks up to four questions; `--yes` asks nothing.
 
 On first run, `studio setup` asks three things (also asked on screen if you skip it):
@@ -144,9 +144,7 @@ Full text: [safety and limits](studio2/docs/safety.md).
 - Redshift and MySQL are untested; MongoDB is not supported. Office files have not been opened in
   real PowerPoint, Word or Excel.
 
-The full list is in [safety and limits](studio2/docs/safety.md). The
-status table says, step by step, what was checked, how, and what
-was not. It is the only record that is kept current.
+The full list is in [safety and limits](studio2/docs/safety.md).
 
 ## Where things are
 
@@ -160,9 +158,8 @@ was not. It is the only record that is kept current.
 | `data/studio2/` | Your projects, one folder each with its own git history. Not in the repository; back it up yourself |
 
 An earlier studio, a document engine, used to live in this repository beside this one. It was
-removed from `main` on 13 November 2026 and is kept whole on the `legacy-engine` branch and the
-`legacy-engine-2026-11-13` tag.
+removed on 13 November 2026 and is not part of this copy.
 
 ## Licence and status
 
-MIT; see [LICENSE](LICENSE). This is a copy of a working repository, published for people to read and try. The plan, the step-by-step record of what was checked (called the status table in these pages) and the working notes are kept in the working repository and are not part of this copy.
+MIT; see [LICENSE](LICENSE). This is a copy of a working repository, published for people to read and try. The plan and the working notes are kept in the working repository and are not part of this copy; these pages say what has been run and what has not.

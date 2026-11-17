@@ -39,6 +39,29 @@ def invalid(message: str) -> LibraryError:
     return LibraryError(400, "invalid_request", message)
 
 
+DESCRIPTION_CAP = 400
+KNOWN_STATUSES = ("connected", "needs-auth", "failed")   # what a later "pending" must not erase
+
+
+def describe_tools(tools: list[dict]) -> str:
+    """A connector's description made from the tools it was seen to have: their names first (the
+    picking model reads only the first 140 characters), then the first sentence of each tool's
+    own description, for the word search. Empty when no tool is known."""
+    names = [str(tool.get("name") or "") for tool in tools if tool.get("name")]
+    if not names:
+        return ""
+    text = f"Tools: {', '.join(names[:12])}" + (", …" if len(names) > 12 else "") + \
+        f" ({len(names)} tool{'' if len(names) == 1 else 's'})."
+    said = []
+    for tool in tools:
+        first = re.split(r"(?<=[.!?])\s", " ".join(str(tool.get("description") or "").split()), maxsplit=1)[0]
+        if first:
+            said.append(first.rstrip(".")[:80])
+    if said:
+        text += " " + "; ".join(said) + "."
+    return text if len(text) <= DESCRIPTION_CAP else text[:DESCRIPTION_CAP - 1].rstrip() + "…"
+
+
 class KeychainJson:
     """A small JSON object per id in the studio's secret store (keystore.py): the operating
     system's keychain, or the owner-only file on a machine that has no keychain."""
@@ -178,8 +201,10 @@ class Library:
                         "url": config.get("url"), "command": config.get("command"),
                         "args": [str(a) for a in config.get("args") or []],
                         "secret_names": sorted({*(config.get("env") or {}), *(config.get("headers") or {})}),
-                        "source": "machine", "description": "Configured for Claude Code on this machine.",
-                        "last_test": None})
+                        # The file's own words, or nothing: a stock sentence here made every
+                        # imported connector look alike to the picker.
+                        "source": "machine", "description": str(config.get("description") or "")[:DESCRIPTION_CAP],
+                        "last_test": None, "_signs_in": bool(config.get("oauth"))})
         for item in self._suggested():
             out.append({"id": f"suggested:{item['name']}", "name": item["name"], "label": item.get("label") or item["name"],
                         "transport": "http", "url": item["url"], "command": None, "args": [], "secret_names": [],
@@ -211,7 +236,7 @@ class Library:
                 "args": [str(a) for a in config.get("args") or []],
                 "secret_names": sorted({*(config.get("env") or {}), *(config.get("headers") or {})}),
                 "source": source, "origin": origin, "description": description, "last_test": None,
-                "plugin_enabled": enabled, "missing": sorted(missing)}
+                "plugin_enabled": enabled, "missing": sorted(missing), "_signs_in": bool(config.get("oauth"))}
 
     def app_servers(self, workspace: Path | None) -> list[dict]:
         """Connectors an attached app declares in its own `.mcp.json`. Never picked: only pinned."""
@@ -238,27 +263,55 @@ class Library:
         return found if isinstance(found, dict) else {}
 
     def record_statuses(self, servers: list[dict]) -> None:
-        """What the agent program said about each connector when a turn started."""
+        """What the agent program said about each connector when a turn started (`tools`: the
+        names of its tools, when the report listed them)."""
         known = self.statuses()
         for server in servers:
             if server.get("name") and server["name"] != "studio":
-                known[str(server["name"])] = {"status": str(server.get("status")), "at": now_iso()}
+                name, status = str(server["name"]), str(server.get("status"))
+                row = dict(known.get(name) or {})
+                # "pending" says nothing new: a connector that needed signing in keeps that until
+                # it is seen connected, or it would be picked again and fail again.
+                if status in KNOWN_STATUSES or row.get("status") not in KNOWN_STATUSES:
+                    row.update(status=status, at=now_iso())
+                listed = [str(tool) for tool in server.get("tools") or []]
+                had = row.get("tools") or []
+                if listed and sorted(listed) != sorted(str(t.get("name")) for t in had):   # same names: keep their descriptions
+                    row["tools"] = [{"name": tool, "description": ""} for tool in listed[:200]]
+                known[name] = row
+        try:
+            write_json_atomic(self.status_path, known)
+        except OSError:
+            pass
+
+    def record_tools(self, name: str, tools: list[dict]) -> None:
+        """A successful test: the connector connected, and these are its tools as it describes them."""
+        known = self.statuses()
+        known[name] = {**(known.get(name) or {}), "status": "connected", "at": now_iso(),
+                       "tools": [{"name": str(t.get("name")), "description": str(t.get("description") or "")[:300]}
+                                 for t in tools[:200] if t.get("name")]}
         try:
             write_json_atomic(self.status_path, known)
         except OSError:
             pass
 
     def _with_state(self, servers: list[dict]) -> list[dict]:
-        """`state` (ok | needs-auth | failed | needs-setting | None when never tried) and `fix`."""
+        """`state` (ok | needs-auth | failed | needs-setting | None when never tried) and `fix`,
+        and a description made from the connector's tools when it has none of its own."""
         seen = self.statuses()
         for server in servers:
-            status = (seen.get(server["name"]) or {}).get("status")
+            row = seen.get(server["name"]) or {}
+            status = row.get("status")
+            signs_in = server.pop("_signs_in", False)
+            if not server.get("description") and row.get("tools"):
+                server["description"] = describe_tools(row["tools"])
             state, fix = None, None
             if server.get("missing"):
                 state = "needs-setting"
                 fix = ("Set " + ", ".join(server["missing"]) + " in the environment the studio starts in, "
                        "or add this server in the studio with its key.")
-            elif status == "needs-auth":
+            elif status == "needs-auth" or (signs_in and status not in ("connected", "failed")):
+                # Reported so, or its settings say it signs in (`oauth`) and it was never seen connected.
                 state, fix = "needs-auth", f"claude mcp login {server['label']}"
             elif status == "failed":
                 state = "failed"
@@ -344,6 +397,11 @@ class Library:
         write_json_atomic(self.servers_path, {"servers": [i for i in items if i is not current]})
 
     def record_test(self, server_id: str, result: dict) -> None:
+        if result.get("ok"):     # any source: what its tools are is how the picker can tell what it does
+            try:
+                self.record_tools(self.server(server_id)["name"], result.get("tools") or [])
+            except LibraryError:
+                pass
         try:
             items, current = self._own(server_id)
         except LibraryError:

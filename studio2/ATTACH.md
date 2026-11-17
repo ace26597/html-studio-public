@@ -31,8 +31,8 @@ promise beyond the "checked" column.
 
 ## 1. Install the studio
 
-Needs: Python 3.12, `uv`, Node 20 or newer (to build the interface and to run JavaScript apps),
-`git`. Optional: a Chromium that Playwright can drive (lets the agent look at pages and render
+Needs: Python 3.12, `uv`, Node 20.19 or later in 20.x or 22.12 or later (to build the interface
+and to run JavaScript apps), `git`. Optional: a Chromium that Playwright can drive (lets the agent look at pages and render
 video), `ffmpeg` (video), LibreOffice (Office files).
 
 ```sh
@@ -47,7 +47,8 @@ asks before each of those. If the installer cannot be used, the hand steps are:
 ```sh
 cd studio2
 uv venv --python 3.12
-uv pip install -e '.[dev,look]'
+uv pip install --require-hashes -r server-dev-requirements.txt   # the tested versions, checked by hash
+uv pip install --no-deps -e .
 (cd web && npm ci && npm run build)
 .venv/bin/python -m studio2_server          # http://127.0.0.1:8200
 ```
@@ -149,7 +150,7 @@ readable by its owner only where there is no keychain) or an environment variabl
 
 ## 3. Attach the app
 
-### From the dialog (step 3k)
+### From the dialog
 
 New page → **An app on this computer**. Type the folder's full path and press Check: the studio
 reads the folder (it writes nothing there) and shows the kind of app it found, its git branch
@@ -311,7 +312,7 @@ right file by component name and text in the one real test.
 
 ## 7. Getting changes back into the real app: make it live
 
-Built in step 3l (CONTRACT.md, "Ship: make it live"). A project brought in by its folder has a
+The contract is in CONTRACT.md, "Ship: make it live". A project brought in by its folder has a
 "Make it live" button in its top bar, and the agent can be asked in the chat ("make it live",
 "deploy this"). Either way the studio does the shipping, not the agent:
 
