@@ -113,6 +113,30 @@ counts of reports, not rates; the page says so. The numbers are live and will ha
 prices the agent program put it at about $6.48.
 [Full-size video](demo/demo-glp1.mp4) · [the app's files, and how to run it](examples/glp1-race/README.md)*
 
+## Checks, a sign-in, a diagram and a 40-slide deck (18 November)
+
+Seven real requests on a throwaway studio, on a Claude plan (about $15.91 at API prices, 53
+minutes in all). They are not recorded as videos and their projects are not kept as examples.
+
+- **A wrong number in a deck.** A five-slide deck was built from the past week's USGS earthquake
+  feed, then its headline total was changed by hand from 106 to 113. **Verify content** named
+  slide 1, put 106 back from the saved feed, and the studio's own re-check agreed on deck and
+  page, 24 figures of 24 each (5 minutes, about $1.50).
+- **An app behind a sign-in.** The agent built a task board with a sign-in screen. The studio
+  was restarted, a separate browser signed in, and **Polish the look** was pressed: every look
+  used that sign-in, saw the dashboard without typing a password, and four layout defects were
+  fixed (3 minutes, about $0.87). The app shows its demo password on the sign-in screen, so the
+  agent also signed in by itself on some looks.
+- **A diagram and three conversions.** One request added a diagram of how the brief is made, in
+  the page's own colours, the deck as a PDF, and a Word summary with the same text as RTF (2
+  minutes, about $1.12).
+- **A 40-slide board pack**, outline first, on India's solar build-out from Ember, ministry and
+  Central Electricity Authority data: 15 minutes and about $3.72 for the outline (20 sources
+  saved, a ledger of 93 figures), 16 minutes and about $5.51 for the build. All 445 figures in
+  the deck traced to a saved source or data file; a separate reviewer reported 47 layout and
+  wording issues over the 40 slides and the author fixed 46. The agent wrote every section
+  itself; section writers working in parallel were not used.
+
 ## One feature at a time
 
 Cut from the same recordings.

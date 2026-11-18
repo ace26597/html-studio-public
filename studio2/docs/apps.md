@@ -18,6 +18,11 @@ commands it would use to install packages and start the app. Then choose how it 
 Press **Create**. A safe copy installs the app's packages the first time it starts; the app
 log shows it. Then select or draw on the app and ask for changes, as on any other page.
 
+If the app has a sign-in screen, the agent sees that screen and not what is behind it, unless
+you tick **Let the agent use my sign-in** in the project's menu. It is off for an app you
+brought, because the agent would then act in that app as you. See
+[safety.md](safety.md) for what the studio keeps.
+
 To send a change back, press **Make it live** in the project's top bar, or say "make it live"
 in the chat. The studio does the shipping, not the agent:
 

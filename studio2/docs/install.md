@@ -32,8 +32,10 @@ nothing and answers no to all of them:
 | Run setup now? | yes | Asks the three questions below |
 | Start the studio now? | yes | Starts it and opens the browser |
 
-It also reports whether `ffmpeg` (video files) and LibreOffice (PowerPoint, Word and Excel
-files) are on the machine, with the command that installs each. Both are optional.
+It also reports whether `ffmpeg` (video files), LibreOffice (PowerPoint, Word and Excel files,
+and converting them to PDF, RTF or ODT) and pandoc (Markdown to Word, EPUB or HTML, and Word to
+Markdown) are on the machine, with the command that installs each. All three are optional.
+Diagrams need nothing extra: the studio carries its own copy of Mermaid.
 
 **Looking at pages** (screenshots, the page check, video) needs two things. The installer adds
 the first; the second is the browser question above.

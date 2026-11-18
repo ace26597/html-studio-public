@@ -33,7 +33,7 @@ promise beyond the "checked" column.
 
 Needs: Python 3.12, `uv`, Node 20.19 or later in 20.x or 22.12 or later (to build the interface
 and to run JavaScript apps), `git`. Optional: a Chromium that Playwright can drive (lets the agent look at pages and render
-video), `ffmpeg` (video), LibreOffice (Office files).
+video), `ffmpeg` (video), LibreOffice (Office files and their conversions), pandoc (Markdown to Word, EPUB or HTML).
 
 ```sh
 ./studio2/install.sh --yes      # fetches uv, Python 3.12, Node if needed; builds; adds the `studio` command

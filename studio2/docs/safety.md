@@ -26,6 +26,18 @@ runs as you too.
 - **One trusted person per machine,** until accounts and a container per project exist. The
   agent runs as the same user as the studio, so an agent that set out to could call the
   studio's own interface on this computer and answer its own approval card.
+- **Your sign-in to a project's app.** With "Let the agent use my sign-in" ticked in a
+  project's menu (on for apps made in the studio, off for an app you brought, refused on a
+  shared studio), the agent's own browser opens that project's pages with your session, so it
+  sees what you see and anything it clicks there it clicks as you. The studio keeps the session
+  in memory only, forgets it when the studio stops or you untick the option, keeps only the
+  cookies that app itself set, and never puts a value in a file, a log or what the agent is
+  told. It cannot stop the app's own pages from showing what your browser holds, and the agent
+  writes those pages. Untick it for an app whose account matters.
+- **Checks are loose on purpose.** Verify content says a figure in a deck, document, workbook or
+  PDF is "found" when that number appears in a saved source, a data file or a checked page
+  figure, not that it is the right number for that sentence. Rendered files are checked in
+  LibreOffice; nothing here can open them in PowerPoint, Word or Excel.
 - **Spending.** A paid model account has no limit inside the studio for the agent's own
   requests; set one at the provider. What a project's app spends on models and what generated
   media costs are capped per day.
@@ -41,6 +53,11 @@ runs as you too.
 - **Real provider keys:** no request has been made with an Anthropic, OpenAI, OpenRouter,
   Azure OpenAI or Gemini key against the provider itself, or on Bedrock, Vertex or Foundry.
   `studio login` has not been run as part of a check either.
+- **The newest features** (figures checked inside Office files and PDFs, the app seen signed
+  in, diagrams, conversions, very large documents) were each tried with real requests on one
+  Mac. Not tried: the signed-in look over a private network address, in Safari or on an app you
+  brought; a deck of more than 40 slides, a large workbook or a long Word document made by a
+  real request; section writers working in parallel.
 - **Bringing an app:** only Next.js and Vite apps have been attached for real; other
   frameworks are recognised but untried. An agent request has been run on an app attached by
   hand, not yet on one attached from the dialog. An app whose second process needs its own
