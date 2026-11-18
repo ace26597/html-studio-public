@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import datetime
+import hashlib
 import html
 import json
 import os
@@ -29,6 +30,13 @@ KINDS = {".pptx": "presentation", ".ppt": "presentation", ".odp": "presentation"
          ".pdf": "pdf"}
 LABELS = {"presentation": "PowerPoint", "document": "Word", "workbook": "Excel", "pdf": "PDF"}
 MAX_PAGES, MAX_ROWS, MAX_COLS = 60, 400, 50
+# A workbook's charts are drawn one page per sheet: this many by default (`pages` asks for others).
+MAX_CHART_PAGES = 20
+# Past this many pages a deck or document also gets contact sheets of every page (the overview).
+OVERVIEW_OVER, OVERVIEW_PER_SHEET, OVERVIEW_COLUMNS, OVERVIEW_THUMB = 20, 20, 5, 300
+# What a workbook's answer may hold, so 50 sheets still fit a tool's answer (tools.RESULT_CAP).
+START_BUDGET, ERRORS_PER_SHEET, ERRORS_IN_ALL = 12_000, 30, 100
+STATE = "render.json"
 # The preview shows at most MAX_ROWS × MAX_COLS of a sheet, but the error check looks at every
 # formula, up to this many in a workbook (the cells are in memory already; this bounds the time).
 MAX_CHECKED, MAX_ERRORS_KEPT = 200_000, 200
@@ -95,17 +103,43 @@ def _profile() -> Path:
     return profile
 
 
-def convert(source: Path, target: str, outdir: Path, timeout: float = 180.0) -> Path:
+def timeout_for(path: Path) -> float:
+    """180 seconds, and 60 more for each 10 MB: a large deck with pictures takes LibreOffice longer."""
+    try:
+        size = path.stat().st_size
+    except OSError:
+        size = 0
+    return 180.0 + 60.0 * (size // 10_000_000)
+
+
+@contextlib.contextmanager
+def _one_at_a_time(profile: Path):
+    """LibreOffice refuses a second start on a profile in use (exit 1, no message), and every studio
+    process and test run of this user shares one profile. A file lock makes them take turns."""
+    try:
+        import fcntl
+    except ImportError:                 # no file locks here: as before, one render per process
+        yield
+        return
+    with open(profile.parent / f"{profile.name}.lock", "w") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        yield
+
+
+def convert(source: Path, target: str, outdir: Path, timeout: float | None = None) -> Path:
     """Run LibreOffice headless: `target` is its --convert-to value. → the written file."""
+    timeout = timeout or timeout_for(source)
     soffice = find_soffice()
     if soffice is None:
         raise OfficeError(reason() or "LibreOffice is not available.")
     outdir.mkdir(parents=True, exist_ok=True)
     before = {p.name for p in outdir.iterdir()}
-    command = [str(soffice), f"-env:UserInstallation={_profile().as_uri()}", "--headless", "--norestore",
+    profile = _profile()
+    command = [str(soffice), f"-env:UserInstallation={profile.as_uri()}", "--headless", "--norestore",
                "--convert-to", target, "--outdir", str(outdir), str(source)]
     try:
-        done = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+        with _one_at_a_time(profile):
+            done = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         raise OfficeError(f"LibreOffice took longer than {int(timeout)} seconds on {source.name}.") from None
     made = sorted(p for p in outdir.iterdir() if p.name not in before)
@@ -115,14 +149,15 @@ def convert(source: Path, target: str, outdir: Path, timeout: float = 180.0) -> 
     return made[0] if len(made) == 1 else made[0].parent
 
 
-def rasterise(pdf: Path, outdir: Path, width: int, limit: int = MAX_PAGES) -> tuple[list[Path], int]:
-    """PDF → page-N.png files of the given pixel width. → (files, total pages in the PDF)."""
+def rasterise(pdf: Path, outdir: Path, width: int, limit: int = MAX_PAGES, first: int = 1) -> tuple[list[Path], int]:
+    """PDF → page-N.png files of the given pixel width, from page `first`, at most `limit` of them.
+    → (files, total pages in the PDF)."""
     import pypdfium2
 
     document = pypdfium2.PdfDocument(str(pdf))
     try:
         total, files = len(document), []
-        for index in range(min(total, limit)):
+        for index in range(max(0, first - 1), min(total, first - 1 + limit)):
             page = document[index]
             image = page.render(scale=width / max(page.get_width(), 1)).to_pil()
             target = outdir / f"page-{index + 1}.png"
@@ -131,6 +166,87 @@ def rasterise(pdf: Path, outdir: Path, width: int, limit: int = MAX_PAGES) -> tu
         return files, total
     finally:
         document.close()
+
+
+def overview(pdf: Path, outdir: Path) -> list[Path]:
+    """Contact sheets of every page of a PDF: OVERVIEW_PER_SHEET small pages to a sheet, numbered.
+    → the overview-<n>.png files (too small to read text; enough to see the look of the whole file)."""
+    import pypdfium2
+    from PIL import Image, ImageDraw, ImageFont
+
+    try:
+        font = ImageFont.load_default(size=18)
+    except TypeError:                     # an older Pillow: its one small font
+        font = ImageFont.load_default()
+    document = pypdfium2.PdfDocument(str(pdf))
+    files: list[Path] = []
+    try:
+        total, gap, band = len(document), 12, 26
+        for sheet, start in enumerate(range(0, total, OVERVIEW_PER_SHEET), 1):
+            thumbs = []
+            for index in range(start, min(total, start + OVERVIEW_PER_SHEET)):
+                page = document[index]
+                thumbs.append((index + 1, page.render(scale=OVERVIEW_THUMB / max(page.get_width(), 1)).to_pil()))
+            height = max(image.height for _n, image in thumbs)
+            rows = -(-len(thumbs) // OVERVIEW_COLUMNS)
+            canvas = Image.new("RGB", (gap + OVERVIEW_COLUMNS * (OVERVIEW_THUMB + gap),
+                                       gap + rows * (height + band + gap)), (232, 234, 238))
+            draw = ImageDraw.Draw(canvas)
+            for slot, (number, image) in enumerate(thumbs):
+                x = gap + (slot % OVERVIEW_COLUMNS) * (OVERVIEW_THUMB + gap)
+                y = gap + (slot // OVERVIEW_COLUMNS) * (height + band + gap)
+                draw.text((x, y + 3), str(number), fill=(30, 33, 40), font=font)
+                canvas.paste(image.convert("RGB"), (x, y + band))
+                draw.rectangle((x - 1, y + band - 1, x + image.width, y + band + image.height), outline=(160, 164, 172))
+            target = outdir / f"overview-{sheet}.png"
+            canvas.save(target, optimize=True)
+            files.append(target)
+        return files
+    finally:
+        document.close()
+
+
+def page_range(spec, total: int, default_last: int) -> tuple[int, int, str | None]:
+    """`pages` ("41-60", "41", "61-") → (first, last, a note when the range was cut), 1-based and
+    inclusive, at most MAX_PAGES. None: pages 1 to `default_last`."""
+    if spec is None or str(spec).strip() == "":
+        return 1, min(total, default_last), None
+    match = re.fullmatch(r"\s*(\d+)\s*(?:(-|–)\s*(\d*)\s*)?", str(spec))
+    if not match or int(match.group(1)) < 1:
+        raise OfficeError('pages must be a page number or a range of them: "41-60", "41" or "61-".')
+    first = int(match.group(1))
+    last = int(match.group(3)) if match.group(3) else (total if match.group(2) else first)
+    if last < first:
+        raise OfficeError(f"pages {spec} ends before it starts.")
+    if first > total:
+        raise OfficeError(f"This file has {total} page{'s' if total != 1 else ''}; pages {spec} has none of them.")
+    last, note = min(last, total), None
+    if last - first + 1 > MAX_PAGES:
+        last, note = first + MAX_PAGES - 1, f"pages {spec} was cut to {first}-{first + MAX_PAGES - 1} (at most {MAX_PAGES} in one call)."
+    return first, last, note
+
+
+def ranges(numbers: list[int]) -> list[str]:
+    """[1, 2, 3, 7, 9, 10] → ["1-3", "7", "9-10"]."""
+    out, run = [], []
+    for number in sorted(numbers):
+        if run and number == run[-1] + 1:
+            run.append(number)
+            continue
+        if run:
+            out.append(f"{run[0]}-{run[-1]}" if len(run) > 1 else f"{run[0]}")
+        run = [number]
+    if run:
+        out.append(f"{run[0]}-{run[-1]}" if len(run) > 1 else f"{run[0]}")
+    return out
+
+
+def _digest(path: Path) -> str:
+    sha = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            sha.update(block)
+    return sha.hexdigest()
 
 
 # ---- workbooks -------------------------------------------------------------------------------
@@ -409,10 +525,12 @@ def _count(n: int, word: str) -> str:
 
 def workbook_result(sheets: list[dict], stamped: int, pages: list) -> dict:
     """What the agent is told about a workbook. It says "no formula errors" only when every
-    formula was checked, and says which sheets the preview shows only part of."""
+    formula was checked, and says which sheets the preview shows only part of. Sized to stay
+    readable at 50 sheets: `start` until START_BUDGET characters, errors 30 a sheet and 100 in all."""
     total = sum(s["formulas"] for s in sheets)
     unchecked = [s for s in sheets if s["unchecked"]]
-    if any(s["error_count"] for s in sheets):
+    error_total = sum(s["error_count"] for s in sheets)
+    if error_total:
         verdict = "Fix every formula listed under errors (error_count says how many there are), then render again."
     elif unchecked:
         missing = sum(s["unchecked"] for s in unchecked)
@@ -425,20 +543,63 @@ def workbook_result(sheets: list[dict], stamped: int, pages: list) -> dict:
     cut = [s for s in sheets if s["cut"]]
     if cut:
         verdict += (f" The preview and start show only the first {MAX_ROWS} rows and {MAX_COLS} columns of "
-                    + ", ".join(f"{s['name']!r} ({s['rows']:,} × {s['columns']:,})" for s in cut) + ".")
-    if not any(s["error_count"] for s in sheets):
+                    + ", ".join(f"{s['name']!r} ({s['rows']:,} × {s['columns']:,})" for s in cut[:20])
+                    + (f" and {len(cut) - 20} more sheets" if len(cut) > 20 else "") + ".")
+    listed_sheets, used, listed, budget_spent = [], 0, 0, False
+    for s in sheets:
+        start = _grid(s)
+        size = sum(len(line) + 4 for line in start)
+        if budget_spent or used + size > START_BUDGET:
+            budget_spent, start = True, []
+        else:
+            used += size
+        errors = [{**e, "formula": e["formula"][:120]} for e in s["errors"][:min(ERRORS_PER_SHEET, ERRORS_IN_ALL - listed)]]
+        listed += len(errors)
+        listed_sheets.append({"name": s["name"], "rows": s["rows"], "columns": s["columns"], "cut": s["cut"],
+                              "formulas": s["formulas"], "unchecked": s["unchecked"], "charts": s["charts"],
+                              "errors": errors, "error_count": s["error_count"], "start": start,
+                              "start_cut": budget_spent})
+    shown = sum(1 for s in listed_sheets if not s["start_cut"])
+    if shown < len(listed_sheets):
+        verdict += (f" start is given for the first {_count(shown, 'sheet')} only (the answer would be too long); "
+                    "the preview page shows every sheet.")
+    if listed < error_total:
+        verdict += (f" errors lists {listed:,} of the {_count(error_total, 'formula error')}; fix those listed and "
+                    "render again: the next ones are listed then.")
+    if not error_total:
         verdict += " Look at the preview page with look_at_page to check the formatting."
         if pages:
             verdict += " The charts are drawn in chart_pages: open those images with the Read tool."
-    return {
-        "sheets": [{"name": s["name"], "rows": s["rows"], "columns": s["columns"], "cut": s["cut"],
-                    "formulas": s["formulas"], "unchecked": s["unchecked"], "charts": s["charts"],
-                    "errors": s["errors"][:30], "error_count": s["error_count"], "start": _grid(s)} for s in sheets],
-        "formula_results_stored": stamped, "next": verdict}
+    return {"sheets": listed_sheets, "errors_listed": listed, "error_total": error_total,
+            "formula_results_stored": stamped, "next": verdict}
 
 
-def render(workspace: Path, relative: str, stamp: bool = True, max_pages: int = MAX_PAGES) -> dict:
-    """Render one project file into `<file>.preview/`. Blocking; call from a thread."""
+def _page_count(pdf: Path) -> int:
+    import pypdfium2
+
+    document = pypdfium2.PdfDocument(str(pdf))
+    try:
+        return len(document)
+    finally:
+        document.close()
+
+
+def _not_drawn(missing: list[int], total: int) -> str | None:
+    """A sentence naming the pages that have no image yet, and the call that draws the next ones."""
+    if not missing:
+        return None
+    spans = ranges(missing)
+    first = int(spans[0].split("-")[0])
+    end = int(spans[0].split("-")[-1])
+    ask = f"{first}-{min(end, first + MAX_PAGES - 1)}" if min(end, first + MAX_PAGES - 1) > first else f"{first}"
+    word = "Page" if len(missing) == 1 else "Pages"
+    return (f"{word} {', '.join(spans)} of {total} {'has' if len(missing) == 1 else 'have'} no image yet (at most "
+            f"{MAX_PAGES} are drawn in one call): call render_document again with pages: \"{ask}\".")
+
+
+def render(workspace: Path, relative: str, stamp: bool = True, max_pages: int = MAX_PAGES, pages=None) -> dict:
+    """Render one project file into `<file>.preview/`. Blocking; call from a thread. `pages`: which
+    pages to draw as images ("41-60"); for a workbook, which chart pages."""
     source = (workspace / relative).resolve()
     kind = KINDS.get(source.suffix.lower())
     if kind is None:
@@ -447,16 +608,16 @@ def render(workspace: Path, relative: str, stamp: bool = True, max_pages: int = 
     if kind != "pdf" and reason():
         raise OfficeError(reason())
     folder = source.with_name(source.name + ".preview")
-    if folder.exists():
-        shutil.rmtree(folder)
-    folder.mkdir(parents=True)
     rel = lambda path: path.relative_to(workspace.resolve()).as_posix()  # noqa: E731
     data = {"name": source.name, "kind": kind, "label": LABELS[kind], "file": "../" + source.name,
             "bytes": source.stat().st_size}
     result: dict = {"file": relative, "kind": kind}
-    with tempfile.TemporaryDirectory(prefix="studio2-office-") as scratch:
-        work = Path(scratch)
-        if kind == "workbook":
+    if kind == "workbook":
+        if folder.exists():
+            shutil.rmtree(folder)
+        folder.mkdir(parents=True)
+        with tempfile.TemporaryDirectory(prefix="studio2-office-") as scratch:
+            work = Path(scratch)
             recalculated = convert(source, "xlsx", work / "recalc")
             sheets = read_workbook(source if source.suffix.lower() in (".xlsx", ".xlsm") else recalculated, recalculated)
             stamped = 0
@@ -464,7 +625,8 @@ def render(workspace: Path, relative: str, stamp: bool = True, max_pages: int = 
                 stamped = stamp_values(source, recalculated)
                 data["bytes"] = source.stat().st_size
             data["sheets"] = sheets
-            pages = []
+            drawn: list[Path] = []
+            not_drawn = None
             if any(s["charts"] for s in sheets):
                 # Charts are drawn by the spreadsheet program, not stored as pictures: the print
                 # view is the only place they can be seen without opening the file.
@@ -472,22 +634,66 @@ def render(workspace: Path, relative: str, stamp: bool = True, max_pages: int = 
                 pdf = convert(recalculated, 'pdf:calc_pdf_Export:{"SinglePageSheets":{"type":"boolean","value":"true"}}',
                               work / "pdf")
                 shutil.copyfile(pdf, folder / "document.pdf")
-                pages, total = rasterise(pdf, folder, PAGE_WIDTH["presentation"], 20)
-                data.update({"pdf": "document.pdf", "pages": [p.name for p in pages], "page_count": total})
-                result["chart_pages"] = [rel(p) for p in pages]
-            result.update(workbook_result(sheets, stamped, pages))
-        else:
-            pdf = source if kind == "pdf" else convert(source, "pdf", work / "pdf")
+                total = _page_count(pdf)
+                first, last, note = page_range(pages, total, MAX_CHART_PAGES)
+                drawn, _total = rasterise(pdf, folder, PAGE_WIDTH["presentation"], last - first + 1, first)
+                numbers = list(range(first, first + len(drawn)))
+                data.update({"pdf": "document.pdf", "pages": [p.name for p in drawn], "numbers": numbers,
+                             "page_count": total})
+                result["chart_pages"] = [rel(p) for p in drawn]
+                result["chart_page_count"] = total
+                missing = [n for n in range(1, total + 1) if n not in numbers]
+                if missing or note:
+                    not_drawn = " ".join(filter(None, [note, f"Chart pages {', '.join(ranges(missing))} of {total} "
+                                                       "were not drawn: call render_document again with pages to "
+                                                       "draw them." if missing else None]))
+            result.update(workbook_result(sheets, stamped, drawn))
+            if not_drawn:
+                result["next"] += " " + not_drawn
+    else:
+        digest = _digest(source)
+        try:
+            state = json.loads((folder / STATE).read_text("utf-8")) if folder.is_dir() else {}
+        except (OSError, ValueError):
+            state = {}
+        pdf = source if kind == "pdf" else folder / "document.pdf"
+        reuse = folder.is_dir() and isinstance(state, dict) and state.get("sha256") == digest and pdf.is_file()
+        if not reuse:
+            if folder.exists():
+                shutil.rmtree(folder)
+            folder.mkdir(parents=True)
             if kind != "pdf":
-                shutil.copyfile(pdf, folder / "document.pdf")
-                data["pdf"] = "document.pdf"
-            pages, total = rasterise(pdf, folder, PAGE_WIDTH[kind], max_pages)
-            data.update({"pages": [p.name for p in pages], "page_count": total})
-            result.update({
-                "pdf": rel(folder / "document.pdf") if kind != "pdf" else relative,
-                "pages": [rel(p) for p in pages], "page_count": total,
-                "next": "Open every page image with the Read tool and fix what is cramped, cut off, misaligned or "
-                        "empty, then render again."})
+                with tempfile.TemporaryDirectory(prefix="studio2-office-") as scratch:
+                    shutil.copyfile(convert(source, "pdf", Path(scratch) / "pdf"), pdf)
+        if kind != "pdf":
+            data["pdf"] = "document.pdf"
+        total = _page_count(pdf)
+        first, last, note = page_range(pages, total, max_pages) if total else (1, 0, None)
+        files, _total = rasterise(pdf, folder, PAGE_WIDTH[kind], max(0, last - first + 1), first) if total else ([], 0)
+        drawn = sorted(int(m.group(1)) for p in folder.glob("page-*.png")
+                       if (m := re.fullmatch(r"page-(\d+)\.png", p.name)) and 1 <= int(m.group(1)) <= total)
+        sheets_needed = -(-total // OVERVIEW_PER_SHEET)
+        contact: list[Path] = []
+        if total > OVERVIEW_OVER:
+            contact = sorted(folder.glob("overview-*.png"), key=lambda p: int(re.search(r"(\d+)", p.name).group(1)))
+            if not reuse or len(contact) != sheets_needed:
+                contact = overview(pdf, folder)
+        (folder / STATE).write_text(json.dumps({"sha256": digest, "pages": total}), "utf-8")
+        data.update({"pages": [f"page-{n}.png" for n in drawn], "numbers": drawn, "page_count": total})
+        not_drawn = _not_drawn([n for n in range(1, total + 1) if n not in drawn], total)
+        said = [part for part in (note, not_drawn) if part]
+        said.append("Open every page image in pages with the Read tool and fix what is cramped, cut off, misaligned "
+                    "or empty, then render again.")
+        if contact:
+            said.append(f"overview has every page small ({OVERVIEW_PER_SHEET} to a picture, numbered): open it to "
+                        "compare the look across the whole file; it is too small to read text.")
+        result.update({
+            "pdf": rel(pdf) if kind != "pdf" else relative,
+            "pages": [rel(p) for p in files], "page_count": total,
+            "pages_drawn": (f"{first}-{last}" if last > first else f"{first}") if files else None,
+            "not_drawn": not_drawn, "reused_pdf": reuse, "next": " ".join(said)})
+        if contact:
+            result["overview"] = [rel(p) for p in contact]
     viewer = write_viewer(folder, data)
     result["preview"] = rel(viewer)
     result["embed"] = (f'<iframe src="{rel(viewer)}" title="{html.escape(source.name)}" loading="lazy" '
@@ -496,8 +702,13 @@ def render(workspace: Path, relative: str, stamp: bool = True, max_pages: int = 
     return result
 
 
-async def render_async(workspace: Path, relative: str, **options) -> dict:
+async def locked(function, *args, **options):
+    """Run a blocking function that uses LibreOffice in a thread, one at a time on the studio's profile."""
     global _lock
     _lock = _lock or asyncio.Lock()
-    async with _lock:  # one LibreOffice at a time on the studio's profile
-        return await asyncio.to_thread(render, workspace, relative, **options)
+    async with _lock:
+        return await asyncio.to_thread(function, *args, **options)
+
+
+async def render_async(workspace: Path, relative: str, **options) -> dict:
+    return await locked(render, workspace, relative, **options)

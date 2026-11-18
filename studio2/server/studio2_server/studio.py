@@ -28,6 +28,7 @@ from .modelcheck import ModelChecks
 from .costs import CURRENT_TURN, RESTART_ERROR, Costs
 from .library import KeychainJson, Library, MemoryJson
 from .look import Looker
+from .session import SETTING as SIGNED_IN_SETTING, Sessions
 from .picker import Picker
 from .preview import Previews
 from .sources import Sources
@@ -47,15 +48,19 @@ class Studio:
         self.hub = EventHub()
         self.registry = Registry(settings)
         self.names = known_names(settings)   # the DNS names every port answers to (DNS rebinding)
+        # The person's sign-in for each project, in memory only (session.py).
+        self.sessions = Sessions(lambda: bool(self.settings.shared), self._project_or_none, self._project_on_port,
+                                 folder=self.store.dir, own_names=lambda: self.names | {
+                                     h.strip().lower().strip("[]") for h in settings.hosts})
         self.previews = Previews(settings.hosts, tls=settings.tls, guard=lambda app: AccessGuard(
             app, settings.access_key, settings.port, own_login=False, open_tailnet=settings.open_tailnet,
-            names=self.names))
+            names=self.names), sessions=self.sessions)
         self.watchers = Watchers(self._files_changed)
         self.turns = TurnRunner(self)
         self.saved = Templates(settings)
         self.examples = Examples(lambda: self.settings.library_dir)
         self.apps = Apps(self._app_status)
-        self.looker = Looker()
+        self.looker = Looker(self.sessions)
         self.ships = shipping.Shipper(self)
         self.generator = generate.Generator(settings.data_dir, settings.generate_daily_credits)
         self.checks = ModelChecks(self)     # "check this model" (modelcheck.py)
@@ -86,6 +91,15 @@ class Studio:
             self.log(project_id).append("files_changed", self.turns.active.get(project_id), paths=paths)
         if "studio.json" in paths and project_id not in self.turns.active:
             self.spawn(self.sync_app(project_id))  # during a turn the app is synced when the turn ends
+
+    def _project_or_none(self, project_id: str) -> dict | None:
+        try:
+            return self.store.get(project_id)
+        except ProjectNotFound:
+            return None
+
+    def _project_on_port(self, port: int) -> str | None:
+        return next((pid for pid, entry in self.previews.running.items() if entry[2] == port), None)
 
     def spawn(self, coroutine) -> None:
         task = asyncio.create_task(coroutine)
@@ -129,8 +143,10 @@ class Studio:
         if saved["preview"] is None and saved["kind"] in ("page", "app") and self.looker.reason() is None:
             try:   # a picture for the template list; never a reason to fail the save
                 opened = await self.open_preview(project)
+                # Never with the person's sign-in: the picture goes with the template.
                 shot = await self.looker.look(f"http://127.0.0.1:{opened['port']}/", self.store.dir(project_id) / "looks",
-                                              width=1280, height=800, full_page=False, tiles=False, layout=False)
+                                              width=1280, height=800, full_page=False, tiles=False, layout=False,
+                                              signed_in=False)
                 self.saved.set_preview(saved["id"], Path(shot["image"]))
                 saved = self.saved.get(saved["id"])
             except Exception:
@@ -172,6 +188,7 @@ class Studio:
                 "uses_template": project.get("uses_template") or None,
                 "from_example": project.get("from_example") or None,
                 "attach": project.get("attach") or None, "app_config": project.get("app_config"),
+                "signed_in_looks": self.sessions.allowed(project),
                 "ship": self.ships.view(project) if project.get("attach") else None,
                 "app": {"configured": bool(app and (app.run or app.address)), "state": app.state if app else "none"}}
 
@@ -396,9 +413,12 @@ class Studio:
         lines.append(
             "- The studio gives you its own tools (their names start with `mcp__studio__`): search_web, "
             "fetch_source, read_source, add_source, query_files, database_schema, query_database, look_at_page, "
-            "check_page and render_document. Prefer fetch_source over other ways of reading a page you will cite: it saves the "
+            "check_page, check_file, render_document, render_diagram and convert_document. Prefer fetch_source over other ways of reading a page you will cite: it saves the "
             "text in the project under an id (s1, s2, …) that the page's figures point to, and check_page then "
-            "verifies them.")
+            "verifies them. check_file does the same for a .pptx, .docx, .xlsx or .pdf file of the project. "
+            "render_diagram draws a Mermaid diagram, checks it and saves it as SVG (the `diagrams` skill says how); "
+            "convert_document turns a finished file into another format (Word to RTF, ODT or PDF, Markdown to Word, "
+            "EPUB or HTML, and more).")
         searching = services.search_connectors([item.get("name") for item in (picked or {}).get("connectors") or []])
         if searching:       # a search connector attached to this request is the first way to search
             lines.append(f"- For web search, use the tools of the connector {' or '.join(f'“{name}”' for name in searching)} "
@@ -493,6 +513,7 @@ class Studio:
                 "in the state the person will see it, at width 1440 (a desktop) first, then 820 (a tablet) and "
                 "390 (a phone) when its layout changes with the width, and fix what is broken or looks wrong. "
                 "Say plainly if you did not look.")
+            lines.append(self._signed_in_context(project))
         else:
             lines.append("- You cannot see the rendered page in this studio; say so instead of guessing.")
         lines.append(self._library_context(project, picked))
@@ -511,6 +532,20 @@ class Studio:
         else:
             lines.append("- This project has no back end yet (no studio.json); it is served as static files.")
         return "\n".join(lines)
+
+    def _signed_in_context(self, project: dict) -> str:
+        """The one sentence about seeing the app signed in (CONTRACT.md, "Seeing an app signed in as the person")."""
+        if self.sessions.allowed(project):
+            said = ("your looks carry the person's sign-in for this app when their browser has one (the "
+                    "result's `signed_in` says whether it did); if the page still asks to sign in, ask them to "
+                    "open or reload it in the studio signed in")
+        else:
+            said = (f"your looks do not carry the person's sign-in for this app (the option “{SIGNED_IN_SETTING}” "
+                    "in the project's menu is off" + (", and this studio is shared" if self.settings.shared else "")
+                    + "); if the page asks to sign in, say so")
+        return (f"- Signing in: {said}. Never guess or make up credentials to get past a sign-in. A sign-in "
+                "you do with `actions` (with credentials the person gave you) lasts across your looks until "
+                "the studio stops.")
 
     def _library_context(self, project: dict, picked: dict | None) -> str:
         """How skills and connectors work in this studio, and what this request was given."""
@@ -707,6 +742,7 @@ class Studio:
         await self.watchers.stop_all()
         await self.apps.stop_all()
         await self.previews.stop_all()
+        self.sessions.clear()
         await self.looker.close()
         await self.registry.stop()      # the studio's own LiteLLM, when one was started
 
@@ -815,6 +851,7 @@ class Studio:
             await self.watchers.stop(project_id)
             await self.apps.drop(project_id)
             await self.previews.stop(project_id)
+            self.sessions.forget(project_id)
             self.hub.drop(project_id)
             self._locks.pop(project_id, None)
             self.store.delete(project_id)

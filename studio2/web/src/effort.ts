@@ -91,17 +91,22 @@ export interface VerificationItem {
 }
 
 export interface RecheckProblem {
+  /** The page's path, or the file's (`kind: "file"`). */
   page: string;
+  kind: "page" | "file";
   what: string;
+  /** For a file: where in it ("Slide 3, title", "Summary!B4 (Revenue, 2025)", "Page 2"). */
   where: string;
   why: string;
 }
 
 export interface Recheck {
-  pages: { page: string; checked: number; error: string | null }[];
+  pages: { page: string; kind: "page" | "file"; checked: number; error: string | null }[];
   problems: RecheckProblem[];
   total: number;
   cut: number;
+  /** Pages and files past the re-check's caps (10 of each), which it did not read. */
+  notRechecked: string[];
   agrees: boolean;
 }
 
@@ -165,8 +170,10 @@ export const MATCH_MEANS =
 export function recheckFrom(event: Record<string, unknown>): Recheck {
   const rows = (value: unknown) =>
     (Array.isArray(value) ? value : []).filter((r): r is Record<string, unknown> => !!r && typeof r === "object");
+  const kind = (value: unknown): "page" | "file" => (value === "file" ? "file" : "page");
   const problems = rows(event.problems).map((p) => ({
     page: text(p.page),
+    kind: kind(p.kind),
     what: text(p.what),
     where: text(p.where),
     why: text(p.why),
@@ -174,12 +181,16 @@ export function recheckFrom(event: Record<string, unknown>): Recheck {
   return {
     pages: rows(event.pages).map((p) => ({
       page: text(p.page),
+      kind: kind(p.kind),
       checked: count(p.checked),
       error: typeof p.error === "string" && p.error ? p.error : null,
     })),
     problems,
     total: Math.max(count(event.problems_total), problems.length),
     cut: count(event.problems_cut),
+    notRechecked: (Array.isArray(event.not_rechecked) ? event.not_rechecked : []).filter(
+      (name): name is string => typeof name === "string" && !!name,
+    ),
     agrees: event.agrees === true,
   };
 }
@@ -189,10 +200,24 @@ export function recheckHeadline(recheck: Recheck): string {
   if (recheck.total > 0)
     return `${recheck.total} ${recheck.total === 1 ? "item" : "items"} the studio’s own check still finds wrong`;
   const read = recheck.pages.filter((p) => !p.error);
-  if (!read.length) return "The studio’s own check could not read the page.";
-  if (read.every((p) => p.checked === 0)) return "The studio’s own check found no marked figures on the page to compare.";
+  const files = recheck.pages.some((p) => p.kind === "file");
+  if (!read.length) return `The studio’s own check could not read the ${files ? "page or its files" : "page"}.`;
+  if (read.every((p) => p.checked === 0))
+    return `The studio’s own check found no marked figures on the page${files ? " and no figures in its files" : ""} to compare.`;
+  if (recheck.notRechecked.length)
+    return `The studio’s own check found nothing wrong in what it read, but ${recheck.notRechecked.length} more ${
+      recheck.notRechecked.length === 1 ? "page or file was" : "pages or files were"
+    } not re-checked.`;
   return "The studio’s own check agrees: nothing it can see is wrong.";
 }
 
 export const RECHECK_COVERS =
-  "The studio’s re-check covers only what the page check can see: marked figures against their saved sources and project data, and cited sources against the page’s source list. It does not look at charts, unmarked totals or how an app behaves.";
+  "The studio’s re-check covers only what its checks can see: marked figures on the page against their saved sources and project data, cited sources against the page’s source list, and the figures in the project’s Office and PDF files against checked page figures, data and saved sources. It does not look at charts, unmarked totals or how an app behaves.";
+
+/** A problem the re-check found in a file, as one line: its place, then the figure ("Slide 3, title: $4.3 billion"),
+ * with the file's name first when the re-check covered more than one page or file. */
+export function fileProblemLine(problem: RecheckProblem, withFile: boolean): string {
+  const name = problem.page.split("/").pop() || problem.page;
+  const place = problem.where ? `${problem.where}: ` : "";
+  return `${withFile ? `${name} · ` : ""}${place}${problem.what}`;
+}

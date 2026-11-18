@@ -323,6 +323,8 @@ if have soffice || have libreoffice || [ -x /Applications/LibreOffice.app/Conten
 else
   note "PowerPoint, Word and Excel files: LibreOffice is missing.  $(install_command 'brew install --cask libreoffice' libreoffice libreoffice)"
 fi
+if have pandoc; then note "Markdown to Word, EPUB and HTML (optional): pandoc is here."
+else note "Markdown to Word, EPUB and HTML (optional): pandoc is missing.  $(install_command 'brew install pandoc' pandoc pandoc)"; fi
 
 ELAPSED=$(( $(date +%s) - STARTED ))
 step "Installed in ${ELAPSED}s."

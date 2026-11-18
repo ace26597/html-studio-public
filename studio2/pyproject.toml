@@ -43,7 +43,7 @@ package-dir = {"" = "server"}
 where = ["server"]
 
 [tool.setuptools.package-data]
-studio2_server = ["static/*"]
+studio2_server = ["static/*", "static/vendor/mermaid/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

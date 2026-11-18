@@ -3,6 +3,66 @@
  * "Preview and bridge". Plain JS, no dependencies. Does nothing when not framed. */
 (function () {
   "use strict";
+  // The person's sign-in (CONTRACT.md, "Seeing an app signed in as the person"): a snapshot of
+  // this origin's localStorage and sessionStorage goes to the preview server (same origin; it
+  // answers the path itself and never passes it to the app). Framed or not; never in the studio's
+  // own headless browser. Cookies travel with the request; the server decides what it keeps.
+  if (window.__studioSession || navigator.webdriver) return;
+  window.__studioSession = true;
+  var PATH = "/__studio/session", sent = null, sentAt = 0, timer = null;
+  var send = window.fetch && window.fetch.bind(window);
+  function entries(store) {
+    var out = [];
+    try {
+      for (var i = 0; i < store.length; i++) {
+        var key = store.key(i);
+        if (key === null || key.indexOf("studio-scroll:") === 0) continue;
+        out.push([key, String(store.getItem(key))]);
+      }
+    } catch (e) {}
+    return out;
+  }
+  function report(force, leaving) {
+    if (!send) return;
+    var body = JSON.stringify({ local: entries(window.localStorage), session: entries(window.sessionStorage) });
+    var now = Date.now();
+    if (!force && body === sent && now - sentAt < 60000) return;
+    sent = body;
+    sentAt = now;
+    try {
+      send(PATH, { method: "POST", credentials: "same-origin", keepalive: !!leaving && body.length < 60000,
+                   headers: { "content-type": "application/json" }, body: body }).catch(function () {});
+    } catch (e) {}
+  }
+  function soon(ms) {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(function () { timer = null; report(true); }, ms);
+  }
+  soon(400);
+  setInterval(function () { if (document.visibilityState === "visible") report(false); }, 5000);
+  ["click", "submit"].forEach(function (name) {
+    window.addEventListener(name, function () { soon(2000); }, true);
+  });
+  ["popstate", "hashchange"].forEach(function (name) {
+    window.addEventListener(name, function () { soon(400); });
+  });
+  ["pushState", "replaceState"].forEach(function (name) {
+    var original = history[name];
+    if (typeof original !== "function") return;
+    history[name] = function () {
+      var result = original.apply(this, arguments);
+      soon(400);
+      return result;
+    };
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") report(true, true);
+  });
+  window.addEventListener("pagehide", function () { report(true, true); });
+})();
+
+(function () {
+  "use strict";
   if (window.parent === window || window.__studioBridge) return;
   window.__studioBridge = true;
 

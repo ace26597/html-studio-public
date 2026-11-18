@@ -7,6 +7,7 @@ import { formatBytes, projectFileUrl } from "./format";
 import { findPoster, mediaKind, type MediaKind } from "./mediaFiles";
 import { findPreview, OFFICE_KIND_LABEL, officeKind, orderTreeItems, type OfficeKind } from "./office";
 import { Icon, Spinner } from "./icons";
+import { FileShown, SHOW_LABEL, shownAs } from "./FileShown";
 import type { FileEntry } from "./types";
 import { IconButton, useToast } from "./ui";
 import { latestOnly, mayDiscard } from "./discard";
@@ -23,6 +24,8 @@ interface FilesPanelProps {
   onClose: () => void;
   /** Whether the open file has unsaved edits, so a close from outside the panel can ask first. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** A file to open, asked for from elsewhere (a file card in the chat); `n` changes with each ask. */
+  openRequest?: { path: string; n: number } | null;
 }
 
 interface DirNode {
@@ -77,6 +80,7 @@ export function FilesPanel({
   downloadUrl,
   onClose,
   onDirtyChange,
+  openRequest,
 }: FilesPanelProps) {
   const toast = useToast();
   const [files, setFiles] = useState<FileEntry[] | null>(null);
@@ -87,6 +91,8 @@ export function FilesPanel({
   const [saving, setSaving] = useState(false);
   const [stale, setStale] = useState(false);
   const [dragging, setDragging] = useState(false);
+  /** Markdown, CSV and SVG open as what they are; this shows their source text instead. */
+  const [showSource, setShowSource] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
@@ -115,7 +121,10 @@ export function FilesPanel({
   const loadFile = useCallback(
     async (path: string, quiet = false) => {
       const ticket = loads.current.begin();
-      if (!quiet) setOpenFile({ state: "loading", path });
+      if (!quiet) {
+        setOpenFile({ state: "loading", path });
+        setShowSource(false);
+      }
       setStale(false);
       const media = mediaKind(path);
       if (media) {
@@ -191,6 +200,28 @@ export function FilesPanel({
     if (!discardOk()) return;
     void loadFile(path);
   };
+
+  // A file card in the chat asked for this file: open it (asking first about unsaved edits) and
+  // unfold the folders above it so its row is seen.
+  const selectRef = useRef(select);
+  selectRef.current = select;
+  const openN = openRequest?.n;
+  useEffect(() => {
+    if (!openRequest) return;
+    const parts = openRequest.path.split("/");
+    const above = parts.slice(0, -1).map((_, i) => parts.slice(0, i + 1).join("/"));
+    setCollapsed((set) => {
+      const next = new Set(set);
+      for (const dir of above) {
+        // `collapsed` means "toggled": a preview folder is folded unless toggled, others the other way.
+        if (/\.preview$/i.test(dir)) next.add(dir);
+        else next.delete(dir);
+      }
+      return next;
+    });
+    selectRef.current(openRequest.path);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openN]);
 
   const closeViewer = () => {
     if (!discardOk()) return;
@@ -423,6 +454,16 @@ export function FilesPanel({
             </h2>
             {dirty && <span className="viewer-dirty">Edited</span>}
             <span className="panel-spacer" />
+            {openFile.state === "text" && shownAs(openFile.path) && (
+              <button
+                type="button"
+                className="btn btn-small"
+                aria-pressed={showSource}
+                onClick={() => setShowSource((value) => !value)}
+              >
+                {showSource ? SHOW_LABEL[shownAs(openFile.path)!] : "Show source"}
+              </button>
+            )}
             {(openFile.state === "office" || openFile.state === "media") && (
               <a
                 className="btn btn-small"
@@ -466,7 +507,10 @@ export function FilesPanel({
                 <Spinner />
               </div>
             )}
-            {openFile.state === "text" && (
+            {openFile.state === "text" && shownAs(openFile.path) && !showSource && (
+              <FileShown path={openFile.path} text={buffer} as={shownAs(openFile.path)!} />
+            )}
+            {openFile.state === "text" && (!shownAs(openFile.path) || showSource) && (
               <textarea
                 className="code-editor"
                 aria-label={`Contents of ${openFile.path}`}
@@ -517,7 +561,13 @@ export function FilesPanel({
                 />
               </div>
             )}
-            {(openFile.state === "unsupported" || openFile.state === "error") && (
+            {openFile.state === "unsupported" && shownAs(openFile.path) === "picture" && (
+              // Too large to open as text: still the picture, loaded as an image (which runs no script).
+              <div className="viewer-image">
+                <img src={projectFileUrl(previewUrl, openFile.path)} alt={openFile.path} />
+              </div>
+            )}
+            {((openFile.state === "unsupported" && shownAs(openFile.path) !== "picture") || openFile.state === "error") && (
               <div className="panel-empty">
                 <p>{openFile.state === "unsupported" ? "This file can’t be shown as text." : openFile.message}</p>
                 <a

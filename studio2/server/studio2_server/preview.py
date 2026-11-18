@@ -10,12 +10,15 @@ import mimetypes
 import re
 import socket
 import zlib
+from http.cookiejar import CookieJar, DefaultCookiePolicy
 from pathlib import Path
 
 import httpx
 import uvicorn
 import websockets
 from uvicorn.server import ServerState
+
+from . import session as signin
 
 
 log = logging.getLogger("studio2")
@@ -277,11 +280,14 @@ def content_type(path: Path) -> str:
 class PreviewApp:
     """A minimal ASGI static server for one workspace."""
 
-    def __init__(self, workspace: Path, target=None):
+    def __init__(self, workspace: Path, target=None, sessions=None, project_id: str | None = None):
         self.workspace = workspace
         self.target = target or (lambda: ("static", None, None))  # → (mode, app port, app)
+        self.sessions, self.project_id = sessions, project_id      # the person's sign-in (session.py)
+        # A jar that keeps nothing: the app's Set-Cookie is the browser's to keep, never this client's
+        # (it would send one browser's cookie with every later request, from anyone).
         self.client = httpx.AsyncClient(timeout=httpx.Timeout(None, connect=5.0), follow_redirects=False,
-                                        trust_env=False)
+                                        trust_env=False, cookies=CookieJar(DefaultCookiePolicy(allowed_domains=[])))
 
     def resolve(self, url_path: str) -> tuple[int, Path | None, str | None]:
         """→ (status, file, redirect). Never leaves the workspace and never serves .git."""
@@ -324,6 +330,11 @@ class PreviewApp:
         if path == "/__studio/bridge.js":
             body = await asyncio.to_thread(BRIDGE_PATH.read_bytes)
             return await self._send(send, scope, 200, body, "text/javascript; charset=utf-8", headers)
+        if path == signin.REPORT_PATH:
+            # Answered here, never passed to the app, and never answered with anything kept.
+            return await self._session_report(scope, receive, send, headers)
+        if self.sessions is not None:
+            self.sessions.note_request(self.project_id, scope)
         if dict(scope["headers"]).get(b"service-worker") == b"script":
             # A service worker would fetch the project's pages itself (so they arrive without the
             # bridge) and serve old copies of them. In the studio a project never gets one: the
@@ -359,6 +370,30 @@ class PreviewApp:
         body = inject_bridge(await asyncio.to_thread(target.read_bytes))
         await self._send(send, scope, 200, body, kind, {**headers, **as_download(scope, target)})
 
+    async def _session_report(self, scope, receive, send, headers: dict) -> None:
+        """The bridge's report of the page's storage (CONTRACT.md, "The report from the page")."""
+        plain = "text/plain; charset=utf-8"
+        if self.sessions is None:
+            return await self._send(send, scope, 404, b"Not found", plain, headers)
+        body, too_large = bytearray(), False
+        while True:
+            message = await receive()
+            if message["type"] != "http.request":
+                break
+            if not too_large:
+                body += message.get("body", b"")
+                if len(body) > signin.STORAGE_LIMIT:
+                    too_large, body = True, bytearray()
+            if not message.get("more_body"):
+                break
+        try:
+            self.sessions.report(self.project_id, scope, bytes(body), too_large)
+        except signin.ReportRefused as exc:
+            return await self._send(send, scope, exc.status, str(exc).encode(), plain, headers)
+        await send({"type": "http.response.start", "status": 204,
+                    "headers": [(k.encode(), v.encode()) for k, v in headers.items()]})
+        await send({"type": "http.response.body", "body": b""})
+
     @staticmethod
     def _host(app, port: int) -> str:
         """host:port of the upstream: the studio's own app on 127.0.0.1, or an attached address."""
@@ -375,7 +410,10 @@ class PreviewApp:
         request_headers = [(k, v) for k, v in scope["headers"]
                            if k.decode("latin-1").lower() not in (
                                "host", "accept-encoding", "connection", "if-none-match", "if-modified-since",
-                               *NOT_FORWARDED)]
+                               signin.MARKER, *NOT_FORWARDED)]
+        request_headers = [(k, signin.without_access_cookie(v)) if k.lower() == b"cookie" else (k, v)
+                           for k, v in request_headers]   # the studio's access key is never the app's to see
+        request_headers = [(k, v) for k, v in request_headers if not (k.lower() == b"cookie" and not v)]
         request_headers.append((b"host", upstream_host.encode()))
         request_headers = self._own_origin(scope, request_headers, upstream_host)
         request_headers.append((b"accept-encoding", b"identity"))
@@ -401,6 +439,8 @@ class PreviewApp:
             page = inject_bridge(status_page(app))
             return await self._send(send, scope, 502, page, "text/html; charset=utf-8", {"cache-control": "no-store"})
         try:
+            if self.sessions is not None:      # the names and attributes of the app's cookies, never values
+                self.sessions.note_set_cookies(self.project_id, scope, upstream.headers.get_list("set-cookie"))
             kind = upstream.headers.get("content-type", "")
             out = [(k.lower(), v) for k, v in upstream.headers.raw if k.decode("latin-1").lower() not in HOP_BY_HOP]
             length = upstream.headers.get("content-length")
@@ -581,6 +621,10 @@ class PreviewApp:
             return await send({"type": "websocket.close", "code": 4403})
         passed = {name.decode("latin-1"): given[name].decode("latin-1") for name in (b"cookie", b"authorization")
                   if name in given}
+        if "cookie" in passed:
+            passed["cookie"] = signin.without_access_cookie(given[b"cookie"]).decode("latin-1")
+            if not passed["cookie"]:
+                del passed["cookie"]
         try:
             # The app sees a socket from its own origin, with the page's cookies (a signed-in app
             # checks them on its sockets too).
@@ -694,8 +738,10 @@ def bind(hosts: tuple[str, ...], port: int) -> list[tuple[socket.socket, bool]]:
 class Previews:
     """One listening socket per project and address, all in the studio's event loop."""
 
-    def __init__(self, hosts: tuple[str, ...] = (), guard=None, tls: tuple[str, str] | None = None):
+    def __init__(self, hosts: tuple[str, ...] = (), guard=None, tls: tuple[str, str] | None = None,
+                 sessions=None):
         self.tls = tls
+        self.sessions = sessions
         self.running: dict[str, tuple[list[asyncio.AbstractServer], ServerState, int]] = {}
         self.hosts = ("127.0.0.1", *hosts)   # loopback first: it decides whether the port is free
         self.guard = guard or (lambda app: app)
@@ -710,7 +756,8 @@ class Previews:
             return
         sockets = bind(self.hosts, port)
         state = ServerState()
-        servers = await listen(self.guard(PreviewApp(workspace, target)), sockets, self.tls, state)
+        servers = await listen(self.guard(PreviewApp(workspace, target, self.sessions, project_id)),
+                               sockets, self.tls, state)
         self.running[project_id] = (servers, state, port)
 
     async def stop(self, project_id: str) -> None:

@@ -21,6 +21,7 @@ import { VoiceButton } from "./VoiceButton";
 import { formatBytes, truncate } from "./format";
 import { Icon, Spinner } from "./icons";
 import { AttachmentList, SelectionChip, ThreadView, type DecisionState } from "./ThreadView";
+import type { ChatFiles } from "./chatFiles";
 import { latestActivity, waitingApprovals, type ApprovalItem, type NoticeItem, type ThreadState, type Turn } from "./thread";
 import type { Approvals, Connection, Project, Selection } from "./types";
 import { IconButton, Menu, useToast, type MenuEntry } from "./ui";
@@ -79,6 +80,9 @@ interface ChatProps {
   onDecide: (item: ApprovalItem, decision: "allow" | "deny") => void;
   decisions: Record<string, DecisionState>;
   fileHref: (path: string) => string | null;
+  /** The chat's file cards: sizes now, and opening a file (or, with null, the whole list) in Files. */
+  chatFiles?: ChatFiles;
+  onOpenFile?: (path: string | null) => void;
   readDrawing?: (path: string) => Promise<string[]>;
   onUnqueue: (queuedId: string) => void;
   unqueuing: ReadonlySet<string>;
@@ -255,6 +259,8 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
     onDecide,
     decisions,
     fileHref,
+    chatFiles,
+    onOpenFile,
     readDrawing,
     onUnqueue,
     unqueuing,
@@ -464,13 +470,15 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
       onDecide,
       decisions,
       fileHref,
+      chatFiles,
+      onOpenFile,
       readDrawing,
       projectId: project.id,
       onUseStep: fillFromStep,
       onPutBack: putBackNote,
       busy: starting || queue.length > 0,
     }),
-    [onRetry, onOpenVersion, running, starting, onDecide, decisions, fileHref, readDrawing, project.id, fillFromStep, putBackNote, queue.length],
+    [onRetry, onOpenVersion, running, starting, onDecide, decisions, fileHref, chatFiles, onOpenFile, readDrawing, project.id, fillFromStep, putBackNote, queue.length],
   );
 
   const activity = running ? latestActivity(thread) : null;

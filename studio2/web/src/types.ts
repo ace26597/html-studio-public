@@ -34,6 +34,8 @@ export interface Project {
   app_config?: { run?: string; restart?: string; address?: string } | null;
   /** Step 3l: how this attached project is made live; null for other projects. */
   ship?: ShipView | null;
+  /** The agent's looks carry the person's sign-in (effective value; false on a shared studio). */
+  signed_in_looks?: boolean;
 }
 
 // ---- Step 3l: make it live -------------------------------------------------------
@@ -746,17 +748,25 @@ export interface VerificationRecheckEvent extends EventBase {
   type: "verification_recheck";
   pages: {
     page: string;
+    /** "file": an Office or PDF file the file check read (CONTRACT.md, "Verify content reaches files"). */
+    kind?: "page" | "file";
     checked: number;
     verified: number;
     derived: number;
     failed: number;
     cited_not_listed: number;
     source_list: boolean;
+    /** Files only. */
+    found?: number;
+    not_found?: number;
+    rounded?: number;
     error: string | null;
   }[];
-  problems: { page: string; what: string; where: string; why: string }[];
+  problems: { page: string; kind?: "page" | "file"; what: string; where: string; why: string }[];
   problems_total: number;
   problems_cut: number;
+  /** Pages and files past the re-check's caps that it did not read (Very large documents). */
+  not_rechecked?: string[];
   agrees: boolean;
 }
 /** Step 3o: what the studio picked from the library for this request. */

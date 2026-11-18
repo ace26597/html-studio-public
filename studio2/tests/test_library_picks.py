@@ -82,8 +82,8 @@ def test_everything_is_found_and_only_skill_folders_and_connector_settings_are_t
 
     lib = Library(settings, MemoryJson())
     meta = lib.catalog.ensure()
-    assert meta["counts"]["skill"] == {"studio": 22, "machine": 1, "plugin": 3} and meta["duplicates"] == 1
-    assert meta["counts"]["agent"] == {"studio": 2, "machine": 1, "plugin": 1}
+    assert meta["counts"]["skill"] == {"studio": 24, "machine": 1, "plugin": 3} and meta["duplicates"] == 1
+    assert meta["counts"]["agent"] == {"studio": 4, "machine": 1, "plugin": 1}
     by_id = lib.catalog.by_id
     assert by_id["plugin:legal@market:odd-place"]["enabled"] and not by_id["plugin:other@market:poetry"]["enabled"]
     assert by_id["plugin:other@market:contract-review"]["duplicate_of"] == "plugin:legal@market:contract-review"
@@ -129,7 +129,7 @@ def test_the_skill_list_is_kept_inside_its_budget(settings):
     own = lib.catalog.skills(("studio",))
     extra = [{"id": f"x:{i}", "name": f"extra-skill-{i}", "description": "Does a long list of things. " * 20} for i in range(25)]
     fitted, chars, cap = Library.fit(own + extra)
-    assert len(fitted) == 47 and chars <= LIST_BUDGET_CHARS and cap >= 60
+    assert len(fitted) == 49 and chars <= LIST_BUDGET_CHARS and cap >= 60
     assert all(len(skill["listed"]) <= cap for skill in fitted)
     fitted, chars, _cap = Library.fit(own + extra * 8)      # far too many: the last ones are left out
     assert chars <= LIST_BUDGET_CHARS and len(fitted) < len(own) + 200 and fitted[0]["id"] == own[0]["id"]
@@ -153,9 +153,9 @@ async def test_a_request_gets_a_picked_set_with_reasons_and_pins_and_nevers_hold
     assert picked["mode"] == "model" and picked["library_skills"] == 2002 and picked["considered"] == 60
     assert [s["name"] for s in picked["skills"]][0] == "contract-redlines"
     assert picked["skills"][0]["reason"] == "Reviews contracts clause by clause." and len(picked["skills"]) == 2
-    assert picked["list_chars"] <= picked["budget_chars"] and picked["loaded_skills"] == 24
+    assert picked["list_chars"] <= picked["budget_chars"] and picked["loaded_skills"] == 26
     loaded = {p.name for p in (studio.store.dir(pid) / "library" / "skills").iterdir()}
-    assert "contract-redlines" in loaded and "deep-research" in loaded and len(loaded) == 24
+    assert "contract-redlines" in loaded and "deep-research" in loaded and len(loaded) == 26
     assert not (studio.store.dir(pid) / "library" / "hooks").exists()
     second = picked["skills"][1]["id"]
 
@@ -180,7 +180,7 @@ async def test_a_request_gets_a_picked_set_with_reasons_and_pins_and_nevers_hold
 
     # The agent is told how this works and what it was given.
     context = studio.agent_context(pid, picked)
-    assert "2024 skills" in context and "search_library" in context and "trial-finder" in context
+    assert "2026 skills" in context and "search_library" in context and "trial-finder" in context
 
     # A slow or failing choosing call: the word search alone decides, and says so.
     async def slow(*_a):
@@ -203,14 +203,14 @@ async def test_a_request_gets_a_picked_set_with_reasons_and_pins_and_nevers_hold
 
     # The library screen pages and searches the whole index.
     page = (await client.get("/api/library/items", params={"kind": "skills", "limit": 50, "offset": 100})).json()
-    assert page["total"] == 2024 and len(page["items"]) == 50 and page["index"]["skills"] == 2024
-    assert page["counts"] == {"studio": 22, "machine": 2, "plugin": 2000} and "dir" not in page["items"][0]
+    assert page["total"] == 2026 and len(page["items"]) == 50 and page["index"]["skills"] == 2026
+    assert page["counts"] == {"studio": 24, "machine": 2, "plugin": 2000} and "dir" not in page["items"][0]
     mine = (await client.get("/api/library/items", params={"source": "machine"})).json()
     assert mine["total"] == 2 and mine["counts"] == page["counts"]     # counts are from before the source filter
     found = (await client.get("/api/library/items", params={"q": "contract", "state": "never"})).json()
     assert [item["id"] for item in found["items"]] == [second]
     assert (await client.get("/api/library")).json()["index"]["by_source"]["skills"]["plugin"] == 2000
-    assert len((await client.get("/api/library")).json()["skills"]) == 22
+    assert len((await client.get("/api/library")).json()["skills"]) == 24
 
 
 async def test_a_small_library_is_loaded_whole_and_nothing_is_chosen(client, studio, project, settings):

@@ -7990,3 +7990,216 @@ a.attachment:hover {
     width: auto;
   }
 }
+
+/* ---- files a request made (cards in the chat), and files shown as what they are ---------------- */
+
+.file-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  min-width: 0;
+}
+
+.file-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  transition:
+    border-color var(--fast) var(--ease),
+    background var(--fast) var(--ease);
+}
+
+button.file-card {
+  cursor: pointer;
+}
+
+button.file-card:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+button.file-card:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 1px;
+}
+
+.file-card.is-gone {
+  border-style: dashed;
+  background: transparent;
+  color: var(--text-3);
+}
+
+.file-card-thumb,
+.file-card-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+}
+
+.file-card-thumb {
+  object-fit: cover;
+  background: var(--surface-2);
+}
+
+.file-card-icon {
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.file-card-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.file-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.file-card-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.file-card-action {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 7px;
+  color: var(--accent-text);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+button.file-card-action {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+button.file-card-action:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.file-cards-more {
+  align-self: flex-start;
+  min-height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.file-cards-more:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* Markdown and tables in the Files panel's viewer */
+
+.file-shown {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.file-markdown {
+  padding: 18px 22px 28px;
+  font-size: 14px;
+}
+
+.file-markdown .md {
+  max-width: 72ch;
+}
+
+.file-table-wrap {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.file-table-cut {
+  flex: none;
+  margin: 0;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.file-table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.file-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.file-table th,
+.file-table td {
+  max-width: 320px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.file-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.file-table .is-num {
+  text-align: right;
+  white-space: nowrap;
+}

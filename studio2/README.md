@@ -13,7 +13,7 @@ layout, running from source, tests, every setting, and the rules.
 | `server/studio2_server/` | The FastAPI server and the `studio` command |
 | `web/` | The interface: React 19, Vite, TypeScript. Built into `web/dist`, which the server serves |
 | `web/mock/` | A stand-in server for interface work (`npm run mock`); not shipped |
-| `library/` | What the agent is given: `system-prompt.md`, 22 skills (four of them Anthropic's, see `library/skills/THIRD_PARTY.md`), 2 sub-agents, 6 starting templates, 8 finished examples (`examples/`, made from real projects with `tools/examples/add.py`), the price list for the backup cost calculation (`model-prices.json`, written by `tools/prices/update.py`), suggested connectors |
+| `library/` | What the agent is given: `system-prompt.md`, 24 skills (four of them Anthropic's, see `library/skills/THIRD_PARTY.md`), 4 sub-agents, 6 starting templates, 8 finished examples (`examples/`, made from real projects with `tools/examples/add.py`), the price list for the backup cost calculation (`model-prices.json`, written by `tools/prices/update.py`), suggested connectors |
 | `tests/` | Server tests. They run on the scripted agent and make no model call |
 | `install.sh` | The installer described on the front page |
 | `server-requirements.txt`, `server-dev-requirements.txt` | The server's packages at exact versions, pinned by hash, for macOS and Linux; the second adds what the tests need. Written by `tools/lock-server.sh` |
@@ -30,8 +30,8 @@ The server, by concern:
 | `api.py`, `studio.py`, `store.py`, `events.py`, `turns.py` | Routes, the project record, the event log, one agent turn per project at a time |
 | `harness/` (`base.py`, `claude.py`, `fake.py`, `cheap.py`) | The agent program behind one interface: Claude Agent SDK, the scripted agent, the cheap-model call |
 | `workspace.py`, `watcher.py`, `preview.py`, `apps.py`, `static/bridge.js` | A project's folder and git history, live reload, the page proxy, a project's own back end, the select/edit/draw bridge |
-| `tools.py`, `search.py`, `sources.py`, `check.py`, `look.py`, `datasources.py` | The studio's tools for the agent: search, saved sources, the page check, looking at the page, databases |
-| `office.py`, `media.py`, `generate.py`, `voice.py`, `drawing.py`, `templates.py` | Office files, video and pictures, generated media, dictation, drawings, templates |
+| `tools.py`, `search.py`, `sources.py`, `check.py`, `filecheck.py`, `look.py`, `layout.py`, `session.py`, `datasources.py` | The studio's 26 tools for the agent: search, saved sources, the page check, the check of figures in Office files and PDFs, looking at the page (pieces, measurements, and the person's sign-in when they allow it), databases |
+| `office.py`, `convert.py`, `diagram.py`, `media.py`, `generate.py`, `voice.py`, `drawing.py`, `templates.py`, `ownskills.py` | Office files, conversions between document formats, diagrams (Mermaid, kept in `static/vendor/mermaid`), video and pictures, generated media, dictation, drawings, templates, skills a person makes |
 | `attach.py`, `ship.py` | Bringing an app by its folder; making it live |
 | `cli.py`, `setup.py`, `setup_api.py`, `doctor.py`, `config.py`, `keystore.py`, `access.py` | The `studio` command, setup, settings, the secret store, access from other devices |
 | `gateway.py`, `modelcheck.py`, `models_api.py` | The LiteLLM the studio runs; "Check this model" |

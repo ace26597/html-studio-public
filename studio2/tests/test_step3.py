@@ -319,7 +319,7 @@ async def test_skills_and_servers_are_listed_added_and_chosen_per_project(client
         "notes": {"command": "notes-mcp", "args": ["--x"], "env": {"NOTES_KEY": "secret-value"}}}}))
 
     library = (await client.get("/api/library")).json()
-    assert {a["name"] for a in library["agents"]} == {"researcher", "checker"}
+    assert {a["name"] for a in library["agents"]} == {"researcher", "checker", "section-writer", "slide-reviewer"}
     assert "check_page" in {t["name"] for t in library["studio_tools"]}
     by_id = {s["id"]: s for s in library["mcp_servers"]}
     assert by_id["machine:notes"]["secret_names"] == ["NOTES_KEY"] and "secret-value" not in json.dumps(library)

@@ -10,6 +10,7 @@ import { ShipPanel } from "./ShipPanel";
 import { shipButton } from "./ship";
 import { Chat, FOCUS_SHORTCUT, type ChatHandle, type PendingAttachment } from "./Chat";
 import { FilesPanel } from "./FilesPanel";
+import { useChatFiles } from "./chatFiles";
 import { planAttachments } from "./attachments";
 import { dragExpired, DRAG_IDLE_MS } from "./drag";
 import { drawingImages, drawReducer, initialDraw, messageText, turnAttachments } from "./drawing";
@@ -23,6 +24,7 @@ import { LogsDrawer } from "./LogsDrawer";
 import { useCompact, useKeyboardInset } from "./media";
 import { ProjectLibraryPanel } from "./ProjectLibraryPanel";
 import { MakeSkillDialog, makeSkillEntry } from "./MakeSkillDialog";
+import { signedInEntries } from "./signedInLook";
 import { SaveTemplateDialog } from "./SaveTemplateDialog";
 import { fromWorkRequest } from "./skillMaking";
 import { Preview, type PreviewHandle } from "./Preview";
@@ -82,6 +84,8 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
 
   const [mode, setMode] = useState<Mode>("browse");
   const [filesOpen, setFilesOpen] = useState(false);
+  /** A file a card in the chat asked the Files panel to open. */
+  const [fileAsk, setFileAsk] = useState<{ path: string; n: number } | null>(null);
   const [costOpen, setCostOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [rightPanel, setRightPanel] = useState<RightPanel>(null);
@@ -310,6 +314,16 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
     (path: string) => (previewUrl ? projectFileUrl(previewUrl, path) : null),
     [previewUrl],
   );
+  // The chat's file cards: sizes from the listing, and opening a file in the Files panel.
+  const chatFiles = useChatFiles(id, thread);
+  const openFileFromChat = useCallback((path: string | null) => {
+    setFilesOpen(true);
+    setFileAsk((ask) => (path ? { path, n: (ask?.n ?? 0) + 1 } : null));
+  }, []);
+  // An ask is for the panel as it is open now: a later opening starts with no file asked for.
+  useEffect(() => {
+    if (!filesOpen) setFileAsk(null);
+  }, [filesOpen]);
   const effectiveMode: Mode = running && mode === "edit" ? "browse" : mode;
   const compact = useCompact();
   useKeyboardInset(compact);
@@ -534,6 +548,28 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
         );
     },
     [id, toast],
+  );
+
+  const setSignedInLooks = useCallback(
+    (on: boolean) => {
+      if (!project) return;
+      const previous = project;
+      setProject({ ...project, signed_in_looks: on });
+      api.patchProject(id, { signed_in_looks: on }).then(
+        (updated) => {
+          setProject(updated);
+          toast({
+            message: on ? "The agent now sees this app signed in as you" : "The agent no longer uses your sign-in",
+            kind: "success",
+          });
+        },
+        (error) => {
+          setProject(previous);
+          toast({ message: errorMessage(error), kind: "error" });
+        },
+      );
+    },
+    [id, project, toast],
   );
 
   const setApprovals = useCallback(
@@ -871,6 +907,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
       icon: theme === "dark" ? "sun" : "moon",
       onSelect: onToggleTheme,
     },
+    ...signedInEntries(project, Boolean(health.shared), setSignedInLooks),
   ];
 
   const status = needsYou ? "Waiting for you" : running ? "Working" : stream === "reconnecting" ? "Reconnecting" : "";
@@ -1193,6 +1230,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
                 icon: "download",
                 onSelect: () => setExportOpen(true),
               },
+              ...signedInEntries(project, Boolean(health.shared), setSignedInLooks),
             ]}
             trigger={(props) => (
               <button type="button" className="icon-btn" aria-label="More" data-tip="More" data-tip-align="end" {...props}>
@@ -1326,6 +1364,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             downloadUrl={api.downloadUrl(id)}
             onClose={() => setFilesOpen(false)}
             onDirtyChange={onFilesDirty}
+            openRequest={fileAsk}
           />
         )}
 
@@ -1391,6 +1430,8 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             onDecide={decide}
             decisions={decisions}
             fileHref={fileHref}
+            chatFiles={chatFiles}
+            onOpenFile={openFileFromChat}
             readDrawing={readDrawing}
             onUnqueue={unqueue}
             unqueuing={unqueuing}

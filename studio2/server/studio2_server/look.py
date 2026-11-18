@@ -82,7 +82,8 @@ class LookUnavailable(Exception):
 
 
 class Looker:
-    def __init__(self):
+    def __init__(self, sessions=None):
+        self.sessions = sessions        # session.Sessions: what a context for a project page starts with
         self._playwright = self._browser = None
         self._lock = asyncio.Lock()
         self._slots = asyncio.Semaphore(2)
@@ -126,14 +127,28 @@ class Looker:
         """`async with looker.slot():` — at most two pages are open in the browser at once."""
         return self._slots
 
+    async def _open(self, browser, url: str | None, **options):
+        """→ (context, plan). Every context the studio opens comes from here: for a project's own
+        page it carries the person's sign-in or the agent's kept one (session.py); for any other
+        URL, or `url` None, nothing."""
+        if self.sessions is None:
+            return await browser.new_context(**options), None
+        return await self.sessions.open(browser, url, **options)
+
+    async def new_context(self, url: str | None, **options):
+        """A browser context for loading `url` (media.py renders with it)."""
+        context, _plan = await self._open(await self._ensure(), url, **options)
+        return context
+
     async def look(self, url: str, directory: Path, *, width: int = 1440, height: int = 900,
                    dark: bool = False, full_page: bool = True, wait_ms: int = 1200,
                    actions: list[dict] | None = None, tiles: bool = True, layout: bool = True,
-                   top: int = 0) -> dict:
+                   top: int = 0, signed_in: bool = True) -> dict:
         """Load `url`, act, and save a picture of it. `tiles`: also save the page as pieces a model
         can read (the one picture of a tall page reaches it scaled down). `layout`: also measure
         the page (layout.py). The studio's own looks ask for neither. `top`: where the picture
-        starts, in page pixels, for the parts of a long page below the first MAX_HEIGHT."""
+        starts, in page pixels, for the parts of a long page below the first MAX_HEIGHT.
+        `signed_in` False: a clean browser, for a picture that leaves the project."""
         browser = await self._ensure()
         directory.mkdir(parents=True, exist_ok=True)
         console: list[dict] = []
@@ -141,9 +156,10 @@ class Looker:
         async with self._slots:
             # A phone's screen has at least twice the pixels of its CSS width; the pieces use them.
             density = 2 if tiles and width < NARROW else 1
-            context = await browser.new_context(viewport={"width": width, "height": height},
-                                                device_scale_factor=density,
-                                                color_scheme="dark" if dark else "light")
+            context, plan = await self._open(browser, url if signed_in else None,
+                                             viewport={"width": width, "height": height},
+                                             device_scale_factor=density,
+                                             color_scheme="dark" if dark else "light")
             try:
                 page = await context.new_page()
                 page.on("console", lambda m: console.append({"level": m.type, "text": m.text[:TEXT_CAP]})
@@ -197,10 +213,14 @@ class Looker:
                             measure.AUDIT_JS, {"per": measure.PER_KIND, "max": measure.MAX_ELEMENTS}))
                     except Exception:  # noqa: BLE001 - the measurements are an extra; the look still succeeds
                         log.debug("could not measure the layout of %s", url, exc_info=True)
+                if plan is not None:
+                    await self.sessions.keep(plan, context, page)
             finally:
                 await context.close()
         self._prune(directory)
         extra = {"tiles": pieces} if tiles else {}
+        if plan is not None:
+            extra.update(plan.fields())
         if layout:
             extra["layout"] = measured
         return {"image": str(target), "url": url, "status": status, "title": title,
@@ -226,8 +246,8 @@ class Looker:
         directory.mkdir(parents=True, exist_ok=True)
         width, height = drawing["viewport"]["width"], drawing["viewport"]["height"]
         async with self._slots:
-            context = await browser.new_context(
-                viewport={"width": width, "height": height}, device_scale_factor=2 if width < 700 else 1,
+            context, _plan = await self._open(
+                browser, url, viewport={"width": width, "height": height}, device_scale_factor=2 if width < 700 else 1,
                 color_scheme="dark" if drawing.get("dark") else "light")
             try:
                 page = await context.new_page()
@@ -249,7 +269,8 @@ class Looker:
         """→ (final URL, HTML after scripts ran) for a page that builds itself in the browser."""
         browser = await self._ensure()
         async with self._slots:
-            context = await browser.new_context(viewport={"width": 1366, "height": 900})
+            # An outside page: never anything of a project's sign-in (url None), whatever its address.
+            context, _plan = await self._open(browser, None, viewport={"width": 1366, "height": 900})
             try:
                 page = await context.new_page()
                 await page.goto(url, wait_until="domcontentloaded", timeout=30_000)

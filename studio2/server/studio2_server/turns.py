@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 from . import drawing, effort, nextsteps, tools
 from .check import check_page
+from .filecheck import NOT_FOUND_WHY, PLACEHOLDER_WHY, check_file, linked_files
 from .config import now_iso
 from .costs import AGENT_PRICED, GATEWAY_KIND, SELF_PRICED, per_turn
 from . import workspace as ws
@@ -140,6 +141,7 @@ class TurnRunner:
         self.pending: dict[str, dict[str, asyncio.Future]] = {}  # turn id → approval id → answer
         self.verified: set[str] = set()             # turns that called report_verification
         self.checked_pages: dict[str, list[str]] = {}   # turn id → pages check_page ran on in it
+        self.checked_files: dict[str, list[str]] = {}   # turn id → files check_file ran on in it
         self.reports: dict[str, dict] = {}          # turn id → {failed} of its last report_verification
         self.proposed: dict[str, list[dict]] = {}   # turn id → the agent's suggest_next_steps, cleaned
 
@@ -284,44 +286,80 @@ class TurnRunner:
         if task:
             await asyncio.gather(task, return_exceptions=True)
 
-    RECHECK_PAGES, RECHECK_PROBLEMS = 10, 40
+    RECHECK_PAGES, RECHECK_FILES, RECHECK_PROBLEMS = 10, 10, 40
 
     async def _recheck(self, pid: str, turn_id: str, workspace: Path) -> int:
         """After a reported verification: the page check once more, on index.html and every page
-        check_page ran on in this request → one `verification_recheck` event (CONTRACT.md).
-        → how many problems it found (0 when there was no page to check)."""
+        check_page ran on in this request, and the file check on every file check_file ran on and
+        every Office or PDF file index.html links or frames → one `verification_recheck` event
+        (CONTRACT.md). → how many problems it found (0 when there was nothing to check)."""
         pages: list[str] = []
         for page in ["index.html", *self.checked_pages.get(turn_id, [])]:
             if page not in pages and (workspace / page).is_file():
                 pages.append(page)
-        if not pages:
+        files: list[str] = []
+        try:
+            shown = await asyncio.to_thread(linked_files, workspace, "index.html")
+        except Exception:  # noqa: BLE001 - the files the request checked are still re-checked
+            log.exception("Could not read the files index.html shows")
+            shown = []
+        for name in [*self.checked_files.get(turn_id, []), *shown]:
+            if name not in files and (workspace / name).is_file():
+                files.append(name)
+        if not pages and not files:
             return 0
-        summaries, problems = [], []
+        summaries, problems, file_problems = [], [], []
         for page in pages[:self.RECHECK_PAGES]:
             try:
                 result = await asyncio.to_thread(check_page, workspace, page, False)
             except Exception as exc:  # noqa: BLE001 - said on the card, never a silent pass
-                summaries.append({"page": page, "checked": 0, "verified": 0, "derived": 0, "failed": 0,
+                summaries.append({"page": page, "kind": "page", "checked": 0, "verified": 0, "derived": 0, "failed": 0,
                                   "cited_not_listed": 0, "source_list": False, "error": effort._cut(str(exc), 300)})
                 continue
             summary = result["summary"]
-            summaries.append({"page": page, "checked": len(result["items"]), "verified": summary["verified"],
-                              "derived": summary["derived"], "failed": summary["failed"],
-                              "cited_not_listed": summary["cited_not_listed"], "source_list": result["source_list"],
-                              "error": None})
+            summaries.append({"page": page, "kind": "page", "checked": len(result["items"]),
+                              "verified": summary["verified"], "derived": summary["derived"],
+                              "failed": summary["failed"], "cited_not_listed": summary["cited_not_listed"],
+                              "source_list": result["source_list"], "error": None})
             for item in result["items"]:
                 if item["status"] == "failed":
-                    problems.append({"page": page, "what": effort._cut(item["text"] or f"Item {item['n']}", 200),
+                    problems.append({"page": page, "kind": "page",
+                                     "what": effort._cut(item["text"] or f"Item {item['n']}", 200),
                                      "where": effort._cut(item.get("where") or "", 200),
                                      "why": effort._cut(item.get("reason") or "", 300)})
             for source_id in result["not_listed"]:
-                problems.append({"page": page, "what": f"Source {source_id}", "where": "",
+                problems.append({"page": page, "kind": "page", "what": f"Source {source_id}", "where": "",
                                  "why": "Cited on the page but has no entry in the page's source list."})
+        for name in files[:self.RECHECK_FILES]:
+            try:
+                result = await asyncio.to_thread(check_file, workspace, name, False)
+                error = result["error"]
+            except Exception as exc:  # noqa: BLE001 - said on the card, never a silent pass
+                result, error = None, str(exc)
+            summary = result["summary"] if result else {}
+            summaries.append({"page": name, "kind": "file", "checked": summary.get("figures", 0),
+                              "verified": summary.get("found", 0), "derived": summary.get("derived", 0),
+                              "failed": summary.get("not_found", 0), "cited_not_listed": 0, "source_list": False,
+                              "found": summary.get("found", 0), "not_found": summary.get("not_found", 0),
+                              "rounded": summary.get("rounded", 0),
+                              "error": effort._cut(error, 300) if error else None})
+            if error:
+                continue
+            for item in result["items"]:
+                if item["status"] == "not_found":
+                    file_problems.append({"page": name, "kind": "file", "what": effort._cut(item["text"], 200),
+                                          "where": effort._cut(item["where"], 200), "why": NOT_FOUND_WHY})
+            for item in result.get("placeholders") or []:
+                file_problems.append({"page": name, "kind": "file", "what": effort._cut(item["text"], 200),
+                                      "where": effort._cut(item["where"], 200), "why": PLACEHOLDER_WHY})
+        problems += file_problems
         kept = problems[:self.RECHECK_PROBLEMS]
         read = any(summary["error"] is None for summary in summaries)
+        # Past the caps nothing is read, and the event says so: a clean card must not hide them.
+        skipped = pages[self.RECHECK_PAGES:] + files[self.RECHECK_FILES:]
         self.studio.log(pid).append("verification_recheck", turn_id, pages=summaries, problems=kept,
                                     problems_total=len(problems), problems_cut=len(problems) - len(kept),
-                                    agrees=read and not problems)
+                                    not_rechecked=skipped, agrees=read and not problems and not skipped)
         return len(problems)
 
     async def _run(self, pid: str, turn_id: str, *args) -> None:
@@ -342,7 +380,7 @@ class TurnRunner:
                 self.tasks.pop(pid, None)
             for held in (self.cancellable, self.late_stop, self.verified):
                 held.discard(turn_id)
-            for held in (self.harness_tasks, self.checked_pages, self.reports, self.proposed):
+            for held in (self.harness_tasks, self.checked_pages, self.checked_files, self.reports, self.proposed):
                 held.pop(turn_id, None)
             for future in self.pending.pop(turn_id, {}).values():
                 if not future.done():
@@ -451,6 +489,7 @@ class TurnRunner:
             except Exception:  # noqa: BLE001 - a failed re-check only loses the extra line
                 log.exception("The re-check after turn %s failed", turn_id)
         self.checked_pages.pop(turn_id, None)
+        self.checked_files.pop(turn_id, None)
         if status == "completed" and (options or {}).get("verify") and not reported:
             events.append("notice", turn_id, level="warning", message=effort.NOT_REPORTED)   # never a silent pass
         self.verified.discard(turn_id)

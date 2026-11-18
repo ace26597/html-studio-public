@@ -184,6 +184,10 @@ class FakeHarness:
             reply = await self._studio_tool(script, request, "request_connector",
                                             {"id": text[15:].strip(), "reason": "The request needs it."},
                                             f"Ask for the connector {text[15:].strip()}")
+        elif low.startswith("check file ") and request.studio_tool:
+            # The stand-in for an agent that checks the figures in one of the project's files.
+            reply = await self._studio_tool(script, request, "check_file", {"path": text[11:].strip()},
+                                            f"Check the figures in {text[11:].strip()}")
         elif "make it live" in low and request.studio_tool:
             reply = await self._studio_tool(script, request, "make_live", {}, "Make the app live")
         elif "risky" in low:

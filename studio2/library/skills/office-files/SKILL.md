@@ -17,6 +17,10 @@ for every kind. How to build each kind is in its own skill; read that one too:
 
 Each of those skills starts with a section "In this studio" that gives the exact commands here.
 
+**A very large file** (a deck over about 25 slides, a document over about 30 pages, a workbook over
+about 8 sheets, a board pack): follow the `large-documents` skill as well. It plans first, keeps
+every figure in a ledger and builds section by section; what this skill says still holds.
+
 ## Where things go
 - The file: `files/<short-name>.pptx` (or `.docx`, `.xlsx`, `.pdf`).
 - The script that builds it: `tools/build_<short-name>.js` or `.py`. Change the script and run it
@@ -65,7 +69,9 @@ topic and this audience. The studio has no house style.
 5. Fix what is wrong in the script (text cut off or overflowing its box, uneven margins, a
    chart with unreadable labels, an empty page, a formula error, a column too narrow) and go
    back to 1. Two or three rounds is normal. Stop when you would hand it to a client.
-6. In your answer say what you rendered and looked at, and anything you could not check.
+6. Run `check_file` on the file after the last render, before you hand it over: correct every
+   `not_found` figure in the script (or say how you calculated it), and build again.
+7. In your answer say what you rendered and looked at, and anything you could not check.
 
 ## Show it in the page
 `render_document` writes a viewer page next to the file (`files/<name>.<ext>.preview/index.html`)
@@ -89,3 +95,11 @@ for in one sentence, the framed viewer, and a plain link as a fallback.
 Paths are relative to the page. Use about 720px of height for decks, documents and PDFs, 620px for
 workbooks, and 560px on narrow screens. Render again after the last change to a file, or the
 viewer shows the old version. Look at the page afterwards like any other change.
+
+## Other formats
+When the person wants the finished file in another format (RTF, OpenDocument, EPUB, a PDF of a
+deck, one sheet as CSV, a Word file from a Markdown report, or Markdown from a Word file), call
+`convert_document` with the file's path and `to`; do not improvise shell commands. It writes the
+result beside the file and lists what did not come across (`not_carried`): tell the person. Render
+and check the result like any other file. A diagram for a file comes from the `diagrams` skill
+(`render_diagram` with `png_width`).

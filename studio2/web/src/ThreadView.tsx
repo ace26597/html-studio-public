@@ -1,7 +1,7 @@
 // Renders the thread model produced by the event reducer.
 
 import { VerificationCard } from "./EffortControl";
-import { RECHECK_COVERS, recheckHeadline, type Recheck } from "./effort";
+import { RECHECK_COVERS, fileProblemLine, recheckHeadline, type Recheck } from "./effort";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { isDrawingAttachment } from "./drawing";
 import { baseName, checkpointLabel, costLabel, formatCount, formatDuration, isImagePath, prettyInput, truncate } from "./format";
@@ -9,6 +9,8 @@ import { isSaveSkill, parseSkillApproval } from "./skillMaking";
 import { Icon, Spinner, toolIcon } from "./icons";
 import { checkPageLine } from "./library";
 import { LibraryPickCard } from "./LibraryPickCard";
+import { FileCards } from "./FileCards";
+import type { ChatFiles } from "./chatFiles";
 import { Markdown } from "./markdown";
 import { draftHolds, shownSteps, type NextStep } from "./nextSteps";
 import {
@@ -38,6 +40,10 @@ export interface ThreadActions {
   decisions: Record<string, DecisionState>;
   /** Where a workspace file can be loaded from for a thumbnail or link, or null when it cannot. */
   fileHref: (path: string) => string | null;
+  /** The project's files now, for the cards of files a request made (sizes, and which are gone). */
+  chatFiles?: ChatFiles;
+  /** Open a file in the Files panel (null: just the panel). Without it no file cards are shown. */
+  onOpenFile?: (path: string | null) => void;
   /** The region screenshots listed in a saved drawing file. */
   readDrawing?: (path: string) => Promise<string[]>;
   /** Step 3o: the project, for "Always / Never in this project" on the picked card. */
@@ -605,6 +611,9 @@ const TurnView = memo(function TurnView({
               );
           }
         })}
+        {!running && actions.onOpenFile && (
+          <FileCards turn={turn} files={actions.chatFiles} onOpen={actions.onOpenFile} onOpenVersion={actions.onOpenVersion} fileHref={actions.fileHref} />
+        )}
         {unfinishedPlan && <Plan key="plan-after" entries={unfinishedPlan} running={false} />}
         {waiting && (
           <div className="waiting" aria-hidden="true">
@@ -694,6 +703,7 @@ export function ThreadView({ entries, actions, putBack }: { entries: ThreadEntry
 export function RecheckNote({ recheck }: { recheck: Recheck }) {
   const wrong = recheck.total > 0;
   const pages = new Set(recheck.problems.map((p) => p.page));
+  const many = pages.size > 1 || recheck.pages.length > 1;
   return (
     <section
       className={`verification-recheck ${wrong ? "verification-recheck-wrong" : "verification-recheck-ok"}`}
@@ -706,8 +716,12 @@ export function RecheckNote({ recheck }: { recheck: Recheck }) {
         <ul className="verification-recheck-list">
           {recheck.problems.map((problem, index) => (
             <li key={index}>
-              <span className="finding-what">{problem.what}</span>
-              {(problem.where || pages.size > 1) && (
+              {problem.kind === "file" ? (
+                <span className="finding-what">{fileProblemLine(problem, many)}</span>
+              ) : (
+                <span className="finding-what">{problem.what}</span>
+              )}
+              {problem.kind !== "file" && (problem.where || pages.size > 1) && (
                 <span className="finding-where">
                   {" "}
                   — {[pages.size > 1 ? problem.page : "", problem.where].filter(Boolean).join(", ")}
@@ -726,6 +740,11 @@ export function RecheckNote({ recheck }: { recheck: Recheck }) {
             Could not check {p.page}: {p.error}
           </p>
         ))}
+      {recheck.notRechecked.length > 0 && (
+        <p className="verification-recheck-error">
+          Not re-checked (the re-check reads at most 10 pages and 10 files): {recheck.notRechecked.join(", ")}
+        </p>
+      )}
       <p className="verification-means">{RECHECK_COVERS}</p>
     </section>
   );

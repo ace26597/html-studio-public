@@ -1028,6 +1028,8 @@ Rules for `query`:
 `{"press": key}`, `{"select": selector, "value": option}`, `{"wait_for": selector}`,
 `{"wait_ms": n}`. At most 30 actions. The answer gains
 `actions: [{index, ok, error}]`; a failed action does not stop the rest.
+The page is loaded with the person's sign-in or the agent's own kept one, and the answer says
+which (`signed_in`, `kept_sign_in`, `sign_in_note`; "Seeing an app signed in as the person").
 
 ## Other changes
 
@@ -1068,9 +1070,12 @@ appear in events as `tool_call` with `name: "mcp__studio__<tool>"`.
 | `query_database` | `source`, `sql`, `limit?`, `save_as?` | Same as `POST …/data/{name}/query` |
 | `look_at_page` | `path?` (`/`, `/index.html` or `index.html`), `width?`, `dark?`, `full_page?`, `wait_ms?`, `actions?` | Same as `POST …/look`; returns the JSON (the screenshot is a file the agent then reads) |
 | `check_page` | `path?` (default `index.html`) | The citation and number check (below) |
-| `render_document` | `path`, `store_results?` (default true) | Renders an Office or PDF file of the project into a preview folder next to it (see "Office documents") |
+| `check_file` | `path` | The same for a `.pptx`, `.docx`, `.xlsx` or `.pdf` file: every figure in it against checked page figures, data files and saved sources (see "Verify content reaches files") |
+| `render_document` | `path`, `store_results?` (default true), `pages?` | Renders an Office or PDF file of the project into a preview folder next to it (see "Office documents"; `pages` in "Very large documents") |
 | `render_video` | `path`, `out?`, `format?`, `width?`, `height?`, `fps?`, `duration?`, `start?`, `scale?`, `audio?`, `volume?`, `check?`, `times?`, `frames?`, `poster_at?` | Renders an animated page of the project to a video file, frame by frame (see "Video and images from a page") |
 | `render_image` | `path`, `out`, `width?`, `height?`, `scale?`, `selector?`, `transparent?`, `dark?`, `at?`, `wait_ms?` | Saves a picture of a page, or of one element of it, as a `.png`, `.jpg` or `.webp` file in the project |
+| `render_diagram` | `name`, `source?` or `path?`, `must_show?`, `png_width?`, `colors?`, `alt?` | Draws a Mermaid diagram with the studio's own pinned copy, checks that it parses, holds the asked-for labels and reads at desktop width, and saves its source, a light and a dark SVG (and a PNG) under `files/diagrams/` (see "Diagrams and conversions") |
+| `convert_document` | `path`, `to`, `sheet?`, `reference?`, `replace?` | Converts a finished file of the project to another format beside it, through LibreOffice or pandoc, and says what did not come across (see "Diagrams and conversions") |
 | `generation_models` | `kind?`, `model?` | Lists what the generation service can make, or one model's settings, with the credits left. Costs nothing (see "Generated media") |
 | `generate_media` | `kind`, `out`, `prompt?`, `model?`, `aspect_ratio?`, `resolution?`, `quality?`, `duration?`, `params?`, `references?`, `start_image?`, `end_image?` | Asks the generation service for a picture, a clip or sound, after the person approves the price |
 
@@ -1280,7 +1285,9 @@ that is not plainly local is refused with 403.
   set by `POST /login` with form field `key`. `GET /login` is the sign-in page. Without the
   cookie: a page request is redirected to `http://<host>:<studio port>/login?next=…`
   (also from a project port), anything else gets 401 `access_denied`, a WebSocket is closed
-  with 4401. Eight wrong keys from one address within five minutes → 429.
+  with 4401. Eight wrong keys from one address within five minutes → 429. The cookie is the
+  studio's: a project port takes it out of the `Cookie` header before passing a request or a
+  WebSocket on to the project's app.
 - An open studio tab whose cookie has expired, or was made with a key that has since changed,
   gets that 401 from any API call (the health check, an event stream reconnect, or any other
   request); the UI then sends the browser to `/login?next=<the current address>`, once, and
@@ -1434,7 +1441,8 @@ element, section and note text, and the images to open. 400 `invalid_drawing` fo
 with no marks.
 
 The screenshots come from a fresh load of the page, so state the person had set up in their
-own browser (a chosen filter, an open tab, something typed) is not in them. The mark list is
+own browser (a chosen filter, an open tab, something typed) is not in them; their sign-in is,
+when they allow it ("Seeing an app signed in as the person"). The mark list is
 taken from the person's live page and is the more reliable of the two.
 
 
@@ -1481,7 +1489,7 @@ work, and to the person, inside the page.
 
 | File type | What is written | What the tool returns |
 |---|---|---|
-| `.pptx` `.ppt` `.odp`, `.docx` `.doc` `.rtf` `.odt` | `document.pdf`, `page-<n>.png` (1600 px wide for slides, 1240 px for pages, at most 60), `index.html` | `{file, kind, pdf, pages: [path], page_count, preview, embed, next}` |
+| `.pptx` `.ppt` `.odp`, `.docx` `.doc` `.rtf` `.odt` | `document.pdf`, `page-<n>.png` (1600 px wide for slides, 1240 px for pages, at most 60 a call: `pages` and the rest in "Very large documents"), `index.html` | `{file, kind, pdf, pages: [path], page_count, preview, embed, next}` |
 | `.pdf` | `page-<n>.png`, `index.html` | the same, with `pdf` the file itself |
 | `.xlsx` `.xlsm` `.xls` `.ods` | `index.html` | `{file, kind, sheets: [{name, rows, columns, cut, formulas, unchecked, errors: [{cell, formula, value}], error_count, start: [text rows]}], formula_results_stored, preview, embed, next}` |
 
@@ -3093,8 +3101,8 @@ With `depth: "deep"` the picker also adds the studio's `deep-research` skill to 
 
 ## Verification
 
-With verify on, the agent checks everything the person can see on the project's page(s) after its
-work, through the `checker` sub-agent (an independent context), fixes what is certainly wrong and
+With verify on, the agent checks everything the person can see on the project's page(s), and the
+figures in the project's Office and PDF files ("Verify content reaches files"), after its work, through the `checker` sub-agent (an independent context), fixes what is certainly wrong and
 lists the rest, then calls the studio tool **`report_verification`** once:
 
 ```
@@ -3131,7 +3139,8 @@ When a request wrote at least one `verification` event and was not stopped, the 
 once more after the agent has finished (before the version is saved), on `index.html` when it
 exists and on every other page `check_page` was run on during the request. It does not write
 `checks/<page>.json` (the agent's last check stays the saved one) and it never sends the agent
-back. It writes one event:
+back. It runs `check_file` on files too, and the event's entries say which are pages and which are
+files: "Verify content reaches files". It writes one event:
 
 ```json
 {"type": "verification_recheck",
@@ -3146,10 +3155,12 @@ back. It writes one event:
 
 `problems` are the check's failed items and its cited-but-not-listed sources (at most 40 kept,
 `problems_cut` counts the rest); `agrees` is true when there are none and at least one page was
-read. A page the check could not read has `error` set and adds no problems. No event when there is no page to check. What the
-re-check covers is only what the page check can see: marked figures against saved sources and
-project data, and cited sources against the source list. It knows nothing of charts, totals that
-are not marked, or an app's behaviour; the card says so.
+read, and no page or file was left out past the caps (`not_rechecked`, "Very large documents"). A page (or file) the check could not read has `error` set and adds no problems. No event when there is no page
+or file to check. What the re-check covers is only what the page check and the file check can see:
+marked figures against saved sources and project data, cited sources against the source list, and
+the figures in the project's Office and PDF files against checked page figures, data and saved
+sources. It knows nothing of charts, totals that are not marked, or an app's behaviour; the card
+says so.
 
 `check_only` requests: the picker adds only what the person chose (skills and connectors they
 said "always" for, here or for the machine). Nothing is added by itself: no `all`, `earlier` or
@@ -3672,3 +3683,742 @@ The preview (200): `{name, description, body_start (≤ 1,200 characters), files
   person approving. The card's `detail` is plain text in this shape, which the card reads:
   `When it is used: …`, `Instructions:` and the body, `Files:` with one `path (size)` a line,
   and `Files kept from the version it replaces: …`, each part after a blank line.
+
+# Verify content reaches files
+
+Lane `verify-files`. A wrong number in a slide, a spreadsheet cell, a Word paragraph or a PDF is
+found the way a wrong number on the page is: the studio tool `check_file` compares every figure in
+the file with what the project can vouch for, the checker runs it, and the studio's own re-check
+runs it again. The code is `server/studio2_server/filecheck.py`.
+
+## The tool `check_file {path}`
+
+`path`: a `.pptx`, `.docx`, `.xlsx` or `.pdf` file inside the project (anything else, a missing
+file or a path outside the project → a tool error). It reads the file itself; it needs no
+LibreOffice and calls no model.
+
+**What is read, and where each figure is said to be (`where`).**
+
+| File | Read with | Read | `where` |
+|---|---|---|---|
+| `.pptx` | the standard library (the file is a zip of XML) | every slide in the deck's order: each shape's text and each table cell. Not read: speaker notes, charts' own data, slide-number, date and footer placeholders | `Slide 3, title`, `Slide 3, Content 2`, `Slide 3, table row 2, column 3` |
+| `.docx` | the standard library | the body: paragraphs and table cells (nested tables too), in order, with the nearest heading (a style named `Title` or `Heading n`, or based on one, or with an outline level). Not read: headers, footers, footnotes, comments | `Paragraph 12 under "Results"`, `Table 2, row 3, column 2 under "Results"` |
+| `.xlsx` | openpyxl (in the studio's environment), twice: formulas, and the stored results | every sheet, every cell that is not empty | `Summary!B4 (Revenue, 2025)`: the cell, then the row's label (the nearest text to its left) and the column's heading (the top text above it) when there are any |
+| `.pdf` | pypdf (in the studio's environment, as for saved sources) | the text layer, page by page | `Page 3` |
+
+A PDF without a text layer (scanned pictures) and a file that cannot be opened end with `error`
+set and nothing checked: never a pass. A workbook cell that holds a **formula** is `derived`: its
+value is the result LibreOffice stored (`render_document` stores it, and reports formula errors);
+a formula with no stored result is still `derived` and its `note` says to run `render_document`.
+A typed-in number, and every figure in a text cell, is compared like any other. A cell's number
+is read as the sheet shows it (its number format: `0.123` under `0.0%` is the figure `12.3%`).
+
+**What a figure is.** A number in the text, with its sign, currency (`$ € £ ₹ ¥`, `US$`, `Rs`,
+`USD`, `EUR`, `GBP`, `INR`), percent sign and scale (`thousand`, `k`, `million`, `m`, `mn`,
+`billion`, `b`, `bn`, `trillion`, `tn`, `lakh`, `crore`, `cr`; single letters only when written
+against the number: `4.2m`, `300k`). Thousands separators are dropped (`1,234,567` and the Indian
+`12,34,567`); a negative may be written `-1,234`, `−1,234` or `(1,234)`. Its value is the number
+times its scale: `$4.2 billion` is 4,200,000,000 shown to a tenth of a billion. Only the comma is
+read as a thousands separator: `4.218.950` (read as a version) and `4 218 950` are not one figure.
+
+**What is not a figure to check** (it is skipped; `summary.skipped` counts the numbers skipped in
+the text that was read, so superscript text and the placeholders that are not read are not in it):
+
+- years standing alone (four digits from 1900 to 2100 with no separator, sign, currency, percent
+  or scale: `in 2025`; `2,025 units` and `$2025` are figures), year ranges (`2024–25`) and
+  fiscal years (`FY24`);
+- dates and times (`3 March 2025`, `11–18 November 2026`, `Mar 2025`, `2025-03-03`, `3/3/25`, `10:30`); in a workbook a
+  cell holding a date;
+- slide, page and list numbers: the number after `slide`, `page`, `p.`, `pp.`, `figure`, `fig.`,
+  `table`, `chart`, `exhibit`, `appendix`, `section`, `chapter`, `step`, `item`, `no.`, `#`;
+  numbering at the start of a paragraph or line (`1.`, `2)`, `(3)`); a PDF line that is only a
+  page number (`3`, `Page 3`, `3 of 12`, `3 / 12`);
+- reference markers: `[1]`, `[12]`, and superscript text in a slide or a Word document;
+- ordinals (`3rd`, `21st`);
+- phone-like strings (`+1 415 555 0100`, `(415) 555-0100`, `415-555-0100`), id-like strings (digits
+  joined by hyphens, `#4411`, a number with letters against it that are not a unit or scale such
+  as `4411A`, a run of nine or more digits with no separator, sign, currency or decimal point in
+  text), versions (`v2`, `version 3.1`, `1.2.3`), web addresses and e-mail addresses;
+- whole numbers from 0 to 12 with no decimals, sign, currency, percent or scale ("3 regions"): too
+  small to tell one source from another;
+- in a workbook, `TRUE`/`FALSE` and errors.
+
+**What vouches for a figure**, in this order:
+
+1. `page`: the figures the page check found `verified` on the project's pages, as last saved in
+   `checks/<page>.json` by `check_page` (the shown text of each item, and a data item's value);
+   a page figure marked `derived` there makes the same figure in the file `derived`;
+2. `data`: the project's data files, `data/**/*.csv`, `data/**/*.json` and `data/**/*.geojson`
+   (each at most 20 MB, 200 files): every number in them, including the numbers written inside a
+   cell or value of text ("148 km WSW of Tual"), and the total of each numeric CSV column;
+3. `source`: every number in the saved text of every source (`sources/`).
+
+**Matching.** Values are compared as absolute values (a sign written differently is not a
+difference: sources often state a loss without one). A figure is `found` when a vouched value is
+equal (`match: "exact"`), or when a vouched value rounded to the figure's precision is the figure
+(`match: "rounded"`, and `rounded_from` names the value: `4.2 million` for 4,218,950; `12%` for
+12.4). A percentage also matches the same value written as a fraction (`12.3%` for 0.123).
+Truncation is not rounding (4.21 million is not found from 4,218,950). A figure written at another
+scale than its source states it without the unit word (a table "in millions") is not found.
+Otherwise the figure is `not_found`: no page, data file or source has it.
+
+A `found` figure is in a vouched place; it is not proof that it is the right figure for that
+sentence (the same number may stand for something else), and the source can be wrong.
+
+**The saved result**, `checks/<file with / and other characters as ->.json` (for
+`files/deck.pptx`: `checks/files-deck.pptx.json`):
+
+```json
+{"file": "files/deck.pptx", "kind": "presentation", "checked_at": "…", "error": null, "not_read": null,
+ "summary": {"figures": 14, "found": 9, "rounded": 2, "derived": 3, "not_found": 2, "skipped": 21},
+ "vouched": {"pages": ["index.html"], "sources": 4, "data_files": ["data/sales.csv"]},
+ "items": [{"n": 1, "text": "$4.3 billion", "value": "4300000000", "status": "not_found",
+            "where": "Slide 3, title", "context": "Revenue reached $4.3 billion in 2025",
+            "match": null, "via": null, "ref": null, "rounded_from": null, "note": null},
+           {"n": 2, "text": "4.2 million", "value": "4200000", "status": "found",
+            "where": "Slide 4, Content 2", "context": "…", "match": "rounded", "via": "data",
+            "ref": "data/sales.csv, column units (total)", "rounded_from": "4218950", "note": null}]}
+```
+
+`kind`: `presentation`, `document`, `workbook` or `pdf`. `items` are in the file's order (at most
+10,000, every `not_found` kept; `summary` counts all: "Very large documents"). `via`: `page`, `data` or `source`; `ref`: the page and where on it,
+the data file and column (and row, or `(total)`), or the source id; `rounded` counts the `found`
+items that matched as a rounding; `derived` items carry `note` (the formula, or the page's
+derivation). `context` is the text around the figure (at most 160 characters). `not_read` says
+when part of a workbook was not read (more than 200,000 cells), so a clean result never hides it.
+
+**The tool's answer** is short: `{file, kind, summary, error, not_read, not_found: [items, at most 40],
+derived: [items, at most 15], rounded: [items, at most 15], saved, next}`, with the additions in
+"Very large documents" (items without
+`value`, `n` and the fields that are null). `next`: when something is not found, "correct each figure under not_found in
+the file's build script, from its source or data (or fetch the source it came from), build and
+render again, and run check_file again; a figure you calculated stays not_found here: recompute
+it from vouched figures and say so in your report"; when nothing is, that every figure is found
+or derived and that the derived ones (formulas, page derivations) are not recomputed by the
+check; with `error`, the error.
+
+## The agent's instructions
+
+- The `VERIFY` wording (`effort.py`) sends the checker to the project's files as well as its
+  pages: every Office or PDF file the page shows or the request made, with `check_file`, and
+  derived figures in files (formulas, totals, changes) recomputed as for pages. After fixes, the
+  agent runs `check_file` again on each file it changed.
+- `library/agents/checker.md` has the same step: run `check_file` on each file, judge `found`
+  items as it judges `verified` ones (is it the right figure for that sentence), recompute
+  `derived` and `not_found` figures from vouched inputs, and give each one a status.
+- The `office-files` skill: run `check_file` on the file before handing it over, after the last
+  render.
+- The project facts name `check_file` in one sentence beside `check_page`.
+
+## The studio's own re-check, on files
+
+After a reported verification the studio's re-check ("The studio's own re-check") also runs
+`check_file` (without saving) on every file `check_file` ran on in the request and on every
+`.pptx`, `.docx`, `.xlsx` or `.pdf` file of the project that `index.html` links to or frames
+(`href`, `src` and `data` attributes; a framed preview, `files/deck.pptx.preview/index.html`,
+counts as its file), at most 10 files. In the `verification_recheck` event:
+
+- every entry of `pages` gains `kind: "page"` or `kind: "file"`. A file's entry keeps the page
+  keys (`page` is the file's path, `checked` the figures checked, `verified` the found ones,
+  `derived`, `failed` the not-found ones, `cited_not_listed: 0`, `source_list: false`, `error`)
+  and adds `found`, `not_found` and `rounded`;
+- every entry of `problems` gains `kind`; a file's not-found figure is
+  `{"page": "files/deck.pptx", "kind": "file", "what": "$4.3 billion", "where": "Slide 3, title",
+  "why": "Not in any checked page figure, data file or saved source."}`. Pages' problems come
+  first, then files', within the same cap of 40;
+- `agrees` is true when there are no problems and at least one page or file was read (and, since
+  "Very large documents", nothing was left out past the caps: `not_rechecked`). The event is
+  written when there is a page or a file to check.
+
+## UI
+
+- The card's line on what the re-check covers (`RECHECK_COVERS`) says it covers the page's marked
+  figures and the figures in the project's Office and PDF files, against saved sources, checked
+  page figures and project data.
+- A file's problem reads as its place, then the figure: `Slide 3, title: $4.3 billion`, with the
+  file's name first when the re-check covered more than one page or file
+  (`deck.pptx · Slide 3, title: $4.3 billion`), and the reason under it.
+
+.
+
+.
+
+# Seeing an app signed in as the person
+
+Every project page the studio opens in its own headless browser (`look_at_page` and the look
+routes, the pictures of a drawing, the studio's own look after a request, `render_image`,
+`render_video`) can carry the sign-in the person has in their own browser for that project, so
+an app behind a sign-in shows the agent the signed-in app. One module decides
+(`server/studio2_server/session.py`); the browser code asks it for every context it opens.
+
+## The setting
+
+`Project` gains `signed_in_looks` (bool, the effective value). The interface names it
+**Let the agent use my sign-in**, a tick in the project's menu (both the top bar's
+More menu and the compact menu) under a short section, "This app's sign-in", whose note says what
+it means: when ticked, the agent sees this app signed in as you in this browser and can then click
+and type in the app as you. `PATCH /api/projects/{id} {signed_in_looks: bool}` sets it and the record keeps it.
+
+- Default when the record has no value: on, except for a project brought in from a folder
+  (`attach` set: the person's real code, perhaps talking to real services), which is off until
+  the person switches it on.
+- On a shared studio (`settings.shared`) it is always false, and `PATCH` with `true` is refused:
+  403 `not_for_shared`. Nothing of a person's browser is kept there at all.
+- Switching it off forgets what was kept of the person's browser for that project at once.
+
+## What is kept, and where
+
+Values only in the studio's memory (a `Sessions` object), per project, never written anywhere:
+not to disk, the event log, the project record, the server's log, or anything the agent
+receives. The agent gets pictures and `signed_in`, never a value.
+
+0. **The names of the cookies the project's own app sets** (no values). Every `Set-Cookie` the
+   project's app sends through the preview proxy is read for its name and its `Path`, `HttpOnly`,
+   `SameSite` and `Secure` (a missing `Path` is the RFC 6265 default path of the request). These
+   are written to `app-cookies.json` in the project's folder (beside `project.json`; at most 64
+   names; not in the API), so they outlive a restart of the studio: the person has usually signed
+   in before it. Only cookies named there are ever kept or carried. So a project with no back end
+   keeps no cookies at all (its storage is still carried), a cookie the page's own script sets
+   (`document.cookie = …`) is not carried, and neither is any cookie another app on the same host
+   name gave the browser. When the person's browser sent cookies but none of them is the app's, the
+   look's `sign_in_note` says that this is why it is not signed in.
+1. **The person's cookies** of those names, from the `Cookie` header of the person's page loads
+   of the project (`Sec-Fetch-Dest: document` or `iframe`, `Sec-Fetch-Site` same-origin,
+   same-site or none) and of the bridge's reports (below), at most 16 KB a header. Each such
+   request is merged in: a named cookie the request carries is taken with its value; a named
+   cookie whose recorded path covers the request's path (RFC 6265 path-match) and that the
+   request does not carry is dropped (the app or the browser removed it); any other is left as
+   it was. So a cookie limited to `/app` survives the reports to `/__studio/session` and page
+   loads of `/`, and goes when a page load under `/app` no longer carries it. A `Set-Cookie` that
+   deletes a named cookie (`Max-Age` 0 or less, or an `Expires` in the past) in an answer to the
+   person's browser drops it at once. The studio's own access cookie (`studio2_access`) is never
+   kept.
+2. **The person's `localStorage` and `sessionStorage`** for the page's own origin, reported by
+   the bridge (below), at most 64 KB together. A larger report keeps the cookies and drops the
+   storage; the look's note then says so.
+3. **The agent's own kept sign-in**: after each `look_at_page` (and the look routes) that did not
+   carry the person's sign-in, the cookies the studio's browser holds for the loopback host and
+   the page origin's `localStorage` and `sessionStorage`, at most 64 KB. So a sign-in the agent
+   does once through `actions` (with credentials the person gave it) holds for the next looks.
+   Kept separately from the person's: a look that carries the person's sign-in starts from it
+   alone (refreshed from their browser each time) and nothing of it is kept as the agent's. A look
+   that ends after its project was deleted, or after what was kept for it was forgotten, keeps
+   nothing.
+
+While the option is off (or on a shared studio) none of 1 and 2 is kept; only the fact that the
+person's browser sent something for the project, so the agent can be told why it was not used.
+
+All values are cleared when the studio stops, when the project is deleted, and (1 and 2) when
+the option is switched off. A look already running when the option is switched off finishes as
+it began (its browser already holds the sign-in); every later one is without it.
+
+## The report from the page
+
+The bridge script (`/__studio/bridge.js`) reports, in every project page it is injected into,
+framed in the studio or open in a tab of its own, but never in the studio's own headless browser
+(`navigator.webdriver`): shortly after load, after in-page navigation, two seconds after a click
+or a form submit, when the tab is hidden or left, and every five seconds while it is visible and
+the storage changed (at least once a minute).
+
+`POST <project URL>/__studio/session`, `Content-Type: application/json`,
+`{"local": [[key, value], …], "session": [[key, value], …]}`. The preview server answers it
+itself and never passes it to the app. It accepts only what a same-origin page of that project
+sends: the method is POST (else 405); `Origin` is present and equals the request's own scheme and
+`Host` (else 403); `Sec-Fetch-Site`, when sent, is `same-origin` (else 403); the type is JSON
+(else 415; a page on another origin cannot send that without a preflight, which this path does
+not answer); entries are strings (else 400). The answer is always an empty 204 (or the error):
+nothing kept is ever readable back through it, by any page. A request from the studio's own
+browser is recognised by a secret header (generated at start, kept in memory) that the studio
+adds only to its browser's requests for a project page port of this studio on a loopback name,
+never to anything else, never carried along by a redirect, and removed by the preview server
+before anything is passed to an app; such a request is never taken as the person's, neither here
+nor as a page load. The studio's browser cannot reach a project page port under any other name
+or address the studio answers on (the tailnet name, `STUDIO2_HOSTS`, the machine's own names):
+those requests and sockets are refused, so a page in it cannot plant a "person's" session by
+reporting through a name that carries no secret header.
+
+## How the studio's browser uses it
+
+For a URL on a project's own loopback address (`http://127.0.0.1:<page port>/…`) only. A
+context opened for any other URL (outside pages fetched for the agent, `Looker.rendered`) starts
+with nothing, and so does the template list's picture of a page (it can leave the project).
+
+- When the option is on and the person's browser has reported something: the context starts
+  with the person's cookies (host-only for `127.0.0.1`, each with the `Path`, `HttpOnly`,
+  `SameSite` and `Secure` the app set it with, so a page's script still cannot read an `HttpOnly`
+  one) and `localStorage` for the page origin, and the `sessionStorage` entries are set by a
+  script that runs before any of the page's own scripts, once per tab, only on that origin.
+- Otherwise the context starts from the agent's own kept sign-in for that project, if any.
+
+Every request of the context to this machine is decided by the studio, hop by hop, never by the
+browser (which would follow a redirect itself, with the context's cookies and any added header):
+
+- To the project's own origin: made through the context's own request client with the cookies
+  the browser would send (including `Secure` ones, which a browser sends to 127.0.0.1) and the
+  secret header; the context keeps the answer's `Set-Cookie`.
+- To any other loopback address or port (another project, the project's own back end on port +
+  100 called directly, another local server): made by the studio without cookies, with the secret
+  header only for a project page port, and the answer's `Set-Cookie` dropped. A WebSocket to one is
+  refused. Project B's page never receives project A's session.
+- A redirect: for a page load, the browser is given a page that moves it on to the new address,
+  so that hop is a request of its own and comes back through these rules (an address off this
+  machine is then loaded by the browser as any outside page, with nothing of the project's); for
+  anything else, the studio follows it here (at most 10 hops), each hop by the same rules, a hop
+  off this machine without cookies or the header.
+- A `text/event-stream` request to the project's own origin (a stream cannot be held) is passed
+  on unchanged, with the browser's cookies and no secret header.
+
+## What the agent is told
+
+A look's result gains `signed_in` (true when the person's sign-in was used), `kept_sign_in`
+(true when the agent's own kept one was used) and `sign_in_note` (null, or a sentence). The
+note is set when the person's browser has a session for this project that was not used, saying
+why (the option is off: its name and where it is, the project's menu; or the studio is shared)
+and that the agent must not guess or invent credentials to get past a sign-in; when the person's
+storage was too large to keep; and when the person's browser sent only cookies the project's app
+never set. The project facts say, next to `look_at_page`, whether
+looks carry the person's sign-in for this project, what to tell the person when the page asks to
+sign in, never to guess credentials, and that a sign-in done with `actions` lasts across looks.
+
+## Not held
+
+The person allows it per project: with it on, the agent's looks and `actions` act in the app as
+the person. The agent writes the project's code, so it could make a page show or send what the
+browser holds; this keeps values out of what the studio hands the agent, it does not make the
+app's own page keep a secret from the agent. Cookies are copied without their own expiry (a
+request header does not carry it). A sign-in held only in IndexedDB or in memory is not carried.
+A redirect that starts off this machine (an outside page the project's page navigated to) and
+comes back to a loopback address is followed by the browser itself; an event stream's redirect
+is too. The studio's own HTTP client in the preview proxy keeps no cookies of its own; but a
+request from the person's browser to a project port carries every cookie that browser holds for
+the host name (on the tailnet name, other apps' cookies on other ports), and the proxy passes
+them all on to the project's app, as it did before this section (only `studio2_access` is
+removed): that is the browser's rule for cookies, not one the studio can change by port.
+
+.
+
+.
+
+# Files in the chat, and files shown as what they are
+
+No new event, field or route: everything here is derived in the interface from what the server
+already sends (the request's `checkpoint` event, kind `agent`, and `GET /api/projects/{id}/files`).
+
+## Files in the chat
+
+After a request ends (`completed`, `stopped` or `failed`), the chat shows under its answer a small
+card for each deliverable file it made or changed: the kind in plain words, the file's name, its
+size, and whether it is new or changed. A tap opens the file in the Files panel's own viewer
+(the panel opens if it was closed, the folders above the file unfold, and unsaved edits in the
+open file are asked about first, as for any other file). There is no download button in the
+chat; the viewer has one.
+
+**What counts as a deliverable.** The files in the request's own `checkpoint` (kind `agent`;
+an upload's or a restore's version never counts) with status `added` or `modified` that are:
+- anything under `files/` (where the agent is told to put Office files), or
+- elsewhere in the project, an `added` (not merely changed) PowerPoint, Excel, Word, PDF,
+  raster picture (`png jpg jpeg gif webp avif bmp`), video, sound, CSV or TSV file.
+
+and never:
+- in the studio's own and working folders at the top of the project: `sources/`, `checks/`,
+  `attachments/`, `tools/`, `research/`, `state/`, `template/`, `notes/`; nor `files/img/`
+  (the pictures a deck or document is built from) or `files/diagrams/` (the drawings and their
+  sources that `render_diagram` saves, which the page already shows);
+- inside a folder whose name starts with a dot, `node_modules/`, `__pycache__/`, or a
+  `<file>.preview/` folder written by `render_document`;
+- the page's own code or a script (`html htm css scss sass less js mjs cjs jsx ts tsx map py sh
+  lock`), wherever it is;
+- an SVG outside `files/` (nearly always one of the page's own icons);
+- a video's poster (`<name>.poster.jpg`, or `<name>.jpg` beside `<name>.mp4` in the same request);
+- a file attached to the request's own message.
+
+Cards under `files/` come first, then the rest, each in the checkpoint's order. At most **8** cards
+per request; the rest are counted in one line, "and 3 more in Files", which opens the Files panel.
+
+**Kinds.** "PowerPoint deck" (`pptx ppt odp key`), "Excel workbook" (`xlsx xlsm xls ods`),
+"Word document" (`docx doc odt rtf`), "PDF", "Picture", "Video", "Sound", "Table (CSV)",
+"Table (TSV)", "Text" (`md markdown txt`), else "File". A picture's card shows the picture as its
+thumbnail (from `/__studio/files/`); the others an icon.
+
+**Size, and a file that is gone.** Sizes are the files' sizes now, read from the file listing once
+the request has ended and again whenever the project's files change while no request runs (not
+during one). A file that is not in the listing any more (deleted later, or a version restored
+without it) keeps its card, but the card says "no longer in the project" and offers "Show version"
+instead, which opens that request's version in Versions, where the file still is. A listing cut
+at its 5,000-file cap, or one that could not be read, never makes a card say a file is gone: the
+card then shows no size and still opens the file. A file that was changed again since opens as it
+is now.
+
+Known limit: a file dropped at the top of the project (not attached to a message) while a request
+runs is saved with that request's version, so it can get a card as if the request had made it.
+
+## Files shown as what they are
+
+In the Files panel, a text file of these kinds opens as what it is, with a "Show source" button to
+see (and edit and save) its text, and a button back ("Show formatted", "Show table", "Show
+picture"). The shown view follows the text as it is being edited.
+- **Markdown** (`.md`, `.markdown`): rendered with the chat's own Markdown renderer. Raw HTML in
+  the file is shown as text, never turned into elements; links go only to `http`, `https` and
+  `mailto` addresses, in a new tab.
+- **CSV and TSV** (`.csv`; `.tsv` and `.tab` split on tabs): a table, the first line as its
+  header, which stays in view while the table scrolls; a column whose filled cells are all
+  numbers (`12`, `-3.5`, `1,234.50`, `$9.99`, `45%`, `(120)`) is right-aligned. Quoted fields
+  may hold the delimiter, doubled quotes and line breaks; blank lines are not rows. At most the
+  first **500** rows and **50** columns; a line above the table says how many of each the file
+  has when some were left out ("Showing the first 500 of 1,204 rows and 50 of 63 columns.").
+- **SVG**: the picture, as an `<img>` loaded from the file's text (`data:image/svg+xml`), which
+  never runs a script or an event handler in the file. It is never put inline in the studio's
+  page. An SVG larger than 1 MB (too large to open as text) is still shown as the picture, as an
+  `<img>` of the file's `/__studio/files/` address, without a source view.
+
+Every cell and every piece of Markdown text is a text node; nothing from the file reaches the
+studio's page as markup.
+
+.
+
+.
+
+# Diagrams and conversions
+
+Two studio tools: `render_diagram` draws a diagram from Mermaid source and checks it before it is
+shown, and `convert_document` turns a finished file into another format. The `diagrams` skill
+says how the agent uses the first; the `office-files` skill points at the second.
+
+## `render_diagram`
+
+Arguments: `name` (required; lower-case letters, digits, `-` and `_`, 60 at most), and `source`
+(Mermaid text, 50,000 characters at most) **or** `path` (a `.mmd` file of the project), plus
+`must_show?` (labels the diagram has to contain), `png_width?` (200 to 4,000 pixels), `colors?`
+(`{"light": {…}, "dark": {…}}`: Mermaid theme variables such as `primaryColor`, `lineColor`,
+`primaryTextColor`; names are letters and digits, values colours) and `alt?` (the picture's text
+for the `embed` snippet).
+
+**One renderer, one pinned version.** Mermaid 11.15.0 (MIT) is kept inside the server at
+`server/studio2_server/static/vendor/mermaid/mermaid.min.js` (3.3 MB, byte for byte the file in
+the npm package; version and licence in `THIRD_PARTY.md` beside it; the version is written in
+code once, `diagram.MERMAID_VERSION`). It runs in the studio's own Chromium (the one `look_at_page`
+uses), in a blank page whose every network request is refused: nothing is fetched at render time,
+never from a CDN. Each call gets a fresh page and one fixed configuration: `securityLevel:
+strict`, `look: classic`, `layout: dagre`, `htmlLabels: false` (labels are SVG text, not HTML),
+font family `Helvetica, Arial, sans-serif`, deterministic ids, a Gantt chart 1,200 px wide. Two
+more things keep the picture the same between runs: Mermaid's drawing code calls `Math.random`, so
+the page gets a seeded one before each drawing, and a Gantt chart gets no "today" line unless its
+source asks for one (`todayMarker`), since that line moves every day. The same source then gives
+the same bytes (SVG and PNG) on the same computer; another computer's fonts can change the sizes.
+A source may still set its own configuration (`%%{init: …}%%` or front matter); the studio does
+not forbid it. Without the vendored file or without the Playwright Chromium the tool is listed as
+unavailable with the reason (the look tool's reason, which says how to get one).
+
+**Both schemes, every time.** Each call draws the diagram twice, with Mermaid's `default` theme and
+its `dark` theme (or the `base` theme with the given `colors`), because a page in this studio
+usually has dark styles and a picture drawn for light text on white is unreadable on dark. It
+costs one more drawing in a page that is already open (about 20 ms of a call of 0.2 to 0.6 s).
+
+**On a parse error nothing is saved.** The answer is
+`{rendered: false, saved: false, name, error, line, line_text, next, ms}`: `error` is the parser's
+message, `line` its line number in the source (from the parser, or read from the message; `null`
+when it gives none), and `next` tells the agent to fix that line and call again, and after three
+failed tries to use a simpler diagram or a table and say so. The studio does not count the tries.
+
+**On success** it writes `files/diagrams/<name>.mmd` (the source), `<name>.svg` (light),
+`<name>-dark.svg` and, with `png_width`, `<name>.png` (the light one on white at that width, for
+decks and Word files), replacing earlier files of the same name, and answers:
+
+```json
+{"rendered": true, "saved": true, "name": "order-flow", "type": "flowchart-v2",
+ "source": "files/diagrams/order-flow.mmd", "svg": "files/diagrams/order-flow.svg",
+ "svg_dark": "files/diagrams/order-flow-dark.svg", "png": "files/diagrams/order-flow.png" | null,
+ "png_width": 1200 | null, "size": {"width": 483, "height": 162}, "nodes": 4, "edges": 4 | null,
+ "labels": ["Start here", "Is it ok?", "…"], "must_show": 2, "missing": ["Refund"],
+ "layout": {"width": 483, "height": 162, "smallest_text_px": 16, "smallest_text_at_desktop_px": 16,
+            "hard_to_read": false,
+            "findings": [{"kind": "too_wide" | "small_text" | "clipped_text" | "overlapping_text",
+                          "count": 1, "means": "…", "examples": [{"text": "…", "detail": "…"}]}]},
+ "safe": {"scripts": 0, "outside_references": 0, "removed": [], "text_as_text": true, "fonts": "…"},
+ "embed": "<picture>…</picture>", "renderer": "Mermaid 11.15.0 (the studio's own copy) in the studio's Chromium",
+ "blocked_requests": [], "ms": 240, "next": "…"}
+```
+
+- **The second check, `must_show`.** Every label must appear in the drawing's text (case,
+  white space and typographic quotes ignored; a label may be part of a longer one). Those not
+  found are in `missing`, and `next` says the diagram rendered but is not what was asked. Without
+  `must_show`, `next` asks the agent to compare `nodes` (shapes: boxes, participants, tasks,
+  periods), `edges` (connecting lines and messages; `null` for a Gantt chart or a timeline) and
+  `labels` (every piece of text drawn, at most 80) with what it meant.
+- **The layout check.** Measured in the page on the light drawing at its own size: `too_wide`
+  (wider than 1,400 px, so a desktop page shrinks it), `small_text` (the smallest text under 9 px
+  once shrunk to 1,400), `clipped_text` (text past the side of its box, or past the edge of the
+  picture, by more than 2 px) and `overlapping_text` (two pieces of text covering a quarter of the
+  smaller one). Either of the first two sets `hard_to_read`, and `next` gives the remedy: split it
+  or change its direction. The kinds are this tool's own; `look_at_page`'s `layout` measures HTML
+  text, not SVG.
+- **A safe file.** Mermaid's strict mode leaves out click handlers and links; the studio then
+  removes from both SVGs every `script`, `iframe`, `object`, `embed`, `img`, `image`, `link`,
+  `meta`, `audio` and `video` element, every `<a>` (its content kept), any `on…` attribute, any `href` or
+  `src` that does not point inside the file (`#…`), and any `@import` or `url(…)` in a style that
+  does not point inside the file (`removed` lists what was taken out). The saved text is then
+  parsed again as XML and refused, with nothing saved, if a script or an outside reference is
+  left. No font file is embedded or linked: the text names system fonts, and `safe.fonts` says
+  so. `text_as_text` is false only when the source asked for HTML labels (`foreignObject`), which
+  show in a browser but not in Office files.
+- **Embedding.** `embed` is a `<picture>` that shows the dark SVG under `prefers-color-scheme:
+  dark` and the light one otherwise, with `max-width:100%;height:auto`; paths are from the project
+  root. The agent puts the saved SVG in the page, inline or as `<img>`, never the Mermaid script.
+
+## `convert_document`
+
+Arguments: `path` (a file of the project), `to` (the target extension, with or without the dot),
+`sheet?` (the sheet to write as CSV), `reference?` (a `.docx` or `.odt` of the project whose styles
+pandoc follows, for Markdown to that format), `replace?` (default false).
+
+| From | To | Program | Verified (`tests/test_convert.py`, on a Mac with LibreOffice 26.8 and pandoc 3.9) |
+|---|---|---|---|
+| `.docx` | `.rtf`, `.odt`, `.pdf` | LibreOffice | each opens: RTF header, ODT archive with `content.xml` holding the text and the table, PDF pages |
+| `.docx` | `.md` | pandoc (GitHub Markdown) | the text and the table come back as Markdown, a tracked insertion accepted |
+| `.odt`, `.rtf` | `.docx` (and `.odt` ↔ `.rtf`, either to `.pdf`) | LibreOffice | `.odt` and `.rtf` to `.docx` open with the text; the others were run once by hand here (each opened), not in the tests |
+| `.odt` | `.md` | pandoc | run once by hand here (text and table came back), not in the tests |
+| `.pptx` | `.pdf`, `.odp` | LibreOffice | both open; the PDF has one page per slide |
+| `.odp` | `.pptx`, `.pdf` | LibreOffice | run once by hand here (each opened; the PDF had a page per slide), not in the tests |
+| `.xlsx` | `.ods`, `.pdf`, `.csv` | LibreOffice | ODS opens; a CSV of the named second sheet holds that sheet's values (UTF-8); a CSV of the first holds a formula's calculated result; `.pdf` was run once by hand here, not in the tests |
+| `.ods` | `.xlsx`, `.csv` | LibreOffice | run once by hand here (each opened), not in the tests |
+| `.md` | `.docx`, `.odt`, `.rtf`, `.epub`, `.html` | pandoc | each opens and holds the text; `reference` styles a `.docx`; a Mermaid block becomes a picture |
+
+- **Where the result goes.** Beside the source under the same name with the new extension
+  (`report.md` → `report.docx`); a source under `template/` or `sources/` is never written beside,
+  so its result goes under `files/`. A CSV of one sheet of a workbook with several is named
+  `<name>-<sheet>.csv`. When that file exists the tool refuses unless `replace: true` (the
+  project's history keeps the old one); the source itself is never the target.
+- **LibreOffice** is the one `render_document` uses (same profile, same lock: one at a time), with
+  its time limit (180 s). A CSV is comma-separated UTF-8 of one sheet, with the values LibreOffice
+  calculates; a workbook of several sheets needs `sheet`.
+- **pandoc** reads Markdown from standard input (the source's folder and the project are where it
+  finds pictures), with `--standalone` for RTF and HTML, `--embed-resources` for HTML (one file),
+  a title from the file name when an EPUB has none, and `--reference-doc` for `reference`. A Word
+  or OpenDocument file to Markdown is GitHub Markdown, unwrapped, its pictures saved in
+  `<name>.media/` beside the result (`media`). Time limit 120 s.
+- **Mermaid blocks** (```` ```mermaid ```` or `~~~mermaid`) in Markdown are drawn with
+  `render_diagram`'s renderer (as `files/diagrams/<file>-diagram-<n>`, a PNG 1,200 px wide, or the
+  SVG for HTML) and put in as pictures; a block that does not parse is left as code and named in
+  `not_carried` with its line in the Markdown. Without the renderer they are left as code and
+  `not_carried` says why.
+- No shell line is built from the person's text: each program gets an argument list; paths are
+  confined to the project with the helper every tool uses.
+
+The answer:
+
+```json
+{"path": "files/report.docx", "from": "files/report.md", "size": 10897, "tool": "pandoc" | "LibreOffice",
+ "version": "pandoc 3.9.0.2", "replaced": false, "opens": true, "pages": 3, "detail": null,
+ "media": null, "diagrams": [{"n": 1, "picture": "files/diagrams/report-diagram-1.png"}],
+ "not_carried": ["The styles are pandoc's plain defaults: …"], "ms": 410, "next": "…"}
+```
+
+`opens` is the result read back (an Office or EPUB archive with its main part, a PDF with its
+pages counted in `pages`, RTF by its header, text formats as UTF-8); `detail` says what failed.
+`not_carried` lists what the file holds that does not come across or was not checked, found by
+reading the source: tracked changes (pandoc accepts them; for LibreOffice, not checked), comments,
+a contents list (carried over as saved, not rebuilt: page numbers a script never filled in stay
+empty), speaker notes and animations (not in a PDF), charts and conditional formats (not checked
+in a workbook conversion), HTML inside Markdown (left out), pandoc's plain styles without
+`reference`, fonts named but not included, and, for a PDF from `.docx`, `.pptx` or `.xlsx`, the
+fonts the file names that are not among the PDF's fonts ("replaced by others"). pandoc's warnings
+are added as they are. `next` tells the agent to call `render_document` on an Office or PDF result
+and look at it, and `check_file` when it is a `.pptx`, `.docx`, `.xlsx` or `.pdf` that holds
+figures.
+
+When neither program is installed, the tool is listed as unavailable; when only one is, the pairs
+of the other answer with what to install (macOS `brew install pandoc` or `brew install --cask
+libreoffice`; Debian or Ubuntu `apt-get`; Fedora `dnf`). `studio doctor` and `install.sh` list
+pandoc as optional, beside LibreOffice.
+
+.
+
+.
+
+# Very large documents
+
+Lane `big-documents`. A deck of a hundred slides, a long Word document or a workbook of many
+sheets is built from a plan, by helpers working one section each, and checked deterministically
+before anyone looks at a picture. The procedure is the studio's skill `large-documents`
+(`library/skills/large-documents/`, with reference files beside it); the helpers are the library
+agents `section-writer` and `slide-reviewer`. No new studio tool: `check_file` and
+`render_document` gained what such a file needs, and every cap a large file reaches says so in
+the result.
+
+## The plan files
+
+Kept in the project, so a later request can change one slide without redoing the rest. Only the
+ledger is read by the studio; the others are the agent's own, and their shapes are what the skill
+tells it to write.
+
+| File | What it holds |
+|---|---|
+| `build/outline.json` | `{title, audience, purpose, kind: "deck"\|"document"\|"workbook", sections: [{id, title, module, slides: [{id, message, layout, facts: [keys], visual}]}]}`: one message per slide (a document: per chapter part, `pages` instead of `slides`; a workbook: `sheets: [{name, type, facts}]`) |
+| `build/look.json` | The look of this one document, as named values, written from what the person asked for: `{fonts: {heading, body}, sizes: {…}, colors: {…}, layouts: {<name>: {…}}}`. Never a house theme shared between documents |
+| `build/glossary.md` | The terms, names and abbreviations, each written one way |
+| `build/slide-map.json` | Written by the assembler: `[{slide, section, id, module, layout}]`, so a defect found at "Slide 41" names the module to redo |
+| `data/facts.json` | **The ledger**: every figure the document shows |
+
+**The ledger**, `data/facts.json`:
+
+```json
+{"facts": [
+  {"key": "revenue_2025", "label": "Revenue", "value": 4218950, "unit": "USD", "period": "FY2025",
+   "source": "s3", "obtained": "quoted", "quote": "revenue was $4,218,950"},
+  {"key": "units_2025", "label": "Units sold", "value": 2500, "unit": "units", "period": "2025",
+   "source": "data/sales.csv", "obtained": "data", "how": "total of the column units"},
+  {"key": "revenue_per_unit", "label": "Revenue per unit", "value": 1687.58, "unit": "USD",
+   "period": "FY2025", "obtained": "computed", "from": ["revenue_2025", "units_2025"],
+   "formula": "revenue_2025 / units_2025"},
+  {"key": "target_margin", "label": "Target margin", "value": 18, "unit": "%", "period": "2026",
+   "source": "person", "obtained": "given", "note": "Said in the request of 18 November"}]}
+```
+
+- `key`: a lower-case name (`[a-z][a-z0-9_]*`), unique. `value`: the figure in full, as a number
+  (or a string holding one: `"12.4%"`), in its `unit`; a percentage is written as its number of
+  percent (`12.4` with unit `%`). `label`, `unit` and `period` say what it is; `source` and
+  `obtained` say where it came from.
+- `obtained`: `quoted` (`source` is a saved source id; `quote` the words), `data` (`source` is a
+  project data file under `data/`), `computed` (`from`: the keys it is made of, `formula`: an
+  expression of those keys with numbers, `+ - * / **`, brackets and `abs`, `min`, `max`, `round`,
+  `sum`), or `given` (the person stated it; `source: "person"`).
+
+What `check_file` does with it: see below. The ledger lives under `data/`, so before this lane its
+numbers already vouched as data; now it is read as a ledger whenever its top level is an object
+with a `facts` list, and a fact vouches only when it passes these checks:
+
+| Fact | Checked | A problem |
+|---|---|---|
+| any | a valid unique `key`, a number in `value`, an `obtained` of the four | `key` missing or repeated, no number, no `obtained` |
+| `quoted` | the value is a number in the saved text of that source, exactly or as a rounding of it at the value's own precision (trailing zeros count as rounding: `4200000` is 4,218,950 rounded) | the source is not saved, or the value is not in it |
+| `data` | the value is a number (or a column total) of that data file, the same way | the file is not a CSV or JSON under `data/`, or the value is not in it |
+| `computed` | the formula is evaluated from the ledger values of `from` and agrees with `value` to half of the last digit `value` is written to | an unknown key, a name not in `from`, anything else in the formula, a fact that depends on itself, an input with a problem, or a result that disagrees (the recomputed value is named) |
+| `given` | nothing: it is the person's own statement | — |
+
+A ledger that is not JSON, or whose top level has no `facts` list, is read as an ordinary data
+file and `ledger.error` says why.
+
+## `check_file`: additions
+
+Nothing was renamed; everything below is new in the saved result (`checks/<file>.json`) and the
+tool's answer. The rules in "Verify content reaches files" hold unchanged for everything else.
+
+**Ledger agreement.** Ledger facts are added before the pages' figures, so a figure that matches a
+ledger value (exactly or as a rounding, as any figure) has `via: "ledger"` and `ref: <key>`; a
+computed fact's item has `note: "computed in the ledger: <formula>"` and a given one's `note:
+"given by the person; not checked against a source"`. `summary.ledger` counts the items found
+through the ledger. A fact with a problem vouches for nothing: a figure that only it would have
+matched falls to the data files, the sources, or `not_found`.
+
+```json
+"ledger": {"file": "data/facts.json", "facts": 42, "vouching": 40, "computed": 6, "given": 1,
+           "problems": [{"key": "revenue_2025", "why": "4300000 is not in the saved text of s3."}],
+           "problems_total": 1, "error": null}
+```
+
+`ledger` is null when the project has no `data/facts.json`. `problems` keeps at most 200
+(`problems_total` counts all).
+
+**Leftover placeholders.** `placeholders: [{text, where, context}]` (at most 500 kept) and
+`summary.placeholders` (all). Read in the same text as the figures (slides' shapes and tables,
+Word paragraphs and tables, text cells of a workbook, PDF pages), and found by:
+
+| Kind | Found when | Not found (so a real subject is not flagged) |
+|---|---|---|
+| Office prompt text | `Click to add …`, `Click to edit …`, `Click icon to add …`, `Tap to add …` | |
+| Filler text | `Lorem ipsum …`, `dolor sit amet` (any case) | |
+| Template marks | `{{anything}}`, `${name}`, `{name}`, `<<name>>`, `«name»` (a name: letters, digits, `_`, `.`, `-`, no spaces) | `{ }` around words with spaces |
+| Fill-ins in brackets | `[insert …]`, `[add …]`, `[enter …]`, `[placeholder]`, `[TBD]`, `[TODO]`, `[your …]`, `[source]`, `[citation needed]`, `[XX]` | `[1]` and other reference markers |
+| Fill-ins with "here" | `your`/`insert`/`add`/`enter`/`type` + up to two words + `text`, `title`, `name`, `content`, `image`, `picture`, `logo`, `chart`, `data`, `heading`, `caption`, `quote`, `copy`, `number`, `date` or `value` + `here` | "your journey starts here" |
+| Markers in capitals | `TBD`, `TBC`, `FIXME`, `XXX` (three or more X, or x), a masked figure (`$X.X million`, `XX%`), and `TODO` at the start of a text or followed by `:` | `TODO` inside a sentence ("the TODO app"), `todo`, `to-do` |
+| An empty placeholder on a slide | a slide's placeholder shape (title, body, chart, picture or other; not the slide number, date, footer or header) with no text in it: PowerPoint shows its prompt there while the deck is edited. `text` is `(empty title)` or `(empty <type> placeholder)` | a filled chart or picture placeholder, which is no longer a text shape |
+
+`{name}` in a technical document that shows template syntax on purpose is flagged; the agent says
+so instead of removing it.
+
+**Two figures for one label.** `conflicts: [{label, figures: [{text, where}]}]` (at most 200
+kept, each with at most 6 figures) and `summary.conflicts` (all). A figure's label is read only
+where it is unambiguous: the words written right before it and a colon or `=` (`Revenue 2025:
+$4.2m`, back to the start of the line or the last `.`, `;`, `•`, `|`, bracket or comma), or, in a
+table of a slide or a Word document, the row's first cell and the column's first cell
+(`Revenue` and `2025` → `revenue 2025`). A label counts only with at least two words and a
+letter (`Revenue` alone never does). Labels are compared without case, spaces or punctuation.
+Two figures with one label conflict when they are both percentages or both not, and neither is
+the other shown at its precision (`4.2m` and `4,218,950` agree; `4.2m` and `4.3m` do not), and
+they are in different places: several figures in one cell or one line are one statement (a range,
+`70% to 158%`), not a disagreement. Workbook
+cells are not compared (a model repeats row and column names on every sheet; its consistency is
+its formulas). A conflict is a warning to look at, not a not-found figure: the same label may
+measure two different things on two slides.
+
+**Where the problems are.** `by_part: [{part, not_found, placeholders, conflicts}]`: every slide,
+page, sheet or heading (a Word document's nearest heading; `(before the first heading)`) with at
+least one problem, in the file's order, so a large file's problems can be handed back to the
+module that wrote them.
+
+**The cap on items.** `items` keeps at most 10,000 figures (was 2,000); every `not_found` item is
+kept even past it; `items_cut` counts those left out (0 when none).
+
+**The tool's answer** adds, after `rounded`: `placeholders` (at most 30), `conflicts` (at most 15),
+`ledger` (with at most 20 problems), `by_part` (at most 120) and `lists_cut` (true when a list of
+problems in the answer, not found, placeholders, conflicts, ledger problems or parts, is shorter
+than its count; the full lists are in the saved file).
+`next` now names every kind of problem found, in this order: the file's error (then nothing else),
+`not_read`, `not_found`, placeholders, conflicts, ledger problems, and where the full lists are
+when the answer's are cut.
+
+## `render_document`: additions
+
+- **`pages`** (`"41-60"`, `"41"`, `"61-"`): which pages to draw as images, 1-based and inclusive;
+  at most 60 in one call (a longer range is cut to 60 and said). Without it, pages 1 to 60, as
+  before. For a workbook it picks the chart pages (default 1 to 20).
+- **The PDF is reused.** The preview folder keeps `render.json` (the file's SHA-256). When the file
+  is unchanged, a later call draws its pages from the PDF already made (no LibreOffice) and keeps
+  the page images drawn before, so the viewer shows every page drawn so far; a changed file is
+  converted again and the old images are removed. A workbook is always calculated again.
+- **What was drawn, and what was not.** New result keys for decks, documents and PDFs:
+  `pages_drawn` (`"41-60"`, this call), `not_drawn` (null, or a sentence naming the page ranges
+  that have no image yet and the call that draws them: `call render_document again with pages:
+  "61-104"`), `reused_pdf` (true or false). `next` starts with `not_drawn` when it is set (after the note on a cut range, when there is one), so
+  "open every page image" never reads as the whole file.
+- **An overview.** When the file has more than 20 pages: `overview: [paths]`, contact sheets
+  (`<file>.preview/overview-<n>.png`) of every page, 20 to a sheet in five columns, each small
+  page numbered, drawn from the PDF whatever `pages` is. They show the whole file's look at once;
+  they are too small to read text.
+- **A workbook with many sheets.** The answer stays readable: `start` is given for sheets in order
+  until 12,000 characters of it are used; later sheets have `start: []` and `start_cut: true`.
+  `errors` lists at most 30 per sheet and 100 in all (`error_count` per sheet is complete;
+  `errors_listed` and `error_total` say how many were listed of how many). Chart pages: `chart_pages`
+  as before plus `chart_page_count`, and `next` says which chart pages were not drawn.
+- **Time.** LibreOffice gets 180 seconds plus 60 more for each 10 MB of the file (was 180 in all).
+
+## The studio's own re-check: additions
+
+- The `verification_recheck` event gains `not_rechecked: [paths]`: the pages past the first 10 and
+  the files past the first 10 that the re-check did not read. `agrees` is false when it is not
+  empty, and the card says how many were not re-checked and names them.
+- A file's leftover placeholders are problems like its not-found figures: `{"page": "files/deck.pptx",
+  "kind": "file", "what": "Click to add text", "where": "Slide 4, body", "why": "Leftover placeholder
+  text."}`, after that file's not-found figures, within the same cap of 40. Conflicts and ledger
+  problems are not re-check problems (a conflict may be two real figures; the ledger is not the file).
+
+## The caps a large file reaches
+
+| Cap | Value | What happens at it |
+|---|---|---|
+| `render_document` page images per call | 60 | `not_drawn` names the pages without an image and the call that draws them; `overview` shows every page small |
+| `render_document` workbook chart pages per call | 20 by default, up to 60 with `pages` | `next` names the chart pages not drawn |
+| `render_document` workbook answer | `start` up to 12,000 characters; errors 30 per sheet, 100 in all | `start_cut` per sheet; `errors_listed` of `error_total`; full grids in the preview page |
+| `render_document` formulas checked | 200,000 per workbook (unchanged) | `unchecked` per sheet and `next` say how many were not checked |
+| `render_document` preview grid | 400 rows × 50 columns per sheet (unchanged) | `cut` and `next` |
+| LibreOffice time | 180 s + 60 s per 10 MB | the tool's error names the time |
+| `check_file` items kept | 10,000 (every `not_found` kept) | `items_cut`; `summary` counts all |
+| `check_file` cells read | 200,000 per workbook (unchanged) | `not_read` |
+| `check_file` answer lists | not found 40, derived 15, rounded 15, placeholders 30, conflicts 15, ledger problems 20, parts 120 | `lists_cut: true` and `next` points at the saved file |
+| A tool's answer | 60,000 characters (unchanged) | the answers above are sized to stay under it; a test builds a 104-slide deck and a 50-sheet workbook and checks they do |
+| The re-check | 10 pages and 10 files (unchanged) | `not_rechecked`, `agrees: false`, said on the card |
+| Pictures one agent opens | not a studio cap: each slide picture costs the reader up to about 1,600 tokens of its context (a picture is scaled to about 1.15 megapixels) | the skill has a reviewer look at 20 slides at a time and says which slides to look at past 60 |
+
+.
+
+.

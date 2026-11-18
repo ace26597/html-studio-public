@@ -208,8 +208,7 @@ DECLARED_JS = """() => {
 
 async def _open(looker, url: str, scale: int, console: list, failed: list):
     """→ (context, page, what the page declares) with the page loaded, its clock held at zero, and ready."""
-    browser = await looker.browser()
-    context = await browser.new_context(viewport={"width": 1920, "height": 1080}, device_scale_factor=scale)
+    context = await looker.new_context(url, viewport={"width": 1920, "height": 1080}, device_scale_factor=scale)
     try:
         await context.add_init_script(clock_script())
         page = await context.new_page()
@@ -388,10 +387,10 @@ async def render_image(looker, url: str, workspace: Path, out: str, *, width: in
     width = max(16, min(int(width or 1200), SIDE_MAX))
     view_height = max(16, min(int(height or 900), SIDE_MAX))
     console: list[dict] = []
-    browser = await looker.browser()
+    await looker.browser()
     async with looker.slot():
-        context = await browser.new_context(viewport={"width": width, "height": view_height}, device_scale_factor=scale,
-                                            color_scheme="dark" if dark else "light")
+        context = await looker.new_context(url, viewport={"width": width, "height": view_height},
+                                           device_scale_factor=scale, color_scheme="dark" if dark else "light")
         try:
             if at is not None:
                 await context.add_init_script(clock_script())

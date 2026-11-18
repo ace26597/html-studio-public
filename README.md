@@ -35,8 +35,17 @@ What it makes:
   while it runs in `state/`, which is not versioned and does not reload the page. A Python app's
   packages are pinned in a lock file, so it runs on the same versions every time. An app you stop
   stays stopped when the studio restarts.
-- **PowerPoint, Word and Excel files** (needs LibreOffice). **Animation, 3D, pictures and video**
-  rendered to MP4, GIF or WebM (needs `ffmpeg`).
+- **PowerPoint, Word and Excel files** (needs LibreOffice), handed over in other formats when
+  asked (PDF, RTF, ODT, EPUB, CSV; Markdown ones need pandoc). **Very large ones** (a 100-slide
+  deck, a 50-sheet workbook) are built from a plan, a ledger of every figure and one helper for
+  the look, section by section, then checked and reviewed in batches. **Diagrams** drawn by the
+  studio and checked before they are shown. **Animation, 3D, pictures and video** rendered to
+  MP4, GIF or WebM (needs `ffmpeg`).
+- **Checked figures, in files too.** **Verify content** compares the figures on the page, and in
+  the decks, documents, workbooks and PDFs made with it, against the saved sources and data, and
+  names the slide, paragraph or cell that does not agree.
+- **Apps behind a sign-in.** When you are signed in to a project's app in your browser, the
+  agent can see the app as you do (your choice per project, kept in memory only).
 - **Skills of your own.** Describe a job in your own words, or point at a report or app you
   like, and the agent writes a skill for it. You approve the whole text before it is saved, and
   every skill exports as a file to share.
@@ -177,4 +186,4 @@ removed on 13 November 2026 and is not part of this copy.
 
 ## Licence and status
 
-MIT; see [LICENSE](LICENSE). Four skill folders in `studio2/library/skills` (`docx`, `pptx`, `xlsx`, `pdf`) are Anthropic's and stay under the Apache License 2.0: see [THIRD_PARTY.md](studio2/library/skills/THIRD_PARTY.md) and the `LICENSE.txt` in each. This is a copy of a working repository, published for people to read and try. The plan and the working notes are kept in the working repository and are not part of this copy; these pages say what has been run and what has not.
+MIT; see [LICENSE](LICENSE). Four skill folders in `studio2/library/skills` (`docx`, `pptx`, `xlsx`, `pdf`) are Anthropic's and stay under the Apache License 2.0: see [THIRD_PARTY.md](studio2/library/skills/THIRD_PARTY.md) and the `LICENSE.txt` in each. The diagram renderer kept in `studio2/server/studio2_server/static/vendor/mermaid` is Mermaid's, unchanged, under its own MIT licence: see the `LICENSE` and `THIRD_PARTY.md` there. This is a copy of a working repository, published for people to read and try. The plan and the working notes are kept in the working repository and are not part of this copy; these pages say what has been run and what has not.

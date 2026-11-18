@@ -273,6 +273,13 @@ def collect(settings: Settings, *, online: bool = False, state: dict | None = No
         "LibreOffice (PowerPoint, Word and Excel files)" if soffice else "LibreOffice is not installed (no Office files)",
         str(soffice or ""), None if soffice else package_hint(
             "brew install --cask libreoffice", "sudo apt-get install -y libreoffice", "sudo dnf install -y libreoffice"))
+    from . import convert
+    pandoc = convert.find_pandoc()
+    add(area, OK if pandoc else INFO,
+        "pandoc (Markdown to Word, EPUB and HTML, and Word to Markdown)" if pandoc
+        else "pandoc is not installed (no conversions from or to Markdown)",
+        pandoc or "", None if pandoc else package_hint(
+            "brew install pandoc", "sudo apt-get install -y pandoc", "sudo dnf install -y pandoc"))
     transcriber = voice.command()
     add(area, OK if transcriber else INFO, "Voice input" if transcriber else "Voice input is not set up",
         str(transcriber or ""), None if transcriber else

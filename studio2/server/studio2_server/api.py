@@ -149,6 +149,7 @@ class ProjectPatch(BaseModel):
     approvals: str | None = Field(default=None, pattern="^(ask|allow)$")
     name_suggestion: None = None    # only `null` is accepted: the person dismissed the offered name
     turn_options: dict | None = None   # the remembered {depth, verify} (effort.py)
+    signed_in_looks: bool | None = None   # looks carry the person's sign-in (session.py)
 
 
 class FilePut(BaseModel):
@@ -374,6 +375,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             changes["approvals"] = body.approvals
         if body.turn_options is not None:
             changes["turn_options"] = checked_options(body.turn_options, request=False)
+        if body.signed_in_looks is not None:
+            if body.signed_in_looks and settings.shared:
+                raise ApiError(403, "not_for_shared", "On a shared studio the agent never sees an app signed in "
+                               "as a person.")
+            changes["signed_in_looks"] = body.signed_in_looks
+            if not body.signed_in_looks:
+                studio.sessions.forget_person(project_id)
         return studio.view(studio.store.update(project_id, **changes) if changes else project)
 
     # -- the project's own app --------------------------------------------------------------

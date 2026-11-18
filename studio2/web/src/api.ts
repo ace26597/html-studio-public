@@ -229,6 +229,7 @@ export const api = {
       approvals?: Approvals;
       name_suggestion?: null;
       turn_options?: TurnOptions;
+      signed_in_looks?: boolean;
     },
   ) =>
     request<Project>("PATCH", `/projects/${enc(id)}`, patch),

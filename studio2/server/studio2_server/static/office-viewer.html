@@ -110,6 +110,14 @@ function start() {
   if (DATA.kind === "presentation") slides(main); else if (DATA.kind === "workbook") workbook(main); else pages(main);
 }
 
+// The page number of the n-th picture: pages may be drawn in ranges (render_document's pages), not from 1.
+function number(index) { return DATA.numbers ? DATA.numbers[index] : index + 1; }
+function shownNote(word) {
+  const shown = DATA.pages.length;
+  const first = DATA.numbers ? shown === DATA.numbers[shown - 1] : true;
+  return (first ? "Showing the first " + shown : "Showing " + shown) + " of " + DATA.page_count + " " + word + ". Download the file for the rest.";
+}
+
 function slides(main) {
   let at = 0;
   const image = $("img", { alt: "" });
@@ -118,7 +126,7 @@ function slides(main) {
   const prev = $("button", { type: "button", text: "‹ Previous" }), next = $("button", { type: "button", text: "Next ›" });
   const strip = $("div", { className: "strip" });
   const thumbs = DATA.pages.map((file, index) => {
-    const button = $("button", { type: "button", title: "Slide " + (index + 1) }, $("img", { src: file, alt: "Slide " + (index + 1), loading: "lazy" }));
+    const button = $("button", { type: "button", title: "Slide " + number(index) }, $("img", { src: file, alt: "Slide " + number(index), loading: "lazy" }));
     button.addEventListener("click", () => go(index));
     strip.append(button);
     return button;
@@ -126,8 +134,8 @@ function slides(main) {
   function go(index) {
     at = Math.max(0, Math.min(DATA.pages.length - 1, index));
     image.src = DATA.pages[at];
-    image.alt = "Slide " + (at + 1);
-    label.textContent = (at + 1) + " of " + DATA.page_count;
+    image.alt = "Slide " + number(at);
+    label.textContent = number(at) + " of " + DATA.page_count;
     prev.disabled = at === 0;
     next.disabled = at === DATA.pages.length - 1;
     thumbs.forEach((button, i) => button.setAttribute("aria-current", String(i === at)));
@@ -148,14 +156,14 @@ function slides(main) {
     if (Math.abs(moved) > 45) go(at + (moved < 0 ? 1 : -1));
   });
   main.append(stage, $("div", { className: "nav" }, prev, label, next), strip);
-  if (DATA.page_count > DATA.pages.length) main.append($("div", { className: "note", text: "Showing the first " + DATA.pages.length + " slides. Download the file for the rest." }));
+  if (DATA.page_count > DATA.pages.length) main.append($("div", { className: "note", text: shownNote("slides") }));
   go(0);
 }
 
 function pages(main) {
   const list = $("div", { className: "pages" });
-  DATA.pages.forEach((file, index) => list.append($("img", { src: file, alt: "Page " + (index + 1), loading: index < 2 ? "eager" : "lazy" })));
-  if (DATA.page_count > DATA.pages.length) list.append($("div", { className: "more", text: "Showing the first " + DATA.pages.length + " of " + DATA.page_count + " pages. Download the file for the rest." }));
+  DATA.pages.forEach((file, index) => list.append($("img", { src: file, alt: "Page " + number(index), loading: index < 2 ? "eager" : "lazy" })));
+  if (DATA.page_count > DATA.pages.length) list.append($("div", { className: "more", text: shownNote("pages") }));
   main.append(list);
 }
 
@@ -222,7 +230,7 @@ function workbook(main) {
       [...tabs.children].forEach((other) => other.setAttribute("aria-selected", String(other === tab)));
       fx.hidden = true;
       const list = $("div", { className: "pages" });
-      DATA.pages.forEach((file, index) => list.append($("img", { src: file, alt: "Sheet " + (index + 1) + " as a picture", loading: "lazy" })));
+      DATA.pages.forEach((file, index) => list.append($("img", { src: file, alt: "Sheet " + number(index) + " as a picture", loading: "lazy" })));
       grid.replaceChildren(list);
       note.className = "note";
       note.textContent = "Each sheet as one picture, with its charts drawn. Sheets with charts are marked ◔.";

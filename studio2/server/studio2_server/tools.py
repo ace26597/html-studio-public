@@ -15,7 +15,7 @@ from typing import Any, Awaitable, Callable
 from . import workspace as ws
 from .check import check_page, run_sql
 from .datasources import DataError, run_query, run_schema, to_json
-from . import effort, generate, media, nextsteps, office, services
+from . import convert, diagram, effort, filecheck, generate, media, nextsteps, office, services
 from .look import LookUnavailable
 from . import search as web_search
 from .search import SearchError
@@ -222,6 +222,11 @@ def look_next(result: dict) -> str:
     if found:
         said += (f" `layout` lists what the studio measured in the browser ({sum(f['count'] for f in found)} "
                  "possible problems): confirm each in the pictures before acting on it.")
+    if result.get("signed_in"):
+        said += (" The page was loaded signed in as the person (`signed_in`): `actions` act in the app as them, "
+                 "so do not change or delete their real data unless they asked for it.")
+    if result.get("sign_in_note"):
+        said += " " + result["sign_in_note"]
     return said
 
 
@@ -244,6 +249,15 @@ async def t_check_page(studio, project_id, args):
             "next": " ".join(nexts) or "No failures. The full list for the checked-numbers appendix is in the saved file."}
 
 
+async def t_check_file(studio, project_id, args):
+    relative = str(args.get("path") or "")
+    result = await asyncio.to_thread(filecheck.check_file, _workspace(studio, project_id), relative)
+    turn_id = studio.turns.active.get(project_id)
+    if turn_id:      # the studio re-checks these files itself after a verification (turns.py)
+        studio.turns.checked_files.setdefault(turn_id, []).append(result["file"])
+    return filecheck.compact(result)
+
+
 async def t_render_document(studio, project_id, args):
     workspace = _workspace(studio, project_id)
     relative = str(args.get("path") or "")
@@ -254,10 +268,29 @@ async def t_render_document(studio, project_id, args):
     if not path.is_file():
         raise ToolError(f"There is no file at {relative} in the project.")
     try:
+        pages = args.get("pages")
         return await office.render_async(workspace, path.relative_to(workspace.resolve()).as_posix(),
-                                         stamp=args.get("store_results", True) is not False)
+                                         stamp=args.get("store_results", True) is not False,
+                                         pages=None if pages is None else str(pages))
     except office.OfficeError as exc:
         raise ToolError(str(exc)) from None
+
+
+async def t_render_diagram(studio, project_id, args):
+    must = args.get("must_show")
+    if must is not None and not isinstance(must, list):
+        raise ToolError("must_show is a list of labels the diagram has to contain.")
+    return await diagram.render(
+        studio.looker, _workspace(studio, project_id), name=str(args.get("name") or ""),
+        source=args.get("source") or None, path=args.get("path") or None, must_show=must,
+        png_width=args.get("png_width"), colors=args.get("colors") or None, alt=args.get("alt") or None)
+
+
+async def t_convert_document(studio, project_id, args):
+    return await convert.convert(
+        studio, _workspace(studio, project_id), str(args.get("path") or ""), str(args.get("to") or ""),
+        sheet=args.get("sheet") if args.get("sheet") not in (None, "") else None,
+        reference=args.get("reference") or None, replace=bool(args.get("replace")))
 
 
 def _page_url(project: dict, relative: str, workspace: Path) -> str:
@@ -535,6 +568,11 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
     ("check_page", "Check every marked figure and quote on a page against its saved source or project data, and list "
      "numbers that carry no mark. Run it before finishing any page that states facts or figures.",
      _schema({"path": S}, []), t_check_page),
+    ("check_file", "Check every figure in a .pptx, .docx, .xlsx or .pdf file of the project against the figures "
+     "check_page verified on the pages, the data files (data/) and the saved sources: each is found (exactly or as "
+     "a rounding), derived (a workbook formula) or not_found, with where it is (slide, paragraph, cell, page). "
+     "Run it before handing over any file that states figures.",
+     _schema({"path": S}, ["path"]), t_check_file),
     ("report_verification", "Report the result of verifying the page(s), once, at the end of a request that was asked "
      "to verify: the counts (checked, passed, fixed, failed, unverifiable) and findings [{what, where, status: passed|"
      "fixed|failed|unverifiable, note}]. List every fixed, failed and unverifiable item; passed ones may be summarised. "
@@ -555,8 +593,26 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
     ("render_document", "Render a PowerPoint, Word, Excel or PDF file of the project so it can be looked at and shown. "
      "Decks, documents and PDFs become a PDF plus one image per page (open the images with the Read tool to check "
      "your work). A workbook has every formula calculated, the results stored in the file, and formula errors "
-     "listed. All get a preview page (<file>.preview/index.html) that a report can frame, with Download.",
-     _schema({"path": S, "store_results": B}, ["path"]), t_render_document),
+     "listed. All get a preview page (<file>.preview/index.html) that a report can frame, with Download. At most "
+     "60 page images are drawn in one call: `pages` (\"61-120\") draws others from the same PDF; past 20 pages "
+     "`overview` shows every page small.",
+     _schema({"path": S, "store_results": B, "pages": S}, ["path"]), t_render_document),
+    ("render_diagram", "Draw a diagram from Mermaid source (flowchart, sequence, state, entity-relationship, class, "
+     "timeline, Gantt) and check it before it is shown. Read the `diagrams` skill first. Give `source` (or `path`, a "
+     ".mmd file of the project) and a `name`; it saves files/diagrams/<name>.mmd, <name>.svg and <name>-dark.svg "
+     "(and <name>.png at `png_width` pixels, for decks and Word files). A parse error saves nothing and gives the "
+     "line. `must_show`: labels the diagram has to contain; any not drawn are listed in `missing`. `layout` says "
+     "when it is too wide or its text too small, cut off or overlapping. `colors` {light, dark}: Mermaid theme "
+     "variables to follow the page's palette. Put the saved SVG in the page, never the Mermaid script.",
+     _schema({"source": S, "path": S, "name": S, "must_show": {"type": "array", "items": S}, "png_width": I,
+              "colors": {"type": "object"}, "alt": S}, ["name"]), t_render_diagram),
+    ("convert_document", "Convert a finished file of the project to another format, written beside it under the "
+     "same name: Word .docx to .rtf, .odt, .pdf or .md; .odt and .rtf to Word; PowerPoint .pptx to .pdf or .odp; "
+     "Excel .xlsx to .ods, .pdf or one sheet as .csv (`sheet`: its name); Markdown .md to .docx, .odt, .rtf, .epub "
+     "or a standalone .html (Mermaid blocks become pictures; `reference`: a .docx or .odt of the project whose "
+     "styles to follow). An existing file is written over only with `replace: true`. The answer says what did not "
+     "come across (`not_carried`).",
+     _schema({"path": S, "to": S, "sheet": S, "reference": S, "replace": B}, ["path", "to"]), t_convert_document),
     ("render_video", "Render an animated page of the project to a video file (mp4, gif or webm), frame by frame on a "
      "stepped clock, so the result is smooth whatever the page costs to draw. The page says how long it is "
      "(window.studioVideo, which the motion-video skill's stage.js sets) or pass `duration`. `check: true` encodes "
@@ -636,7 +692,8 @@ async def call(studio, project_id: str, name: str, args: dict) -> dict:
         if len(text) > RESULT_CAP:
             text = text[:RESULT_CAP] + "\n… (cut: ask for less, or save the result to a file and read that)"
         return {"content": [{"type": "text", "text": text}]}
-    except (ToolError, SourceError, SearchError, media.MediaError, generate.GenerateError) as exc:
+    except (ToolError, SourceError, SearchError, media.MediaError, generate.GenerateError, diagram.DiagramError,
+            convert.ConvertError, office.OfficeError) as exc:
         message = str(exc)
     except DataError as exc:
         message = exc.message
@@ -650,11 +707,13 @@ def describe(studio) -> list[dict]:
     notes = {"look_at_page": look, "fetch_source": f"render: true is not available. {look}" if look else None,
              "render_document": office.reason(), "render_video": media.video_reason(studio.looker),
              "render_image": look, "generate_media": generate.reason(), "generation_models": generate.reason(),
+             "render_diagram": diagram.reason(studio.looker), "convert_document": convert.reason(),
              "propose_ship_recipe": "Only in a project brought in from a folder.",
              "make_live": "Only in a project brought in from a folder."}
     off = {"look_at_page": bool(look), "render_document": bool(office.reason()),
            "render_video": bool(media.video_reason(studio.looker)), "render_image": bool(look),
-           "generate_media": bool(generate.reason()), "generation_models": bool(generate.reason())}
+           "generate_media": bool(generate.reason()), "generation_models": bool(generate.reason()),
+           "render_diagram": bool(diagram.reason(studio.looker)), "convert_document": bool(convert.reason())}
     return [{"name": name, "description": description, "available": not off.get(name, False),
              "note": notes.get(name)} for name, description, _s, _h in TOOLS]
 

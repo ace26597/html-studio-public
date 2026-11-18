@@ -35,8 +35,12 @@ def scale_after(rest: str) -> int:
     if name in WORD_SCALES:
         return WORD_SCALES[name]
     return LETTER_SCALES.get(name, 0) if not rest[:1].isspace() else 0
-MONTH = (r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*")
-DATE = re.compile(rf"\b\d{{1,2}}(?:st|nd|rd|th)?\s+{MONTH}\b\.?(?:,?\s+\d{{4}})?|\b{MONTH}\.?\s+\d{{1,2}}(?:st|nd|rd|th)?"
+# A month is a whole word, so "Margin 12" and "Marketing 2025" are not dates.
+MONTH = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|"
+         r"sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b")
+DAY = r"\d{1,2}(?!\d)(?:st|nd|rd|th)?"
+DAYS = rf"{DAY}(?:\s?[–-]\s?{DAY})?"            # a day, or a run of days: 11–18 November
+DATE = re.compile(rf"\b{DAYS}\s+{MONTH}\b\.?(?:,?\s+\d{{4}})?|\b{MONTH}\.?\s+{DAYS}"
                   rf"(?:,?\s+\d{{4}})?|\b{MONTH}\.?\s+\d{{4}}\b|\b\d{{4}}-\d{{2}}(?:-\d{{2}})?\b|\b\d{{1,2}}/\d{{1,2}}/\d{{2,4}}\b"
                   r"|\b\d{1,2}:\d{2}(?::\d{2})?\b|\b(?:19|20)\d{2}\s?[–-]\s?(?:(?:19|20)?\d{2})\b|\b(?:FY|CY)\s?\d{2,4}\b", re.I)
 

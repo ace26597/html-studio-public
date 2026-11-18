@@ -455,6 +455,12 @@ def _studio_tool(tool: str, get) -> tuple[str, str]:
         return "other", "Make the app live"
     if tool == "check_page":
         return "read", f"Check the figures on {get('path') or 'index.html'}"
+    if tool == "check_file":
+        return "read", f"Check the figures in {get('path')}"
+    if tool == "render_diagram":
+        return "execute", f"Draw the diagram “{get('name')}”"
+    if tool == "convert_document":
+        return "execute", f"Convert {get('path')} to {str(get('to') or '').lstrip('.').upper()}"
     if tool == "search_library":
         return "search", f"Search the library for {get('query')}"
     if tool == "activate_skill":
