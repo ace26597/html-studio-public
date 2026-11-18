@@ -49,6 +49,9 @@ and its second chart at about $0.14.
 
 ## Deep, with Check the result
 
+The switch is now labelled **Verify after each request**, and **Check this page** is now
+**Verify content**; the recordings on this page were made before the rename and show the earlier names.
+
 **One research question at depth Deep, with the check switched on.** "How much does it cost to
 own an electric car compared with a petrol car over five years in the US? Purchase price, fuel or
 electricity, maintenance, insurance, incentives that exist today. Charts where numbers help."

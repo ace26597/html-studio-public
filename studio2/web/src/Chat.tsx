@@ -66,10 +66,12 @@ interface ChatProps {
   onRetry: (turn: Turn) => void;
   onOpenVersion: (sha: string) => void;
   onPickModel: (connection: string, model: string | null) => void;
-  /** Depth and verify, remembered per project; "Check this page" sends a verify-only request. */
+  /** Depth and verify, remembered per project; "Verify content" sends a verify-only request. */
   options: TurnOptions;
   onOptionsChange: (next: TurnOptions) => void;
   onVerifyPage: () => void;
+  /** "Polish the look": a request about how the page looks, with nothing new asked for. */
+  onPolishPage: () => void;
   starting: boolean;
   attachments: PendingAttachment[];
   onAddFiles: (files: File[]) => void;
@@ -241,6 +243,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
     options,
     onOptionsChange,
     onVerifyPage,
+    onPolishPage,
     onStop,
     onRetry,
     onOpenVersion,
@@ -805,7 +808,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
           {/* While dictating, the model and depth choices step aside so Stop and Send stay on the row. */}
           {voicePhase === "idle" && <ModelPicker project={project} connections={connections} onPick={onPickModel} />}
           {voicePhase === "idle" && (
-            <EffortControl options={options} onChange={onOptionsChange} onVerifyPage={onVerifyPage} disabled={starting} />
+            <EffortControl options={options} onChange={onOptionsChange} onVerifyPage={onVerifyPage} onPolishPage={onPolishPage} disabled={starting} />
           )}
           <span className="composer-spacer" />
           {running && (

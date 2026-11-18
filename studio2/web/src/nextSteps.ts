@@ -20,6 +20,7 @@ function optionsOf(raw: unknown): TurnOptions | undefined {
   if (!DEPTHS.some((d) => d.id === value.depth) || typeof value.verify !== "boolean") return undefined;
   const options: TurnOptions = { depth: value.depth as Depth, verify: value.verify };
   if (value.check_only === true) options.check_only = true;
+  if (value.polish === true) options.polish = true;
   return options;
 }
 

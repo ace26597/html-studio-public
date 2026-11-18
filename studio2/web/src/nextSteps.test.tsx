@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { CHECK_ONLY_OPTIONS, VERIFY_ONLY_TEXT } from "./effort";
+import { CHECK_ONLY_OPTIONS, POLISH_OPTIONS, POLISH_TEXT, VERIFY_ONLY_TEXT } from "./effort";
 import { fillDraft, optionsForText, shownSteps, stepsFrom, type NextStep } from "./nextSteps";
 import { initialThread, lastTurn, reduceEvents, type Turn } from "./thread";
 import { NextStepChips } from "./ThreadView";
@@ -9,7 +9,8 @@ import type { StudioEvent } from "./types";
 const ev = (seq: number, e: Record<string, unknown>, turn = "t_a") =>
   ({ seq, ts: `2026-11-13T09:00:0${seq}Z`, turn_id: turn, ...e }) as unknown as StudioEvent;
 
-const check = { id: "check", from: "studio", label: "Check this page", text: VERIFY_ONLY_TEXT, options: CHECK_ONLY_OPTIONS };
+const check = { id: "check", from: "studio", label: "Verify content", text: VERIFY_ONLY_TEXT, options: CHECK_ONLY_OPTIONS };
+const look = { id: "look", from: "studio", label: "Polish the look", text: POLISH_TEXT, options: POLISH_OPTIONS };
 const add = { id: "a1", from: "agent", label: "Add a section on battery life", text: "Add a section on battery life." };
 const finished = { type: "turn_finished", status: "completed", error: null, usage: null, session_id: "s" };
 
@@ -35,7 +36,7 @@ describe("suggested next steps", () => {
     ];
     let state = reduceEvents(initialThread, first);
     let turn = lastTurn(state) as Turn;
-    expect(turn.nextSteps?.map((s) => s.label)).toEqual(["Check this page", "Add a section on battery life"]);
+    expect(turn.nextSteps?.map((s) => s.label)).toEqual(["Verify content", "Add a section on battery life"]);
     expect(shownSteps(turn, true)).toEqual([]);             // still running
     state = reduceEvents(state, [ev(3, finished)]);
     turn = lastTurn(state) as Turn;
@@ -66,12 +67,18 @@ describe("suggested next steps", () => {
     expect(optionsForText(steps, `${VERIFY_ONLY_TEXT} And the charts.`)).toBeUndefined();   // edited: an ordinary request
     expect(optionsForText(steps, add.text)).toBeUndefined();
     expect(optionsForText([], VERIFY_ONLY_TEXT)).toBeUndefined();
+    // "Polish the look" from a chip is the same polish request as the menu's.
+    const both = stepsFrom({ steps: [check, look, add] });
+    expect(both.map((s) => s.id)).toEqual(["check", "look", "a1"]);
+    expect(both[1].options).toEqual(POLISH_OPTIONS);
+    expect(optionsForText(both, POLISH_TEXT)).toEqual({ depth: "standard", verify: false, polish: true });
+    expect(optionsForText(both, VERIFY_ONLY_TEXT)).toEqual(CHECK_ONLY_OPTIONS);
   });
 
   it("draws one button per step, saying that a tap only fills the box", () => {
     const html = renderToStaticMarkup(<NextStepChips steps={[check, add] as NextStep[]} onUse={() => {}} />);
     expect(html.match(/<button/g)?.length).toBe(2);
-    expect(html).toContain("Check this page");
+    expect(html).toContain("Verify content");
     expect(html).toContain("Add a section on battery life");
     expect(html).toMatch(/type="button"/);
     expect(html).toMatch(/aria-label="Suggested next steps"/);

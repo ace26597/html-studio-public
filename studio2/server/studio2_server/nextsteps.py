@@ -9,10 +9,12 @@ from __future__ import annotations
 
 from . import effort
 
-MAX_AGENT, MAX_STEPS = 3, 4
+MAX_AGENT, MAX_STEPS = 3, 5
 LABEL_CAP, TEXT_CAP = 40, 400
 CHECK_OPTIONS = {"depth": "standard", "verify": True, "check_only": True}
-CHECK_LABEL = "Check this page"
+CHECK_LABEL = "Verify content"
+LOOK_OPTIONS = {"depth": "standard", "verify": False, "polish": True}
+LOOK_LABEL = "Polish the look"
 
 
 # What the agent is told, with the project facts of every message. The agent program loads the studio's
@@ -23,7 +25,8 @@ AGENT_RULE = (
     "`label` is a few words starting with a verb (\"Add a section on battery life\", 40 characters at most); "
     "`text` is the whole request as the person would write it, specific to this page, and something you could "
     "carry out yourself here. The person sees them as chips under your reply; a tap only fills their chat box. "
-    "Suggest nothing already done, no questions and no check of the page (the studio offers that itself); skip "
+    "Suggest nothing already done, no questions, no check of the page's content and no general polish of its "
+    "look (the studio offers those two itself); skip "
     "the call only when nothing sensible follows. Do not repeat the steps in your closing message.")
 
 
@@ -58,8 +61,9 @@ def _items(count: int) -> str:
 
 
 def studio_steps(facts: dict) -> list[dict]:
-    """What the studio itself offers after a completed request: at most one step, the first rule
-    that applies. `facts`: changed, has_page, verify, reported, failed, still_wrong (CONTRACT.md).
+    """What the studio itself offers after a completed request: the first rule that applies, and
+    beside the content check (or by itself) the polish of the look. `facts`: changed, has_page,
+    verify, reported, failed, still_wrong, page_errors, polish, can_look (CONTRACT.md).
 
     This is the one place that decides which chip follows which outcome; change the rules here and
     the table in CONTRACT.md together.
@@ -79,14 +83,19 @@ def studio_steps(facts: dict) -> list[dict]:
         return [{"id": "failed", "from": "studio", "label": "Work through the failed items",
                  "text": f"Work through the {_items(failed)} the check marked as failed: fix those a better "
                          "source settles, and tell me which ones need my decision."}]
+    steps = []
     if facts.get("has_page") and not facts.get("reported") and (facts.get("changed") or facts.get("verify")):
-        return [{"id": "check", "from": "studio", "label": CHECK_LABEL, "text": effort.VERIFY_ONLY_TEXT,
-                 "options": dict(CHECK_OPTIONS)}]
-    return []
+        steps.append({"id": "check", "from": "studio", "label": CHECK_LABEL, "text": effort.VERIFY_ONLY_TEXT,
+                      "options": dict(CHECK_OPTIONS)})
+    # Never beside a step that fixes something: a page with errors or wrong figures is put right first.
+    if facts.get("has_page") and facts.get("changed") and facts.get("can_look") and not facts.get("polish"):
+        steps.append({"id": "look", "from": "studio", "label": LOOK_LABEL, "text": effort.POLISH_TEXT,
+                      "options": dict(LOOK_OPTIONS)})
+    return steps
 
 
 def compose(facts: dict, proposed: list[dict] | None) -> list[dict]:
-    """The `next_steps` event's `steps`: the studio's first, then the agent's (a1, a2, a3), four at most."""
+    """The `next_steps` event's `steps`: the studio's first, then the agent's (a1, a2, a3), five at most."""
     steps = studio_steps(facts)
     taken = {_key(step["label"]) for step in steps}
     for item in proposed or []:

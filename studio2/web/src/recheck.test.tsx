@@ -26,7 +26,7 @@ const disagrees = {
 describe("the studio's own re-check", () => {
   it("joins the request's last card", () => {
     const state = reduceEvents(initialThread, [
-      ev(1, { type: "turn_started", text: "Check this page", options: CHECK_ONLY_OPTIONS }),
+      ev(1, { type: "turn_started", text: "Verify content", options: CHECK_ONLY_OPTIONS }),
       ev(2, report),
       ev(3, disagrees),
     ]);

@@ -23,7 +23,7 @@ Cut from real recordings of the real interface.
 | **Ask, and watch it work**<br>[![A request is typed and the agent researches and writes the page](studio2/docs/demo/clips/ask-report.gif)](studio2/docs/demo/clips/ask-report.mp4)<br>Type a request; the page changes while the agent works. | **Edit text in place**<br>[![A heading is clicked and retyped, and saved as a version](studio2/docs/demo/clips/edit-text.gif)](studio2/docs/demo/clips/edit-text.mp4)<br>Retype text on the page directly. |
 | **Point at a part and ask**<br>[![A checklist is selected and turned into tick boxes](studio2/docs/demo/clips/select-ask.gif)](studio2/docs/demo/clips/select-ask.mp4)<br>Select one part and say what to change. | **Draw on the page**<br>[![A box, a circle and a note are drawn on the page and built by the agent](studio2/docs/demo/clips/draw.gif)](studio2/docs/demo/clips/draw.mp4)<br>Circle, box, note or drag things, then send the drawing. |
 | **An app with its own back end**<br>[![A request becomes a running app, which is then used](studio2/docs/demo/clips/app.gif)](studio2/docs/demo/clips/app.mp4)<br>The studio starts the app's server and shows its log. | **Files and versions**<br>[![The project's files and its list of versions](studio2/docs/demo/clips/versions-files.gif)](studio2/docs/demo/clips/versions-files.mp4)<br>Every request and edit is a version you can restore. |
-| **Choose how much to do**<br>[![Quick is chosen under the chat box and a short comparison page comes back](studio2/docs/demo/clips/depth.gif)](studio2/docs/demo/clips/depth.mp4)<br>Quick, Standard or Deep, set per request; this Quick one took 3 minutes 15 seconds. | **Check the page**<br>[![Check this page is pressed on an app and a result card lists what was checked and fixed](studio2/docs/demo/clips/check.gif)](studio2/docs/demo/clips/check.mp4)<br>A separate checker goes over the page and reports counts and findings in a card. |
+| **Choose how much to do**<br>[![Quick is chosen under the chat box and a short comparison page comes back](studio2/docs/demo/clips/depth.gif)](studio2/docs/demo/clips/depth.mp4)<br>Quick, Standard or Deep, set per request; this Quick one took 3 minutes 15 seconds. | **Check the page**<br>[![Check this page is pressed on an app and a result card lists what was checked and fixed](studio2/docs/demo/clips/check.gif)](studio2/docs/demo/clips/check.mp4)<br>A separate checker goes over the page and reports counts and findings in a card. The button is now called **Verify content**; the recording shows its earlier name. |
 
 What it makes:
 
@@ -37,6 +37,10 @@ What it makes:
   stays stopped when the studio restarts.
 - **PowerPoint, Word and Excel files** (needs LibreOffice). **Animation, 3D, pictures and video**
   rendered to MP4, GIF or WebM (needs `ffmpeg`).
+- **A finished look.** **Polish the look** has the agent see the page at desktop width first, then tablet and phone,
+  in pieces large enough to judge, with what the studio measured in the browser (text cut off,
+  sideways scrolling, overlaps, faint or tiny text, missing padding). It fixes clear defects and
+  suggests the rest; it adds no content.
 - **Generated media** from Higgsfield. Every request shows its price and waits for your Allow.
 - **Your own app.** Bring a folder from this computer as a safe copy or edit it in place, then
   send changes back with **Make it live** after an Allow on a card.
@@ -69,7 +73,7 @@ Click a picture for the full-size video, or watch
 | [![A question typed into a blank page becomes a sourced report with charts, tables and a list of what could not be confirmed](studio2/docs/demo/demo-report.gif)](studio2/docs/demo/demo-report.mp4) | [![The title is edited in place, a checklist is selected and made interactive, and a drawing on the page becomes a working calculator](studio2/docs/demo/demo-edit-draw.gif)](studio2/docs/demo/demo-edit-draw.mp4) | [![A request becomes a running app with a back end; a city is added, the app's log is opened, and a second chart is asked for by pointing at the first](studio2/docs/demo/demo-app.gif)](studio2/docs/demo/demo-app.mp4) |
 | Heat pump or gas furnace in a Minneapolis winter. 21 minutes of work; 168 figures compared with their saved sources, none failed. | Retype the title, turn a checklist into tick boxes (37 s), draw a calculator (76 s). | A weather comparison on live Open-Meteo data that saves its cities (1 min 49 s). |
 
-**Deep, with Check the result** (also 13 November):
+**Deep, with Check the result** (also 13 November; the switch is now **Verify after each request**):
 [the run as a video](studio2/docs/demo/demo-deep-check.mp4) (80 seconds, [GIF](studio2/docs/demo/demo-deep-check.gif)).
 The five-year cost of an electric car against a petrol car took 25 minutes 38 seconds: six
 researchers in parallel, 126 sources saved, 58 cited. The check reported 387 items, 373 matched,
@@ -170,4 +174,4 @@ removed on 13 November 2026 and is not part of this copy.
 
 ## Licence and status
 
-MIT; see [LICENSE](LICENSE). This is a copy of a working repository, published for people to read and try. The plan and the working notes are kept in the working repository and are not part of this copy; these pages say what has been run and what has not.
+MIT; see [LICENSE](LICENSE). Four skill folders in `studio2/library/skills` (`docx`, `pptx`, `xlsx`, `pdf`) are Anthropic's and stay under the Apache License 2.0: see [THIRD_PARTY.md](studio2/library/skills/THIRD_PARTY.md) and the `LICENSE.txt` in each. This is a copy of a working repository, published for people to read and try. The plan and the working notes are kept in the working repository and are not part of this copy; these pages say what has been run and what has not.

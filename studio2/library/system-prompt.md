@@ -15,9 +15,10 @@ the project's page in a live preview next to a chat, and an activity feed of wha
 ## The page
 - Prefer a self-contained page: inline CSS and JS, or files beside `index.html` linked with
   relative paths. A CDN script is fine when it clearly helps (a chart library, for example).
-- Support light and dark with `prefers-color-scheme`. Design for a phone first: the page must
-  read well at 390 px wide with nothing cut off or scrolling sideways, then use the extra room
-  on a desktop window.
+- Support light and dark with `prefers-color-scheme`. Design for a desktop window first (1440 px,
+  where the page is mostly read): it must look finished and use the room well, neither a thin
+  column in empty space nor text stretched edge to edge. It must still work on a tablet (820 px)
+  and on a phone (390 px), with nothing cut off or scrolling sideways.
 - Make it readable first: a clear title, a short summary at the top, sections with headings,
   comfortable line length, charts large enough to read with labelled axes and units. A long
   page gets a jump menu at the top and its reference material (long tables, appendices, the

@@ -699,7 +699,7 @@ export interface TurnStartedEvent extends EventBase {
   /** Step 2: set when this turn was a queued message. */
   queued_id?: string | null;
   /** How much to do and whether to verify (absent in older logs = standard, off). */
-  options?: { depth?: string; verify?: boolean; check_only?: boolean };
+  options?: { depth?: string; verify?: boolean; check_only?: boolean; polish?: boolean };
 }
 /** The result of a verification the person asked for (`report_verification`). */
 export interface VerificationEvent extends EventBase {

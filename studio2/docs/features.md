@@ -22,6 +22,17 @@ is saved as a version you can restore, and a running request can be stopped.
 
 You can also save a page, an app or an Office file as a template and start new work from it.
 
+Two buttons work on a page that is already there, under the last answer and in the menu beside
+the model's name. Neither adds content.
+
+- **Verify content.** A separate checker compares every marked figure with its saved source,
+  recomputes totals and reports on a card what matched, what it fixed and what it could not check.
+- **Polish the look.** The agent looks at the page at desktop width first, then tablet and phone, reads it in pieces
+  large enough to judge text and spacing, and gets a list of what the studio measured in the
+  browser: text cut off by its box, a page that scrolls sideways, overlapping text, text too
+  small or too faint, missing padding, controls too small to tap. It fixes what is clearly a
+  defect, in the page's own style, and suggests matters of taste instead of changing them.
+
 ## Your own skills and connectors
 
 The studio finds what is already on the machine, read-only: your skills in `~/.claude/skills`,

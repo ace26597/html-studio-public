@@ -10,6 +10,7 @@ from conftest import run_turn
 from studio2_server import effort, nextsteps, tools
 
 CHECK_OPTIONS = {"depth": "standard", "verify": True, "check_only": True}
+LOOK_OPTIONS = {"depth": "standard", "verify": False, "polish": True}
 FACTS = {"changed": False, "has_page": True, "verify": False, "reported": False, "failed": 0, "still_wrong": 0}
 
 
@@ -50,19 +51,40 @@ def test_the_studios_rules():
     assert ids(reported=True, failed=2) == ["failed"]
     assert ids(reported=True, failed=2, still_wrong=3) == ["fix"]   # the studio's own finding comes first
     check = nextsteps.studio_steps({**FACTS, "changed": True})[0]
-    assert check == {"id": "check", "from": "studio", "label": "Check this page",
+    assert check == {"id": "check", "from": "studio", "label": "Verify content",
                      "text": effort.VERIFY_ONLY_TEXT, "options": CHECK_OPTIONS}
+    assert effort.VERIFY_ONLY_TEXT.startswith("Verify content:")
     fix = nextsteps.studio_steps({**FACTS, "reported": True, "still_wrong": 3})[0]
     assert "3 items" in fix["text"] and "options" not in fix
     one = nextsteps.studio_steps({**FACTS, "reported": True, "still_wrong": 1})[0]
     assert "1 item " in one["text"]
 
 
-def test_compose_puts_the_studios_step_first_and_keeps_four():
+def test_polishing_the_look_is_offered_beside_the_check_never_beside_a_fix():
+    ids = lambda **facts: [s["id"] for s in nextsteps.studio_steps({**FACTS, "can_look": True, **facts})]  # noqa: E731
+    assert ids(changed=True) == ["check", "look"]
+    assert ids(changed=True, can_look=False) == ["check"]                       # no browser to look with
+    assert ids(changed=True, polish=True) == ["check"]                          # it was just done
+    assert ids() == [] and ids(verify=True) == ["check"]                        # nothing changed: nothing to polish
+    assert ids(changed=True, has_page=False) == []
+    assert ids(changed=True, verify=True, reported=True) == ["look"]            # a clean check: only the look is left
+    assert ids(changed=True, page_errors=2) == ["errors"]                       # a broken page is put right first
+    assert ids(changed=True, reported=True, failed=2) == ["failed"]
+    assert ids(changed=True, reported=True, still_wrong=1) == ["fix"]
+    look = nextsteps.studio_steps({**FACTS, "can_look": True, "changed": True})[1]
+    assert look == {"id": "look", "from": "studio", "label": "Polish the look",
+                    "text": effort.POLISH_TEXT, "options": LOOK_OPTIONS}
+    assert effort.clean(look["options"]) == {"depth": "standard", "verify": False, "polish": True}
+
+
+def test_compose_puts_the_studios_steps_first_and_keeps_five():
     agent = [{"label": f"Add part {n}", "text": f"Add part {n}."} for n in (1, 2, 3)]
-    steps = nextsteps.compose({**FACTS, "changed": True}, [{"label": "check THIS page", "text": "x"}, *agent])
+    steps = nextsteps.compose({**FACTS, "changed": True}, [{"label": "verify CONTENT", "text": "x"}, *agent])
     assert [s["id"] for s in steps] == ["check", "a1", "a2", "a3"]
     assert [s["from"] for s in steps] == ["studio", "agent", "agent", "agent"]
+    both = nextsteps.compose({**FACTS, "changed": True, "can_look": True},
+                             [{"label": "Polish the look", "text": "x"}, *agent])
+    assert [s["id"] for s in both] == ["check", "look", "a1", "a2", "a3"] and len(both) == nextsteps.MAX_STEPS
     assert steps[1] == {"id": "a1", "from": "agent", "label": "Add part 1", "text": "Add part 1."}
     assert nextsteps.compose(FACTS, []) == []
     assert [s["id"] for s in nextsteps.compose(FACTS, agent)] == ["a1", "a2", "a3"]
@@ -73,8 +95,18 @@ async def test_a_request_that_changed_the_page_offers_the_check(client, studio, 
     events = await run_turn(client, studio, project["id"], "Make a page")
     kinds = [e["type"] for e in events]
     assert kinds.index("checkpoint") < kinds.index("next_steps") < kinds.index("turn_finished")
-    assert steps_of(events) == [{"id": "check", "from": "studio", "label": "Check this page",
+    assert steps_of(events) == [{"id": "check", "from": "studio", "label": "Verify content",
                                  "text": effort.VERIFY_ONLY_TEXT, "options": CHECK_OPTIONS}]
+
+
+async def test_a_studio_that_can_look_offers_the_polish_and_not_after_one(client, studio, project):
+    studio.turns._can_look = lambda: True
+    events = await run_turn(client, studio, project["id"], "Make a page")
+    assert [s["id"] for s in steps_of(events)] == ["check", "look"]
+    events = await run_turn(client, studio, project["id"], "Add a paragraph", options=LOOK_OPTIONS)
+    started = next(e for e in events if e["type"] == "turn_started")
+    assert started["options"] == {"depth": "standard", "verify": False, "polish": True}
+    assert "look" not in [s["id"] for s in steps_of(events)]
 
 
 async def test_the_agents_steps_follow_the_studios(client, studio, project):
@@ -164,7 +196,8 @@ def test_the_agent_is_told_how_to_suggest(studio, project):
     a rule kept only in the tool's description is never read (two real requests showed it)."""
     context = studio.agent_context(project["id"])
     assert nextsteps.AGENT_RULE in context and "mcp__studio__suggest_next_steps" in nextsteps.AGENT_RULE
-    for phrase in ("one to three", "no check of the page", "closing message", "only fills their chat box"):
+    for phrase in ("one to three", "no check of the page's content", "no general polish", "closing message",
+                   "only fills their chat box"):
         assert phrase in nextsteps.AGENT_RULE, phrase
     description = next(d for name, d, _schema, _handler in tools.TOOLS if name == "suggest_next_steps")
     assert "at most three" in description and "closing message" in description

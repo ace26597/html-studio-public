@@ -1,11 +1,13 @@
-/** How much a request does (depth), whether its result is checked (verify), and the result card. */
+/** How much a request does (depth), whether its content is verified (verify), the polish of its look, and the result card. */
 
 export type Depth = "quick" | "standard" | "deep";
 export interface TurnOptions {
   depth: Depth;
   verify: boolean;
-  /** Only on a "Check this page" request: the studio picks no skills or connectors by itself. */
+  /** Only on a "Verify content" request: the studio picks no skills or connectors by itself. */
   check_only?: boolean;
+  /** Only on a "Polish the look" request: about how the page looks, not what it says. */
+  polish?: boolean;
 }
 
 /** `short` is what the composer's menu says beside the step; `line` is the full sentence. */
@@ -21,15 +23,23 @@ export const DEPTHS: { id: Depth; label: string; short: string; line: string }[]
 ];
 
 export const VERIFY_LINE =
-  "Check the result: before the request ends, an independent check compares every figure with its saved source and recomputes totals. A pass does not prove the source is right.";
+  "Verify content: before the request ends, an independent check compares every figure with its saved source and recomputes totals. A pass does not prove the source is right.";
 
-/** Sent by "Check this page": verify only, no new content (the server adds the instructions). */
-export const VERIFY_ONLY_TEXT = "Check this page: verify everything on it, and change nothing except certain fixes.";
+/** Sent by "Verify content": verify only, no new content (the server adds the instructions). */
+export const VERIFY_ONLY_TEXT =
+  "Verify content: check every figure and statement on this page against its sources, and change nothing except certain fixes.";
+
+/** Sent by "Polish the look": how the page looks and reads, no new content (the server adds the instructions). */
+export const POLISH_TEXT =
+  "Polish the look: see how this page looks on a desktop first, then on a tablet and a phone, fix what is clearly off, and suggest the rest.";
 
 export const DEFAULT_OPTIONS: TurnOptions = { depth: "standard", verify: false };
 
-/** The options "Check this page" sends (CONTRACT.md, depth and verify). */
+/** The options "Verify content" sends (CONTRACT.md, depth and verify). */
 export const CHECK_ONLY_OPTIONS: TurnOptions = { depth: "standard", verify: true, check_only: true };
+
+/** The options "Polish the look" sends (CONTRACT.md, "Polishing the look"). */
+export const POLISH_OPTIONS: TurnOptions = { depth: "standard", verify: false, polish: true };
 
 /** A project's remembered choice (`turn_options`), anything odd read as the default. */
 export function projectOptions(raw: unknown): TurnOptions {

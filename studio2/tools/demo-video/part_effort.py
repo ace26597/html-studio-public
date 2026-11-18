@@ -4,8 +4,8 @@
     python part_effort.py frames/<name> --project <id> --check-page [--minutes 30]
     python part_effort.py frames/<name> --project <id> --after [--scroll]     # a fresh load: only the card and the page
 
-New project (--name/--prompt): a blank page, then Quick/Standard/Deep and "Check the result" are
-clicked before the request is typed. --project with --check-page presses "Check this page" on an
+New project (--name/--prompt): a blank page, then Quick/Standard/Deep and "Verify after each request"
+are clicked before the request is typed. --project with --check-page presses "Verify content" on an
 existing project instead of typing. Either way it records until the request ends, then scrolls the
 chat to the check's result card and opens its details (if there is a card), and with --scroll walks
 slowly down the page. Writes <frames dir>/../<name>.project with the project id.
@@ -93,7 +93,7 @@ async def main():
         if VERIFY:
             rec.set("verify", 0.1)
             await open_effort(rec, pg)
-            box = pg.get_by_role("menuitemcheckbox", name=re.compile("Check the result")).first
+            box = pg.get_by_role("menuitemcheckbox", name=re.compile("Verify after each request")).first
             if await box.get_attribute("aria-checked") != "true":
                 await rec.click_on(box, 0.7)
             await asyncio.sleep(1.2)
@@ -102,7 +102,7 @@ async def main():
             await asyncio.sleep(1.0)
         if CHECK_PAGE:
             rec.set("typing", 0.1)
-            await rec.click_on(pg.get_by_role("button", name="Check this page").first, 0.9)
+            await rec.click_on(pg.get_by_role("button", name="Verify content").first, 0.9)
         else:
             rec.set("typing", 0.1)
             area = pg.locator("textarea").first

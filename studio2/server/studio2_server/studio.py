@@ -130,7 +130,7 @@ class Studio:
             try:   # a picture for the template list; never a reason to fail the save
                 opened = await self.open_preview(project)
                 shot = await self.looker.look(f"http://127.0.0.1:{opened['port']}/", self.store.dir(project_id) / "looks",
-                                              width=1280, height=800, full_page=False)
+                                              width=1280, height=800, full_page=False, tiles=False, layout=False)
                 self.saved.set_preview(saved["id"], Path(shot["image"]))
                 saved = self.saved.get(saved["id"])
             except Exception:
@@ -443,8 +443,9 @@ class Studio:
             "or document), use the save_template tool; put how it was made in `notes`.")
         if office.reason() is None:
             lines.append(
-                "- You can make real PowerPoint, Word and Excel files (the `office-files` skill and its three "
-                "companions say how). After building one, call render_document on it: you get page images to look "
+                "- You can make real PowerPoint, Word, Excel and PDF files (the `office-files` skill says how, with "
+                "the `pptx`, `docx`, `xlsx` and `pdf` skills for each kind). After building one, call render_document "
+                "on it: you get page images to look "
                 "at, a workbook's formulas are calculated and checked, and a preview page is written that the "
                 "report can frame. Never hand over an Office file you have not rendered and looked at.")
         else:
@@ -479,10 +480,14 @@ class Studio:
                 "send the token from the server, never from the page).")
         if self.looker.reason() is None:
             lines.append(
-                "- You can see the page: look_at_page loads it in a real browser and returns a screenshot file "
-                "(open it with the Read tool), console errors and failed requests; `actions` let you type and "
-                "click first. Look at every page you create or change before you finish, in the state the "
-                "person will see it, and fix what is broken or looks wrong. Say plainly if you did not look.")
+                "- You can see the page: look_at_page loads it in a real browser and returns screenshot files "
+                "(open them with the Read tool), what the studio measured on the page (`layout`), console errors "
+                "and failed requests; `actions` let you type and click first. One picture of a tall page reaches "
+                "you scaled down, so judge text, spacing and anything cut off from the `tiles` (the same page in "
+                "readable pieces), not from `image`. Look at every page you create or change before you finish, "
+                "in the state the person will see it, at width 1440 (a desktop) first, then 820 (a tablet) and "
+                "390 (a phone) when its layout changes with the width, and fix what is broken or looks wrong. "
+                "Say plainly if you did not look.")
         else:
             lines.append("- You cannot see the rendered page in this studio; say so instead of guessing.")
         lines.append(self._library_context(project, picked))

@@ -778,19 +778,69 @@ the project's app becomes `running`, after an inline edit, and on restore.
 
 ## Look — the agent can see the page
 
-`GET /api/projects/{id}/look?path=/&width=1440&height=900&dark=0&full_page=1&wait_ms=1200`
+`GET /api/projects/{id}/look?path=/&width=1440&height=900&dark=0&full_page=1&wait_ms=1200&top=0`
 loads the project URL + `path` in a headless Chromium that is already cached on the machine
 (never downloaded) and returns:
 
 ```json
 {"image": "/abs/…/projects/<id>/looks/look-<ms>.jpg", "url": "…", "status": 200, "title": "…",
  "viewport": {"width": 1440, "height": 900}, "dark": false, "page_height": 2410,
- "captured_height": 2410, "cut_off": false, "wider_than_viewport": false,
+ "captured_from": 0, "captured_height": 2410, "cut_off": false, "wider_than_viewport": false,
  "console": [{"level": "error|warning|exception", "text": "…"}],
- "failed_requests": [{"url": "…", "status": 404, "error": null}], "text_start": "…"}
+ "failed_requests": [{"url": "…", "status": 404, "error": null}], "text_start": "…",
+ "tiles": [{"image": "/abs/…/looks/look-<ms>-1.jpg", "top": 0, "height": 1300}],
+ "layout": {"measured": 412, "viewport_meta": true, "dark_styles": false,
+            "findings": [{"kind": "clipped_text", "count": 2, "means": "…",
+                          "examples": [{"where": "section.kpis > div.card > p", "y": 640,
+                                        "text": "Total participants est…", "detail": "cut on the right by 46 px"}]}],
+            "note": "Measured in the browser, not judged: …"}}
 ```
 
-The screenshot is capped at 6,000 px tall (`cut_off`), the last 12 are kept, and they live
+**A page longer than one look.** One look covers at most 6,000 px of height. `top` (page pixels,
+default 0) starts it further down: the picture, the tiles and `captured_from` then begin there, and
+`cut_off` is true whenever the page goes on below what was captured. The agent's tool says which
+`top` shows the next part. The measurements always cover the whole page.
+
+**Readable pieces (`tiles`).** `image` is the whole page in one picture, which a model sees scaled
+down: a phone-width page 6,000 px tall arrives at a third of its size, too small to judge text
+or spacing (measured on 23 of the looks the agents had taken). So the same load is also saved as
+pieces a model can read, top to bottom, each overlapping the next a little: 1,300 px tall at
+widths of 700 and more, and 1,100 px tall at twice the pixel density below 700 (a phone's
+screen has at least that density). `top` and `height` are in page pixels. `tiles` is empty when
+the page fits one piece at widths of 700 and more, since `image` is then readable as it is. The agent is told to read the tiles when it
+judges how a page looks.
+
+**What was measured (`layout`).** After the pictures are taken, the studio measures the page in
+the same browser, with no model call, and lists what it found. Each finding has a `kind`, how
+many there are (`count`), what the kind means, and up to five examples (`where`: a short CSS
+path; `y`: the element's top in page pixels, so the tile can be found; the start of its text; a
+detail). Kinds:
+
+| `kind` | Reported when |
+|---|---|
+| `no_viewport_meta` | The page has no `<meta name="viewport">`: a phone lays it out 980 px wide and shrinks it, whatever this look shows |
+| `wider_than_screen` | The page scrolls sideways; the elements that stick out past the right edge |
+| `clipped_text` | Text cut by a box that hides its overflow (by more than 4 px). The detail says when it ends in an ellipsis or a line clamp, which may be meant |
+| `overlapping_text` | Two lines of text from different elements drawn over each other (a quarter of the smaller one or more), neither behind an opaque box |
+| `text_at_edge` | Text closer than 8 px (below 700 wide) or 12 px to the edge of the screen |
+| `tight_padding` | Text closer than 6 px to the left edge of the box that frames it (a box with its own background or border) |
+| `small_text` | Text of six characters or more smaller than 11 px. Reference marks and anything in `sup` or `sub` are left out: they are small on purpose |
+| `low_contrast` | Text whose contrast with the colour behind it is under 4.5 to 1 (3 to 1 for large text). Skipped over pictures and gradients, where it cannot be measured |
+| `small_tap_target` | Below 700 wide: a button, field or stand-alone link smaller than 24 px in either direction (the least WCAG 2.2 allows). Links in running text are left out |
+| `broken_image` | An image that failed to load |
+| `long_lines` | At 700 wide and more: a paragraph running to about 110 characters a line or more |
+
+`viewport_meta` and `dark_styles` (the page's CSS has rules for `prefers-color-scheme: dark`, so
+it is worth a look with `dark`) are always given. At most 4,000 elements are measured
+(`measured`). The list is a set of hints from measurements, not a judgement: an item can be
+intended, and a page with none can still look wrong. `layout` is `null` when measuring failed;
+the look itself still succeeds.
+
+`tiles=0` and `layout=0` (query) or `"tiles": false`, `"layout": false` (body) leave either out.
+The studio's own looks (the page's errors after a request, a template's picture) ask for neither.
+
+The screenshot is capped at 6,000 px tall, the last 12 looks are kept (each with
+its tiles), and they live
 outside the workspace so they are not versioned. 503 `look_unavailable` when no cached browser
 or no `playwright` package exists; the agent is then told it cannot see the page.
 
@@ -3015,16 +3065,20 @@ before the request ends (**verify**). Both are remembered per project and sent w
 ## REST
 
 - `POST /api/projects/{id}/turns` takes `options: {depth?: "quick"|"standard"|"deep", verify?: boolean,
-  check_only?: boolean}`. Unknown keys or values → 400 `invalid_options`. Left out: `standard`, no verify.
-  `check_only: true` marks a request that only checks the page (the **Check this page** button):
-  it implies `verify: true`, and the studio picks no skills or connectors by itself for it (see
+  check_only?: boolean, polish?: boolean}`. Unknown keys or values → 400 `invalid_options`. Left out:
+  `standard`, no verify.
+  `check_only: true` marks a request that only verifies the page's content (the **Verify content**
+  button): it implies `verify: true`, and the studio picks no skills or connectors by itself for it (see
   "Verification" below). `check_only: false` is the same as leaving it out.
-- `PATCH /api/projects/{id}` takes `turn_options` (`{depth?, verify?}`, same 400; `check_only` is a
-  property of one request and is refused here): the project's remembered choice, kept in the
+  `polish: true` marks a request about how the page looks (the **Polish the look** button, see
+  "Polishing the look" below). `polish: false` is the same as leaving it out; `check_only` and
+  `polish` together → 400 `invalid_options`.
+- `PATCH /api/projects/{id}` takes `turn_options` (`{depth?, verify?}`, same 400; `check_only` and
+  `polish` are properties of one request and are refused here): the project's remembered choice, kept in the
   project record as `turn_options` (`{depth, verify}`; absent = standard, off).
   A request's own `options` are not saved by sending it; the UI saves the choice when it changes.
 - `turn_started` carries `options` (`{depth, verify}`, always both keys, plus `check_only: true`
-  only for a check-only request). `turn_queued` carries the options of the queued message, and they
+  only for a check-only request and `polish: true` only for a polish request). `turn_queued` carries the options of the queued message, and they
   are the ones it runs with.
 
 ## What the agent receives
@@ -3102,14 +3156,41 @@ said "always" for, here or for the machine). Nothing is added by itself: no `all
 `picked` skills and no `requested` or `picked` connectors. `library_picked` then has `mode: "none"`
 and a `note` saying so.
 
+## Polishing the look
+
+Verification is about what the page says. **Polish the look** is about how it looks and reads: a
+request with `polish: true` adds one more part to the `<studio-effort>` block (the wording is in
+`effort.py`, like the rest). The agent is told to:
+
+1. look at every page with `look_at_page` at 1440 px wide first (a desktop, where the page is
+   mostly read and has to look best), then 820 (a tablet), then 390 (a phone), once more at 1440
+   with `dark` when `layout.dark_styles` is true, and at an app's main states;
+2. open every tile of each look and read its `layout` list, confirming a measured item in the
+   tiles before acting on it;
+3. fix what is clearly a defect (text cut off, overlapping or off the screen, a page that scrolls
+   sideways, broken or missing spacing, unreadable type, a layout that wastes or overfills a
+   desktop window) with the smallest change and in the page's own style, never by hiding content.
+   The desktop view comes first and the tablet second; on a phone it fixes what is broken and
+   never trades the desktop view for it (the owner, 18 November 2026: the studio is used on a
+   desktop, sometimes an iPad, rarely a phone);
+4. leave matters of taste alone (another layout, palette or typeface) and offer them as next steps
+   instead (`suggest_next_steps`);
+5. look again after its fixes, and end with what it fixed, what it looked at and what it could not check.
+
+It adds and removes no content. There is no card and no new event: the answer and the chips carry
+the result. The picker works as for any request. When the studio has no browser the agent says it
+cannot see the page and changes nothing. A polish request is an ordinary request in every other
+way (it can be queued, stopped and undone as a version).
+
 ## UI
 
 The composer's bar has one small control beside the model's: it names the depth ("Standard"),
-with a tick when the result will be checked. It opens a menu with the three steps **Quick /
+with a tick when the content will be verified. It opens a menu with the three steps **Quick /
 Standard / Deep**, each with a few words on what it means (Deep is slower and costs more of the
-model allowance or money), **Check the result** to switch the check on or off, and **Check this
-page now**, which sends a request that only verifies (verify on, no new content; it sends
-`options: {depth: "standard", verify: true, check_only: true}`). The chat shows
+model allowance or money), **Verify after each request** to switch the content check on or off,
+**Verify content now**, which sends a request that only verifies (verify on, no new content; it sends
+`options: {depth: "standard", verify: true, check_only: true}`), and **Polish the look now**, which
+sends the polish request (`options: {depth: "standard", verify: false, polish: true}`). The chat shows
 a `verification` event as a card: counts first, findings expandable, failed ones first. A
 `verification_recheck` belongs to the turn's last card and is shown at the top of it: when it
 disagrees, "N items the studio's own check still finds wrong" with each one listed, before the
@@ -3192,16 +3273,20 @@ Rules in one function, `nextsteps.studio_steps(facts)`, with no model call. `fac
 | `reported` | The agent reported a check (`verification` event) |
 | `failed` | The `failed` count of the last report, or 0 |
 | `still_wrong` | `problems_total` of the studio's own re-check, or 0 |
+| `polish` | The request was a polish request (`options.polish`) |
+| `can_look` | The studio has a browser to look with |
 
 | Step `id` | Offered when | Chip | Text |
 |---|---|---|---|
 | `fix` | `still_wrong > 0` | Fix what the check still finds | Fix the N items the studio's own check still finds wrong on this page (they are listed on the check card), then run the check again. |
 | `failed` | `reported`, `failed > 0`, no `fix` | Work through the failed items | Work through the N items the check marked as failed: fix those a better source settles, and tell me which ones need my decision. |
-| `check` | `has_page`, not `reported`, and `changed` or `verify` | Check this page | The check-only text, with `options: {depth: "standard", verify: true, check_only: true}` |
+| `check` | `has_page`, not `reported`, and `changed` or `verify` | Verify content | The check-only text, with `options: {depth: "standard", verify: true, check_only: true}` |
+| `look` | `has_page`, `changed`, `can_look`, not `polish`, and none of `errors`, `fix`, `failed` applies | Polish the look | The polish text, with `options: {depth: "standard", verify: false, polish: true}` |
 
-At most one studio step is offered (the first that applies, in this order). Before these three
+Of the first three at most one is offered (the first that applies, in this order). Before them
 comes `errors` ("Fix the page's errors"), offered when the studio's own look at the page found any
-(`page_errors`, below).
+(`page_errors`, below). `look` is offered beside `check` or by itself, never beside a step that
+fixes something: a page with errors or wrong figures is put right first.
 
 **The studio's own look at the page.** After a request that completed and changed the project, the
 studio opens the project's page once in its own browser (an app once it is running again, up to 8
@@ -3219,13 +3304,16 @@ the version is saved and before `turn_finished`:
 
 ```json
 {"type": "next_steps", "steps": [
-  {"id": "check", "from": "studio", "label": "Check this page",
-   "text": "Check this page: verify everything on it, and change nothing except certain fixes.",
+  {"id": "check", "from": "studio", "label": "Verify content",
+   "text": "Verify content: check every figure and statement on this page against its sources, and change nothing except certain fixes.",
    "options": {"depth": "standard", "verify": true, "check_only": true}},
+  {"id": "look", "from": "studio", "label": "Polish the look",
+   "text": "Polish the look: see how this page looks on a desktop first, then on a tablet and a phone, fix what is clearly off, and suggest the rest.",
+   "options": {"depth": "standard", "verify": false, "polish": true}},
   {"id": "a1", "from": "agent", "label": "Add a section on battery life", "text": "Add a section on …"}]}
 ```
 
-The studio's step first, then the agent's in the order given (`a1`, `a2`, `a3`); at most 4 in all.
+The studio's steps first (two at most), then the agent's in the order given (`a1`, `a2`, `a3`); at most 5 in all.
 An agent step whose label equals the studio step's label (letter case ignored) is dropped.
 `options` is present only on a step that needs them. A request that was stopped or failed writes
 no `next_steps`. Never more than one per request.
@@ -3236,8 +3324,8 @@ Chips are shown under the last request only, when it completed and nothing is ru
 an older request's chips are not shown again. A tap puts `text` in the chat box (after what is
 already typed, on a new line, when the box is not empty), puts the caret there and sends nothing.
 When the person sends a message whose text is exactly a shown step's `text` and that step has
-`options`, the message goes with those options (so "Check this page" from a chip is the same
-check-only request as the button); any other text goes with the project's remembered options.
+`options`, the message goes with those options (so "Verify content" from a chip is the same
+check-only request as the button, and "Polish the look" the same polish request); any other text goes with the project's remembered options.
 On a phone the chips wrap and each is at least 36 px tall.
 
 # Examples that come with the studio

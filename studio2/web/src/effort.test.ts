@@ -68,7 +68,7 @@ describe("the verification card", () => {
 
   it("the reducer puts the card in its request, and the not-reported notice too", () => {
     const state = reduceEvents(initialThread, [
-      ev(1, { type: "turn_started", text: "Check this page", options: { depth: "standard", verify: true } }),
+      ev(1, { type: "turn_started", text: "Verify content", options: { depth: "standard", verify: true } }),
       ev(2, { type: "verification", ...event }),
       ev(3, { type: "notice", level: "warning", message: "Verification was asked for and was not reported." }),
     ]);

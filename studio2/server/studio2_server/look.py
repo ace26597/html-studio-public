@@ -11,13 +11,20 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import importlib
+import logging
 import os
 import re
 import sys
 import time
 from pathlib import Path
 
+from . import layout as measure
+
+log = logging.getLogger(__name__)
+
 MAX_HEIGHT, KEEP = 6_000, 12
+NARROW = 700                    # below this a look is a phone's: twice the pixel density, shorter pieces
+TILE, TILE_NARROW = 1_300, 1_100   # a piece's height in page pixels: what a model still reads at full size
 TEXT_CAP, LIST_CAP = 300, 30
 RECHECK = 5.0       # seconds before a "cannot look" is checked again; a busy turn asks often
 PLAYWRIGHT_PIN = "playwright==1.62.0"   # the `look` extra in pyproject.toml
@@ -121,13 +128,21 @@ class Looker:
 
     async def look(self, url: str, directory: Path, *, width: int = 1440, height: int = 900,
                    dark: bool = False, full_page: bool = True, wait_ms: int = 1200,
-                   actions: list[dict] | None = None) -> dict:
+                   actions: list[dict] | None = None, tiles: bool = True, layout: bool = True,
+                   top: int = 0) -> dict:
+        """Load `url`, act, and save a picture of it. `tiles`: also save the page as pieces a model
+        can read (the one picture of a tall page reaches it scaled down). `layout`: also measure
+        the page (layout.py). The studio's own looks ask for neither. `top`: where the picture
+        starts, in page pixels, for the parts of a long page below the first MAX_HEIGHT."""
         browser = await self._ensure()
         directory.mkdir(parents=True, exist_ok=True)
         console: list[dict] = []
         failed: list[dict] = []
         async with self._slots:
+            # A phone's screen has at least twice the pixels of its CSS width; the pieces use them.
+            density = 2 if tiles and width < NARROW else 1
             context = await browser.new_context(viewport={"width": width, "height": height},
+                                                device_scale_factor=density,
                                                 color_scheme="dark" if dark else "light")
             try:
                 page = await context.new_page()
@@ -157,23 +172,52 @@ class Looker:
                 await page.wait_for_timeout(max(0, min(wait_ms, 10_000)))
                 size = await page.evaluate(
                     "() => ({w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight})")
-                shot_height = min(max(size["h"], height), MAX_HEIGHT) if full_page else height
+                top = max(0, min(int(top or 0), max(0, size["h"] - 200))) if full_page else 0
+                shot_height = min(max(size["h"] - top, 200 if top else height), MAX_HEIGHT) if full_page else height
                 # JPEG: a tall page as PNG runs to several megabytes, which the agent then has to carry.
-                target = directory / f"look-{int(time.time() * 1000)}.jpg"
-                await page.screenshot(path=str(target), type="jpeg", quality=82, clip={"x": 0, "y": 0, "width": width, "height": shot_height},
-                                      full_page=full_page)
+                stamp = int(time.time() * 1000)
+                target = directory / f"look-{stamp}.jpg"
+                # scale="css": one image pixel per page pixel whatever the density, as before.
+                await page.screenshot(path=str(target), type="jpeg", quality=82, scale="css",
+                                      clip={"x": 0, "y": top, "width": width, "height": shot_height}, full_page=full_page)
+                pieces = []
+                cuts = measure.tiles(shot_height, TILE_NARROW if width < NARROW else TILE) if tiles else []
+                if len(cuts) > 1 or (cuts and density > 1):
+                    for number, (start, tall) in enumerate(cuts, 1):
+                        piece = directory / f"look-{stamp}-{number}.jpg"
+                        await page.screenshot(path=str(piece), type="jpeg", quality=80, full_page=full_page,
+                                              clip={"x": 0, "y": top + start, "width": width, "height": tall})
+                        pieces.append({"image": str(piece), "top": top + start, "height": tall})
                 title = await page.title()
                 text = (await page.evaluate("() => document.body ? document.body.innerText : ''"))[:1500]
+                measured = None
+                if layout:     # last: it may scroll the page
+                    try:
+                        measured = measure.report(await page.evaluate(
+                            measure.AUDIT_JS, {"per": measure.PER_KIND, "max": measure.MAX_ELEMENTS}))
+                    except Exception:  # noqa: BLE001 - the measurements are an extra; the look still succeeds
+                        log.debug("could not measure the layout of %s", url, exc_info=True)
             finally:
                 await context.close()
-        for old in sorted(directory.glob("look-*.*"))[:-KEEP]:
-            old.unlink(missing_ok=True)
+        self._prune(directory)
+        extra = {"tiles": pieces} if tiles else {}
+        if layout:
+            extra["layout"] = measured
         return {"image": str(target), "url": url, "status": status, "title": title,
                 "viewport": {"width": width, "height": height}, "dark": dark,
-                "page_height": size["h"], "captured_height": shot_height,
-                "cut_off": bool(full_page and size["h"] > MAX_HEIGHT),
+                "page_height": size["h"], "captured_from": top, "captured_height": shot_height,
+                "cut_off": bool(full_page and size["h"] > top + shot_height),
                 "wider_than_viewport": size["w"] > width + 1,
-                "actions": done, "console": console[:LIST_CAP], "failed_requests": failed[:LIST_CAP], "text_start": text}
+                "actions": done, "console": console[:LIST_CAP], "failed_requests": failed[:LIST_CAP],
+                "text_start": text, **extra}
+
+    @staticmethod
+    def _prune(directory: Path) -> None:
+        """Keep the last KEEP looks, each with its pieces (look-<ms>.jpg, look-<ms>-<n>.jpg)."""
+        stamps = sorted({name.stem.split("-")[1] for name in directory.glob("look-*.*")})
+        for stamp in stamps[:-KEEP]:
+            for old in [*directory.glob(f"look-{stamp}.*"), *directory.glob(f"look-{stamp}-*.*")]:
+                old.unlink(missing_ok=True)
 
     async def drawing_shots(self, url: str, drawing: dict, directory: Path, stem: str) -> list[dict]:
         """Redraw the person's marks on a fresh render → [{file, marks}] one image per marked region."""

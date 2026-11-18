@@ -478,7 +478,8 @@ class TurnRunner:
             try:
                 steps = nextsteps.compose(
                     {"changed": changed_files, "verify": bool((options or {}).get("verify")), "reported": reported,
-                     "page_errors": page_errors,
+                     "page_errors": page_errors, "polish": bool((options or {}).get("polish")),
+                     "can_look": self._can_look(),
                      "has_page": (workspace / "index.html").is_file() or (workspace / "studio.json").is_file(),
                      "failed": report.get("failed", 0), "still_wrong": still_wrong}, proposed)
                 if steps:
@@ -548,6 +549,11 @@ class TurnRunner:
 
     LOOK_WAIT = 8.0         # how long an app may take to come back up before the look is skipped
 
+    def _can_look(self) -> bool:
+        """Whether "Polish the look" is worth offering: a browser to look with, and a real agent.
+        Replaced in tests."""
+        return not self.studio.settings.fake and self.studio.looker.reason() is None
+
     async def _problems(self, pid: str) -> dict | None:
         """Open the project's page once in the studio's own browser → {errors, failed} (lists of
         short strings), or None when it cannot be looked at (no browser, the scripted agent, an app
@@ -563,7 +569,8 @@ class TurnRunner:
                     return None
                 await asyncio.sleep(0.4)
         seen = await studio.looker.look(f"http://127.0.0.1:{project['port']}/", studio.store.dir(pid) / "looks",
-                                        width=1280, height=800, full_page=False, wait_ms=1500)
+                                        width=1280, height=800, full_page=False, wait_ms=1500,
+                                        tiles=False, layout=False)
         errors = [item["text"] for item in seen.get("console") or [] if item.get("level") in ("error", "exception")]
         failed = [f"{item.get('url')} ({item.get('status') or item.get('error') or 'failed'})"
                   for item in seen.get("failed_requests") or []]

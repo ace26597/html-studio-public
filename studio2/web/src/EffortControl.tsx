@@ -14,18 +14,21 @@ import {
 
 /**
  * How much to do, in the composer's bar beside the model: a quiet button that names the depth
- * (with a tick when the result will be checked) and opens a menu with the three steps, the
- * check switch and "Check this page now". Nothing is added to the composer's height.
+ * (with a tick when the content will be verified) and opens a menu with the three steps, the
+ * verify switch, "Verify content now" and "Polish the look now". Nothing is added to the
+ * composer's height.
  */
 export function EffortControl({
   options,
   onChange,
   onVerifyPage,
+  onPolishPage,
   disabled,
 }: {
   options: TurnOptions;
   onChange: (next: TurnOptions) => void;
   onVerifyPage: () => void;
+  onPolishPage: () => void;
   disabled?: boolean;
 }) {
   const entries = useMemo<MenuEntry[]>(
@@ -41,16 +44,17 @@ export function EffortControl({
       ),
       { type: "separator" },
       {
-        label: "Check the result",
+        label: "Verify after each request",
         hint: options.verify ? "on" : "off",
         checked: options.verify,
         toggle: true,
         onSelect: () => onChange({ ...options, verify: !options.verify }),
       },
       { type: "separator" },
-      { label: "Check this page now", icon: "shield", disabled, onSelect: onVerifyPage },
+      { label: "Verify content now", icon: "shield", disabled, onSelect: onVerifyPage },
+      { label: "Polish the look now", icon: "sparkle", disabled, onSelect: onPolishPage },
     ],
-    [options, onChange, onVerifyPage, disabled],
+    [options, onChange, onVerifyPage, onPolishPage, disabled],
   );
   return (
     <Menu
@@ -63,7 +67,7 @@ export function EffortControl({
           type="button"
           className="model-btn effort-btn"
           aria-label={effortSummary(options)}
-          data-tip="How much to do, and whether the result is checked"
+          data-tip="How much to do, verify the content, polish the look"
           data-tip-side="top"
           data-tip-align="start"
           {...props}
@@ -82,9 +86,9 @@ export function VerificationCard({ item }: { item: VerificationItem }) {
   const [open, setOpen] = useState(item.failed > 0);
   const tone = verificationTone(item);
   return (
-    <section className={`verification verification-${tone}`} aria-label="Check of the page" tabIndex={0}>
+    <section className={`verification verification-${tone}`} aria-label="Content check" tabIndex={0}>
       <p className="verification-title">
-        <strong>Check of the page</strong> {verificationHeadline(item)}
+        <strong>Content check</strong> {verificationHeadline(item)}
       </p>
       {item.summary && <p className="verification-summary">{item.summary}</p>}
       {item.findings.length > 0 && (

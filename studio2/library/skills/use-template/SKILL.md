@@ -22,8 +22,10 @@ pattern for how things look and how they are built. It is never a source of cont
   chart from the person's request and this project's own sources.
 - **Deck, workbook, document:** copy the build script from `template/tools/` into this
   project's `tools/` and change it there. Keep the grid, colours, type, slide or sheet
-  functions, number formats and checks. Replace the outline, the text and the data. Then the
-  usual loop from `office-files`: build, `render_document`, look, fix.
+  functions, number formats and checks. Replace the outline, the text and the data. Keep the
+  library the script uses; if it has a `package.json`, copy that too and run
+  `npm install --prefix tools`. Then the usual loop from `office-files`: build,
+  `render_document`, look, fix.
 - **App:** the project already is a copy of the template's files. Change it to what the
   person asks and keep its conventions.
 - If the request does not fit the template (a dashboard asked for from a report template),

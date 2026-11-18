@@ -146,6 +146,39 @@ def test_check_only_is_a_request_option_that_implies_verify():
 async def test_a_project_cannot_remember_check_only(client, project):
     answer = await client.patch(f"/api/projects/{project['id']}", json={"turn_options": {"check_only": True}})
     assert answer.status_code == 400 and answer.json()["error"]["code"] == "invalid_options"
+    answer = await client.patch(f"/api/projects/{project['id']}", json={"turn_options": {"polish": True}})
+    assert answer.status_code == 400 and answer.json()["error"]["code"] == "invalid_options"
+
+
+# -- polish: a request about how the page looks ------------------------------------------------
+def test_polish_is_a_request_option_with_its_own_wording():
+    assert effort.clean({"polish": True}) == {"depth": "standard", "verify": False, "polish": True}
+    assert effort.clean({"polish": False, "verify": True}) == {"depth": "standard", "verify": True}
+    assert effort.clean({"polish": True, "depth": "deep", "verify": True}) == {
+        "depth": "deep", "verify": True, "polish": True}
+    for bad in ({"polish": "yes"}, {"polish": 1}, {"polish": True, "check_only": True}):
+        try:
+            effort.clean(bad)
+        except effort.OptionsError:
+            continue
+        raise AssertionError(f"{bad} was accepted")
+    block = effort.block({"depth": "standard", "verify": False, "polish": True})
+    assert block.startswith("<studio-effort>") and effort.POLISH in block and effort.VERIFY not in block
+    for phrase in ("width 1440 first", "Desktop comes first", "`tiles`", "`layout`", "add no content", "Never fix by hiding",
+                   "matter of taste", "suggest_next_steps", "Look again", "do not polish blind"):
+        assert phrase in effort.POLISH, phrase
+    assert effort.block({"depth": "standard", "verify": False}) == ""       # without it nothing is added
+
+
+async def test_a_polish_request_reaches_the_agent_and_two_once_options_are_refused(client, studio, project):
+    pid = project["id"]
+    events = await run_turn(client, studio, pid, effort.POLISH_TEXT, options={"polish": True})
+    started = next(e for e in events if e["type"] == "turn_started")
+    assert started["options"] == {"depth": "standard", "verify": False, "polish": True}
+    assert not [e for e in events if e["type"] == "verification"]           # it is not a check of the content
+    answer = await client.post(f"/api/projects/{pid}/turns",
+                               json={"text": "x", "options": {"polish": True, "check_only": True}})
+    assert answer.status_code == 400 and answer.json()["error"]["code"] == "invalid_options"
 
 
 def test_the_wording_asks_for_a_recheck_and_no_counts_in_the_closing_message():
@@ -216,7 +249,7 @@ async def test_the_studio_rechecks_the_page_after_a_verification(client, studio,
     (workspace / "index.html").write_text(PAGE)
     saved = workspace / "checks" / "index.html.json"
     before = saved.read_text() if saved.exists() else None
-    events = await run_turn(client, studio, pid, "Check this page", options={"check_only": True})
+    events = await run_turn(client, studio, pid, effort.VERIFY_ONLY_TEXT, options={"check_only": True})
     kinds = [e["type"] for e in events]
     assert kinds.index("verification") < kinds.index("verification_recheck") < kinds.index("turn_finished")
     recheck = next(e for e in events if e["type"] == "verification_recheck")
@@ -230,7 +263,7 @@ async def test_the_studio_rechecks_the_page_after_a_verification(client, studio,
     (workspace / "index.html").write_text(
         '<main><p>Revenue was <span data-src="s1" data-quote="revenue was 4.2 billion dollars">$4.2 billion</span>.'
         '</p><ol><li id="src-s1">one</li></ol></main>')
-    events = await run_turn(client, studio, pid, "Check this page", options={"check_only": True})
+    events = await run_turn(client, studio, pid, effort.VERIFY_ONLY_TEXT, options={"check_only": True})
     recheck = next(e for e in events if e["type"] == "verification_recheck")
     assert recheck["agrees"] is True and recheck["problems"] == [] and recheck["pages"][0]["verified"] == 1
     # No verification reported: no re-check.

@@ -8,7 +8,7 @@ describe("the composer's depth button", () => {
   });
 
   it("says the depth and the check to a screen reader", () => {
-    expect(effortSummary({ depth: "deep", verify: true })).toBe("How much to do: Deep, and the result is checked");
+    expect(effortSummary({ depth: "deep", verify: true })).toBe("How much to do: Deep, and its content is verified");
     expect(effortSummary({ depth: "standard", verify: false })).toBe("How much to do: Standard");
   });
 

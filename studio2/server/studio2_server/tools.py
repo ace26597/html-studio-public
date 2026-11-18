@@ -196,11 +196,33 @@ async def t_look_at_page(studio, project_id, args):
             f"http://127.0.0.1:{project['port']}" + path, studio.store.dir(project_id) / "looks",
             width=max(320, min(int(args.get("width") or 1440), 2560)), dark=bool(args.get("dark")),
             full_page=args.get("full_page", True) is not False, wait_ms=int(args.get("wait_ms") or 1200),
-            actions=args.get("actions") if isinstance(args.get("actions"), list) else None)
+            actions=args.get("actions") if isinstance(args.get("actions"), list) else None,
+            top=max(0, int(args.get("top") or 0)))
     except LookUnavailable as exc:
         raise ToolError(str(exc)) from None
-    result["next"] = "Open the file in `image` with the Read tool to see the screenshot."
+    result["next"] = look_next(result)
     return result
+
+
+def look_next(result: dict) -> str:
+    """What the agent is told to do with a look: which pictures to open, and what `layout` is."""
+    pieces = len(result.get("tiles") or [])
+    if pieces:
+        said = (f"`image` is the whole page in one picture: enough for the overall layout, too small to judge "
+                f"text or spacing. To see the page as the person does, open the {pieces} "
+                f"picture{'s' if pieces != 1 else ''} in `tiles` with the Read tool (the same page in readable "
+                "pieces, top to bottom).")
+    else:
+        said = "Open the file in `image` with the Read tool to see the screenshot."
+    if result.get("cut_off"):
+        below = int(result.get("captured_from") or 0) + int(result.get("captured_height") or 0)
+        said += (f" This look covers the page from {result.get('captured_from') or 0} to {below} px of "
+                 f"{result.get('page_height')}: call again with top: {below} to see what is below.")
+    found = (result.get("layout") or {}).get("findings") or []
+    if found:
+        said += (f" `layout` lists what the studio measured in the browser ({sum(f['count'] for f in found)} "
+                 "possible problems): confirm each in the pictures before acting on it.")
+    return said
 
 
 async def t_check_page(studio, project_id, args):
@@ -482,9 +504,12 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
     ("query_database", "Run one read-only SQL statement on an attached database. save_as writes up to 500,000 rows "
      "to a .csv or .json file in the project instead of returning them.",
      _schema({"source": S, "sql": S, "limit": I, "save_as": S}, ["source", "sql"]), t_query_database),
-    ("look_at_page", "Load the project's page in a real browser and get a screenshot file, console errors and failed "
-     "requests. `actions` run first: {fill, value}, {click}, {hover}, {press}, {select, value}, {wait_for}, {wait_ms}.",
-     _schema({"path": S, "width": I, "dark": B, "full_page": B, "wait_ms": I,
+    ("look_at_page", "Load the project's page in a real browser and get screenshot files (the whole page, and the same "
+     "page in readable pieces: `tiles`), what the studio measured on it (`layout`: text cut off, sideways scrolling, "
+     "overlaps, small or faint text, missing padding), console errors and failed requests. `width` 1440 is a desktop "
+     "(the default), 820 a tablet, 390 a phone. One look covers 6,000 px of height; `top` starts it further down a longer page. `actions` run first: {fill, value}, {click}, {hover}, {press}, {select, value}, {wait_for}, "
+     "{wait_ms}.",
+     _schema({"path": S, "width": I, "dark": B, "full_page": B, "wait_ms": I, "top": I,
               "actions": {"type": "array", "items": {"type": "object"}}}, []), t_look_at_page),
     ("check_page", "Check every marked figure and quote on a page against its saved source or project data, and list "
      "numbers that carry no mark. Run it before finishing any page that states facts or figures.",

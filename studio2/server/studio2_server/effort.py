@@ -10,7 +10,8 @@ import re
 
 DEPTHS = ("quick", "standard", "deep")
 DEFAULT = {"depth": "standard", "verify": False}
-KEYS = {"depth", "verify"}                 # the remembered choice; a request may also say check_only
+KEYS = {"depth", "verify"}                 # the remembered choice; a request may also say check_only or polish
+ONCE = {"check_only", "polish"}            # true for one request only, never remembered
 DEEP_SKILL = "studio:deep-research"
 NOT_REPORTED = "Verification was asked for and was not reported."
 
@@ -55,7 +56,42 @@ VERIFY = (
     "In your closing message do not restate the counts or list the findings again: the person sees "
     "them on the check card. Point to the card and say only what needs their attention or decision.")
 
-VERIFY_ONLY_TEXT = "Check this page: verify everything on it, and change nothing except certain fixes."
+VERIFY_ONLY_TEXT = ("Verify content: check every figure and statement on this page against its sources, and "
+                    "change nothing except certain fixes.")
+
+POLISH = (
+    "The person asked for the look of the page to be polished. This request is about how the page looks and "
+    "reads, not what it says: add no content and remove none, and keep the page's own style (its palette, "
+    "typefaces and layout idea). Make what is there look finished.\n"
+    "1. Look at every page of the project with look_at_page at width 1440 first (a desktop: where the page is "
+    "mostly read, and where it has to look best), then 820 (a tablet), then 390 (a phone). When a look's "
+    "`layout.dark_styles` is true, look once at 1440 with dark: true as well. For an app, also look at its "
+    "main states (use `actions`).\n"
+    "2. For each look, open every picture in `tiles` with the Read tool (the single `image` is too small to "
+    "judge a tall page) and read the `layout` list. That list is what the studio measured in the browser: "
+    "confirm an item in the pictures before acting on it, since it can be intended.\n"
+    "3. Judge the page as its reader would, the desktop view most carefully: it should look finished and use "
+    "the width well, not like a phone page stretched out or a thin column in empty space. Text that is cut off, half hidden, overlapping or running off the "
+    "screen; a page that scrolls sideways; padding and margins that are missing or uneven; things that do not "
+    "line up; lines of text that are cramped or far too long; type too small or too faint to read; headings "
+    "that do not stand out in order; tables, charts and pictures that do not fit their space; controls too "
+    "small to tap; empty or broken areas; anything that looks unfinished.\n"
+    "4. Fix what is clearly a defect (cut-off or overlapping text, overflow, broken or missing spacing, "
+    "unreadable type, a layout that wastes or overfills a desktop window) with the smallest change that does "
+    "it, in the page's own style. Desktop comes first, the tablet second; on a phone fix what is broken "
+    "(sideways scrolling, cut-off or unreadable content) and never trade the desktop view for it. Never fix by "
+    "hiding or shortening content. What is a matter of taste (another layout, palette or "
+    "typeface, a restructure) do not change: suggest it.\n"
+    "5. Look again at the same widths after your fixes; make sure each one worked and nothing else moved. If "
+    "one did not work, say so.\n"
+    "If look_at_page is not available, say that you cannot see the page in this studio and change nothing: do "
+    "not polish blind.\n"
+    "End with a short message: what you fixed (one line each, saying where), what you looked at (pages, widths, "
+    "dark), and anything you could not check. Put what you only suggest in suggest_next_steps (one step each, "
+    "three at most) instead of a long list.")
+
+POLISH_TEXT = ("Polish the look: see how this page looks on a desktop first, then on a tablet and a phone, fix what "
+               "is clearly off, and suggest the rest.")
 
 
 class OptionsError(ValueError):
@@ -64,13 +100,13 @@ class OptionsError(ValueError):
 
 def clean(raw, request: bool = True) -> dict:
     """A request's (or, with request=False, a project's) options → {depth, verify}, plus
-    `check_only: True` for a request that only checks the page. Raises OptionsError on anything
-    unknown."""
+    `check_only: True` for a request that only checks the page or `polish: True` for one about
+    how it looks. Raises OptionsError on anything unknown."""
     if raw is None:
         return dict(DEFAULT)
     if not isinstance(raw, dict):
         raise OptionsError("options must be an object.")
-    unknown = set(raw) - KEYS - ({"check_only"} if request else set())
+    unknown = set(raw) - KEYS - (ONCE if request else set())
     if unknown:
         raise OptionsError(f"Unknown option: {', '.join(sorted(unknown))}.")
     depth = raw.get("depth", "standard")
@@ -88,8 +124,17 @@ def clean(raw, request: bool = True) -> dict:
         check_only = False
     if not isinstance(check_only, bool):
         raise OptionsError("check_only must be true or false.")
+    polish = raw.get("polish", False)
+    if polish is None:
+        polish = False
+    if not isinstance(polish, bool):
+        raise OptionsError("polish must be true or false.")
+    if check_only and polish:
+        raise OptionsError("check_only and polish cannot both be set: send them as two requests.")
     if check_only:     # a request that only checks the page is a verification
         return {"depth": depth, "verify": True, "check_only": True}
+    if polish:
+        return {"depth": depth, "verify": verify, "polish": True}
     return {"depth": depth, "verify": verify}
 
 
@@ -103,6 +148,8 @@ def block(options: dict | None) -> str:
         parts.append(DEEP)
     if options.get("verify"):
         parts.append(VERIFY)
+    if options.get("polish"):
+        parts.append(POLISH)
     return "<studio-effort>\n" + "\n\n".join(parts) + "\n</studio-effort>" if parts else ""
 
 

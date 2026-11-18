@@ -62,9 +62,10 @@ python sheet.py video.mp4 sheet.jpg 5 20 40                                 # fr
 ## Depth and the check (13 November 2026, later)
 
 `part_effort.py` records a request with the composer's new controls set by real clicks: a depth
-step (Quick / Standard / Deep, the effort button's menu, `menuitemradio`) and the **Check the result** switch
-(found by its label) before the request is typed, or **Check this page** on an existing project
-instead of typing. After the request it scrolls the chat to the result card (`.verification`),
+step (Quick / Standard / Deep, the effort button's menu, `menuitemradio`) and the **Verify after each
+request** switch (found by its label) before the request is typed, or **Verify content** on an
+existing project instead of typing. (Until 18 November 2026 these were labelled "Check the result" and
+"Check this page"; the recordings and their captions made before then show those names.) After the request it scrolls the chat to the result card (`.verification`),
 opens its details and, with `--scroll`, wheels slowly down the finished page.
 
 ```sh

@@ -1,7 +1,7 @@
 // A project: the page fills the window; the studio is a slim bar, a floating
 // chat, and two panels that open only when asked for.
 
-import { CHECK_ONLY_OPTIONS, projectOptions, VERIFY_ONLY_TEXT, type TurnOptions } from "./effort";
+import { CHECK_ONLY_OPTIONS, POLISH_OPTIONS, POLISH_TEXT, projectOptions, VERIFY_ONLY_TEXT, type TurnOptions } from "./effort";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { ApiError, api, errorMessage, type AppAction, type TurnInput } from "./api";
 import { attachDetail, attachLabel } from "./attach";
@@ -1352,6 +1352,10 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             onVerifyPage={() =>
               // Only a check: no depth block, nothing new asked for, and nothing picked by the studio itself.
               void send(VERIFY_ONLY_TEXT, null, false, [], CHECK_ONLY_OPTIONS)
+            }
+            onPolishPage={() =>
+              // Only the look: nothing new asked for, the project's depth and verify choice left out of it.
+              void send(POLISH_TEXT, null, false, [], POLISH_OPTIONS)
             }
             starting={starting}
             attachments={attachments}

@@ -6,7 +6,7 @@ export function effortLabel(options: TurnOptions): string {
   return (DEPTHS.find((d) => d.id === options.depth) ?? DEPTHS[1]).label;
 }
 
-/** What a screen reader hears for the button: "How much to do: Deep, and the result is checked". */
+/** What a screen reader hears for the button: "How much to do: Deep, and its content is verified". */
 export function effortSummary(options: TurnOptions): string {
-  return `How much to do: ${effortLabel(options)}${options.verify ? ", and the result is checked" : ""}`;
+  return `How much to do: ${effortLabel(options)}${options.verify ? ", and its content is verified" : ""}`;
 }

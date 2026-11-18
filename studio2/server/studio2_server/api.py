@@ -126,6 +126,9 @@ class LookBody(BaseModel):
     full_page: bool = True
     wait_ms: int = 1200
     actions: list[dict] = Field(default_factory=list, max_length=30)
+    tiles: bool = True
+    layout: bool = True
+    top: int = 0
 
 
 class Decision(BaseModel):
@@ -416,11 +419,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/projects/{project_id}/look")
     async def look_with_actions(project_id: str, body: LookBody):
         return await look(project_id, body.path, body.width, body.height, int(body.dark), int(body.full_page),
-                          body.wait_ms, body.actions)
+                          body.wait_ms, body.actions, int(body.tiles), int(body.layout), body.top)
 
     @app.get("/api/projects/{project_id}/look")
     async def look(project_id: str, path: str = "/", width: int = 1440, height: int = 900, dark: int = 0,
-                   full_page: int = 1, wait_ms: int = 1200, actions: list[dict] | None = None):
+                   full_page: int = 1, wait_ms: int = 1200, actions: list[dict] | None = None,
+                   tiles: int = 1, layout: int = 1, top: int = 0):
         project = await studio.open_preview(studio.store.get(project_id))
         if not path.startswith("/") or "://" in path or path.startswith("//"):
             raise ApiError(400, "invalid_path", "path must start with / and stay on the project's own URL.")
@@ -429,7 +433,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 # Loopback, not preview_url: that follows the caller's host and would meet the access guard.
                 f"http://127.0.0.1:{project['port']}" + path, studio.store.dir(project_id) / "looks",
                 width=max(320, min(width, 2560)), height=max(320, min(height, 2000)), dark=bool(dark),
-                full_page=bool(full_page), wait_ms=wait_ms, actions=actions if isinstance(actions, list) else None)
+                full_page=bool(full_page), wait_ms=wait_ms, actions=actions if isinstance(actions, list) else None,
+                tiles=bool(tiles), layout=bool(layout), top=max(0, top))
         except LookUnavailable as exc:
             raise ApiError(503, "look_unavailable", str(exc)) from None
 
