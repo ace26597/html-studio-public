@@ -178,6 +178,8 @@ export interface Inspection {
   env_files: string[];
   size: { files: number; bytes: number; history_bytes: number; partial: boolean };
   refused: { copy: string | null; in_place: string | null };
+  /** Git LFS files found (the note in `notes` says what they mean); null when there are none. */
+  lfs?: { files: number; names: string[]; not_here: string[]; not_here_count: number } | null;
   notes: string[];
 }
 

@@ -505,8 +505,8 @@ HIDDEN_ASKS = [
     "echo host | xargs ssh",
     # A variable the same line sets is not an argument the agent cannot change.
     "ARGS='; rm -rf ~/x'; bash -c \"echo $ARGS\"",
-    "export ARGS=x; sh -c \"npm test -- $ARGS\"",
-    "for f in *; do sh -c \"wc $f\"; done",
+    "export ARGS=$(cat args.txt); sh -c \"npm test -- $ARGS\"",
+    "for f in *; do sh -c \"wc $f\"; done",          # a file's name can hold `;`
     "read l; bash -c \"echo $l\"",
     "bash -c \"echo $(whoami)\"",
 ]
@@ -588,7 +588,8 @@ def test_the_studios_own_variables_and_harmless_forms_do_not_ask(tmp_path, comma
 def test_code_in_another_language_that_runs_a_program_says_so(tmp_path):
     assert "another language" in risky_command("perl -e 'system(\"ls\")'", tmp_path)
     assert "cannot be read" in risky_command("$CMD -rf ~/x", tmp_path)
-    assert "cannot be read" in risky_command("x=$(which rm); $x -rf ~/x", tmp_path)
+    assert "cannot be read" in risky_command("x=$(tool rm); $x -rf ~/x", tmp_path)
+    assert "outside the project" in risky_command("x=$(which rm); $x -rf ~/x", tmp_path)
     # A program the line sets to plain text is read as that text.
     assert "outside the project" in risky_command("x=rm; $x -rf ~/x", tmp_path)
 
@@ -623,10 +624,389 @@ def test_a_very_long_line_is_read_in_reasonable_time(tmp_path):
     blob = json.dumps([{"name": f"item{i}", "tags": ["a", "b"], "n": {"x": i}} for i in range(3600)],
                       separators=(",", ":"))
     code = ";".join(f"const a{i}=(x)=>{{return x+{i}}}" for i in range(2500))
-    for command in (f"echo '{blob}' > public/data.json", f"node -e '{code}'", "\n" * 4000 + "ls"):
+    # A line that sets and uses thousands of variables, or holds thousands of substitutions: each is
+    # read once, not searched for again from every one of them.
+    many = "; ".join(f"a{i}=src/x{i}" for i in range(3000)) + "; touch " + " ".join(f"$a{i}" for i in range(3000))
+    for command in (f"echo '{blob}' > public/data.json", f"node -e '{code}'", "\n" * 4000 + "ls", many,
+                    'node -e "' + "".join(f"${{a{i}}}+" for i in range(4000)) + '1"',
+                    "echo " + " ".join(f"$(cat f{i})" for i in range(3000)),
+                    # A whole megabyte in one quoted word: 21 seconds before, one walk over it now.
+                    "echo '" + json.dumps([{"name": f"item{i}", "tags": ["a", "b"], "n": {"x": i}}
+                                           for i in range(18000)], separators=(",", ":")) + "' > public/d.json",
+                    'git commit -m "' + "a fix, " * 70000 + '"'):
         started = time.monotonic()
         assert risky_command(command, tmp_path) is None
         assert time.monotonic() - started < 8, f"{len(command)} characters took too long"
     # The folders before a program's name are still read.
     assert risky_command("/usr/local/bin/sudo ls", tmp_path)
     assert risky_command("echo hi; /opt/tools/gh pr list", tmp_path)
+
+
+# A variable the line sets is followed into the words where it is used, and the line is judged as
+# if its text had been typed there (CONTRACT.md, "Approvals"). A value that cannot be read asks
+# where a path goes for a command that changes or deletes; every redirection that writes is read.
+LINE_VARIABLE_ASKS = [
+    "OUT=~/Desktop/site; rm -rf $OUT",
+    "OUT=~/Desktop/site; rm -rf $OUT && mkdir $OUT",
+    'd=~/x; rm -rf "$d"',
+    "F=../../x; rm -rf $F",
+    "T=$HOME; rm -rf $T/x",
+    "export OUT=~/x; rm -rf ${OUT}",
+    "OUT=~/x; echo hi > $OUT/a.txt",
+    "OUT=~/x; cd $OUT && rm -rf *",
+    "OUT=~/x; bash -c \"rm -rf $OUT\"",
+    "A=~; B=$A/x; rm -rf $B",
+    "for d in src ~/x; do rm -rf \"$d\"; done",
+    "rm -rf $(dirname $PWD)",
+    "P=$(dirname $PWD); rm -rf $P",
+    "rm -rf $(cd .. && pwd)",
+    "rm -rf ${PWD%/*}",
+    "cd ${PWD%/*} && rm -rf app",
+    "cd $PWD:h && rm -rf app",
+    "OUT=$(cat target.txt); rm -rf $OUT",
+    "read d; rm -rf \"$d\"",
+    "OUT=$(cat target.txt); echo x > $OUT",
+    # The shell splits an unquoted value into words; a known name the line sets is not known.
+    'x="rm -rf"; $x ~/x',
+    "x='rm -rf ~/x'; $x",
+    "PORT=rm; $PORT -rf ~/x",
+    "HOST=rm; $HOST -rf ~/x",
+    "STUDIO_X=rm; $STUDIO_X -rf ~/x",
+    "PORT=$(cat p); $PORT -rf ~/x",
+    "x=sudo; $x ls",
+    # Redirections of another stream, or of both, to a file.
+    "echo x 2>~/x",
+    "npm run build 2> ~/build.log",
+    "echo x 2>> ~/x",
+    "echo x &> ~/x",
+    "echo x &>> ~/x",
+    "echo x 1>|~/x",
+    "exec 3>~/x",
+    "echo x >& ~/x",
+    "echo x >/dev/null 2>~/x",
+]
+LINE_VARIABLE_ORDINARY = [
+    "OUT=dist; rm -rf $OUT && mkdir $OUT",
+    "OUT=build/site; mkdir -p $OUT && cp index.html $OUT/",
+    'for f in *.pyc; do rm "$f"; done',
+    'for f in *.md; do mv "$f" "${f%.md}.txt"; done',
+    "D=$(mktemp -d); rm -rf $D",
+    "rm -rf \"$(mktemp -d)\"",
+    "cd $(git rev-parse --show-toplevel) && rm -rf dist",
+    "DIR=$(cd src && pwd); rm -rf $DIR/build",
+    "rm -f $(find . -name '*.o')",
+    "touch $(date +%s).txt",
+    "PORT=8000 python3 server.py",
+    "PORT=8301; curl -s http://127.0.0.1:$PORT/",
+    'export ARGS=x; sh -c "npm test -- $ARGS"',
+    'for f in a.md b.md; do sh -c "wc $f"; done',
+    "npm run build 2>&1 | tail -5",
+    "python3 x.py >/dev/null 2>&1",
+    "echo x 2>err.log",
+    "echo x >&2",
+    "exec 3>&-",
+    "node server.js &>server.log &",
+]
+
+
+@pytest.mark.parametrize("command", LINE_VARIABLE_ASKS)
+def test_a_variable_the_line_sets_is_read_where_it_is_used(tmp_path, command):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    assert risky_command(command, workspace), command
+
+
+@pytest.mark.parametrize("command", LINE_VARIABLE_ORDINARY)
+def test_a_variable_the_line_sets_inside_the_project_does_not_ask(tmp_path, command):
+    workspace = tmp_path / "project"
+    (workspace / "src").mkdir(parents=True)
+    assert risky_command(command, workspace) is None, command
+
+
+# Shell forms (bash and zsh, the agent's shell on a Mac) that stand before a command or hide its name.
+HIDDEN_FORMS_ASK = [
+    "((rm -rf ~/x) )",
+    "coproc rm -rf ~/x",
+    "coproc W { rm -rf ~/x; }",
+    "coproc ssh host",
+    "repeat 1 rm -rf ~/x",
+    "repeat 2 ssh host",
+    "noglob rm -rf ~/x",
+    "noglob git push",
+    "nocorrect rm -rf ~/x",
+    "- rm -rf ~/x",
+    "for i (1) rm -rf ~/x",
+    "for i (1 2) git push",
+    "if true { rm -rf ~/x }",
+    "if true { ssh host }",
+    "while true { rm -rf ~/x }",
+    "() { rm -rf ~/x }",
+    "=rm -rf ~/x",
+    "=ssh host",
+    '$"rm" -rf ~/x',
+    '$"ssh" host',
+    '"ssh" host',
+    "'git' push",
+    "env -S'rm -rf ~/x'",
+    "env -iS'rm -rf ~/x'",
+    "env --split-string='rm -rf ~/x'",
+    ". <(echo rm -rf ~/x)",
+    "source <(echo rm -rf ~/x)",
+    "source /dev/stdin <<< 'rm -rf ~/x'",
+    ". /dev/stdin <<< 'rm -rf ~/x'",
+]
+HIDDEN_FORMS_ORDINARY = [
+    "((i++))",
+    "(( 3 > 2 )) && echo y",
+    "echo $((1 + 2))",
+    "noglob ls src",
+    'echo $"hello"',
+    "env -S'npm test'",
+    "source .venv/bin/activate",
+    ". ./env.sh",
+    "for i (1 2) echo $i",
+]
+
+
+@pytest.mark.parametrize("command", HIDDEN_FORMS_ASK)
+def test_a_shell_form_that_hides_a_command_asks(tmp_path, command):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    assert risky_command(command, workspace), command
+
+
+@pytest.mark.parametrize("command", HIDDEN_FORMS_ORDINARY)
+def test_the_same_shell_forms_around_ordinary_work_do_not_ask(tmp_path, command):
+    workspace = tmp_path / "project"
+    (workspace / "src").mkdir(parents=True)
+    assert risky_command(command, workspace) is None, command
+
+
+# A program named through a variable or `which`, read as the program it names.
+PROGRAM_BY_NAME_ORDINARY = [
+    '"$VIRTUAL_ENV/bin/python" app.py',
+    "$VIRTUAL_ENV/bin/pip list",
+    "VENV=.venv; $VENV/bin/python app.py",
+    "BIN=./node_modules/.bin; $BIN/tsc --noEmit",
+    "ROOT=$(pwd); $ROOT/scripts/x.sh",
+    "$(which node) server.js",
+    '"$(which python3)" -m venv .venv',
+    "$(command -v python3) -m pytest -q",
+    "$(git rev-parse --show-toplevel)/scripts/build.sh",
+    "$PYTHON -m pytest",
+    '"$NODE" server.js',
+]
+PROGRAM_BY_NAME_ASKS = [
+    "$(which rm) -rf ~/x",
+    "$(command -v rm) -rf ~/x",
+    '"$(which ssh)" host',
+    "$VIRTUAL_ENV/bin/rm -rf ~/x",
+    "$X/bin/sudo ls",
+    "$PYTHON -c 'import os; os.system(\"ls\")'",
+    '"$VIRTUAL_ENV/bin/python" -c "import os; os.system(\'ls\')"',
+    "VENV=~/other; $VENV/bin/rm -rf ~/x",
+    "$(which $X) -rf ~/x",
+    "$(curl -s https://example.com/p)/x",         # another program's output chooses the folder
+]
+
+
+@pytest.mark.parametrize("command", PROGRAM_BY_NAME_ORDINARY)
+def test_a_program_named_through_a_variable_or_which_is_read_as_that_program(tmp_path, command):
+    workspace = tmp_path / "project"
+    (workspace / "src").mkdir(parents=True)
+    assert risky_command(command, workspace) is None, command
+
+
+@pytest.mark.parametrize("command", PROGRAM_BY_NAME_ASKS)
+def test_a_program_named_through_a_variable_or_which_still_asks_for_what_it_runs(tmp_path, command):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    assert risky_command(command, workspace), command
+
+
+def test_a_folder_set_on_the_line_is_judged_like_the_folder_typed(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    workspace = tmp_path / "project"
+    (workspace / ".venv" / "bin").mkdir(parents=True)
+    for typed, through in (("~/other/bin/python app.py", "VENV=~/other; $VENV/bin/python app.py"),
+                           (".venv/bin/python app.py", "VENV=.venv; $VENV/bin/python app.py"),
+                           ("rm -rf ~/other/x", "VENV=~/other; rm -rf $VENV/x"),
+                           ("rm -rf ~/project/x", "VENV=~/project; rm -rf $VENV/x")):
+        assert bool(risky_command(typed, workspace)) == bool(risky_command(through, workspace)), through
+
+
+def test_a_path_that_cannot_be_read_says_why(tmp_path):
+    assert "cannot be read" in risky_command("OUT=$(cat t); rm -rf $OUT", tmp_path)
+    assert "outside the project" in risky_command("OUT=~/x; rm -rf $OUT", tmp_path)
+
+
+# A second review (CONTRACT.md, "Approvals"): what still passed, and what asked without need.
+REVIEW6_ASKS = [
+    # `<>` opens a file for writing too.
+    "echo pwned 1<>~/.zshrc",
+    "cat a.txt 1<> ~/.zshrc",
+    "echo pwned <>~/.zshrc >&0",
+    # The machine's own npm folders are not the project's.
+    'rm -rf "$(npm root -g)"',
+    'rm -rf "$(npm root -g)/typescript"',
+    'rm -rf "$(npm prefix -g)/lib"',
+    "rm -rf $(npm bin -g)/tsc",
+    "X=$(npm root -g); rm -rf $X/typescript",
+    'ln -sf $PWD "$(npm root -g)/mypkg"',
+    'cp -r dist "$(npm root -g)/mypkg"',
+    'echo x > "$(npm prefix -g)/etc/npmrc"',
+    'rm -rf "$(npm root --global)"',
+    'rm -rf "$(npm root --location=global)"',
+    # A variable the line never sets is empty in the agent's fresh shell: `rm -rf /*`.
+    'rm -rf "$TARGET"/*',
+    "rm -rf $BUILD_DIR/*",
+    'rm -rf "${BUILD_DIR}/"',
+    "rm -rf $DIST/",
+    "cd $BUILD_DIR && rm -rf *",
+    'cd "$OUT" && rm -rf ./*',
+    "cd $OUT; rm -rf *",
+    'mv dist "$OUT/"',
+    'cp -r dist "$DEPLOY_DIR"',
+    "echo x > $LOG/a.txt",
+    "rm -rf $1/",
+    'rm -rf "$PORT"/*',
+    "cd $OLDPWD && rm -rf *",
+    "cd - && rm -rf *",
+    # A default is one of the values.
+    "rm -rf ${X:-~/x}",
+    'rm -rf "${X:-$HOME/x}"',
+    "rm -rf ${X:=~/x}",
+    ": ${X:=~/x}; rm -rf $X",
+    ': "${X:=$HOME/x}"; rm -rf "$X"',
+    "X=dist; unset X; rm -rf ${X:-~/x}",
+    'rm -rf "${OUT:-$HOME/Desktop/site}"',
+    # `..` out of a scratch folder is not scratch.
+    "rm -rf /tmp/..",
+    "rm -rf /private/tmp/..",
+    "rm -rf /var/folders/..",
+    "rm -rf /tmp/tmp.x/..",
+    "rm -rf $(mktemp -d)/..",
+    "cd /tmp/.. && rm -rf x",
+    # A substitution whose output cannot be told from its text.
+    "rm -rf \"$(printf '/Users/%s' sam)\"",
+    "rm -rf \"$(find . -maxdepth 0 -printf '../..')\"",
+    # Commands run later or by another program.
+    "trap 'rm -rf ~/x' EXIT",
+    "find . -name a -exec rm -rf ~/x \\;",
+    "find . -name a -exec rm -rf ~/x +",
+    "find ~ -name '*.log' -exec rm {} +",
+    # git told to work somewhere else.
+    "GIT_DIR=~/other/.git git commit -m x",
+    "GIT_WORK_TREE=~/other git checkout .",
+    "export GIT_DIR=../other/.git; git reset --hard",
+    "X=dist; eval X=~/x; rm -rf $X",
+    # A listing rooted outside the project.
+    "for f in $(find ~ -name '*.md'); do rm \"$f\"; done",
+    "for f in $(find .. -name x); do rm \"$f\"; done",
+    "for f in $(find -L . -name x); do rm $f; done",
+    "for f in $(ls /); do rm -rf \"$f\"; done",
+    "find ~ -name x | while read f; do rm \"$f\"; done",
+    "for f in $(cat files.txt); do rm \"$f\"; done",
+    # A transformed name that climbs out.
+    'for f in *.md; do mv "$f" "../${f%.md}.txt"; done',
+    'f=a; mv x "${f/a/../..}"',
+    # Decided: a value printed by jq or node cannot be read, so as a path to write it asks.
+    "VERSION=$(jq -r .version package.json); mkdir -p releases/$VERSION",
+    "NAME=$(node -p \"require('./package.json').name\"); mkdir -p dist/$NAME",
+]
+REVIEW6_ORDINARY = [
+    # Loops over the project's own file list that edit, move or delete.
+    "for f in $(git ls-files '*.html'); do sed -i '' 's/a/b/' \"$f\"; done",
+    "for f in $(git ls-files '*.md'); do sed -i '' 's/x/y/' $f; done",
+    "for f in $(git diff --name-only); do sed -i '' 's/a/b/' \"$f\"; done",
+    "for f in $(find . -name '*.bak'); do rm \"$f\"; done",
+    "for f in $(find src -name '*.md'); do mv \"$f\" docs/; done",
+    "for f in $(ls *.md); do mv $f docs/; done",
+    "for f in `ls *.md`; do mv $f docs/; done",
+    "for f in $(ls src); do cp \"src/$f\" \"dist/$f\"; done",
+    "find . -name '*.tmp' | while read f; do rm \"$f\"; done",
+    "find . -name '*.md' | while read -r f; do sed -i '' 's/a/b/' \"$f\"; done",
+    "git ls-files '*.css' | while IFS= read -r f; do rm \"$f\"; done",
+    "X=$(find . -name '*.o'); rm -f $X",
+    # Numbers in names.
+    'i=0; for f in *.jpg; do i=$((i+1)); mv "$f" "img-$i.jpg"; done',
+    'n=1; for f in *.png; do mv "$f" "img$n.png"; n=$((n+1)); done',
+    'for i in $(seq 1 3); do echo $i > "out$i.txt"; done',
+    'for f in $(seq -w 1 10); do mkdir -p "day$f"; done',
+    'for i in $(seq 1 5); do curl -s localhost:3000 -o "out/$i.html"; done',
+    "x=1; while [ $x -le 3 ]; do touch f$x; x=$((x+1)); done",
+    'touch "log-$RANDOM.txt"',
+    'touch "run-$$.log"',
+    'mkdir -p "build-$(date +%s)"',
+    # A safe value transformed.
+    'for f in *.html; do mv -- "$f" "${f/.html/.htm}"; done',
+    'for f in *.png; do mv "$f" "${f// /-}"; done',
+    'for f in *.JPG; do mv "$f" "${f,,}"; done',
+    'for f in *.md; do mv "$f" "$(echo $f | tr A-Z a-z)"; done',
+    'for f in *.html; do d="pages/$(basename "$f" .html)"; mkdir -p "$d"; mv "$f" "$d/index.html"; done',
+    'for f in src/*.md; do mkdir -p "out/$(dirname "$f")"; done',
+    'f=src/a/b.txt; mkdir -p "$(dirname "$f")"',
+    'TITLE="My Post"; SLUG=$(echo "$TITLE" | tr " " "-"); mkdir -p "posts/$SLUG"',
+    # Names the agent's shell really has, and defaults inside the project.
+    'rm -rf "$TMPDIR/x"',
+    'cd "$PWD" && rm -rf dist',
+    'rm -rf "$PWD/dist"',
+    "rm -rf ${OUT:-dist}",
+    "X=dist; rm -rf ${X:-build}",
+    "cd src && cd - && rm -rf dist",
+    # Commands run later, inside the project.
+    "T=$(mktemp); trap 'rm -f \"$T\"' EXIT; echo hi > $T",
+    "trap cleanup EXIT",
+    "find . -name '*.pyc' -exec rm {} +",
+    "find . -type f -exec chmod 644 {} \\;",
+    "find src -name '*.js' -exec grep -l foo {} +",
+    "find . -name '*.sh' -exec sh -c 'shellcheck \"$1\"' _ {} \\;",
+    "rm -rf /tmp/tmp.x",
+    "cd /tmp && rm -rf scratch",
+    "GIT_DIR=.git git status",
+    "git diff --name-only | xargs npx prettier --write",
+]
+
+
+@pytest.mark.parametrize("command", REVIEW6_ASKS)
+def test_what_the_second_review_found_asks(tmp_path, command):
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    assert risky_command(command, workspace), command
+
+
+@pytest.mark.parametrize("command", REVIEW6_ORDINARY)
+def test_what_an_agent_writes_when_editing_many_files_does_not_ask(tmp_path, command):
+    workspace = tmp_path / "project"
+    (workspace / "src").mkdir(parents=True)
+    assert risky_command(command, workspace) is None, command
+
+
+def test_a_place_the_shell_moves_to_is_named_in_the_reason(tmp_path):
+    # In the agent's shell `$0` is the shell itself (/bin/zsh): its folder is /bin, not "/".
+    assert "/bin" in risky_command('cd "$(dirname "$0")" && touch a', tmp_path)
+    assert "cannot be read" in risky_command('rm -rf "$TARGET"/*', tmp_path)
+
+
+def test_the_word_splitter_reads_exactly_what_shlex_reads():
+    # The one-walk splitter replaced shlex for speed. It took an unclosed double quote that ends
+    # in a lone backslash as closed; shlex refuses it, and so must this.
+    import random
+    import shlex
+
+    from studio2_server.risk import _shell_words
+
+    def answer(split, text):
+        try:
+            return split(text)
+        except ValueError:
+            return ValueError
+
+    assert answer(_shell_words, 'echo "a\\') is ValueError
+    assert answer(_shell_words, '("\\\\*\\') is ValueError
+    random.seed(7)
+    parts = ["a", "b", " ", "  ", "\t", "\n", "\r", "'", '"', "\\", "$", "(", ")", ";", "&", "|", "x y",
+             "\\'", '\\"', "#", "~/", "=", "{", "}", "*", "\\\n", "é"]
+    for _ in range(20000):
+        text = "".join(random.choice(parts) for _ in range(random.randint(1, 40)))
+        assert answer(_shell_words, text) == answer(shlex.split, text), repr(text)

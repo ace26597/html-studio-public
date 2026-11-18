@@ -9,6 +9,7 @@ import logging
 import mimetypes
 import re
 import socket
+import zlib
 from pathlib import Path
 
 import httpx
@@ -63,6 +64,131 @@ NOT_FORWARDED = ("x-forwarded-host", "x-forwarded-proto", "x-forwarded-port", "f
 HOP_BY_HOP = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers",
               "transfer-encoding", "upgrade", "content-length", "content-encoding"}
 INJECT_LIMIT = 8 * 1024 * 1024
+# The app's own address in what it sends (CONTRACT.md, "The app's own address in what it sends").
+REWRITE_LIMIT = 8 * 1024 * 1024
+REWRITE_KINDS = ("text/html", "text/javascript", "application/javascript", "application/x-javascript",
+                 "text/css", "application/json", "text/plain")
+DECODED = ("", "identity", "gzip", "x-gzip", "deflate")     # httpx always decodes these
+LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "[::1]")
+SAFE_HOST = re.compile(r"[A-Za-z0-9.\-]+(?::\d{1,5})?|\[[0-9A-Fa-f:.]+\](?::\d{1,5})?")
+
+
+DIGESTS = (b"content-md5", b"digest", b"content-digest", b"repr-digest")
+
+
+DECODE_LIMIT = 8 * 1024 * 1024    # decoded bytes; a small gzip can unpack to gigabytes
+OFF_LOOP = 256 * 1024              # a body this large is decoded and rewritten in a thread
+
+
+class TooLarge(ValueError):
+    pass
+
+
+def _inflate(raw: bytes, wbits: int) -> bytes:
+    inflater = zlib.decompressobj(wbits)
+    out = inflater.decompress(raw, DECODE_LIMIT + 1)
+    if len(out) > DECODE_LIMIT or inflater.unconsumed_tail:
+        raise TooLarge()
+    if not inflater.eof:
+        raise zlib.error("incomplete")
+    return out
+
+
+def decode(raw: bytes, encoding: str) -> bytes:
+    """The body as the app meant it: gzip and deflate undone (deflate with or without its zlib
+    header, as httpx reads it), never more than DECODE_LIMIT bytes (TooLarge past it)."""
+    if encoding in ("", "identity"):
+        return raw
+    if encoding in ("gzip", "x-gzip"):
+        return _inflate(raw, 16 + zlib.MAX_WBITS)
+    try:
+        return _inflate(raw, zlib.MAX_WBITS)
+    except zlib.error:
+        return _inflate(raw, -zlib.MAX_WBITS)
+
+
+def rewritable(kind: str) -> bool:
+    main = kind.split(";", 1)[0].strip().lower()
+    return main in REWRITE_KINDS or (main.startswith("application/") and main.endswith("+json"))
+
+
+class AddressRewriter:
+    """Replaces the app's own origin (127.0.0.1, localhost or [::1] at its port, or its upstream
+    host) after http:, https:, ws:, wss: or //, also with escaped slashes, by the request's scheme
+    and host. feed() takes pieces of a body as they come and gives back what can be sent at once:
+    all of it, except a tail that could still turn out to be the start of the address."""
+
+    def __init__(self, port: int, upstream_host: str, scheme: str, host: str):
+        names = {*LOOPBACK_HOSTS, upstream_host.lower().rsplit(":", 1)[0] if not upstream_host.endswith("]")
+                 else upstream_host.lower()}
+        alternatives = b"|".join(re.escape(name.encode()) for name in sorted(names, key=len, reverse=True))
+        self.pattern = re.compile(rb"(?:(https?|wss?):)?(//|\\/\\/)(?:" + alternatives + rb"):"
+                                  + str(port).encode() + rb"(?![0-9])", re.I)
+        self.secure = scheme in ("https", "wss")
+        self.host = host.encode("latin-1")
+        self.starts = [s + slashes + name.encode() + b":" + str(port).encode()
+                       for s in (b"http:", b"https:", b"ws:", b"wss:", b"") for slashes in (b"//", b"\\/\\/")
+                       for name in names]
+        self.longest = max(len(start) for start in self.starts)
+        self.prefixes = {start[:size] for start in self.starts for size in range(1, len(start) + 1)}
+        self.key = b":" + str(port).encode()
+        self.carry = b""
+
+    def _matches(self, buffer: bytes):
+        """The matches in order. The port is looked for first (a plain search, fast), and the
+        pattern only tried in the few bytes before each place it appears."""
+        at = buffer.find(self.key)
+        while at != -1:
+            end = at + len(self.key)
+            match = self.pattern.search(buffer, max(0, at - self.longest), end + 1)
+            # The match that ends at this port; search finds the leftmost, which is the longest form.
+            while match and match.end() != end:
+                match = self.pattern.search(buffer, match.start() + 1, end + 1)
+            if match:
+                yield match
+            at = buffer.find(self.key, end)
+
+    def _replace(self, match: re.Match) -> bytes:
+        given = (match.group(1) or b"").lower()
+        if given:
+            given = (b"wss:" if self.secure else b"ws:") if given.startswith(b"ws") else (
+                b"https:" if self.secure else b"http:")
+        return given + match.group(2) + self.host
+
+    def whole(self, body: bytes) -> bytes:
+        out, at = [], 0
+        for match in self._matches(body):
+            out += [body[at:match.start()], self._replace(match)]
+            at = match.end()
+        return body if not out else b"".join(out) + body[at:]
+
+    def _held(self, buffer: bytes) -> int:
+        """How many of the last bytes could be the start of the address (or all of it, since a digit
+        may still follow)."""
+        for size in range(min(len(buffer), self.longest), 0, -1):
+            if buffer[-size:].lower() in self.prefixes:
+                return size
+        return 0
+
+    def feed(self, piece: bytes) -> bytes:
+        buffer = self.carry + piece
+        split = len(buffer) - self._held(buffer)
+        out, at = [], 0
+        for match in self._matches(buffer):
+            if match.start() >= split:
+                break
+            if match.end() > split:
+                split = match.start()
+                break
+            out += [buffer[at:match.start()], self._replace(match)]
+            at = match.end()
+        out.append(buffer[at:split])
+        self.carry = buffer[split:]
+        return b"".join(out)
+
+    def end(self) -> bytes:
+        rest, self.carry = self.whole(self.carry), b""
+        return rest
 
 
 def status_page(app) -> bytes:
@@ -278,21 +404,74 @@ class PreviewApp:
             kind = upstream.headers.get("content-type", "")
             out = [(k.lower(), v) for k, v in upstream.headers.raw if k.decode("latin-1").lower() not in HOP_BY_HOP]
             length = upstream.headers.get("content-length")
+            if length is not None and not length.strip().isdigit():
+                length = None
+            # httpx decodes these when the body is read with aread()/aiter_bytes(); anything else is
+            # only ever passed on raw, with its Content-Encoding.
+            encoding = upstream.headers.get("content-encoding", "").strip().lower()
+            decodable = encoding in DECODED
             # This is a live preview: the browser must never show an older copy of the app's
             # files (frameworks' static handlers invite heuristic caching with ETag/Last-Modified).
             out = [(k, v) for k, v in out if k not in (b"cache-control", b"etag", b"last-modified", b"expires")]
             out = self._frameable(out)
             out = self._back_to_page(scope, out, port, upstream_host)
             out.append((b"cache-control", b"no-store"))
-            if kind.startswith("text/html") and self._is_page_load(scope) and scope["method"] != "HEAD" and (
-                    length is None or int(length) <= INJECT_LIMIT):
-                page = inject_bridge(await upstream.aread(), app.self_reloading() if app else False)
-                out.append((b"content-length", str(len(page)).encode()))
+            rewriter = self._rewriter(scope, port, upstream_host)
+            if rewriter:
+                out = [(k, rewriter.whole(v) if k in (b"link", b"refresh") else v) for k, v in out]
+            rewrite = bool(rewriter and decodable and rewritable(kind) and scope["method"] != "HEAD"
+                           and 200 <= upstream.status_code and upstream.status_code not in (204, 206, 304))
+            # As the app sent it: the same bytes, length and encoding.
+            exact = out + ([(b"content-length", length.encode())] if length is not None else []) + (
+                [(b"content-encoding", upstream.headers["content-encoding"].encode("latin-1"))]
+                if encoding not in ("", "identity") else [])
+            page_load = kind.startswith("text/html") and self._is_page_load(scope) and scope["method"] != "HEAD"
+            if (page_load and decodable and (length is None or int(length) <= INJECT_LIMIT)) or (
+                    rewrite and length is not None and int(length) <= REWRITE_LIMIT):
+                raw, whole = bytearray(), True
+                try:
+                    async for chunk in upstream.aiter_raw():
+                        raw += chunk
+                except (httpx.HTTPError, OSError):
+                    whole = False
+                raw = bytes(raw)
+                if not whole:
+                    # The app closed before the end it promised: pass on what it sent, and the
+                    # connection is cut as the app's was. Never a 500 of the studio's own.
+                    await send({"type": "http.response.start", "status": upstream.status_code, "headers": exact})
+                    return await send({"type": "http.response.body", "body": raw, "more_body": True})
+                reloading = app.self_reloading() if app else False
+
+                def transform() -> tuple[bytes | None, bytes | None]:
+                    try:
+                        body = decode(raw, encoding)
+                    except (zlib.error, ValueError):
+                        return None, None    # not what it says it is, or too large: passed on as it is
+                    changed = rewriter.whole(body) if rewrite else body
+                    return body, inject_bridge(changed, reloading) if page_load else changed
+
+                # A large body is decoded and rewritten in a thread: the loop serves everyone else.
+                body, changed = await asyncio.to_thread(transform) if len(raw) > OFF_LOOP else transform()
+                if changed is body:      # nothing of the app's own address in it, or not readable
+                    await send({"type": "http.response.start", "status": upstream.status_code, "headers": exact})
+                    return await send({"type": "http.response.body", "body": raw})
+                out = [(k, v) for k, v in out if k not in DIGESTS]
+                out.append((b"content-length", str(len(changed)).encode()))
                 await send({"type": "http.response.start", "status": upstream.status_code, "headers": out})
-                return await send({"type": "http.response.body", "body": page})
-            if length is not None:
-                out.append((b"content-length", length.encode()))
-            await send({"type": "http.response.start", "status": upstream.status_code, "headers": out})
+                return await send({"type": "http.response.body", "body": changed})
+            # Streamed plain text and JSON are passed on as they come: holding a tail that could
+            # start the address would make a stream of words lag (CONTRACT.md).
+            streamed_text = kind.split(";", 1)[0].strip().lower() in ("text/plain", "application/json")
+            if rewrite and length is None and encoding in ("", "identity") and not streamed_text:
+                # Chunked, or one that never ends: rewritten piece by piece, never held. What comes
+                # out is the same bytes when the address is not in it.
+                await send({"type": "http.response.start", "status": upstream.status_code, "headers": out})
+                async for chunk in upstream.aiter_raw():
+                    piece = rewriter.feed(chunk)
+                    if piece:
+                        await send({"type": "http.response.body", "body": piece, "more_body": True})
+                return await send({"type": "http.response.body", "body": rewriter.end()})
+            await send({"type": "http.response.start", "status": upstream.status_code, "headers": exact})
             if scope["method"] != "HEAD":
                 async for chunk in upstream.aiter_raw():
                     await send({"type": "http.response.body", "body": chunk, "more_body": True})
@@ -301,6 +480,16 @@ class PreviewApp:
             pass  # the app went away mid-response; the client sees a cut connection
         finally:
             await upstream.aclose()
+
+    @staticmethod
+    def _rewriter(scope, port: int, upstream_host: str) -> AddressRewriter | None:
+        """What replaces the app's own address in its answer with the address the request came in
+        on, by any name (on this computer too, the app's port is another origin than the page).
+        None only when the Host is missing or not a plain name, address and port."""
+        host = dict(scope["headers"]).get(b"host", b"").decode("latin-1").strip()
+        if not host or not SAFE_HOST.fullmatch(host):
+            return None
+        return AddressRewriter(port, upstream_host, scope.get("scheme", "http"), host)
 
     @staticmethod
     def _is_page_load(scope) -> bool:

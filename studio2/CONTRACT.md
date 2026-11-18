@@ -46,9 +46,11 @@ write. What is held, and how:
   every `.gitattributes`) as `* !filter !diff !merge`, replacing whatever is there and never
   writing through a link. Every git version honours that file. Diffs also pass
   `--no-ext-diff --no-textconv`, so `diff.external` is not used. A side effect: Git LFS is a
-  filter, so in the studio's own versions of a copy an LFS file stays the small pointer file it
-  is in the repository (the large file is not fetched or stored), and an attribute that names a
-  custom diff or merge program has no effect there. `text` and `eol` attributes still apply.
+  filter, so a safe copy holds each LFS file as the small pointer file it is in the repository
+  (the large file is not fetched or stored, and the copy's app does not have it; inspection says
+  so before the copy is made, see Inspect `lfs`). Filling a copy with the real files is not
+  built. An attribute that names a custom diff or merge program has no effect there. `text`
+  and `eol` attributes still apply.
 - Only local paths are read: every transport but `file` is refused, so a `url.<x>.insteadOf`
   cannot turn the original's path into `ext::` (a command) or a network address. The fetch from
   the original names its reading program (`--upload-pack=git-upload-pack`).
@@ -355,7 +357,30 @@ A file `studio.json` in the workspace root turns the project into an app:
 
 - `run` (string, required) is started with `sh -c` in the workspace, in its own process
   group, with `PORT` (project port + 100), `HOST=127.0.0.1`, `STUDIO_PROJECT_ID`,
-  `STUDIO_PROJECT_URL` and `PYTHONUNBUFFERED=1` set. It must listen on `127.0.0.1:$PORT`.
+  `STUDIO_PROJECT_URL`, `STUDIO_ALLOWED_HOSTS=127.0.0.1,localhost` and `PYTHONUNBUFFERED=1`
+  set. It must listen on `127.0.0.1:$PORT`.
+- **The app answers only to the names in `STUDIO_ALLOWED_HOSTS`.** Its port is on `127.0.0.1`,
+  so other devices never reach it, but any program on this machine can, including a web page
+  open in a browser here: the page's site points its own name at `127.0.0.1` (DNS rebinding),
+  and the browser then sends the app `Host: that-site:<port>` and lets the page read the
+  answers. The studio cannot check names on a port it does not own, so the app does. The studio
+  always reaches it as `Host: 127.0.0.1:$PORT` (see below), so a back end that refuses any other
+  name loses nothing. The check applies only while `STUDIO_ALLOWED_HOSTS` is set, so the same
+  code run outside the studio (an export, a ship) is not limited by it.
+  - The studio's own templates do this: `fastapi-app` with Starlette's `TrustedHostMiddleware`
+    (400), `whiteboard` in its request handler (421), and `vite-app` by leaving Vite's own
+    `server.allowedHosts` at its default, which answers only to `localhost`, `*.localhost` and
+    addresses (403). The template used to switch that check off.
+  - The agent is told the same rule for every back end it writes, with the way to do it in the
+    common frameworks, and that the name is compared without its port: the studio's `Host` is
+    `127.0.0.1:$PORT`, so a check against the whole header would refuse the studio itself and every
+    page would be an error. All three templates compare the name alone.
+  - An app the person attached is their own code and the studio does not change it. It is
+    protected only if its server already checks names. By default Vite (6.0.9 and 5.4.12 or
+    later), Django (an empty `ALLOWED_HOSTS` with `DEBUG`) and Rails in development do; Next,
+    Express, Flask, FastAPI/uvicorn and Python's `http.server` answer any name. A second process the app starts itself (a back
+    end on its own port beside the front end) is not the studio's either: it listens wherever its
+    own settings say.
 - While the app is `running`, every request to the project URL (any method, plus
   WebSockets) is proxied to it. HTML responses get the bridge script injected, so Select
   and Edit keep working. `/__studio/*` is always answered by the studio.
@@ -400,8 +425,59 @@ A file `studio.json` in the workspace root turns the project into an app:
   the app sees its own origin and host (above), and these would contradict them. Next's Server
   Actions compare `Origin` with `X-Forwarded-Host` first, and Rails compares `Origin` with a base
   address that follows `X-Forwarded-Proto`, so either header would make them refuse the page's
-  forms. Addresses an app writes into page bodies from its `Host` therefore still name
-  127.0.0.1; links relative to the page work everywhere.
+  forms. Addresses an app writes into what it sends from its `Host` therefore name 127.0.0.1;
+  the next bullet puts them right.
+- **The app's own address in what it sends.** An app often writes its own address into a page,
+  a script or JSON (`http://127.0.0.1:$PORT/api/…`, `ws://localhost:$PORT/…`). On a phone that
+  address is the phone, and on this computer it is the app's own port: another origin than the
+  page (a `fetch` there is refused unless the app allows it) and without the bridge. So on every
+  request, by `127.0.0.1` on this computer as by the tailnet name or a name in `STUDIO2_NAMES`, the
+  studio replaces that address in the answer with the one the request came in on:
+  - What is replaced: exactly the app's own origin, `127.0.0.1`, `localhost` or `[::1]` (any
+    case) at the app's port and not followed by another digit, after `http://`, `https://`,
+    `ws://`, `wss://` or `//`, also written with escaped slashes (`http:\/\/…`, as some JSON
+    writers do). It becomes the request's scheme and `Host` (`https://name:<page port>` over
+    the certificate); `ws`/`wss` follow the request's scheme; `//` stays `//`. Nothing else: no
+    other host, no other port, no address without `//` in front.
+  - Where: bodies whose `Content-Type` is HTML, JavaScript, CSS, JSON (also `…+json`) or plain
+    text, and the `Link` and `Refresh` headers. Never images, fonts, media, downloads,
+    server-sent events (`text/event-stream`) or anything else; never a partial answer (206), a
+    `HEAD`, or a WebSocket message.
+  - How much: an answer with a `Content-Length` up to 8 MB is read whole, rewritten, and sent
+    with its new `Content-Length`. A larger one is passed on untouched. An answer without a
+    length (chunked, or one that never ends) is rewritten as it streams: each piece is sent at
+    once, except the last few bytes when they could be the start of the address, which wait for
+    the next piece (never more than the address is long, about 25 bytes), so a stream is never
+    held. Plain text (`text/plain`) and JSON (`application/json`) without a length are the
+    exception: they are passed on untouched, piece by piece, because a piece ending in `h`, `w`,
+    `/` or `\` would otherwise wait for the next one, and a chat app streaming words would lag a
+    character behind. Plain text and JSON with a length are rewritten. An answer over 256 KB is decoded and rewritten off the studio's
+    main loop, so large scripts do not make other requests wait. Rewriting costs about 0.5 ms per megabyte, more where the address appears often (1.6 ms
+    for a 140 KB page that names it 1,500 times).
+  - Compression: the studio asks the app for an uncompressed answer (`Accept-Encoding:
+    identity`). An app that compresses anyway with `gzip` or `deflate` and gives a length is
+    decoded to look for the address, up to 8 MB decoded: past that the decoding stops and the
+    answer is passed on untouched (a small compressed answer can hold a huge one). When the address
+    is there the answer is sent rewritten and uncompressed. A compressed answer without a length, and any other encoding, is passed on
+    untouched, with its `Content-Encoding`. The
+    app's `ETag`, `Last-Modified`, `Expires` and `Cache-Control` are never passed on (the answer
+    is `no-store`), so no cached copy can disagree with a rewritten one; a `Content-MD5` or
+    `Digest` header is dropped from a rewritten answer.
+  - A rewrite never makes an answer fail. An answer that says `gzip` or `deflate` and is not
+    is passed on as the app sent it. An answer that ends before its `Content-Length` (the app
+    closed early) is passed on as far as it came, with the app's headers, and the connection is
+    then cut, as the app's was.
+  - An answer that does not hold the address is passed on byte for byte as the app sent it, by
+    any name and on every path (whole, streamed, compressed): same bytes, same `Content-Length`,
+    same `Content-Encoding`. Only the headers above (`Cache-Control`, `ETag`, …) differ, as for
+    every answer.
+  - A value the app keeps as data and also sends (a callback address, a saved link) is shown with
+    the address the page was opened by. If the person saves it back through a form, the app
+    stores that address, not its private one.
+  - It is always on; there is no setting. The address it replaces does not work as the page's
+    own from any device, so there is nothing to keep, and the match is exact, so text that only looks
+    like it is left alone. A page that deliberately shows its private address as text (the
+    app's own help page, say) shows the project's address instead.
 - stdout and stderr go to `projects/<id>/app.log` (truncated at each start, capped at
   5 MB) and to an in-memory tail of 2,000 lines.
 
@@ -539,22 +615,59 @@ How paths are judged:
 - Against the project folder, from where the command runs: a `cd` or `pushd` (and `popd`) earlier on
   the same line moves that, so `cd .. && rm -rf *` asks while `cd src && rm -rf build` does not.
   `cd` alone, `cd ~` and `cd $HOME` go to the home folder. A `cd` to a scratch folder (`/tmp`, …)
-  makes relative paths there fine. A `cd` to a place that cannot be read from the text (`cd "$dir"`)
-  leaves the judgement where it was.
+  makes relative paths there fine. A `cd` to a place that cannot be read (a variable the agent's shell
+  does not have, one the line set to something unreadable, a trimmed path such as `cd ${PWD%/*}` or
+  zsh's `cd $PWD:h`) leaves the command in an unknown folder: nothing relative counts as inside from
+  there, so `cd $OUT && rm -rf *` asks. `cd -` goes back to the folder before the line's last `cd`;
+  with no `cd` before it on the line, that folder is unknown.
 - `git -C <dir>` (and `--git-dir`/`--work-tree`) out of the project, or `git` after a `cd` out of
   it, asks for anything but reading. git's own options before the subcommand (`-C`, `-c k=v`,
   `--git-dir=…`, `--work-tree=…`) are skipped when looking for `push` and the other subcommands.
 - `find … -delete`, `find … -exec rm …` (also `rmdir`, `unlink`, `shred`) and `find … | xargs rm`
   delete what `find` finds: judged by `find`'s starting points.
-- `>|` is a redirection like `>`. `ln` changes only its last argument (the link), not what it points at.
+- Every redirection that writes is read: `>`, `>>`, `>|`, a numbered one (`2>`, `2>>`, `3>`), both
+  streams (`&>`, `&>>`), `>&` to a file, and `<>`/`1<>` (opens a file to read and write). `2>&1` and
+  `>&2` join streams and write nothing. `ln` changes only its last argument (the link), not what it points at.
 - A path that starts with `~`, `$HOME` or `${HOME}` is expanded to the home folder and judged by
   where it leads, so a path into an app that lives under the home folder is inside it.
 - A download's target is a write: `curl -o`/`--output`/`--output-dir` (and `-O` into the current
   folder), `wget -O`/`--output-document`/`-P` (and its default, the current folder).
 - git's own path arguments are writes: the folder of `clone` (and `--separate-git-dir`,
-  `--template`), `worktree add <dir>`, `init <dir>`, `archive -o <file>`.
-- A substitution (`$(…)`, `` `…` ``, `$VAR`) is never evaluated; a target of a writing or deleting
-  command, or of a redirection, in which one is followed by `..` asks.
+  `--template`), `worktree add <dir>`, `init <dir>`, `archive -o <file>`. `GIT_DIR=` and
+  `GIT_WORK_TREE=` (for the command, or set earlier on the line) name where git works, like `-C`.
+- A scratch folder is judged after `..` is resolved: `/tmp/..` and `$(mktemp -d)/..` are not
+  scratch, and neither is a folder that holds the project.
+- A variable the same line sets is followed into the words where it is used, and the line is judged
+  as if that text had been typed there: `OUT=~/Desktop/site; rm -rf $OUT` asks like
+  `rm -rf ~/Desktop/site`, and `x="rm -rf"; $x ~/x` is `rm -rf ~/x` (an unquoted value is split into
+  words, as bash does). A `for` loop's words are its values, each judged. `${X:-dir}` and `${X:=dir}`
+  have `dir` as a value, `${X%.md}`, `${X#…}`, `${X/a/b}`, `${X,,}` and `${X^^}` are worked out, and
+  numbers (`$((i+1))`, `$(seq 1 5)`, `$RANDOM`, `$$`) are numbers. `eval X=…` sets `X` too. The
+  studio's own names (`$PORT`, `$HOST`, `$STUDIO_…`) are not known any more when the line sets them.
+- A `for` loop over a pattern (`for f in *.md`), or over a listing of the project (`$(git ls-files)`,
+  `$(find . …)`, `$(ls src)`, `find . … | while read f`), stands for file names inside the project.
+  A listing rooted elsewhere (`find ~`, `find ..`, `find -L`, `ls /`) or a file's contents
+  (`$(cat files.txt)`) cannot be read. Because a file's name can hold `;`, these are never read as
+  text to run (`sh -c "wc $f"` asks).
+- A few substitutions are read for what they print: `$(pwd)`, `$(dirname X)`, `$(cd X && pwd)`,
+  `$(realpath X)`, `$(mktemp …)` (a scratch folder), `$(which X)` and `$(command -v X)` (the program
+  `X`), `$(git rev-parse --show-toplevel)`, the listings above, `$(npm root)`, `$(npm bin)` and
+  `$(npm prefix)` without other words (with `-g` they are the machine's own), `$(echo … | tr …)`, and
+  plain text from `date`, `basename`, `echo` and the like. `printf` with a format and `find -printf`
+  print what their format says, so they cannot be read. `$0` is the agent's shell itself (`/bin/zsh`).
+  So `rm -rf $(dirname $PWD)` asks. The rules that name programs are read on the line as typed too,
+  so a substitution read for its output never hides one.
+- A target of a writing or deleting command, or of a redirection, that the line sets to something
+  that cannot be read (`OUT=$(cat t.txt)`, `read d`, `VERSION=$(jq -r .version package.json)`), that
+  holds any other substitution, or that trims a path (`${PWD%/*}`, `$PWD:h`) asks. One in which a
+  substitution or variable is followed by `..` asks.
+- So does one that starts with a variable the line does not set, unless the agent's shell really has
+  it: `$HOME`, `$PWD`, `$TMPDIR`, `$USER`, `$LOGNAME` and the numbers above. Each of the agent's
+  commands runs in a fresh shell (the folder carries over, variables do not), so `rm -rf "$OUT"/*` is
+  `rm -rf /*` there. `$PORT`, `$HOST` and `$STUDIO_…` belong to a project's back end, not to the agent's
+  shell. A variable the line does not set further along a path (`dist/$NAME`) is not judged.
+- The text of `trap '…' EXIT` and the command after `find … -exec` (with `{}` as find's starting
+  points) are judged as commands.
 
 The rules read the command, not a file's text: the body of a here-document that `cat` or `tee`
 writes to a file (`cat > notes.py <<'EOF' … EOF`), or that `git` reads as a message
@@ -572,7 +685,7 @@ Commands inside commands are judged by the same rules, as if they had been typed
 - the text given to a shell with `-c` (`bash -c '…'`, `sh -c`, `zsh -lc`, also after `xargs`,
   `find -exec`, `timeout` and the like), to `eval`, or to a shell as a here-string
   (`bash <<< '…'`);
-- the command after `env NAME=value`, `env -S`, `sudo`, `nohup`, `time`, `nice`, `timeout`,
+- the command after `env NAME=value`, `env -S` (also `-S'…'`, `-iS'…'`, `--split-string=…`), `sudo`, `nohup`, `time`, `nice`, `timeout`,
   `command`, `exec` and `setsid`;
 - the command that `watch`, `script`, `tmux` (`new`, `new-window`, `split-window`, `respawn-pane`,
   `run-shell`, `send-keys`), `screen`, `parallel` and `xargs` run, and what `at` or `batch` read
@@ -583,9 +696,12 @@ Commands inside commands are judged by the same rules, as if they had been typed
 
 The line is read the way the shell reads it first: a backslash at the end of a line joins it to the
 next (`r\` + new line + `m` is `rm`), `$'…'` text is decoded (`$'\x72m'` is `rm`), and a command
-after `(`, `{`, `!`, `if`, `then`, `else`, `do`, `while`, `until` or a `case` pattern is the
-command itself (`(rm -rf ~/x)` and `for f in a; do rm -rf ~/x; done` ask like `rm -rf ~/x`).
-For `bash -c -- '…'` the text after `--` is the script.
+after `(`, `{`, `!`, `if`, `then`, `else`, `do`, `while`, `until`, `coproc` or a `case` pattern is the
+command itself (`(rm -rf ~/x)` and `for f in a; do rm -rf ~/x; done` ask like `rm -rf ~/x`), and so
+is one after zsh's `repeat N`, `noglob`, `nocorrect`, `-`, `for i (…)`, `if … {`, `while … {` and an
+anonymous function `() { … }`. `((…) )` is a subshell, not arithmetic. zsh's `=rm` is `rm`, `$"rm"` is
+`"rm"`, and a program name in quotes (`"ssh" host`) is that program. For `bash -c -- '…'` the text
+after `--` is the script.
 
 The inner command is read from where the outer one runs, so `cd .. && bash -c 'rm -rf *'` asks
 just as `cd .. && rm -rf *` does. This goes four levels deep; a command wrapped deeper than that asks.
@@ -598,9 +714,13 @@ When the inner text cannot be read before it runs, it asks:
 - the program a line runs is itself a variable or a substitution (`$CMD ~/x`, `$(tool) …`). When
   the line sets that variable only to plain text, the text is read in its place:
   `C=/usr/bin/chromium; "$C" --headless` is read as `/usr/bin/chromium --headless`, and
-  `x=rm; $x -rf ~/x` as `rm -rf ~/x`;
+  `x=rm; $x -rf ~/x` as `rm -rf ~/x`. A program whose name is written out after a folder that comes
+  from a variable (`"$VIRTUAL_ENV/bin/python"`, `$BIN/tsc`) is that program, read by its name, and so
+  are `$(which node)`, `$(command -v python3)` and the conventional names `$PYTHON`, `$PYTHON3`,
+  `$NODE`, `$NPM`, `$PIP` and `$UV` when the line does not set them;
 - any other program's output is piped into a shell (`base64 -d … | sh`, `cat script | bash`);
-- a shell reads a process substitution (`bash <(…)`, `source <(…)`);
+- a shell reads a process substitution (`bash <(…)`, `source <(…)`, `. <(…)`); `source /dev/stdin`
+  and `. /dev/stdin` read a here-string or a pipe like a shell does;
 - code given to another language on the command line (`python -c`, `perl -e`, `ruby -e`,
   `node -e`, `php -r`, `awk '…'` and the like) or as a here-document (`python3 - <<'EOF'`)
   mentions running a program: `system(`, `subprocess`, `popen`, `exec`, `spawn(`,
@@ -621,7 +741,12 @@ attempt to hide a command (a script file written first and run later, a program 
 language that starts a shell) can get past them. What they still cannot read: a script file's
 contents, code in another language that builds its call to a program without naming one of the
 words above (`getattr(os, 'sys' + 'tem')`), shell functions and aliases defined and then called,
-and what a variable from the agent's starting environment holds.
+and what a variable from the agent's starting environment holds. A variable the line sets is read
+only from its plain text, the few substitutions and `${…}` forms listed above; anything else it holds
+is unknown, and asks only where it names a path that is changed or deleted, or the program itself.
+Array elements, `${!X}`, `declare -n` and zsh's `${(…)X}` flags are not followed; where one names a
+path to change, it asks. A value set by `source`/`.` of a file or by quoted `eval '…'` is not seen at all:
+`X=dist; source vars.sh; rm -rf $X` is judged as `rm -rf dist`.
 
 File writes outside the project stay refused outright. `approvals: "allow"` skips the
 question (same behaviour as Step 1).
@@ -1165,9 +1290,12 @@ request, HTTP and WebSocket, on the studio port and on every project page port, 
 The name check only refuses; a name that passes still goes through the rules above (local,
 tailnet, access key). The project's own back end (page port + 100) listens on `127.0.0.1` and is
 the project's program, not the studio's, so the studio cannot check names there. Other
-devices reach it only through the page port, which is checked; a page open in a browser on this
-same machine could still reach `127.0.0.1:<port + 100>` by rebinding, unless the app checks its
-own `Host`.
+devices reach it only through the page port, which is checked. A page open in a browser on this
+same machine can reach `127.0.0.1:<port + 100>` by rebinding, so the app checks its own `Host`
+against `STUDIO_ALLOWED_HOSTS`: the studio's templates and the back ends the agent writes do;
+an attached app does only if its own server does (see "`studio.json` — a project with its own
+back end"). Closing this for every program would need the app in a container or on a socket
+only the studio can open, which is not done.
 
 This is access for the owner on a private network, over plain HTTP unless a certificate is set. It is not a hosted,
 multi-user mode: there are no accounts, every signed-in device has the owner's full rights
@@ -1267,7 +1395,7 @@ taken from the person's live page and is the more reliable of the two.
 A project's app does not inherit the studio's environment: it gets `PATH`, `HOME`, `USER`,
 `LOGNAME`, `SHELL`, `TMPDIR`, `LANG`, `LC_*`, `TERM`, `TZ` and a few cache locations, plus what
 the studio sets for it (`PORT`, `HOST`, `STUDIO_PROJECT_ID`, `STUDIO_PROJECT_URL`,
-`STUDIO_TOKEN`, `STUDIO_DATA_URL`, `STUDIO_MODEL_URL`). No key or token of the person's or
+`STUDIO_ALLOWED_HOSTS`, `STUDIO_TOKEN`, `STUDIO_DATA_URL`, `STUDIO_MODEL_URL`). No key or token of the person's or
 the studio's reaches it. When the studio's config has an
 `anthropic-gateway` connection (LiteLLM), the app instead gets `STUDIO_MODEL_URL` in its
 environment and calls the gateway through the studio, with `STUDIO_TOKEN` as the API key:
@@ -1618,6 +1746,20 @@ with `GIT_OPTIONAL_LOCKS=0`, so not even git's index is refreshed). `~` is expan
   `history_bytes` is the size of `.git`. `partial` is true when the count stopped at 50,000 files.
 - `refused.copy`/`refused.in_place`: null, or the sentence that says why that way in is not
   possible. A missing or unreadable folder refuses both.
+- `lfs`: null, or `{"files": 12, "names": ["img/a.png", …], "not_here": ["data/b.bin", …],
+  "not_here_count": 2}` for the files kept in Git LFS. A file counts when what is committed at
+  `HEAD` is an LFS pointer, recognised by its content (the lines
+  `version https://git-lfs.github.com/spec/v1`, `oid sha256:<hex>`, `size <n>`, under 1024
+  bytes): that is exactly what a safe copy will hold, whatever `.gitattributes` says. The commit
+  is read with `git ls-tree` and `git cat-file --batch` (object names on standard input, never
+  paths on a command line), the read-only way inspection reads the folder; no filter runs. For a
+  plain folder, its files that are pointers count. `not_here` (at most five) and
+  `not_here_count`: the ones whose file in the folder is the pointer too (never downloaded there;
+  every one, for a plain folder). `names` lists at most five. A note says how many there are,
+  names a few, that a safe copy holds only the pointer files so images, models or data kept that
+  way will be missing or broken there, and that to work with them the folder is brought in to be
+  edited in place; when some are not downloaded in the folder either, it says to run git lfs pull
+  there first. A copy can still be made.
 
 Errors: 400 `invalid_request` when `path` is empty or not absolute after `~` expansion.
 
@@ -1752,6 +1894,8 @@ yourself.
 - `studio.json` (`{"run": …, "restart": "never"}`, when there is a command), the key-file
   names above as patterns, `node_modules/`, `.venv/` and `__pycache__/` are listed in the copy's `.git/info/exclude`:
   they never enter a version, so the studio branch holds only the app's own files.
+- Files kept in Git LFS are the small pointer files in the copy, as committed; the studio runs
+  no LFS program and does not fill them (not built). Inspection's note says so beforehand.
 - The import is the first version (`kind` `init`, message "Import from <path> at <sha7>"),
   made even when nothing changed. Versions list only that commit and what came after it;
   restore and version diffs refuse anything earlier (404 `version_not_found`).

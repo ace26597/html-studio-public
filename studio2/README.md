@@ -108,7 +108,7 @@ cd studio2 && STUDIO2_FAKE=1 .venv/bin/pytest -q
 cd studio2/web && npm test && npx tsc --noEmit
 ```
 
-On 17 November 2026: 1129 server tests passed and 3 were skipped, in about 190 seconds; 376
+On 17 November 2026: 1375 server tests passed and 3 were skipped, in about 230 seconds; 376
 interface tests passed. Neither suite calls a model, and the server suite uses an in-memory
 secret store and an empty LiteLLM folder, so it does not touch your settings.
 

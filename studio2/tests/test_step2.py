@@ -370,7 +370,9 @@ import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 class H(BaseHTTPRequestHandler):
     def do_GET(self):
-        body = ("<html><body>origin=" + str(self.headers.get("Origin")) + "</body></html>").encode()
+        # Written without "://": the studio puts the app's own address in a page right (CONTRACT.md),
+        # and this test reads the Origin as the app saw it.
+        body = ("<html><body>origin=" + str(self.headers.get("Origin")).replace("://", " ") + "</body></html>").encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
         self.send_header("Content-Length", str(len(body)))
@@ -399,8 +401,8 @@ async def test_an_existing_app_can_be_shown_in_the_studio_and_sees_its_own_origi
     assert "x-frame-options" not in own.headers
     assert own.headers["content-security-policy"] == "default-src 'self' 'unsafe-inline'"
     # A request from the project's own page arrives as one from the app's own origin; any other is passed on as it came.
-    assert f"origin=http://127.0.0.1:{app_port}" in own.text
-    assert "origin=https://elsewhere.example" in other.text
+    assert f"origin=http 127.0.0.1:{app_port}" in own.text
+    assert "origin=https elsewhere.example" in other.text
     # Its pages tell the studio not to reload them when files change: the development server does that.
     assert 'name="studio-reload" content="off"' in own.text
     # A development server that reloads itself is left running when a turn changed files...

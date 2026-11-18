@@ -354,6 +354,15 @@ class Studio:
             '127.0.0.1 --port $PORT"} beside a `requirements.txt` that lists the packages (fastapi, uvicorn). '
             "The studio starts that command for you with PORT set, keeps it "
             f"running, and serves it at {project['preview_url']}. The app must listen on 127.0.0.1:$PORT.",
+            "- A back end must answer only to the names in `$STUDIO_ALLOWED_HOSTS` (comma-separated; the studio "
+            "always reaches it as 127.0.0.1:$PORT) and refuse any other `Host` with 400 or 421, so a web page "
+            "elsewhere cannot point its own name at this machine and use the app (DNS rebinding). Check only while "
+            "the variable is set, so a copy run elsewhere still works. FastAPI or Starlette: "
+            "`TrustedHostMiddleware(allowed_hosts=…)`; Flask or Express: a check before every request that "
+            "compares the name without its port, because Host is 127.0.0.1:$PORT and comparing it whole "
+            "refuses the studio itself (Express: `req.hostname`; Flask: `request.host.rsplit(':', 1)[0]`); Vite: "
+            "leave `server.allowedHosts` unset; Django: `ALLOWED_HOSTS`. In an attached app, suggest it; "
+            "do not add it unasked.",
             "- Never start a long-running server yourself (no `&`, `nohup` or background shells): it would "
             "not survive and the person would not see it. Short commands and scripts are fine.",
             "- The studio restarts the app when your turn ends. To test during your turn: "

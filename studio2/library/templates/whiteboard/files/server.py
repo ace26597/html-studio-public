@@ -11,11 +11,30 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 BOARD = ROOT / "board.excalidraw"
 LIMIT = 20 * 1024 * 1024
+# Answer only to the names the studio gives (a page elsewhere could point its own name at this
+# machine). Outside the studio the variable is not set and nothing is limited.
+ALLOWED = {name.strip().lower() for name in os.environ.get("STUDIO_ALLOWED_HOSTS", "").split(",") if name.strip()}
 
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
+
+    def parse_request(self):
+        if not super().parse_request():
+            return False
+        name = (self.headers.get("Host") or "").lower()
+        name = name.rsplit(":", 1)[0] if not name.endswith("]") else name
+        if ALLOWED and name not in ALLOWED:
+            body = b"This app does not answer to that name."
+            self.close_connection = True
+            self.send_response(421)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return False
+        return True
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
@@ -32,7 +51,7 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def log_message(self, format, *args):
-        if "/api/board/stamp" not in (args[0] if args else ""):
+        if "/api/board/stamp" not in (str(args[0]) if args else ""):   # an error's first part is its code
             super().log_message(format, *args)
 
     def do_PUT(self):

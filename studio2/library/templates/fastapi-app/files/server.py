@@ -3,13 +3,19 @@
 Add routes under /api/. Anything in static/ is served as the site.
 Need another package? Add `--with <name>` to the run command in studio.json.
 """
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 app = FastAPI()
+# Answer only to the names the studio gives (a page elsewhere could point its own name at this
+# machine). Outside the studio the variable is not set and nothing is limited.
+if os.environ.get("STUDIO_ALLOWED_HOSTS"):
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=os.environ["STUDIO_ALLOWED_HOSTS"].split(","))
 STARTED = datetime.now(timezone.utc)
 
 

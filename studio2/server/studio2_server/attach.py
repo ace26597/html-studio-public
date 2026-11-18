@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from . import keyfiles, workspace as ws
+from . import keyfiles, lfs, workspace as ws
 
 SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__", ".next", ".nuxt", ".svelte-kit", ".astro",
              ".turbo", ".vite", ".parcel-cache", ".angular", ".cache", "dist", "build", ".output", "target",
@@ -48,15 +48,21 @@ class AttachError(Exception):
 
 
 # -- reading the original ------------------------------------------------------------------
-def _git_read(folder: Path, *args: str) -> tuple[int, str]:
+def _git_read_bytes(folder: Path, args: list[str], stdin: bytes | None = None) -> tuple[int, bytes]:
     """A read-only git command on the person's folder. Never writes, never prompts."""
     env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0",
            "GIT_CONFIG_NOSYSTEM": "1"}
     for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
         env.pop(name, None)
     proc = subprocess.run(["git", "-c", "core.quotepath=false", *args], cwd=folder, env=env,
-                          capture_output=True, timeout=60)
-    return proc.returncode, proc.stdout.decode("utf-8", "replace")
+                          input=stdin, capture_output=True, timeout=60)
+    return proc.returncode, proc.stdout
+
+
+def _git_read(folder: Path, *args: str) -> tuple[int, str]:
+    """A read-only git command on the person's folder. Never writes, never prompts."""
+    code, out = _git_read_bytes(folder, list(args))
+    return code, out.decode("utf-8", "replace")
 
 
 def git_info(folder: Path) -> dict | None:
@@ -416,7 +422,7 @@ def inspect(path: str, protected: list[Path], home: Path, taken: set[Path]) -> d
                     "readable": False, "writable": False, "git": None, "framework": None, "run": None,
                     "package_manager": None, "install": None, "env_files": [], "env_links": [],
                     "size": {"files": 0, "bytes": 0, "history_bytes": 0, "partial": False},
-                    "refused": {"copy": None, "in_place": None}, "notes": []}
+                    "refused": {"copy": None, "in_place": None}, "lfs": None, "notes": []}
     if not result["exists"]:
         reason = "There is no folder at this path." if not folder.exists() else "This path is a file, not a folder."
         result["refused"] = {"copy": reason, "in_place": reason}
@@ -450,9 +456,11 @@ def inspect(path: str, protected: list[Path], home: Path, taken: set[Path]) -> d
         result["size"] = {"files": len(names), "bytes": _sizes(folder, names),
                           "history_bytes": _folder_bytes(folder / ".git") if (folder / ".git").is_dir() else 0,
                           "partial": False}
+        result["lfs"] = lfs.inspect(folder, True, _git_read_bytes) if info.get("head") else None
     else:
         names, partial = _plain_files(folder)
         result["size"] = {"files": len(names), "bytes": _sizes(folder, names), "history_bytes": 0, "partial": partial}
+        result["lfs"] = lfs.inspect(folder, False, _git_read_bytes, names)
     result["refused"] = {"copy": copy_refusal(folder, info, result["size"], protected, home),
                          "in_place": in_place_refusal(folder, protected, home, taken)}
     notes = result["notes"]
@@ -483,6 +491,8 @@ def inspect(path: str, protected: list[Path], home: Path, taken: set[Path]) -> d
                      "pyproject.toml with a [project] table), so the copy cannot make them again. Edit it in place, "
                      "or add a requirements.txt (in the folder: uv pip freeze --python .venv > requirements.txt) "
                      "and check again.")
+    if (said := lfs.note(result["lfs"], info is not None)):
+        notes.append(said)
     if info and info["uncommitted"]:
         count = len(info["uncommitted"]) + info["uncommitted_more"]
         notes.append(f"{count} file{'s' if count != 1 else ''} changed here but not committed. A safe copy "

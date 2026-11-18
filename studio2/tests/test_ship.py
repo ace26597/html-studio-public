@@ -1100,3 +1100,23 @@ async def test_a_card_with_go_back_commands_and_nothing_after_says_when_they_run
         card = await card_for(client, studio, pid)
         text = card["going_back"]
         assert "pm2 restart site" in text and "fails" in text, text
+
+
+async def test_a_ship_carrying_15000_files_starts(client, studio, tmp_path):
+    """No ship check puts every carried path on one command line (review6-lfs #1: about 12,000
+    paths of 80 characters passed macOS's limit and the ship ended in a 500)."""
+    site = make_site(tmp_path)
+    project = await attach(client, site)
+    pid, workspace = project["id"], studio.store.workspace(project["id"])
+    await set_recipe(client, pid, method="branch")
+    folder = workspace / "generated" / "deeper-folder-name" / "deeper-folder-name" / "deeper-folder-name"
+    folder.mkdir(parents=True)
+    for number in range(15_000):
+        (folder / f"generated-file-{number:06d}-with-a-long-name.js").write_text(f"export default {number};\n")
+    assert await studio.checkpoint(pid, "agent", "Generate files")
+    response = await client.post(f"/api/projects/{pid}/ships")
+    assert response.status_code == 202, response.text
+    card = await wait_card(studio, pid, timeout=120)
+    await client.post(f"/api/projects/{pid}/ships/{card['ship_id']}/decision", json={"decision": "deny"})
+    record = await finish(studio, pid)
+    assert record["result"] == "denied"

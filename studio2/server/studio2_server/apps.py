@@ -39,6 +39,10 @@ REQUIREMENTS, LOCKED = "requirements.txt", "requirements.lock"
 BARE_PYTHON = re.compile(r"^\s*(?:exec\s+)?python3?(?:\.\d+)?(?:\s|$)")
 VENV_PYTHON = re.compile(r"^\s*(?:exec\s+)?\.venv/bin/")
 SETUP_TIMEOUT = 900.0   # a first start that installs packages first (an attached app)
+# The names an app should answer to (CONTRACT.md, "The app answers only to the names in
+# STUDIO_ALLOWED_HOSTS"). The studio reaches it as 127.0.0.1:$PORT; a page elsewhere that points its
+# own name at 127.0.0.1 (DNS rebinding) sends another name, which the app refuses.
+APP_ALLOWED_HOSTS = "127.0.0.1,localhost"
 
 
 def read_config(workspace: Path) -> tuple[str | None, str | None]:
@@ -426,7 +430,8 @@ class App:
         if "PATH" in cleaned:
             env["PATH"] = cleaned["PATH"]
         env.update({"PORT": str(self.port), "HOST": "127.0.0.1", "PYTHONUNBUFFERED": "1",
-                    "STUDIO_PROJECT_ID": self.project_id, "STUDIO_PROJECT_URL": self.url})
+                    "STUDIO_PROJECT_ID": self.project_id, "STUDIO_PROJECT_URL": self.url,
+                    "STUDIO_ALLOWED_HOSTS": APP_ALLOWED_HOSTS})
         env.update(self.extra_env)
         handle = self.log_path.open("w", encoding="utf-8", errors="replace")
         if not await self._clear_port(handle):
