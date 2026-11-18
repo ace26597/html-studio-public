@@ -434,6 +434,8 @@ def _studio_tool(tool: str, get) -> tuple[str, str]:
         return "read", f"Look at the page {get('path') or '/'}"
     if tool == "save_template":
         return "other", f"Save the template “{get('name')}”"
+    if tool == "save_skill":
+        return "other", f"{'Replace' if get('replace') else 'Save'} the skill “{get('name')}”"
     if tool == "render_document":
         return "read", f"Render {get('path')} for viewing"
     if tool == "render_video":

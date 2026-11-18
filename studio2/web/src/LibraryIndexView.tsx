@@ -331,6 +331,16 @@ function ItemRow({
           </p>
         )}
       </div>
+      {kind === "skills" && (
+        <a
+          className="btn btn-small lix-export"
+          href={api.skillExportUrl(item.id)}
+          download
+          aria-label={`Export the skill ${title}`}
+        >
+          <Icon name="download" size={13} /> Export
+        </a>
+      )}
       {kind !== "agents" && (
         <DecisionControl
           value={fromPref(item.pref)}

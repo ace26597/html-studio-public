@@ -13,7 +13,7 @@ layout, running from source, tests, every setting, and the rules.
 | `server/studio2_server/` | The FastAPI server and the `studio` command |
 | `web/` | The interface: React 19, Vite, TypeScript. Built into `web/dist`, which the server serves |
 | `web/mock/` | A stand-in server for interface work (`npm run mock`); not shipped |
-| `library/` | What the agent is given: `system-prompt.md`, 21 skills (four of them Anthropic's, see `library/skills/THIRD_PARTY.md`), 2 sub-agents, 6 starting templates, 8 finished examples (`examples/`, made from real projects with `tools/examples/add.py`), the price list for the backup cost calculation (`model-prices.json`, written by `tools/prices/update.py`), suggested connectors |
+| `library/` | What the agent is given: `system-prompt.md`, 22 skills (four of them Anthropic's, see `library/skills/THIRD_PARTY.md`), 2 sub-agents, 6 starting templates, 8 finished examples (`examples/`, made from real projects with `tools/examples/add.py`), the price list for the backup cost calculation (`model-prices.json`, written by `tools/prices/update.py`), suggested connectors |
 | `tests/` | Server tests. They run on the scripted agent and make no model call |
 | `install.sh` | The installer described on the front page |
 | `server-requirements.txt`, `server-dev-requirements.txt` | The server's packages at exact versions, pinned by hash, for macOS and Linux; the second adds what the tests need. Written by `tools/lock-server.sh` |

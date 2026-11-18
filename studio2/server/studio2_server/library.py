@@ -146,21 +146,11 @@ class Library:
                 if a["source"] == "studio"]
 
     def add_skill(self, fields: dict) -> dict:
-        name = str(fields.get("name") or "").strip().lower()
-        description = " ".join(str(fields.get("description") or "").split())
-        body = str(fields.get("body") or "").strip()
-        if not NAME.fullmatch(name):
-            raise invalid("name: use lower-case letters, digits, - and _ (at most 60 characters).")
-        if not description:
-            raise invalid("description: say when the assistant should use this skill.")
-        if not body:
-            raise invalid("body: the instructions are empty.")
-        if any(skill["name"] == name for skill in self.skills()):
-            raise LibraryError(409, "name_taken", f"There is already a skill called {name}.")
-        folder = self.own_skills / name
-        folder.mkdir(parents=True, exist_ok=True)
-        (folder / "SKILL.md").write_text(f"---\nname: {name}\ndescription: {description}\n---\n\n{body}\n", "utf-8")
-        self.catalog.ensure(force=True)
+        from . import ownskills
+        name = ownskills.check_name(self, str(fields.get("name") or "").strip().lower())
+        description = ownskills.clean_description(str(fields.get("description") or ""))
+        body = ownskills.clean_body(str(fields.get("body") or ""))
+        ownskills.save(self, name, description, body)
         return next(skill for skill in self.skills() if skill["id"] == f"yours:{name}")
 
     def delete_skill(self, name: str) -> None:

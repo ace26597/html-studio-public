@@ -50,4 +50,22 @@ connector settings. A plugin's hooks, commands and permission rules are never re
 - A connector the studio picked by itself asks you before its first use. One that needs
   signing in is shown as such, with the command, and is not picked.
 
+## Making a skill of your own
+
+A skill is a page of instructions the agent follows for one kind of job. You do not need to
+know how one is written.
+
+- **Describe it.** Library → New skill: say what should happen in your own words ("every week
+  get the last seven days of … from …, then …, then check it like this …") and add examples to
+  follow if you have them. The agent asks for what is missing, shows the draft in plain words
+  and writes the skill.
+- **From work you like.** A project's menu → Make a skill from this…: the whole page or app, or
+  the part you selected, with a note on what changes each time.
+- **You approve every skill.** Before one is saved you see all of it on a card and choose Allow
+  or Deny, whatever the project's approval setting, because a saved skill is given to the agent
+  in every project from then on. Replacing a skill keeps its last five versions.
+- **Share it as a file.** Every skill in the Library has Export, and Import shows what a file
+  holds before anything is added. A file that brings scripts says so and waits for a tick.
+  Skills made through the chat hold instructions and reference files only, never scripts.
+
 Add your own skills, connectors and databases on the **Library** page.

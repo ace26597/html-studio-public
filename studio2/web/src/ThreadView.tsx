@@ -5,6 +5,7 @@ import { RECHECK_COVERS, recheckHeadline, type Recheck } from "./effort";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { isDrawingAttachment } from "./drawing";
 import { baseName, checkpointLabel, costLabel, formatCount, formatDuration, isImagePath, prettyInput, truncate } from "./format";
+import { isSaveSkill, parseSkillApproval } from "./skillMaking";
 import { Icon, Spinner, toolIcon } from "./icons";
 import { checkPageLine } from "./library";
 import { LibraryPickCard } from "./LibraryPickCard";
@@ -397,8 +398,48 @@ const RESOLVED_LABEL: Record<string, string> = {
   denied: "Denied",
 };
 
-function ApprovalCard({ item, actions }: { item: ApprovalItem; actions: ThreadActions }) {
+/** A skill about to be saved, readable: when it is used, the instructions, the files. Shown as written. */
+export function SkillApprovalDetail({ detail }: { detail: string }) {
+  const { description, body, files, kept } = parseSkillApproval(detail);
+  return (
+    <div className="skill-approval">
+      {description && (
+        <div className="skill-approval-part">
+          <h4>When it is used</h4>
+          <p>{description}</p>
+        </div>
+      )}
+      {body && (
+        <div className="skill-approval-part">
+          <h4>Instructions</h4>
+          <pre className="skill-text" tabIndex={0} aria-label="The skill’s instructions">
+            {body}
+          </pre>
+        </div>
+      )}
+      {(files.length > 0 || kept) && (
+        <div className="skill-approval-part">
+          <h4>Files</h4>
+          {files.length > 0 && (
+            <ul className="skill-files">
+              {files.map((file, index) => (
+                <li key={`${index}:${file.path}`}>
+                  <span className="skill-file-path">{file.path}</span>
+                  <span className="skill-file-size">{file.size}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {kept && <p className="skill-approval-kept">{kept}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ApprovalCard({ item, actions }: { item: ApprovalItem; actions: ThreadActions }) {
   const decision = actions.decisions[item.approvalId];
+  const skill = isSaveSkill(item.tool);
   if (item.status !== "waiting") {
     const label = item.status === "denied" && item.by === "turn_end" ? "Denied — the turn ended" : RESOLVED_LABEL[item.status];
     return (
@@ -406,8 +447,8 @@ function ApprovalCard({ item, actions }: { item: ApprovalItem; actions: ThreadAc
         <Icon name={item.status === "allowed" ? "check" : "x"} size={13} strokeWidth={2.2} className="approval-record-icon" />
         <span className="approval-record-label">{label}</span>
         {(item.detail || item.title) && (
-          <code className="approval-record-detail" title={item.detail || item.title}>
-            {item.detail || item.title}
+          <code className="approval-record-detail" title={skill ? item.title : item.detail || item.title}>
+            {skill ? item.title : item.detail || item.title}
           </code>
         )}
       </div>
@@ -420,7 +461,7 @@ function ApprovalCard({ item, actions }: { item: ApprovalItem; actions: ThreadAc
         <Icon name="hand" size={15} className="approval-icon" />
         <strong>{item.title}</strong>
       </div>
-      {item.detail && <pre className="approval-detail">{item.detail}</pre>}
+      {item.detail && (skill ? <SkillApprovalDetail detail={item.detail} /> : <pre className="approval-detail">{item.detail}</pre>)}
       {item.reason && <p className="approval-reason">{item.reason}</p>}
       {decision?.error && (
         <p className="approval-error" role="alert">

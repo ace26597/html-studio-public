@@ -82,7 +82,7 @@ export function LibraryPage({ navigate, theme, onToggleTheme }: LibraryPageProps
         </section>
         <section className="library-block" aria-labelledby="capabilities-title">
           <h2 id="capabilities-title">What the agent can use</h2>
-          <LibraryView state={state} omit={SHOWN_ABOVE} />
+          <LibraryView state={state} omit={SHOWN_ABOVE} onOpenProject={(id) => navigate(`/p/${id}`)} />
         </section>
         <section id="everything" className="library-block" aria-labelledby="everything-title">
           <h2 id="everything-title">Everything on this computer</h2>

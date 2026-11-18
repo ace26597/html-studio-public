@@ -3,6 +3,7 @@ import type { ServiceKey } from "./serviceKeys";
 import type { ExportOptions } from "./exportInfo";
 import type { Example } from "./examples";
 import type { TurnOptions } from "./effort";
+import type { SkillImportOptions } from "./skillMaking";
 import type {
   AppInfo,
   AttachRequest,
@@ -37,6 +38,8 @@ import type {
   ShipRecipe,
   ShipRecord,
   ShipView,
+  SkillDetail,
+  SkillImportPreview,
   Template,
   Version,
   VersionDiff,
@@ -70,6 +73,17 @@ export function libraryItemsSearch(query: LibraryItemsQuery): string {
   if (query.limit) params.set("limit", String(query.limit));
   if (query.project) params.set("project", query.project);
   return params.toString();
+}
+
+/** The query string of `POST /api/skills/import` (what is not asked for is left out). */
+export function skillImportSearch(options: SkillImportOptions & { dryRun?: boolean }): string {
+  const params = new URLSearchParams();
+  if (options.dryRun) params.set("dry_run", "1");
+  if (options.replace) params.set("replace", "1");
+  if (options.allowScripts) params.set("allow_scripts", "1");
+  if (options.name) params.set("name", options.name);
+  const query = params.toString();
+  return query ? `?${query}` : "";
 }
 
 /** An error from the studio API, carrying the contract's `error.code` and `error.message`. */
@@ -289,6 +303,20 @@ export const api = {
   createSkill: (input: { name: string; description: string; body: string }) =>
     request<LibrarySkill>("POST", "/skills", input),
   deleteSkill: (name: string) => request<void>("DELETE", `/skills/${enc(name)}`),
+  getSkill: (name: string, signal?: AbortSignal) => request<SkillDetail>("GET", `/skills/${enc(name)}`, undefined, signal),
+  updateSkill: (name: string, change: { description?: string; body?: string }) =>
+    request<SkillDetail>("PUT", `/skills/${enc(name)}`, change),
+  skillExportUrl: (id: string) => `/api/library/skills/export?id=${enc(id)}`,
+  previewSkillImport: (file: File) => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    return request<SkillImportPreview>("POST", `/skills/import${skillImportSearch({ dryRun: true })}`, form);
+  },
+  importSkill: (file: File, options: SkillImportOptions) => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    return request<LibrarySkill>("POST", `/skills/import${skillImportSearch(options)}`, form);
+  },
   createMcpServer: (input: McpServerInput) => request<McpServer>("POST", "/mcp-servers", input),
   patchMcpServer: (mcpId: string, patch: Partial<McpServerInput>) =>
     request<McpServer>("PATCH", `/mcp-servers/${enc(mcpId)}`, patch),

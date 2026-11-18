@@ -15,6 +15,8 @@ export interface LibraryRow {
   note: string | null;
   /** A row the person can act on (a skill they added can be deleted). */
   action?: { kind: "delete-skill"; name: string };
+  /** A skill that can be downloaded as a file: its id in the index. */
+  exportId?: string;
 }
 
 export interface LibrarySection {
@@ -53,6 +55,9 @@ export interface SkillGroup<T extends LibrarySkill = LibrarySkill> {
   intro: string | null;
   items: T[];
 }
+
+/** Where a skill must come from to be in the index, and so to have a file to export. */
+const EXPORTABLE = new Set(["studio", "yours", "machine", "plugin"]);
 
 const SKILL_GROUPS: { source: string; title: string; intro: string | null }[] = [
   { source: "studio", title: "Studio skills", intro: "Come with the studio. On in every project unless you switch them off there." },
@@ -218,6 +223,7 @@ export function librarySections(library: Library, observedLabel: string | null =
       status: null,
       note: null,
       action: skill.source === "yours" ? { kind: "delete-skill" as const, name: skillName(skill) } : undefined,
+      exportId: EXPORTABLE.has(skill.source) ? skill.id : undefined,
     }));
   // Step 3o: the machine's and plugins' skills are listed under "Everything on this computer".
   const groups = groupSkills(library.skills ?? []).filter((group) => group.source !== "machine" || group.items.length > 0);

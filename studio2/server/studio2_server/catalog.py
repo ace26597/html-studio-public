@@ -59,13 +59,17 @@ def words(text: str) -> list[str]:
 
 
 def front_matter(path: Path) -> dict:
-    """The YAML block at the top of a SKILL.md or an agent file, read without a YAML parser:
-    top-level `key: value`, block scalars (`>` and `|`) and values continued on indented lines."""
+    """The front matter of a SKILL.md or an agent file on disk (parse_front_matter)."""
     try:
         with path.open("r", encoding="utf-8", errors="replace") as handle:
-            head = handle.read(12_000)
+            return parse_front_matter(handle.read(12_000))
     except OSError:
         return {}
+
+
+def parse_front_matter(head: str) -> dict:
+    """The YAML block at the top of a text, read without a YAML parser: top-level `key: value`,
+    block scalars (`>` and `|`) and values continued on indented lines."""
     block = re.match(r"\s*---[ \t]*\n(.*?)\n---", head, re.S)
     fields: dict[str, str] = {}
     key = None

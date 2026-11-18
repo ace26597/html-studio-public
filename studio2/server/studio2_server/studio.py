@@ -225,11 +225,13 @@ class Studio:
             log.debug("Could not save the session info")
         self.lib.record_statuses(info.get("mcp_servers") or [])
 
-    async def ask(self, project_id: str, tool: str, title: str, detail: str, reason: str) -> bool:
+    async def ask(self, project_id: str, tool: str, title: str, detail: str, reason: str,
+                  detail_limit: int | None = None) -> bool:
         """Ask the person, through the running turn, whatever the project's approval setting.
         With no turn running there is nobody to ask, so the answer is no."""
         approve = self.approvers.get(project_id)
-        return bool(approve and await approve(tool, title, detail, reason, always=True))
+        whole = {"detail_limit": detail_limit} if detail_limit else {}
+        return bool(approve and await approve(tool, title, detail, reason, always=True, **whole))
 
     def turn_library(self, project_id: str, picked: dict | None = None) -> dict:
         """What a turn loads: the project's plugin folder and its MCP servers (TurnRequest fields).
@@ -441,6 +443,9 @@ class Studio:
         lines.append(
             "- When the person asks to save this work as a template (or to make a template from a deck, workbook "
             "or document), use the save_template tool; put how it was made in `notes`.")
+        lines.append(
+            "- When the person asks to make or change a skill, read the `make-a-skill` skill first, then save it to "
+            "their library with the save_skill tool; they see the whole skill on a card and allow or deny it.")
         if office.reason() is None:
             lines.append(
                 "- You can make real PowerPoint, Word, Excel and PDF files (the `office-files` skill says how, with "

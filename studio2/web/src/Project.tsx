@@ -22,7 +22,9 @@ import { offeredName } from "./nameOffer";
 import { LogsDrawer } from "./LogsDrawer";
 import { useCompact, useKeyboardInset } from "./media";
 import { ProjectLibraryPanel } from "./ProjectLibraryPanel";
+import { MakeSkillDialog, makeSkillEntry } from "./MakeSkillDialog";
 import { SaveTemplateDialog } from "./SaveTemplateDialog";
+import { fromWorkRequest } from "./skillMaking";
 import { Preview, type PreviewHandle } from "./Preview";
 import { refreshFailure, REFRESH_RETRY_MS } from "./projectLoad";
 import { mayDiscard } from "./discard";
@@ -101,6 +103,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   const [appError, setAppError] = useState<string | null>(null);
   const [appBusy, setAppBusy] = useState<AppAction | null>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [makingSkill, setMakingSkill] = useState(false);
   const [dropping, setDropping] = useState(false);
   const [shipOpen, setShipOpen] = useState(false);
   const [shipTick, setShipTick] = useState(0);
@@ -411,14 +414,14 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
       fromComposer: boolean,
       retryPaths: string[] = [],
       options?: TurnOptions,
-    ) => {
-      if (!project || starting) return;
+    ): Promise<boolean> => {
+      if (!project || starting) return false;
       const plan = fromComposer ? planAttachments(attachmentsRef.current) : null;
       // Never send without an attachment the user added: wait for uploads, or for a failed one to be removed.
-      if (plan?.blocked) return;
+      if (plan?.blocked) return false;
       const drawing = fromComposer && drawRef.current.count > 0 ? drawRef.current.drawing : null;
       const text = messageText(typed, drawing !== null);
-      if (!text) return;
+      if (!text) return false;
       setStarting(true);
       if (fromComposer) {
         setDraft("");
@@ -436,7 +439,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
           setSelection(withSelection);
           toast({ message: `The drawing couldn’t be saved, so nothing was sent: ${errorMessage(error)}`, kind: "error" });
           setStarting(false);
-          return;
+          return false;
         }
       }
       const paths = turnAttachments(plan ? plan.paths : retryPaths, drawingPath);
@@ -466,17 +469,30 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
         }
         if (plan) dropAttachments(new Set(plan.ids));
         if (drawingPath) clearDrawing();
+        return true;
       } catch (error) {
         if (fromComposer) {
           setDraft(typed);
           setSelection(withSelection);
         }
         toast({ message: errorMessage(error), kind: "error" });
+        return false;
       } finally {
         setStarting(false);
       }
     },
     [id, project, starting, running, setDraft, toast, dropAttachments, clearDrawing],
+  );
+
+  /** "Make a skill from this…": an ordinary request, so it queues behind a running one. */
+  const startSkillFromWork = useCallback(
+    async (note: string, part: Selection | null) => {
+      if (!(await send(fromWorkRequest(note), part, false))) return;
+      if (part) setSelection(null);
+      setMakingSkill(false);
+      setChatOpen(true);
+    },
+    [send, setChatOpen],
   );
 
   const stop = useCallback(() => {
@@ -841,6 +857,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
       disabled: running,
       onSelect: () => setSavingTemplate(true),
     },
+    makeSkillEntry(() => setMakingSkill(true)),
     {
       label: "Export…",
       icon: "download",
@@ -1170,6 +1187,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
                 disabled: running,
                 onSelect: () => setSavingTemplate(true),
               },
+              makeSkillEntry(() => setMakingSkill(true)),
               {
                 label: "Export…",
                 icon: "download",
@@ -1195,6 +1213,15 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             setSavingTemplate(false);
             toast({ message: `Saved as a template: “${template.label}”`, kind: "success" });
           }}
+        />
+      )}
+      {makingSkill && project && (
+        <MakeSkillDialog
+          hasBackEnd={appConfigured}
+          selection={selection}
+          sending={starting}
+          onStart={startSkillFromWork}
+          onClose={() => setMakingSkill(false)}
         />
       )}
 

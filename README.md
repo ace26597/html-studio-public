@@ -37,6 +37,9 @@ What it makes:
   stays stopped when the studio restarts.
 - **PowerPoint, Word and Excel files** (needs LibreOffice). **Animation, 3D, pictures and video**
   rendered to MP4, GIF or WebM (needs `ffmpeg`).
+- **Skills of your own.** Describe a job in your own words, or point at a report or app you
+  like, and the agent writes a skill for it. You approve the whole text before it is saved, and
+  every skill exports as a file to share.
 - **A finished look.** **Polish the look** has the agent see the page at desktop width first, then tablet and phone,
   in pieces large enough to judge, with what the studio measured in the browser (text cut off,
   sideways scrolling, overlaps, faint or tiny text, missing padding). It fixes clear defects and

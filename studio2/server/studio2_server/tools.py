@@ -390,6 +390,27 @@ async def t_save_template(studio, project_id, args):
             "next": "Tell the person the template is saved and that it is in the template list when starting a new page."}
 
 
+async def t_save_skill(studio, project_id, args):
+    from . import ownskills
+    from .library import LibraryError
+    try:
+        plan = await asyncio.to_thread(ownskills.plan, studio.lib, _workspace(studio, project_id), args)
+        if project_id not in studio.approvers:
+            raise ToolError("No request is running, so there is nobody to ask. Nothing was saved.")
+        allowed = await studio.ask(project_id, "save_skill", plan["title"], plan["detail"], ownskills.ASK_REASON,
+                                   detail_limit=ownskills.CARD_LIMIT)
+        if not allowed:
+            raise ToolError("The person did not allow this skill. Nothing was saved. Do not ask again with the same "
+                            "text in this request; ask what they want changed.")
+        saved = await asyncio.to_thread(ownskills.save, studio.lib, plan["name"], plan["description"], plan["body"],
+                                        plan["files"], plan["replace"])
+    except LibraryError as exc:
+        raise ToolError(exc.message) from None
+    return {"saved": True, "id": f"yours:{plan['name']}", "replaced": saved["replaced"], "files": saved["files"],
+            "next": "Tell the person what the skill does and how to start it. It is in their Library, on in every "
+                    "project from their next request; there they can open, edit, switch off or export it."}
+
+
 async def t_propose_ship_recipe(studio, project_id, args):
     from .ship import ShipError
     try:
@@ -565,6 +586,17 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      "workbook or document and is usually left out. Put how it was made in `notes`: palette, type, grid, section "
      "order, chart choices, what each part of the build script does.",
      _schema({"name": S, "description": S, "kind": S, "file": S, "notes": S}, ["name"]), t_save_template),
+    ("save_skill", "Save a skill to the person's library: instructions another agent follows for one kind of job, in "
+     "every project from their next request. Read the `make-a-skill` skill first. `name`: lower-case letters, digits, "
+     "- and _. `description`: when to use it (600 characters at most). `body`: the instructions in Markdown (12,000 "
+     "characters at most), without front matter. `files`: reference files from this project, copied to reference/<as "
+     "or the file's name> (at most 12; 5 MB each, 10 MB together; documents, data and pictures, no scripts). The "
+     "person sees all of it on a card and allows or denies it, every time. A skill of theirs with that name is "
+     "changed only with `replace: true`; its other files stay and the earlier version is kept.",
+     _schema({"name": S, "description": S, "body": S, "replace": B,
+              "files": {"type": "array", "items": {"type": "object", "properties": {"path": S, "as": S},
+                                                   "required": ["path"]}}},
+             ["name", "description", "body"]), t_save_skill),
     ("propose_ship_recipe", "Propose how this attached app is made live (its ship recipe); the person confirms it on a "
      "card. Give the whole recipe: `checks` (commands run in this project folder before every ship, for example the "
      "tests or a build), `method` (branch: leave a branch in the original's repository; merge: fast-forward the "

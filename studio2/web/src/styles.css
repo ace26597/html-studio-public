@@ -7712,3 +7712,281 @@ a.attachment:hover {
 .dialog[tabindex="-1"]:focus {
   outline: none;
 }
+
+/* ---- skills a person makes ------------------------------------------------------------ */
+
+.lib-row-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lib-row-actions .btn,
+.lix-export {
+  flex: none;
+  white-space: nowrap;
+}
+
+.skill-ways {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.skill-way {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+}
+
+.skill-way:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.skill-way:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.skill-way-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+
+.skill-way-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.skill-way-text strong {
+  font-weight: 600;
+}
+
+.skill-way-text span {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.skill-way-go {
+  flex: none;
+  color: var(--text-3);
+}
+
+.dialog-actions .skill-back {
+  margin-right: auto;
+}
+
+.skill-describe {
+  min-height: 190px;
+}
+
+.skill-import-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.skill-reading {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.skill-reading h3,
+.skill-approval-part h4 {
+  margin: 0 0 4px;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.skill-reading p,
+.skill-approval-part p {
+  margin: 0;
+  color: var(--text);
+  font-size: 13.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* A skill's text as it is written: blank lines and headings stay, and it scrolls inside its box. */
+.skill-text {
+  margin: 0;
+  max-height: min(44vh, 360px);
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.skill-text.is-short {
+  max-height: 150px;
+}
+
+.skill-text:focus-visible,
+.skill-files.is-scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.skill-files {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  list-style: none;
+}
+
+.skill-files.is-scroll {
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.skill-files li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  padding: 5px 10px;
+  color: var(--text);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.skill-files li + li {
+  border-top: 1px solid var(--border);
+}
+
+.skill-file-path {
+  min-width: 0;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.skill-file-size {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.skill-scripts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+  background: var(--warn-soft);
+}
+
+.skill-scripts-lead {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.skill-scripts-lead .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--warn);
+}
+
+.skill-tick {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-height: 28px;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.skill-tick input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+
+.skill-pane-note {
+  margin-top: 14px;
+}
+
+.skill-approval {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.skill-approval .skill-text {
+  max-height: 300px;
+}
+
+.skill-approval-part .skill-approval-kept {
+  margin-top: 6px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+@media (max-width: 640px) {
+  .lib-row:has(.lib-row-actions),
+  .lix-row:has(.lix-export) {
+    flex-wrap: wrap;
+  }
+
+  .lib-row:has(.lib-row-actions) .lib-row-main,
+  .lix-row:has(.lix-export) .lib-row-main {
+    flex-basis: 100%;
+  }
+
+  .lix-row .lix-export {
+    flex: none;
+    align-self: flex-start;
+    width: auto;
+  }
+}

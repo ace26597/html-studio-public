@@ -36,6 +36,7 @@ from .preview import bind, listen
 from .store import NoFreePort, ProjectNotFound
 from .studio import Studio
 from . import export as exporting
+from . import ownskills
 from . import places, services
 from .templates import TemplateError
 from .turns import TurnRunning
@@ -58,8 +59,9 @@ class ApiError(Exception):
         self.status, self.code, self.message = status, code, message
 
 
-def error(status: int, code: str, message: str) -> JSONResponse:
-    return JSONResponse({"error": {"code": code, "message": message}}, status_code=status)
+def error(status: int, code: str, message: str, details: dict | None = None) -> JSONResponse:
+    body = {"code": code, "message": message, **({"details": details} if details else {})}
+    return JSONResponse({"error": body}, status_code=status)
 
 
 class ProjectCreate(BaseModel):
@@ -245,6 +247,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ApiError: lambda exc: error(exc.status, exc.code, exc.message),
         DataError: lambda exc: error(exc.status, exc.code, exc.message),
         LibraryError: lambda exc: error(exc.status, exc.code, exc.message),
+        ownskills.SkillError: lambda exc: error(exc.status, exc.code, exc.message, exc.details),
         TemplateError: lambda exc: error(exc.status, exc.code, exc.message),
         AttachError: lambda exc: error(exc.status, exc.code, exc.message),
         ShipError: lambda exc: error(exc.status, exc.code, exc.message),
@@ -633,10 +636,46 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/skills", status_code=201)
     async def add_skill(request: Request):
+        if settings.shared:    # a skill reaches the agent in every project: the same rule as import and PUT
+            raise ApiError(403, "not_for_shared", "On a shared studio only its owner adds skills to the library.")
         return studio.lib.add_skill(await json_object(request))
+
+    @app.post("/api/skills/import")
+    async def import_skill(file: UploadFile = File(...), dry_run: str = "", replace: str = "", allow_scripts: str = "",
+                           name: str = ""):
+        if settings.shared:
+            raise ApiError(403, "not_for_shared", "On a shared studio only its owner adds skills to the library.")
+        chunks, size = [], 0
+        while chunk := await file.read(1024 * 1024):
+            size += len(chunk)
+            if size > ownskills.MAX_PACKED_BYTES:
+                raise ApiError(400, "invalid_skill_file", "The file is larger than 25 MB.")
+            chunks.append(chunk)
+        on = ("1", "true")
+        found = await asyncio.to_thread(ownskills.import_skill, studio.lib, b"".join(chunks), name.strip() or None,
+                                        dry_run in on, replace in on, allow_scripts in on)
+        return JSONResponse(found, status_code=200 if dry_run in on else 201)
+
+    @app.get("/api/library/skills/export")
+    async def export_skill(id: str = ""):
+        filename, data = await asyncio.to_thread(ownskills.export, studio.lib, id)
+        return Response(content=data, media_type="application/zip",
+                        headers={"content-disposition": f'attachment; filename="{filename}"', "cache-control": "no-store"})
+
+    @app.get("/api/skills/{name}")
+    async def own_skill(name: str):
+        return await asyncio.to_thread(ownskills.view, studio.lib, name)
+
+    @app.put("/api/skills/{name}")
+    async def edit_skill(name: str, request: Request):
+        if settings.shared:
+            raise ApiError(403, "not_for_shared", "On a shared studio only its owner changes the library's skills.")
+        return await asyncio.to_thread(ownskills.update, studio.lib, name, await json_object(request))
 
     @app.delete("/api/skills/{name}", status_code=204)
     async def delete_skill(name: str):
+        if settings.shared:
+            raise ApiError(403, "not_for_shared", "On a shared studio only its owner changes the library's skills.")
         studio.lib.delete_skill(name)
         return Response(status_code=204)
 

@@ -3526,3 +3526,141 @@ file, names those places; nothing is copied.
   folder or file, a file that is not connectors); 403 `not_for_shared` on a shared studio.
 - `studio library` shows them; `studio library add <path>` and `studio library remove <path>`.
 - The Library page has a **Where the studio looks** block with the same.
+
+# Skills a person makes
+
+A skill is a set of instructions the agent follows for one kind of job. A person makes one
+without knowing how a skill is written, in three ways, and shares it as a file.
+
+## Three ways in
+
+1. **Describe it** (Library → New skill → Describe it). The person says in their own words what
+   should happen ("first get the data for the last 30 days from …, then …, then check it like
+   this …") and may attach examples to follow (a page, a document, a picture). The interface
+   makes an ordinary project named `Skill: <the first words>` and sends one request in it:
+   `Make a new skill for my library from this description (use the make-a-skill skill):`,
+   a blank line, then the description; the attached files go as the request's `attachments`.
+2. **From work in a project** (the project's menu → Make a skill from this…). The person chooses
+   the whole page or app, or the part they selected, and may add a note on what changes each
+   time. The interface sends, in that project:
+   `Make a skill from how this was made (use the make-a-skill skill), so I can get the same kind
+   of result again for a different subject.` followed, when there is a note, by a blank line and
+   `What changes each time: <note>`. With "the part I selected" the request carries the
+   selection like any other.
+3. **Write it yourself** (the form that was there: name, description, instructions).
+
+Ways 1 and 2 are ordinary requests: they can be queued, stopped and continued in the chat. The
+agent asks what it needs to know there, shows the draft on the project's page in plain words
+(way 1) or in its answer (way 2), and saves only through the tool below.
+
+## The studio's skill `make-a-skill`
+
+Shipped in `library/skills/make-a-skill/`, loaded like the other studio skills. It tells the agent
+how to get from a description, or from work already done, to a skill: what to ask (when it is
+used, what it starts from, the steps in order, what a good result looks like, how the result is
+checked, what must never happen), how to write the `description` so the skill is picked when it
+is needed, how to write steps another agent can follow without this conversation, what to leave
+out (anything true only of this one project: its subject, its figures, its file names), and to
+end with `save_skill`. A skill made here is instructions and reference files only: no scripts.
+
+## The tool `save_skill`
+
+```
+{name, description, body, files?: [{path, as?}], replace?: boolean}
+```
+
+- `name`: lower-case letters, digits, `-` and `_`, at most 60 characters, not the name of one of
+  the studio's own skills. `description`: when to use it, at most 600 characters. `body`: the
+  instructions in Markdown, at most 12,000 characters, without a front-matter block (the studio
+  writes it).
+- `files`: reference files copied from the project into the skill, at `reference/<as or the
+  file's name>`: at most 12, each at most 5 MB, 10 MB together. Only material to read or follow:
+  `.md .txt .html .css .json .csv .tsv .svg .png .jpg .jpeg .webp .gif .pdf .docx .pptx .xlsx`.
+  Anything else is refused by name (no scripts); the file's own name and `as` are both checked,
+  so a script cannot be saved under another ending. `as` is at most 80 characters and does not
+  start with a dot.
+- **It always asks**, whatever the project's approval setting: one approval card (`tool:
+  "save_skill"`) titled `Save the skill “<name>” to your library` (or `Replace your skill
+  “<name>”`), whose detail is the description, the whole body and the list of files, with the
+  reason "A skill in your library is given to the agent in every project from now on." For this
+  tool the card's detail is kept whole (up to 14,000 characters) instead of being cut at 4,000.
+  With no request running there is nobody to ask and nothing is saved.
+- A skill of the person's with that name is replaced only with `replace: true`; without it the
+  tool refuses and says so. The version it replaces is kept in `data/skills/.history/<name>-<UTC
+  time>/` (the last five per name). Replacing changes the description and the instructions and
+  keeps the skill's other files: `files` adds to them or replaces one at the same path, and the
+  card lists what is kept. A single file is not removed this way (delete the skill and save it
+  again).
+- On Allow it writes `data/skills/<name>/SKILL.md` and the files, rebuilds the index and answers
+  `{saved, id: "yours:<name>", replaced, files: [path], next}`. On Deny nothing is written and
+  the answer tells the agent not to ask again for the same text in this request.
+
+A saved skill is the person's own (`source: "yours"`): on by default in every project, loaded
+from the next request, switched off per project like any other.
+
+## REST
+
+| Method and path | Body | Returns |
+|---|---|---|
+| `GET /api/skills/{name}` | | `{…skill, body, files: [{path, size}]}` for a skill of the person's own; 404 `unknown_skill` |
+| `PUT /api/skills/{name}` | `{description?, body?}` | the same object; same limits as the tool; the replaced version goes to `.history` (a change that changes nothing adds none). `{}` → 400 `invalid_request` |
+| `GET /api/library/skills/export?id=<skill id>` | | `application/zip`, `Content-Disposition: attachment; filename="<name>.skill.zip"`. Any skill in the index (`studio:`, `yours:`, `machine:`, `plugin:`) |
+| `POST /api/skills/import` | multipart `file`; query `dry_run=1`, `replace=1`, `allow_scripts=1`, `name=<new name>` | with `dry_run`: the preview below, nothing written. Otherwise the skill (201) |
+
+`files` in the two rows above is a list of `{path, size}` without `SKILL.md`; in the library's
+lists and in the answer to an import it is the count the index keeps. `POST /api/skills` takes
+the tool's limits and answers 409 `name_taken_by_studio` for the name of one of the studio's own.
+
+**A skill file** (`<name>.skill.zip`) holds the skill's folder as the library has it (`SKILL.md`
+at the top and every other file; `.git`, `node_modules`, `__pycache__`, `.venv`, `.history`,
+`__MACOSX`, `.DS_Store`, `.env` and `.env.*` left out, and links not followed, since a shared
+studio exports to everyone; 40 MB unpacked at most, else 413 `too_large`) and `studio-skill.json`: `{format: 1, name, description,
+source, exported_at, files: [path], scripts: [path]}`. The licence of a skill the person did not
+write is theirs to check; the file carries whatever licence file the folder holds.
+
+**Importing** reads a `.skill.zip`, or any zip with one `SKILL.md` at its top or inside its one
+top folder. Refused with 400 `invalid_skill_file` and the reason: not a zip; no `SKILL.md` or
+more than one candidate; front matter without `name` or `description`; a path that is absolute,
+holds `..` or is a link; an entry that is not a file; the same path twice (letter case ignored) or
+a path that is both a file and a folder; a password; more than 600 files; more than 25 MB packed
+or 60 MB unpacked (counted while reading, whatever the zip's own figures say). A refused file
+leaves nothing behind. So a few skills that export cannot be imported again: one above those
+sizes, or one with a second `SKILL.md` inside. The name is, in order: `name=`, the name in
+`studio-skill.json`, the front matter's.
+The preview (200): `{name, description, body_start (≤ 1,200 characters), files: [{path, size}]
+(with `SKILL.md`), scripts: [path], size (unpacked bytes), exists, taken_by_studio}`.
+
+- `scripts` are files a program could run: `.py .js .mjs .cjs .ts .sh .bash .zsh .rb .pl .php
+  .ps1 .bat .cmd`, and any file marked executable in the zip. A file with scripts is saved only
+  with `allow_scripts=1`; without it 409 `scripts_need_confirmation` (the preview is in
+  `error.details`). The agent may run a skill's scripts through its shell, under the project's
+  approval rules, so the person is told what they are bringing in.
+- `exists` (a skill of the person's has the name) needs `replace=1`, else 409 `name_taken`; the
+  replaced version goes to `.history`. `taken_by_studio` (one of the studio's own skills has the
+  name) is 409 `name_taken_by_studio`: import it under another name with `name=`. When several
+  apply they are reported in this order: `name_taken_by_studio`, `name_taken`,
+  `scripts_need_confirmation`, each with the preview in `error.details`. Flags take `1` or `true`.
+- On a shared studio, export works for everyone; adding, importing, changing and deleting a
+  skill, and the tool, are refused (403 `not_for_shared`, on a `dry_run` too), like the other
+  library settings.
+
+## UI
+
+- **Library, Skills.** A **New skill** button opens a dialog with three choices: **Describe it**
+  (a large text box with an example of the kind of description that works, and a place to add
+  example files), **Write it yourself** (the form) and **Import a file**. Import shows the
+  preview first: the name, when it is used, how the instructions begin, its files, and, when it
+  holds scripts, their names with a box to tick ("This skill brings N scripts the agent may
+  run") before **Add to my library** works; a name already there asks whether to replace it or
+  to add this one under another name.
+- Every skill in the Library has **Export** (downloads the file). The person's own skills also
+  have **Open** (the instructions and files, with **Edit** for the description and instructions)
+  and **Delete**.
+- **A project's menu** has **Make a skill from this…** beside Save as template: the whole page or
+  app, or the selected part (offered when something is selected), and the optional note.
+- **The approval card** for `save_skill` shows the name, when it is used, the whole instructions
+  (scrolling inside the card) and the files, with Allow and Deny. The instructions are shown as
+  the text they are, not as formatted Markdown, so that formatting can hide nothing from the
+  person approving. The card's `detail` is plain text in this shape, which the card reads:
+  `When it is used: …`, `Instructions:` and the body, `Files:` with one `path (size)` a line,
+  and `Files kept from the version it replaces: …`, each part after a blank line.

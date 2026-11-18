@@ -219,6 +219,28 @@ export interface LibrarySkill {
   origin?: string | null;
 }
 
+/** `GET /api/skills/{name}`: one of the person's own skills, whole. */
+export interface SkillDetail extends LibrarySkill {
+  body: string;
+  files: { path: string; size: number }[];
+}
+
+/** `POST /api/skills/import?dry_run=1`: what a skill file holds; nothing has been written. */
+export interface SkillImportPreview {
+  name: string;
+  description: string;
+  /** How the instructions begin (at most 1,200 characters). */
+  body_start: string;
+  files: { path: string; size: number }[];
+  /** Files a program could run. */
+  scripts: string[];
+  size: number;
+  /** A skill of the person's has this name. */
+  exists: boolean;
+  /** One of the studio's own skills has this name. */
+  taken_by_studio: boolean;
+}
+
 export interface LibraryAgent {
   name: string;
   description: string;
