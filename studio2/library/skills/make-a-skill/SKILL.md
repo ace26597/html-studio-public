@@ -63,6 +63,20 @@ say "you decide", decide and say what you chose.
   in there.
 - **How it looks is the person's choice.** Write a look into the skill only when they asked for
   one or pointed at an example; otherwise leave the look to each request.
+- **A skill made from work in this project keeps its look**, unless the person says the look
+  does not matter: they are asking for "this again", and the look is part of what they liked.
+  1. Add `## How it looks` to the body, in words another agent can follow without seeing the
+     page: the layout from top to bottom at desktop width (what sits beside what, and how it
+     folds on a narrow screen), the palette with its colour values and what each colour is for,
+     the typefaces and the sizes of the title, headings and body, how cards, tables and charts are
+     drawn, and the two or three details that give the page its character.
+  2. Save the page itself as a reference file (`files: [{"path": "index.html", "as":
+     "example.html"}]`, with its stylesheet when that is a separate file) and say in the body:
+     "`reference/example.html` is the layout and look to follow. Copy its structure and styles;
+     never its content."
+  3. The example still holds this project's content. Say so in your answer after saving, and
+     offer to save a copy with the content taken out if they will share the skill.
+  For one part of a page, describe and keep that part only.
 
 ## 3. Show it, then save it
 

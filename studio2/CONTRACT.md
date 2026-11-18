@@ -3563,6 +3563,14 @@ is needed, how to write steps another agent can follow without this conversation
 out (anything true only of this one project: its subject, its figures, its file names), and to
 end with `save_skill`. A skill made here is instructions and reference files only: no scripts.
 
+A skill made from work in a project keeps that work's look unless the person says the look does
+not matter: the body gets a part `How it looks` (the layout at desktop width and how it folds, the
+palette with its colour values, the type, how cards, tables and charts are drawn) and the page
+itself is saved as `reference/example.html`, to copy the structure and styles from and never the
+content. The agent tells the person that the example still holds the project's content and offers
+a copy with the content taken out. (The first version carried instructions only: a real run then
+gave the right parts and checks in a rearranged layout, so the look was added on 18 November.)
+
 ## The tool `save_skill`
 
 ```

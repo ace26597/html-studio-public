@@ -60,7 +60,9 @@ know how one is written.
   follow if you have them. The agent asks for what is missing, shows the draft in plain words
   and writes the skill.
 - **From work you like.** A project's menu → Make a skill from this…: the whole page or app, or
-  the part you selected, with a note on what changes each time.
+  the part you selected, with a note on what changes each time. The skill keeps the look as well
+  as the steps: the layout, colours and type are written into it and the page is kept as an
+  example to follow, so the next result on another subject looks like the one you liked.
 - **You approve every skill.** Before one is saved you see all of it on a card and choose Allow
   or Deny, whatever the project's approval setting, because a saved skill is given to the agent
   in every project from then on. Replacing a skill keeps its last five versions.
