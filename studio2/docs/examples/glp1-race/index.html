@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="studio-reload" content="off">
+<title>The GLP-1 race — live trials and FDA reports</title>
+<meta name="description" content="Live dashboard of clinical trials and FDA adverse-event reports for GLP-1 and related obesity and diabetes drugs, from ClinicalTrials.gov and openFDA.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="kicker">Live dashboard · public data</div>
+    <h1>The GLP-1 race</h1>
+    <p class="lede">Who is testing which obesity and diabetes drug, where, at what stage, and when the late-stage trials are due to finish, straight from <strong>ClinicalTrials.gov</strong>. For drugs with a US label, what people have reported to the <strong>FDA</strong>. Covers semaglutide, tirzepatide, liraglutide and dulaglutide, and the newer retatrutide, orforglipron, survodutide, cagrilintide (with CagriSema) and maridebart cafraglutide.</p>
+    <div class="statusbar" id="statusbar" aria-live="polite">
+      <span class="pill"><span class="dot wait"></span> Loading live data…</span>
+    </div>
+  </div>
+</header>
+
+<nav class="jump" aria-label="Sections">
+  <div class="wrap navrow">
+    <div class="links">
+    <a href="#headline">Headline</a>
+    <a href="#pipeline">Pipeline</a>
+    <a href="#timeline">Phase 3 finish dates</a>
+    <a href="#starts">Starts per year</a>
+    <a href="#enrollment">Enrollment</a>
+    <a href="#sponsors">Sponsors</a>
+    <a href="#map">World map</a>
+    <a href="#trials">All trials</a>
+    <a href="#fda">FDA reports</a>
+    <a href="#labels">Labels</a>
+    <a href="#sources">Sources</a>
+    </div>
+    <button class="btn filters-toggle" id="filtersToggle" aria-expanded="false" aria-controls="filters">Filters</button>
+  </div>
+</nav>
+
+<main class="wrap">
+  <div id="banners" aria-live="polite"></div>
+
+  <section class="filters collapsed" id="filters" aria-label="Filters">
+    <div class="collapsible">
+      <div class="row">
+        <div class="fgroup">
+          <span class="flabel">Drug</span>
+          <div class="chips" id="fDrug" role="group" aria-label="Drug"></div>
+        </div>
+        <div class="fgroup">
+          <span class="flabel">Phase</span>
+          <div class="chips" id="fPhase" role="group" aria-label="Phase"></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:0.9rem">
+        <div class="fgroup">
+          <span class="flabel">Status</span>
+          <div class="chips" id="fStatus" role="group" aria-label="Status"></div>
+          <span class="flabel" style="margin-top:0.75rem">Study type</span>
+          <div class="chips" id="fType" role="group" aria-label="Study type"></div>
+        </div>
+        <div class="fgroup">
+          <span class="flabel">Sponsor and text</span>
+          <div class="inputs">
+            <select id="fSponsor" aria-label="Lead sponsor"><option value="">All lead sponsors</option></select>
+            <input type="search" id="fText" placeholder="Search title, condition, NCT id…" aria-label="Search trials">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="active-filters" id="activeFilters"><span class="skeleton">Waiting for trials…</span></div>
+  </section>
+
+  <section class="block" id="headline">
+    <div class="sec-head"><div><h2>Headline numbers</h2><p>For the trials that match the filters. A trial that tests two of these drugs is counted once here.</p></div></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="prov" id="provKpi"></div>
+  </section>
+
+  <section class="block" id="pipeline">
+    <div class="sec-head"><div><h2>Pipeline by drug and phase</h2><p>Trials that list the drug as an intervention, as treatment or as comparator. Tap a cell to filter to it.</p></div></div>
+    <div class="grid g2">
+      <div class="card">
+        <h3>Trials by drug and phase</h3>
+        <p class="sub">Number of trials. Darker means more.</p>
+        <div class="tbl-wrap" id="heat"></div>
+      </div>
+      <div class="card">
+        <h3>Trials by drug and status</h3>
+        <p class="sub">Number of trials, split by where each trial stands today.</p>
+        <div class="legend" id="statusLegend"></div>
+        <div class="chart" id="statusChart"></div>
+        <details class="numbers"><summary>Show the numbers</summary><div class="tbl-wrap" id="statusTable"></div></details>
+      </div>
+    </div>
+    <div class="prov" id="provPipeline"></div>
+  </section>
+
+  <section class="block" id="timeline">
+    <div class="sec-head"><div><h2>When the phase 3 trials are due to finish</h2>
+      <p>Ongoing phase 3 and phase 2/3 trials (recruiting, not yet recruiting, active or enrolling by invitation), placed on the date the sponsor gives. Dot size shows planned enrollment. Tap a dot to open the trial. An estimated primary completion date <span data-src="s4" data-quote="is the date that the researchers think will be the primary completion date for the study" title="ClinicalTrials.gov glossary">is the date the researchers think</span> data collection for the main outcome will end <a href="#src-s4">[4]</a>, so it moves.</p></div>
+      <div class="seg" role="group" aria-label="Date to plot" id="tlMode">
+        <button aria-pressed="true" data-v="primary">Primary completion</button><button aria-pressed="false" data-v="study">Study completion</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="chart" id="tlChart"></div>
+      <details class="numbers"><summary>Show the trials on this chart</summary><div class="tbl-wrap" id="tlTable"></div></details>
+    </div>
+    <div class="prov" id="provTimeline"></div>
+  </section>
+
+  <div class="grid g2">
+  <section class="block" id="starts">
+    <div class="sec-head"><div><h2>Trials started per year</h2><p>By the start date in each record; dates after today are planned starts.</p></div></div>
+    <div class="card">
+      <div class="legend" id="startsLegend"></div>
+      <div class="chart" id="startsChart"></div>
+      <details class="numbers"><summary>Show the numbers</summary><div class="tbl-wrap" id="startsTable"></div></details>
+    </div>
+  </section>
+
+  <section class="block" id="enrollment">
+    <div class="sec-head"><div><h2>Enrollment</h2><p>Participants per drug, summed over its interventional trials. "Actual" is reported enrollment; "estimated" is the planned target, given by trials still enrolling and by some whose final number was never reported.</p></div></div>
+    <div class="card">
+      <div class="legend" id="enrLegend"></div>
+      <div class="chart" id="enrChart"></div>
+      <p class="small muted" id="enrNote"></p>
+      <details class="numbers"><summary>Show the numbers and the largest trials</summary><div class="tbl-wrap" id="enrTable"></div><h3 style="margin-top:1rem">Largest trials</h3><div class="tbl-wrap" id="enrTop"></div></details>
+    </div>
+  </section>
+  </div>
+  <div class="prov" id="provStarts"></div>
+
+  <section class="block" id="sponsors">
+    <div class="sec-head"><div><h2>Sponsor league table</h2><p>Lead sponsors ranked by number of matching trials. Tap a sponsor to filter the whole dashboard to it.</p></div>
+      <input type="search" id="sponsorSearch" placeholder="Find a sponsor…" aria-label="Find a sponsor" style="max-width:16rem">
+    </div>
+    <div class="card">
+      <div class="tbl-wrap" id="sponsorTable"></div>
+      <div class="pager" id="sponsorPager"></div>
+    </div>
+    <div class="prov" id="provSponsors"></div>
+  </section>
+
+  <section class="block" id="map">
+    <div class="sec-head"><div><h2>Where the trials run</h2><p>Countries shaded by number of trials with at least one site there; dots are cities with sites, sized by number of trials. Drag and pinch or use the buttons to zoom.</p></div></div>
+    <div class="grid g-21">
+      <div class="card">
+        <div class="mapbox" id="mapBox"><div class="empty">Loading the map…</div></div>
+        <div class="scale-key" id="mapKey"></div>
+      </div>
+      <div class="card">
+        <h3>Top countries</h3>
+        <p class="sub">Trials with a site in the country, and cities listed.</p>
+        <div class="tbl-wrap" id="countryTable" style="max-height:28rem;overflow:auto"></div>
+      </div>
+    </div>
+    <div class="prov" id="provMap"></div>
+  </section>
+
+  <section class="block" id="trials">
+    <div class="sec-head"><div><h2>All matching trials</h2><p>Tap a trial for its record, fetched live from ClinicalTrials.gov.</p></div>
+      <button class="btn" id="csvBtn">Download as CSV</button>
+    </div>
+    <div class="card">
+      <div class="tbl-wrap" id="trialTable"></div>
+      <div class="pager" id="trialPager"></div>
+    </div>
+    <div class="prov" id="provTrials"></div>
+  </section>
+
+  <section class="block" id="fda">
+    <div class="sec-head"><div><h2>FDA adverse-event reports</h2><p>For drugs that have a US product label on openFDA. Follows the drug filter above; phase, status and sponsor filters do not apply here.</p></div></div>
+    <div class="caveat" role="note">
+      <h3>These are counts of reports, not rates — they cannot be compared as risk</h3>
+      <p>A bigger number does not mean a drug is less safe. <span data-src="s2" data-quote="Reporting of adverse events by healthcare professionals and consumers is voluntary in the United States." title="openFDA drug adverse event API overview">Reporting by health professionals and patients is voluntary</span>, and the reports are not checked: they <span data-src="s2" data-quote="has not been scientifically or otherwise verified as to a cause and effect relationship and cannot be used to estimate the incidence of these events" title="openFDA drug adverse event API overview">cannot be used to estimate the incidence of these events</span> <a href="#src-s2">[2]</a>. <span data-src="s2" data-quote="Common products may have a higher number of adverse events due to the higher total number of people using the product." title="openFDA drug adverse event API overview">Common products may have more reports simply because more people use them</span>, and a report can name several drugs and several reactions with <span data-src="s2" data-quote="there is no way to conclude from the data therein that a given drug is responsible for a given reaction" title="openFDA drug adverse event API overview">no way to conclude which drug caused which reaction</span> <a href="#src-s2">[2]</a>. Counts here include reports that name the drug as suspect or as a concomitant medicine, and only reports openFDA could match to the product (<span data-src="s5" data-quote="searching in these fields will only return a subset of records from a given endpoint" title="openFDA fields">harmonised fields return only a subset of records</span> <a href="#src-s5">[5]</a>). The data <span data-src="s2" data-quote="the data in this API may lag by 3 months or more at any given time" title="openFDA drug adverse event API overview">may lag by 3 months or more</span> <a href="#src-s2">[2]</a>, so the latest year is incomplete.</p>
+    </div>
+    <div class="fda-grid" id="fdaCards"><div class="empty">Loading openFDA…</div></div>
+
+    <div class="card" style="margin-top:var(--gap)">
+      <div class="sec-head" style="margin-bottom:0.25rem"><div><h3>Reports received per year</h3><p class="sub" style="margin:0">All reports that name the drug, by the year FDA received them.</p></div>
+        <div class="seg" role="group" aria-label="Scale" id="yrScale"><button aria-pressed="true" data-v="lin">Linear</button><button aria-pressed="false" data-v="log">Log scale</button></div>
+      </div>
+      <div class="legend" id="yrLegend"></div>
+      <div class="chart" id="yrChart"></div>
+      <details class="numbers"><summary>Show the numbers</summary><div class="tbl-wrap" id="yrTable"></div></details>
+    </div>
+
+    <div class="card" style="margin-top:var(--gap)">
+      <div class="sec-head" style="margin-bottom:0.25rem"><div><h3>One reaction over time, drug by drug</h3><p class="sub" style="margin:0">Pick a reaction term (MedDRA preferred term) from the most-reported lists. Fetched from openFDA when you pick it.</p></div>
+        <div class="controls" style="margin:0">
+          <select id="rxPick" aria-label="Reaction" style="max-width:16rem"></select>
+          <div class="seg" role="group" aria-label="Measure" id="rxMode"><button aria-pressed="true" data-v="count">Reports</button><button aria-pressed="false" data-v="share">Share of the drug's reports</button></div>
+        </div>
+      </div>
+      <div class="legend" id="rxLegend"></div>
+      <div class="chart" id="rxChart"><div class="empty">Choose a reaction.</div></div>
+      <p class="small muted" id="rxNote"></p>
+      <details class="numbers"><summary>Show the numbers</summary><div class="tbl-wrap" id="rxTable"></div></details>
+    </div>
+    <div class="prov" id="provFda"></div>
+  </section>
+
+  <section class="block" id="labels">
+    <div class="sec-head"><div><h2>US product labels on openFDA</h2><p>The most recent label for each brand. Whether a drug has a label here is the only thing this dashboard uses to call it "on the US market".</p></div></div>
+    <div class="card"><div class="tbl-wrap" id="labelTable"><div class="empty">Loading labels…</div></div></div>
+    <div class="prov" id="provLabels"></div>
+  </section>
+
+  <section class="block" id="sources">
+    <div class="sec-head"><div><h2>Where the numbers come from</h2><p>Every number on this page is computed in your browser from the responses below, as fetched by this app's server. Nothing is typed in by hand.</p></div>
+      <button class="btn" id="refreshBtn">Fetch fresh data now</button>
+    </div>
+    <div class="grid g2">
+      <div class="card">
+        <h3>ClinicalTrials.gov API v2</h3>
+        <p class="sub">One search per drug on the intervention field, names and code names joined with OR. <span data-nocheck>Re-fetched every 12 hours.</span></p>
+        <div class="tbl-wrap" id="ctSources"></div>
+      </div>
+      <div class="card">
+        <h3>openFDA</h3>
+        <p class="sub">Drug adverse events (FAERS) and drug labels. <span data-nocheck>Re-fetched every 24 hours.</span></p>
+        <div class="tbl-wrap" id="fdaSources"></div>
+      </div>
+    </div>
+    <details class="numbers card" style="margin-top:var(--gap)">
+      <summary>How each number is calculated, and the limits</summary>
+      <ul class="small" style="max-width:62rem">
+        <li><strong>Which trials:</strong> a study is included when ClinicalTrials.gov's intervention search matches the drug's name, brand names or code name (the queries are listed above). That includes trials where the drug is only the comparator, and some observational studies. The search is ClinicalTrials.gov's own, so it can include a record that only mentions the drug in passing.</li>
+        <li><strong>Counting once:</strong> headline numbers, the sponsor table, the map and the trial list count each NCT number once. Charts broken down by drug count a trial under every drug it lists, so their rows add up to more than the headline total.</li>
+        <li><strong>Active</strong> = recruiting, not yet recruiting, active and not recruiting, or enrolling by invitation. <strong>Stopped</strong> = terminated, withdrawn or suspended. <strong>Unknown</strong> is ClinicalTrials.gov's own status for records not updated after their completion date passed.</li>
+        <li><strong>Phase 3</strong> includes trials registered as phase 2/3.</li>
+        <li><strong>Participants</strong> add up the enrollment field of interventional trials only (observational records are often database studies of whole populations): actual numbers for finished trials, targets ("estimated") for trials still enrolling. "Estimated" is the planned target: mostly trials still enrolling, but also records (often status Unknown) that never reported a final number. Withdrawn trials usually show zero.</li>
+        <li><strong>Cities</strong> are distinct city-and-country names among locations that have coordinates (map dots are the same cities); <strong>site listings</strong> count every location entry. Records without coordinates are left off the map but still count toward their country.</li>
+        <li><strong>FDA report counts</strong> come from openFDA's count endpoints, with the drug matched on its harmonised generic name, and are grouped by the year FDA received the report. The share of serious reports and a reaction's share of a drug's reports are shares of reports, not rates in patients.</li>
+      </ul>
+    </details>
+    <details class="numbers card" style="margin-top:var(--gap)">
+      <summary>Fetch log (most recent first)</summary>
+      <div class="tbl-wrap" id="fetchLog"></div>
+    </details>
+    <div class="card" style="margin-top:var(--gap)">
+      <h3>Documentation quoted on this page</h3>
+      <ol class="srclist" id="srcList">
+        <li id="src-s2" value="2"><a href="https://open.fda.gov/apis/drug/event/">Drug adverse event overview</a>, openFDA. Saved 17 Nov 2026.</li>
+        <li id="src-s4" value="4"><a href="https://clinicaltrials.gov/data-api/api">ClinicalTrials.gov API and glossary</a>, U.S. National Library of Medicine. Saved 17 Nov 2026.</li>
+        <li id="src-s5" value="5"><a href="https://open.fda.gov/apis/openfda-fields/">openFDA fields: harmonisation and its limits</a>, openFDA. Saved 17 Nov 2026.</li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Data: ClinicalTrials.gov (U.S. National Library of Medicine) and openFDA (U.S. Food and Drug Administration), both free public APIs. openFDA asks users not to rely on it for medical decisions. This dashboard is not medical advice.</p>
+  </div>
+</footer>
+
+<div class="tip" id="tip" role="tooltip"></div>
+<dialog class="trial" id="trialDlg" aria-labelledby="dlgTitle">
+  <div class="dlg-head"><div><div class="kicker" id="dlgKicker">Trial</div><h2 id="dlgTitle">Loading…</h2></div><button class="btn x" id="dlgClose" aria-label="Close">Close</button></div>
+  <div class="dlg-body" id="dlgBody"></div>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<script src="static/app.js"></script>
+</body>
+</html>

@@ -75,6 +75,14 @@ The five-year cost of an electric car against a petrol car took 25 minutes 38 se
 researchers in parallel, 126 sources saved, 58 cited. The check reported 387 items, 373 matched,
 13 fixed, 1 not checkable; one reported fix (a missing source entry) was not on the final page.
 
+**A live-data app from one request** (17 November):
+[the run as a video](studio2/docs/demo/demo-glp1.mp4) (78 seconds, [GIF](studio2/docs/demo/demo-glp1.gif)).
+A dashboard of clinical trials and FDA reports for nine obesity and diabetes drugs, on the free
+ClinicalTrials.gov and openFDA APIs, took 26 minutes 2 seconds at Deep with the check on: a back
+end of its own, 1,763 trials, filters, a map and a timeline. The check reported 38 items, 29
+matched, 9 fixed, none left wrong. [Its files](studio2/docs/examples/glp1-race/) are in the
+repository and run on their own.
+
 A match means the words are in the saved source, not that the source is right. Full captions
 and what the runs would have cost at API prices: [examples](studio2/docs/examples.md).
 

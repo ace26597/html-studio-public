@@ -1,0 +1,69 @@
+{
+ "crf": 29,
+ "items": [
+  {
+   "card": [
+    "A live dashboard app from one request",
+    "The GLP-1 race: trials and FDA reports, from free public data",
+    "A real run in the real interface. Waiting is time-lapsed; the clock shows real time."
+   ],
+   "seconds": 2.8
+  },
+  {
+   "dir": "frames/glp1",
+   "phases": {
+    "blank": {"speed": 1.2, "caption": "1 · A new page", "right": "real time"},
+    "depth": {"speed": 1.2, "caption": "1 · Choose Deep in the effort menu", "right": "real time"},
+    "verify": {"speed": 1.2, "caption": "1 · Switch on Check the result", "right": "real time"},
+    "typing": {"speed": 6.0, "caption": "2 · Ask for a dashboard on ClinicalTrials.gov and openFDA data", "right": "real time"},
+    "sent": {"speed": 1.5, "caption": "3 · It tries both public APIs to see what they return", "right": "real time", "clock": "run"},
+    "working": {"speed": 30, "caption": "3 · It tries both public APIs to see what they return", "right": "time-lapse", "clock": "run", "still_cap": 0.3, "until": 164}
+   }
+  },
+  {
+   "dir": "frames/glp1",
+   "phases": {
+    "working": {"speed": 30, "caption": "4 · It writes the app's back end and runs it", "right": "time-lapse", "clock": "run", "still_cap": 0.3, "after": 164, "until": 332}
+   }
+  },
+  {
+   "dir": "frames/glp1",
+   "phases": {
+    "working": {"speed": 30, "caption": "5 · It saves the two APIs' own documentation, then writes the page and its charts", "right": "time-lapse", "clock": "run", "still_cap": 0.3, "after": 332, "until": 790}
+   }
+  },
+  {
+   "dir": "frames/glp1",
+   "phases": {
+    "working": {"speed": 30, "caption": "6 · It starts the app and looks at it: phone and desktop, light and dark", "right": "time-lapse", "clock": "run", "still_cap": 0.3, "after": 790, "until": 987}
+   }
+  },
+  {
+   "dir": "frames/glp1",
+   "phases": {
+    "working": {"speed": 30, "caption": "7 · A separate checker recomputes the figures and asks the sources directly", "right": "time-lapse", "clock": "run", "still_cap": 0.3, "after": 987, "until": 1505}
+   }
+  },
+  {
+   "dir": "frames/glp1",
+   "phases": {
+    "working": {"speed": 30, "caption": "8 · It fixes what the checker found", "right": "time-lapse", "clock": "run", "still_cap": 0.3, "after": 1505},
+    "finished": {"speed": 1.0, "caption": "8 · Done after 26 min 2 s, with no approval asked", "right": "real time", "clock": "run", "hold": 1.0},
+    "card": {"speed": 0.9, "caption": "9 · The check: 38 items, 29 matched, 9 fixed, none left wrong", "right": "real time"},
+    "details": {"speed": 1.3, "caption": "9 · Each finding says what was wrong and what was done; then its closing notes", "right": "real time"},
+    "scroll": {"speed": 1.6, "caption": "10 · The app: 1,763 trials, filters, a map, a timeline, FDA reports, sources", "right": "real time"},
+    "end": {"speed": 1.0, "caption": "10 · The app: 1,763 trials, filters, a map, a timeline, FDA reports, sources", "right": "real time", "hold": 1.0}
+   }
+  },
+  {
+   "card": [
+    "Studio",
+    "Recorded 17 November 2026 on Claude Opus. 26 min 2 s of agent work, one request.",
+    "Live data: ClinicalTrials.gov API v2 and openFDA, fetched by the app's own back end.",
+    "The check reported 38 items: 29 matched, 9 fixed, none left wrong.",
+    "FDA figures are counts of reports, not rates."
+   ],
+   "seconds": 3.5
+  }
+ ]
+}

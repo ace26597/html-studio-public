@@ -62,7 +62,7 @@ python sheet.py video.mp4 sheet.jpg 5 20 40                                 # fr
 ## Depth and the check (13 November 2026, later)
 
 `part_effort.py` records a request with the composer's new controls set by real clicks: a depth
-step (Quick / Standard / Deep, `.effort-step[data-depth=…]`) and the **Check the result** switch
+step (Quick / Standard / Deep, the effort button's menu, `menuitemradio`) and the **Check the result** switch
 (found by its label) before the request is typed, or **Check this page** on an existing project
 instead of typing. After the request it scrolls the chat to the result card (`.verification`),
 opens its details and, with `--scroll`, wheels slowly down the finished page.
@@ -89,3 +89,26 @@ python assemble.py plans/clip-depth.json ../../docs/demo/clips/depth.mp4     # a
 - A Check this page run asked to use the machine's Playwright connector (picked by the studio, not
   switched on by the person). It was denied; the agent carried on with `look_at_page`.
 - `sheet.py` fails on a time past the end of the video; ask for times inside it.
+
+
+## The live-data app (17 November 2026)
+
+```sh
+python part_effort.py frames/glp1 --name "The GLP-1 race" --prompt "The request" --depth deep --verify --scroll --minutes 100 --model opus
+python assemble.py plans/glp1.json ../../docs/demo/demo-glp1.mp4
+python gif.py ../../docs/demo/demo-glp1.mp4 ../../docs/demo/demo-glp1.gif --width 640 --speed 2.0 --fps 6 --colors 64
+```
+
+- The depth steps and the Check the result switch moved that day from a row of buttons in the
+  composer into the menu behind the effort button. `part_effort.py` opens the menu (`.effort-btn`)
+  and clicks the step (`menuitemradio`) and the switch (`menuitemcheckbox`) there. The first take
+  failed on the old selector before anything was sent; its empty project was deleted.
+- The result card, its details and the walk down the page are in the same recording as the run
+  (no fresh load afterwards).
+- The clock at the end reads 26:15 and the server's figure is 26 min 2 s: the clock starts at the
+  Enter press, the server's count after the library has been picked. The captions use the server's.
+- The stages in the captions (trying the APIs, the back end, the page, looking at it, the checker,
+  the fixes) were cut at times read from the project's `events.jsonl` tool calls.
+- Checked as contact sheets from the finished file, not played from start to end by a person. The
+  tool rows show paths under the Mac's user folder, as the earlier videos do.
+

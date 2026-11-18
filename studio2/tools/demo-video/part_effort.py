@@ -11,7 +11,7 @@ chat to the check's result card and opens its details (if there is a card), and 
 slowly down the page. Writes <frames dir>/../<name>.project with the project id.
 Phases: blank, depth, verify, typing, sent, working, finished, card, details, scroll, end.
 """
-import asyncio, json, sys, time, urllib.request
+import asyncio, json, re, sys, time, urllib.request
 from pathlib import Path
 from playwright.async_api import async_playwright
 from rec import Rec, open_browser
@@ -49,6 +49,14 @@ async def open_chat(rec, pg):
         await asyncio.sleep(0.7)
 
 
+async def open_effort(rec, pg):
+    """The depth steps and the check switch live in a menu behind the composer's effort button
+    (since 17 November 2026; before that they were a row of buttons in the composer)."""
+    if not await pg.get_by_role("menuitemradio").count():
+        await rec.click_on(pg.locator(".effort-btn").first, 0.7)
+        await asyncio.sleep(0.8)
+
+
 async def main():
     if not PROJECT and not PROMPT:
         raise SystemExit("--prompt (new project) or --project is needed")
@@ -78,17 +86,20 @@ async def main():
         await open_chat(rec, pg)
         if DEPTH:
             rec.set("depth", 0.1)
-            step = pg.locator(f'.effort-step[data-depth="{DEPTH}"]').first
-            await rec.move(*(lambda b: (b["x"] + b["width"] / 2, b["y"] - 60))(await step.bounding_box()), 0.8)
-            await asyncio.sleep(0.6)
+            await open_effort(rec, pg)
+            step = pg.get_by_role("menuitemradio", name=re.compile("^" + DEPTH.capitalize())).first
             await rec.click_on(step, 0.6)
-            await asyncio.sleep(2.2)             # the line under the control changes; let it be read
+            await asyncio.sleep(2.2)             # the button's label changes; let it be read
         if VERIFY:
             rec.set("verify", 0.1)
-            box = pg.get_by_label("Check the result").first
-            if not await box.is_checked():
+            await open_effort(rec, pg)
+            box = pg.get_by_role("menuitemcheckbox", name=re.compile("Check the result")).first
+            if await box.get_attribute("aria-checked") != "true":
                 await rec.click_on(box, 0.7)
-            await asyncio.sleep(2.2)
+            await asyncio.sleep(1.2)
+            if await box.count() and await box.is_visible():
+                await pg.keyboard.press("Escape")
+            await asyncio.sleep(1.0)
         if CHECK_PAGE:
             rec.set("typing", 0.1)
             await rec.click_on(pg.get_by_role("button", name="Check this page").first, 0.9)

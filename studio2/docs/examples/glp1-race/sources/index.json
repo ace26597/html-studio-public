@@ -1,0 +1,64 @@
+{
+  "sources": [
+    {
+      "id": "s1",
+      "url": "https://open.fda.gov/data/faers/",
+      "path": "sources/s1.txt",
+      "original": null,
+      "title": "https://open.fda.gov/data/faers/",
+      "kind": "html",
+      "fetched_at": "2026-11-18T00:22:56.505Z",
+      "chars": 1068,
+      "sha256": "5f9abe5c74b9af485b8d6dd8ee674e0cadbd8c76a59c364a9777bad771c570b4",
+      "pages": null
+    },
+    {
+      "id": "s2",
+      "url": "https://open.fda.gov/apis/drug/event/",
+      "path": "sources/s2.txt",
+      "original": null,
+      "title": "https://open.fda.gov/apis/drug/event/",
+      "kind": "html",
+      "fetched_at": "2026-11-18T00:22:56.757Z",
+      "chars": 5463,
+      "sha256": "5c0ae5144cb15a66e5329d1789ed1b3adc1194d6fe4a209bb3c473552c042ec1",
+      "pages": null
+    },
+    {
+      "id": "s3",
+      "url": "https://clinicaltrials.gov/data-api/api",
+      "path": "sources/s3.txt",
+      "original": null,
+      "title": "ClinicalTrials.gov",
+      "kind": "html",
+      "fetched_at": "2026-11-18T00:22:57.145Z",
+      "chars": 129,
+      "sha256": "3fafa2b69985dd15a6b3824f845f76be590be7599a9a147d6a8e6657ab828dfb",
+      "pages": null
+    },
+    {
+      "id": "s4",
+      "url": "https://clinicaltrials.gov/data-api/api",
+      "path": "sources/s4.txt",
+      "original": null,
+      "title": "ClinicalTrials.gov API | ClinicalTrials.govLock",
+      "kind": "html",
+      "fetched_at": "2026-11-18T00:23:02.658Z",
+      "chars": 43820,
+      "sha256": "b7dfb9561fc1bd0d5996927c1f1d535463765f71ea1c5bdec3f7a87d3b8ab9a4",
+      "pages": null
+    },
+    {
+      "id": "s5",
+      "url": "https://open.fda.gov/apis/openfda-fields/",
+      "path": "sources/s5.txt",
+      "original": null,
+      "title": "https://open.fda.gov/apis/openfda-fields/",
+      "kind": "html",
+      "fetched_at": "2026-11-18T00:23:02.765Z",
+      "chars": 1395,
+      "sha256": "a4d449d223d3522249adcc504708542320d2aba3d1d020474f52097fde95d3e5",
+      "pages": null
+    }
+  ]
+}

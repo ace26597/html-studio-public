@@ -76,6 +76,40 @@ sub-agents, 5 sources saved, one table with 4 sourced figures, about $0.64 at AP
 **Check this page** on the weather app took 5 minutes 26 seconds: one checker sub-agent, 343
 checked, 337 matched, 6 fixed, among them both charts drawing Tokyo's days under the wrong dates.
 
+## A live-data app, Deep with Check the result
+
+**One request, a dashboard app on two public APIs.** "Build a live dashboard app called The GLP-1
+race, about the obesity and diabetes drugs: semaglutide, tirzepatide, liraglutide and dulaglutide,
+plus the newer ones still in trials […]. Use only free public data, fetched live by the app's own
+back end and cached: the ClinicalTrials.gov API (version 2) for the trials, and openFDA for
+adverse-event reports and drug labels. […] Say clearly that FDA reports are counts of reports, not
+rates, and cannot be compared as risk. Never invent a number: if a source fails, say so on the
+page. […]" The whole request is in the video.
+
+[![Deep and Check the result are chosen in the effort menu, the agent tries the two APIs, writes a back end and a page, looks at it on a phone and a desktop, a checker recomputes the figures, and the finished dashboard is scrolled](demo/demo-glp1.gif)](demo/demo-glp1.mp4)
+
+*26 minutes 2 seconds of agent work in 78 seconds of video, recorded 17 November 2026 on Claude
+Opus: one request, 104 tool calls, no approval card. The app has a back end of its own that
+fetches both sources, keeps a copy and fetches again every 12 hours (trials) and 24 hours (FDA
+data). As fetched that evening: 1,763 trials across nine drugs from nine searches, 598 lead
+sponsors, sites in 77 countries, and FDA report counts for the five drugs with a US label. The
+page has filters by drug, phase, status, study type and sponsor, a drug-by-phase grid, a phase 3
+finish timeline, a world map of sites, a trial list where each trial opens to its record with a
+link to ClinicalTrials.gov, and a section that lists every query with the time it was fetched.
+A separate checker sub-agent recomputed the figures from the app's own data and asked the two
+sources directly; the agent reported the check once: 38 items, 29 matched, 9 fixed, none left
+wrong. The nine were wording, definitions and layout (among them a "Cities" count that counted
+coordinates, not city names), not figures that disagreed with a source. The studio's own
+re-check of the page agreed (7 of 7 quotes). Checked by hand afterwards: three figures against
+the sources directly (812 semaglutide trials, 78,023 semaglutide reports, 181,068 tirzepatide
+reports; all three equal), the filters (1,763 trials, 321 with Tirzepatide, 56 with Phase 3
+added, the same as the grid's cell), and no console errors or failed requests at 390 and 1440
+pixels in light and dark. Left as built: two chart labels overlap on a phone, the sources
+section leaves an empty gap on a wide screen, and the phone page is very long. FDA figures are
+counts of reports, not rates; the page says so. The numbers are live and will have moved. At API
+prices the agent program put it at about $6.48.
+[Full-size video](demo/demo-glp1.mp4) · [the app's files, and how to run it](examples/glp1-race/README.md)*
+
 ## One feature at a time
 
 Cut from the same recordings.

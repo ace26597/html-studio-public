@@ -1,0 +1,146 @@
+{
+  "page": "index.html",
+  "checked_at": "2026-11-18T00:42:41.705Z",
+  "summary": {
+    "verified": 7,
+    "derived": 0,
+    "failed": 0,
+    "unmarked_numbers": 0,
+    "sources_cited": 3,
+    "sources_unused": 2,
+    "cited_not_listed": 0
+  },
+  "source_list": true,
+  "not_listed": [],
+  "items": [
+    {
+      "n": 1,
+      "text": "is the date the researchers think",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s4"
+      ],
+      "quote": "is the date that the researchers think will be the primary completion date for the study",
+      "reason": null,
+      "found": null,
+      "where": "When the phase 3 trials are due to finish"
+    },
+    {
+      "n": 2,
+      "text": "Reporting by health professionals and patients is voluntary",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "Reporting of adverse events by healthcare professionals and consumers is voluntary in the United States.",
+      "reason": null,
+      "found": null,
+      "where": "These are counts of reports, not rates \u2014 they cannot be compared as risk"
+    },
+    {
+      "n": 3,
+      "text": "cannot be used to estimate the incidence of these events",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "has not been scientifically or otherwise verified as to a cause and effect relationship and cannot be used to estimate the incidence of these events",
+      "reason": null,
+      "found": null,
+      "where": "These are counts of reports, not rates \u2014 they cannot be compared as risk"
+    },
+    {
+      "n": 4,
+      "text": "Common products may have more reports simply because more people use them",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "Common products may have a higher number of adverse events due to the higher total number of people using the product.",
+      "reason": null,
+      "found": null,
+      "where": "These are counts of reports, not rates \u2014 they cannot be compared as risk"
+    },
+    {
+      "n": 5,
+      "text": "no way to conclude which drug caused which reaction",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "there is no way to conclude from the data therein that a given drug is responsible for a given reaction",
+      "reason": null,
+      "found": null,
+      "where": "These are counts of reports, not rates \u2014 they cannot be compared as risk"
+    },
+    {
+      "n": 6,
+      "text": "harmonised fields return only a subset of records",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s5"
+      ],
+      "quote": "searching in these fields will only return a subset of records from a given endpoint",
+      "reason": null,
+      "found": null,
+      "where": "These are counts of reports, not rates \u2014 they cannot be compared as risk"
+    },
+    {
+      "n": 7,
+      "text": "may lag by 3 months or more",
+      "status": "verified",
+      "kind": "quote",
+      "sources": [
+        "s2"
+      ],
+      "quote": "the data in this API may lag by 3 months or more at any given time",
+      "reason": null,
+      "found": null,
+      "where": "These are counts of reports, not rates \u2014 they cannot be compared as risk"
+    }
+  ],
+  "unmarked": [],
+  "sources": [
+    {
+      "id": "s1",
+      "title": "https://open.fda.gov/data/faers/",
+      "url": "https://open.fda.gov/data/faers/",
+      "fetched_at": "2026-11-18T00:22:56.505Z",
+      "cited": 0
+    },
+    {
+      "id": "s2",
+      "title": "https://open.fda.gov/apis/drug/event/",
+      "url": "https://open.fda.gov/apis/drug/event/",
+      "fetched_at": "2026-11-18T00:22:56.757Z",
+      "cited": 5
+    },
+    {
+      "id": "s3",
+      "title": "ClinicalTrials.gov",
+      "url": "https://clinicaltrials.gov/data-api/api",
+      "fetched_at": "2026-11-18T00:22:57.145Z",
+      "cited": 0
+    },
+    {
+      "id": "s4",
+      "title": "ClinicalTrials.gov API | ClinicalTrials.govLock",
+      "url": "https://clinicaltrials.gov/data-api/api",
+      "fetched_at": "2026-11-18T00:23:02.658Z",
+      "cited": 1
+    },
+    {
+      "id": "s5",
+      "title": "https://open.fda.gov/apis/openfda-fields/",
+      "url": "https://open.fda.gov/apis/openfda-fields/",
+      "fetched_at": "2026-11-18T00:23:02.765Z",
+      "cited": 1
+    }
+  ]
+}
