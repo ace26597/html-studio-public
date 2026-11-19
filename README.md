@@ -1,4 +1,22 @@
+<div align="center">
+
 # HTML Studio
+
+**Describe a page. A real coding agent builds it in a folder you own, while you watch.**
+
+[How it works](https://ace26597.github.io/html-studio-public/) &nbsp;·&nbsp;
+[Benchmarks](https://ace26597.github.io/html-studio-public/benchmarks/) &nbsp;·&nbsp;
+[Quick start](#quick-start) &nbsp;·&nbsp;
+[Examples](#examples) &nbsp;·&nbsp;
+[Safety](#safety)
+
+[![One request from a blank page to a finished data explorer, then a change made by pointing at the page](studio2/docs/demo/studio-demo.gif)](studio2/docs/demo/studio-demo.mp4)
+
+</div>
+
+*One real run, 95 seconds of video: 52 minutes of agent work as a time-lapse, then a change made
+by selecting a heading and asking (34 seconds). The clock shows real time. Recorded 12 November
+2026. [Full-size video](studio2/docs/demo/studio-demo.mp4) · [how it was recorded](studio2/tools/demo-video/README.md)*
 
 A page per project, with a chat connected to a real coding agent. You say what you want; the
 agent works in the project's folder with files, a shell, the web, skills and connectors, and
@@ -8,11 +26,33 @@ on the same computer.
 It runs on your own machine. It is a personal project at an early stage: read
 [Safety](#safety) and [What it cannot do yet](#what-it-cannot-do-yet) before you rely on it.
 
-[![One request from a blank page to a finished data explorer, then a change made by pointing at the page](studio2/docs/demo/studio-demo.gif)](studio2/docs/demo/studio-demo.mp4)
+## Why it is different
 
-*One real run, 95 seconds of video: 52 minutes of agent work as a time-lapse, then a change made
-by selecting a heading and asking (34 seconds). The clock shows real time. Recorded 12 November
-2026. [Full-size video](studio2/docs/demo/studio-demo.mp4) · [how it was recorded](studio2/tools/demo-video/README.md)*
+| | | |
+|---|---|---|
+| **A real agent, not a template**<br>It works in the project's folder with files, a shell, the web and a browser of its own, and can start helpers for the parts of a large job. | **You stay in the page**<br>Select a part and say what to change, retype text where it stands, or draw what you want on the page. | **It checks its own work**<br>It looks at its page in a real browser, and **Verify content** compares the figures on it with the sources it saved. |
+| **Yours to keep**<br>Every project is a folder with its own version history. Export gives one HTML file that opens from a double click. | **Your choice of model**<br>Your Claude plan, or any model through a gateway. The same job was [given to 28 of them](https://ace26597.github.io/html-studio-public/benchmarks/). | **The cost, every time**<br>Each request shows what it cost, and says whether the provider reported the figure or the studio worked it out. |
+
+[![A project in the studio: a finished sales dashboard, with the chat panel showing the agent's closing notes, a saved version, the time and cost of the request, and suggested next steps](docs/assets/studio-project.jpg)](https://ace26597.github.io/html-studio-public/)
+
+*A request as it ended: the page the agent built, its notes, the version it saved, what it took
+(4 minutes 15 seconds, about $2.74 at API prices on a Claude plan) and what to ask next.
+[How a request gets here](https://ace26597.github.io/html-studio-public/).*
+
+## How it works, and what was measured
+
+[![Eight dashboards, each built by a different model from the same request](docs/benchmarks/model-comparison/banner.jpg)](https://ace26597.github.io/html-studio-public/benchmarks/)
+
+**[How it works](https://ace26597.github.io/html-studio-public/)** is a short guide: what happens to a
+request, what the parts are, how the studio checks its own work, and what it is not.
+
+**[Benchmarks](https://ace26597.github.io/html-studio-public/benchmarks/)** has what was run and
+what it showed. On 19 November 2026 the same request and the same data file went to 28 models, from
+Claude, GPT and Gemini to DeepSeek, Kimi and GLM, each in a new project, and every page was opened in
+a real browser and checked against the data's true numbers: 19 passed all eleven checks, at costs
+from 4 cents to 2 dollars. Also there: a simpler request on 12 models, and the cost the studio
+shows checked against the provider's own figures. The same comparison as a page on GitHub, with a
+picture of every dashboard: [one job, the same for every model](studio2/docs/model-comparison.md).
 
 ## What you can do
 
@@ -25,7 +65,21 @@ Cut from real recordings of the real interface.
 | **An app with its own back end**<br>[![A request becomes a running app, which is then used](studio2/docs/demo/clips/app.gif)](studio2/docs/demo/clips/app.mp4)<br>The studio starts the app's server and shows its log. | **Files and versions**<br>[![The project's files and its list of versions](studio2/docs/demo/clips/versions-files.gif)](studio2/docs/demo/clips/versions-files.mp4)<br>Every request and edit is a version you can restore. |
 | **Choose how much to do**<br>[![Quick is chosen under the chat box and a short comparison page comes back](studio2/docs/demo/clips/depth.gif)](studio2/docs/demo/clips/depth.mp4)<br>Quick, Standard or Deep, set per request; this Quick one took 3 minutes 15 seconds. | **Check the page**<br>[![Check this page is pressed on an app and a result card lists what was checked and fixed](studio2/docs/demo/clips/check.gif)](studio2/docs/demo/clips/check.mp4)<br>A separate checker goes over the page and reports counts and findings in a card. The button is now called **Verify content**; the recording shows its earlier name. |
 
-What it makes:
+## What it makes
+
+| Ask for | What comes back |
+|---|---|
+| **A report on a question** | A sourced page. The agent saves every page and PDF it reads, and a check compares the marked figures with them |
+| **A dashboard** | Charts and tables from files you drop in (CSV, Parquet, JSON) or your own database, read-only |
+| **An app** | A page with a back end of its own, started and watched by the studio on the project's address |
+| **A deck, a document, a workbook** | PowerPoint, Word and Excel files, and PDF and other formats when asked |
+| **Diagrams, animation, video** | Diagrams drawn and checked by the studio; animation, 3D and pictures rendered to MP4, GIF or WebM |
+| **A change to an app you have** | A safe copy of its folder to work on, sent back with **Make it live** after your Allow |
+| **A better-looking page** | **Polish the look** fixes clear defects at desktop, tablet and phone width, and adds no content |
+| **A skill of your own** | Describe a job, and the agent writes a skill for it; you approve the whole text before it is saved |
+
+<details>
+<summary><b>Each of these in full, with what it needs</b></summary>
 
 - **Sourced reports.** The agent saves every page or PDF it reads, and a check compares marked
   figures with the saved source.
@@ -57,6 +111,8 @@ What it makes:
 - **Your own app.** Bring a folder from this computer as a safe copy or edit it in place, then
   send changes back with **Make it live** after an Allow on a card.
 
+</details>
+
 Each request shows what it cost and each page has a running total, kept apart as charged,
 plan-equivalent and unpriced; a charged figure says whether the provider reported it or it was
 calculated from a price list. When a LiteLLM gateway sends no cost for a request, the studio works
@@ -68,21 +124,6 @@ to host it, and for an app a script that starts it. Nothing is published for you
 
 Detail: [what you can make, skills and connectors](studio2/docs/features.md) ·
 [bringing an app and making it live](studio2/docs/apps.md).
-
-## How it works, and what was measured
-
-[![Eight dashboards, each built by a different model from the same request](docs/benchmarks/model-comparison/banner.jpg)](https://ace26597.github.io/html-studio-public/benchmarks/)
-
-**[How it works](https://ace26597.github.io/html-studio-public/)** is a short guide: what happens to a
-request, what the parts are, how the studio checks its own work, and what it is not.
-
-**[Benchmarks](https://ace26597.github.io/html-studio-public/benchmarks/)** has what was run and
-what it showed. On 19 November 2026 the same request and the same data file went to 28 models, from
-Claude, GPT and Gemini to DeepSeek, Kimi and GLM, each in a new project, and every page was opened in
-a real browser and checked against the data's true numbers: 19 passed all eleven checks, at costs
-from 4 cents to 2 dollars. Also there: a simpler request on 12 models, and the cost the studio
-shows checked against the provider's own figures. The same comparison as a page on GitHub, with a
-picture of every dashboard: [one job, the same for every model](studio2/docs/model-comparison.md).
 
 ## Examples
 

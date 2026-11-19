@@ -20,7 +20,10 @@ layout, running from source, tests, every setting, and the rules.
 | `litellm-requirements.txt` | LiteLLM 1.102.1 and its packages, pinned by hash |
 | `start-tailnet.sh` | Starts the server for one machine plus its owner's Tailscale devices |
 | `tools/demo-video/` | The scripts that recorded [`docs/demo/`](docs/demo/) ([how](tools/demo-video/README.md)) |
-| `screenshots/` | Five screenshots from the first step |
+| `tools/model-comparison/` | The same job given to many models and checked in a browser: the brief, the data, the runner, the grader, the page builder and one run's results ([how](tools/model-comparison/README.md)) |
+| `tools/prices/` | Writes `library/model-prices.json`, the price list behind a figure the studio works out itself, from OpenRouter's public model list |
+| `../docs/` | The site: the [guide](../docs/index.html), the [benchmarks page](../docs/benchmarks/index.html) and the interactive model comparison. Static files, served as they are |
+| `screenshots/` | Five screenshots from the first step, taken with the scripted agent |
 | `.venv/`, `.tools/`, `web/node_modules/`, `web/dist/` | Made by the installer; git-ignored |
 
 The server, by concern:
@@ -36,6 +39,7 @@ The server, by concern:
 | `context.py` | Folders, files and addresses a project points at as read-only context for the agent |
 | `cli.py`, `setup.py`, `setup_api.py`, `doctor.py`, `config.py`, `keystore.py`, `access.py` | The `studio` command, setup, settings, the secret store, access from other devices |
 | `gateway.py`, `modelcheck.py`, `models_api.py` | The LiteLLM the studio runs; "Check this model" |
+| `costs.py`, `prices.py` | What a request cost: read back from a gateway's own log, or worked out from what the turn used, model by model |
 | `catalog.py`, `library.py`, `picker.py` | The library index and what is picked per request |
 | `risk.py` | Which shell commands ask first |
 
@@ -109,7 +113,7 @@ cd studio2 && STUDIO2_FAKE=1 .venv/bin/pytest -q
 cd studio2/web && npm test && npx tsc --noEmit
 ```
 
-On 17 November 2026: 1375 server tests passed and 3 were skipped, in about 230 seconds; 376
+On 19 November 2026: 1655 server tests passed and 3 were skipped, in about 350 seconds; 475
 interface tests passed. Neither suite calls a model, and the server suite uses an in-memory
 secret store and an empty LiteLLM folder, so it does not touch your settings.
 
