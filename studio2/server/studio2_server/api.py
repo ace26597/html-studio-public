@@ -15,7 +15,7 @@ from pathlib import Path
 import httpx
 from fastapi import Body, FastAPI, File, Form, Header, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -46,6 +46,8 @@ from .ship import ShipError, ShipRunning
 log = logging.getLogger("studio2")
 TEXT_LIMIT = 1_000_000
 UPLOAD_LIMIT = 25 * 1024 * 1024
+# What the guide's folder may hand out: pages and what they show. Never the notes kept beside them.
+SITE_FILES = (".html", ".css", ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp")
 NOT_BUILT = """<!doctype html><meta charset="utf-8"><title>Studio 2</title>
 <body style="font:15px/1.6 system-ui;max-width:40rem;margin:4rem auto;padding:0 1rem">
 <h1>Studio 2 server is running</h1>
@@ -324,6 +326,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def health():
         return {"ok": True, "version": __version__, "fake": settings.fake,
                 "setup": {"needed": setup_api.first_run(settings)}, "shared": settings.shared,
+                "site": (settings.site_dir / "index.html").is_file(),
                 "transcription": {"available": voice.reason() is None, "reason": voice.reason()},
                 "connections": studio.registry.describe_all()}
 
@@ -1214,6 +1217,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/no-page/{rest:path}", include_in_schema=False)
     async def no_page(rest: str):
         return HTMLResponse(NO_PAGE, status_code=404, headers={"Cache-Control": "no-store"})
+
+    # -- the guide and the benchmarks (CONTRACT.md, "The guide and the benchmarks, inside the studio")
+    @app.get("/site", include_in_schema=False)
+    @app.get("/site/{path:path}", include_in_schema=False)
+    async def site(path: str | None = None):
+        root = settings.site_dir.resolve()
+        missing = ApiError(404, "not_found", "There is no such page in the guide.")
+        if path is None:                     # "/site": the folder itself, named without its slash
+            return RedirectResponse("/site/", status_code=307)
+        if not (root / "index.html").is_file() or any(part.startswith(".") for part in path.split("/")):
+            raise missing
+        target = (root / path).resolve()
+        if target != root and root not in target.parents:
+            raise missing
+        if target.is_dir():
+            if path and not path.endswith("/"):   # relative links on the page need the folder's own address
+                return RedirectResponse(f"/site/{path}/", status_code=307)
+            target = target / "index.html"
+        if target.suffix.lower() not in SITE_FILES or not target.is_file():
+            raise missing
+        return FileResponse(target, headers={"Cache-Control": "no-cache"})
 
     # -- web UI -----------------------------------------------------------------------------
     @app.get("/{path:path}", include_in_schema=False)

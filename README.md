@@ -54,6 +54,9 @@ from 4 cents to 2 dollars. Also there: a simpler request on 12 models, and the c
 shows checked against the provider's own figures. The same comparison as a page on GitHub, with a
 picture of every dashboard: [one job, the same for every model](studio2/docs/model-comparison.md).
 
+Both pages are in the studio too: **How it works** and **Benchmarks** sit in the top bar of the
+projects page, served by the studio itself, so they open without the internet.
+
 ## What you can do
 
 Cut from real recordings of the real interface.

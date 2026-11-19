@@ -22,7 +22,7 @@ layout, running from source, tests, every setting, and the rules.
 | `tools/demo-video/` | The scripts that recorded [`docs/demo/`](docs/demo/) ([how](tools/demo-video/README.md)) |
 | `tools/model-comparison/` | The same job given to many models and checked in a browser: the brief, the data, the runner, the grader, the page builder and one run's results ([how](tools/model-comparison/README.md)) |
 | `tools/prices/` | Writes `library/model-prices.json`, the price list behind a figure the studio works out itself, from OpenRouter's public model list |
-| `../docs/` | The site: the [guide](../docs/index.html), the [benchmarks page](../docs/benchmarks/index.html) and the interactive model comparison. Static files, served as they are |
+| `../docs/` | The site: the [guide](../docs/index.html), the [benchmarks page](../docs/benchmarks/index.html) and the interactive model comparison. Static files, served as they are: by the public copy's host as a web site, and by the studio itself under `/site/`, linked from the projects page |
 | `screenshots/` | Five screenshots from the first step, taken with the scripted agent |
 | `.venv/`, `.tools/`, `web/node_modules/`, `web/dist/` | Made by the installer; git-ignored |
 
@@ -113,7 +113,7 @@ cd studio2 && STUDIO2_FAKE=1 .venv/bin/pytest -q
 cd studio2/web && npm test && npx tsc --noEmit
 ```
 
-On 19 November 2026: 1655 server tests passed and 3 were skipped, in about 350 seconds; 475
+On 19 November 2026: 1660 server tests passed and 3 were skipped, in about 350 seconds; 477
 interface tests passed. Neither suite calls a model, and the server suite uses an in-memory
 secret store and an empty LiteLLM folder, so it does not touch your settings.
 

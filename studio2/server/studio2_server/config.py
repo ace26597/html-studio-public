@@ -102,6 +102,8 @@ class Settings:
     fake: bool = False
     config_path: Path = field(default_factory=lambda: Path.home() / ".config/studio2/config.json")
     web_dist: Path = STUDIO2_ROOT / "web" / "dist"
+    # The guide and the benchmarks (CONTRACT.md, "The guide and the benchmarks, inside the studio").
+    site_dir: Path = REPO_ROOT / "docs"
     library_dir: Path = STUDIO2_ROOT / "library"
     skill_dirs: tuple = ()          # more folders of skills on this machine (config `library.skill_dirs`)
     connector_files: tuple = ()     # more files of connectors (MCP servers), each like ~/.claude.json

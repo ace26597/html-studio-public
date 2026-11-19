@@ -28,7 +28,7 @@ def _fake_delay(monkeypatch):
 @pytest.fixture
 def settings(tmp_path) -> Settings:
     return Settings(data_dir=tmp_path / "data", fake=True, port_range=PORT_RANGE,
-                    config_path=tmp_path / "no-config.json", web_dist=tmp_path / "no-dist",
+                    config_path=tmp_path / "no-config.json", web_dist=tmp_path / "no-dist", site_dir=tmp_path / "no-site",
                     ping_seconds=0.2, home=tmp_path / "home")
 
 

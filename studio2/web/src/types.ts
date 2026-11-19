@@ -590,6 +590,8 @@ export interface Health {
   setup?: { needed: boolean };
   /** Step 3m. Shared with other people: the Claude plan is switched off. */
   shared?: boolean;
+  /** The guide and the benchmarks are served by this studio under `/site/`. */
+  site?: boolean;
 }
 
 export interface FileEntry {

@@ -17,6 +17,26 @@ interface HomeProps {
   navigate: Navigate;
   theme: Theme;
   onToggleTheme: () => void;
+  /** The studio serves the guide and the benchmarks (`Health.site`). */
+  site?: boolean;
+}
+
+/**
+ * The guide and the benchmarks, when this studio serves them (CONTRACT.md, "The guide and the
+ * benchmarks, inside the studio"). Ordinary links: they are pages of their own, not screens of the app.
+ */
+export function GuideLinks({ site }: { site?: boolean }) {
+  if (!site) return null;
+  return (
+    <>
+      <a className="home-nav-link" href="/site/" aria-label="How it works">
+        <Icon name="info" size={15} /> <span className="home-nav-text">How it works</span>
+      </a>
+      <a className="home-nav-link" href="/site/benchmarks/" aria-label="Benchmarks">
+        <Icon name="chart" size={15} /> <span className="home-nav-text">Benchmarks</span>
+      </a>
+    </>
+  );
 }
 
 /**
@@ -155,7 +175,7 @@ function ProjectCard({
   );
 }
 
-export function Home({ navigate, theme, onToggleTheme }: HomeProps) {
+export function Home({ navigate, theme, onToggleTheme, site }: HomeProps) {
   const toast = useToast();
   const confirm = useConfirm();
   const [projects, setProjects] = useState<Project[] | null>(null);
@@ -315,6 +335,7 @@ export function Home({ navigate, theme, onToggleTheme }: HomeProps) {
           >
             <Icon name="wrench" size={15} /> <span className="home-nav-text">Setup</span>
           </a>
+          <GuideLinks site={site} />
         </nav>
         <IconButton
           icon={theme === "dark" ? "sun" : "moon"}

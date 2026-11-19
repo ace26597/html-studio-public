@@ -4709,3 +4709,25 @@ project's page). Everything else about a look is the same.
 .
 
 .
+
+# The guide and the benchmarks, inside the studio
+
+The repository's root `docs/` folder is a small static site: the guide ("How it works"), the
+benchmarks page and the interactive model comparison. The public copy's host serves it as a web
+site; the studio serves the same files itself, so they can be read from the app, offline too.
+
+- `GET /site/` and `GET /site/<path>` answer with a file of that folder. A path that ends in `/`,
+  or names a folder, is that folder's `index.html` (a folder named without the `/` is redirected
+  to the address with it, so the page's own relative links hold). Only pages and what they show
+  are served: `.html`, `.css`, `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.webp`. Anything else in
+  the folder (the working notes kept there are `.md`), a name that starts with a dot, a path that
+  leaves the folder, and a file that is not there are 404. Responses are `Cache-Control: no-cache`.
+  The route is behind the same sign-in as the rest of the studio.
+- `GET /api/health` gains `site: true` when `docs/index.html` is there. A studio installed without
+  the folder says `false`, serves nothing under `/site/` and shows no links.
+- The projects page shows two links in its top bar when `site` is true: **How it works**
+  (`/site/`) and **Benchmarks** (`/site/benchmarks/`). They are ordinary links: the page opens
+  in the same tab, and a modified click opens a new one.
+- The pages carry a link back, **Your projects** (`/`), which they show only when their address
+  starts with `/site/`, that is, when a studio is serving them.
+

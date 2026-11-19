@@ -30,6 +30,8 @@ pre { background: var(--surface); border: 1px solid var(--line); border-radius: 
 .site-nav a { color: var(--ink-2); text-decoration: none; font-size: 15px; }
 .site-nav a:hover, .site-nav a[aria-current="page"] { color: var(--ink); }
 .site-nav a[aria-current="page"] { font-weight: 600; }
+.site-nav .back { color: var(--accent); }
+[hidden] { display: none !important; }
 
 .wrap { max-width: 1080px; margin: 0 auto; padding: 36px 20px 72px; }
 h1, h2, h3 { font-family: var(--display); font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }

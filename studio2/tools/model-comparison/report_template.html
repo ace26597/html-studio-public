@@ -29,6 +29,7 @@
   .site-nav .brand { font: 600 17px var(--display); color: var(--ink); text-decoration: none; margin-right: auto; }
   .site-nav a { color: var(--ink-2); text-decoration: none; font-size: 15px; }
   .site-nav a:hover { color: var(--ink); }
+  .site-nav .back { color: var(--accent); }
   .eyebrow a { color: inherit; }
   .wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 64px;
           padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
@@ -144,6 +145,7 @@
 
 <nav class="site-nav" aria-label="Site"><div class="in">
   <a class="brand" href="../../index.html">HTML Studio</a>
+  <a class="back" href="/" data-studio-back hidden>&larr; Your projects</a>
   <a href="../../index.html">How it works</a>
   <a href="../index.html">Benchmarks</a>
   <a href="https://github.com/ace26597/html-studio.git">GitHub</a>
@@ -204,6 +206,12 @@
   <div class="view"><img id="lightbox-img" alt=""></div>
 </div>
 
+<script>
+  // Served by a studio (under /site/): show the way back to its projects page.
+  if (location.pathname.indexOf("/site/") === 0) {
+    document.querySelectorAll("[data-studio-back]").forEach(function (link) { link.hidden = false; });
+  }
+</script>
 <script>
 const DATA = /*DATA*/null;
 const $ = (id) => document.getElementById(id);

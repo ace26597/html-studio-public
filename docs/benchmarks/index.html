@@ -11,6 +11,7 @@
 <body>
 <nav class="site-nav" aria-label="Site"><div class="in">
   <a class="brand" href="../index.html">HTML Studio</a>
+  <a class="back" href="/" data-studio-back hidden>&larr; Your projects</a>
   <a href="../index.html">How it works</a>
   <a href="index.html" aria-current="page">Benchmarks</a>
   <a href="https://github.com/ace26597/html-studio-public">GitHub</a>
@@ -110,5 +111,11 @@
     <a href="https://github.com/ace26597/html-studio-public/blob/main/studio2/docs/safety.md">Safety and limits</a>
   </footer>
 </main>
+<script>
+  // Served by a studio (under /site/): show the way back to its projects page.
+  if (location.pathname.indexOf("/site/") === 0) {
+    document.querySelectorAll("[data-studio-back]").forEach(function (link) { link.hidden = false; });
+  }
+</script>
 </body>
 </html>
