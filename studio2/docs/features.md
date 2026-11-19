@@ -99,4 +99,23 @@ know how one is written.
   holds before anything is added. A file that brings scripts says so and waits for a tick.
   Skills made through the chat hold instructions and reference files only, never scripts.
 
+## Reading a skill, and starting from one
+
+Every skill in the Library opens, whoever wrote it: the ones that come with the studio, the ones
+found on your computer, the ones your plugins bring, and your own.
+
+- **Open** shows when the skill is used, its full instructions, every file it holds with its
+  contents, and which of those files are scripts the agent could run. Files are shown as plain
+  text, a page included, so nothing hides in formatting. It also says how often the studio has
+  picked the skill for a request and how often the agent then really used it.
+- **Explain this skill** has the agent read the whole folder and write a page about it: what it
+  is for, what it has the agent do step by step, what each file and script is for, what it needs
+  to work, what it leaves unsaid, and what could be better. It runs nothing in the skill.
+- **Make my own copy** turns any skill into one of yours under a new name, with all its files.
+  A skill that holds scripts lists them and waits for a tick first, as an import does.
+- **Ask for a change** to a skill of your own: say what should be different, and the agent
+  rewrites it and shows the whole result on a card for you to allow. Scripts are not changed
+  this way.
+- **New page → A skill** is a second way to the same "describe it" flow.
+
 Add your own skills, connectors and databases on the **Library** page.

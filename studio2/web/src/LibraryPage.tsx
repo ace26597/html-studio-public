@@ -1,6 +1,6 @@
 // /library: what this studio can do, and the person's data sources.
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { DataSourcesManager, kindsOrKnown } from "./DataSources";
 import { LibraryIndexView } from "./LibraryIndexView";
 import { LibraryView, useLibrary } from "./LibraryView";
@@ -19,16 +19,26 @@ interface LibraryPageProps {
   navigate: Navigate;
   theme: Theme;
   onToggleTheme: () => void;
+  /** A shared studio: skills can be read, explained and exported, not changed. */
+  shared?: boolean;
 }
 
-export function LibraryPage({ navigate, theme, onToggleTheme }: LibraryPageProps) {
+/** `/library#new-skill` (the New page dialog's "A skill") opens New skill at "Describe it". */
+export const NEW_SKILL_HASH = "#new-skill";
+
+export function LibraryPage({ navigate, theme, onToggleTheme, shared = false }: LibraryPageProps) {
   const state = useLibrary();
+  const [startNewSkill] = useState(() => typeof window !== "undefined" && window.location.hash === NEW_SKILL_HASH);
 
   useEffect(() => {
     document.title = "Library · Studio";
     // `/library#data-sources` (the Home "Data sources" entry) lands on that section.
     if (window.location.hash === "#data-sources") {
       document.getElementById("data-sources")?.scrollIntoView({ block: "start" });
+    }
+    // Opened once: a reload or Back does not open the dialog again.
+    if (window.location.hash === NEW_SKILL_HASH) {
+      window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
     }
     return () => {
       document.title = "Studio";
@@ -82,7 +92,13 @@ export function LibraryPage({ navigate, theme, onToggleTheme }: LibraryPageProps
         </section>
         <section className="library-block" aria-labelledby="capabilities-title">
           <h2 id="capabilities-title">What the agent can use</h2>
-          <LibraryView state={state} omit={SHOWN_ABOVE} onOpenProject={(id) => navigate(`/p/${id}`)} />
+          <LibraryView
+            state={state}
+            omit={SHOWN_ABOVE}
+            shared={shared}
+            startNewSkill={startNewSkill}
+            onOpenProject={(id) => navigate(`/p/${id}`)}
+          />
         </section>
         <section id="everything" className="library-block" aria-labelledby="everything-title">
           <h2 id="everything-title">Everything on this computer</h2>
@@ -90,7 +106,12 @@ export function LibraryPage({ navigate, theme, onToggleTheme }: LibraryPageProps
             Before each request the studio picks what fits from these. Say <strong>Always</strong> or{" "}
             <strong>Never</strong> to decide for every project; a project can still decide for itself.
           </p>
-          <LibraryIndexView initialIndex={state.library?.index ?? null} />
+          <LibraryIndexView
+            initialIndex={state.library?.index ?? null}
+            shared={shared}
+            onOpenProject={(id) => navigate(`/p/${id}`)}
+            onChanged={state.reload}
+          />
         </section>
       </main>
     </div>

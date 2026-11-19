@@ -726,6 +726,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return Response(content=data, media_type="application/zip",
                         headers={"content-disposition": f'attachment; filename="{filename}"', "cache-control": "no-store"})
 
+    # -- reading any skill, a copy of one's own, asking the agent about one ----------------------
+    @app.get("/api/library/skills/detail")
+    async def skill_detail(id: str = ""):
+        return await asyncio.to_thread(ownskills.detail, studio.lib, id, studio.picker.usage())
+
+    @app.get("/api/library/skills/file")
+    async def skill_file(id: str = "", path: str = "", raw: str = ""):
+        found = await asyncio.to_thread(ownskills.one_file, studio.lib, id, path, raw in ("1", "true"))
+        if isinstance(found, tuple):       # a picture, as it is; never anything a browser would run
+            return Response(content=found[0], media_type=found[1],
+                            headers={"cache-control": "no-store", "x-content-type-options": "nosniff"})
+        return found
+
+    @app.post("/api/skills/copy", status_code=201)
+    async def copy_skill(request: Request):
+        body = await json_object(request)
+        return await asyncio.to_thread(ownskills.copy, studio.lib, str(body.get("from") or ""), body.get("name"),
+                                       body.get("allow_scripts") is True, body.get("replace") is True)
+
+    @app.post("/api/library/skills/ask", status_code=202)
+    async def ask_about_skill(request: Request):
+        body = await json_object(request)
+        title, text = await asyncio.to_thread(ownskills.question, studio.lib, str(body.get("id") or ""),
+                                              str(body.get("about") or ""), body.get("text"))
+        project = await studio.create_project(_clean_name(title), "blank")
+        turn_id = studio.turns.start(project, text, None, None, None, [], options=checked_options(None))
+        return {"project_id": project["id"], "turn_id": turn_id}
+
     @app.get("/api/skills/{name}")
     async def own_skill(name: str):
         return await asyncio.to_thread(ownskills.view, studio.lib, name)

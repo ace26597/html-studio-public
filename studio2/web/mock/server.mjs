@@ -70,10 +70,11 @@ const BLANK_PAGE = `<!doctype html>
 `;
 
 class HttpError extends Error {
-  constructor(status, code, message) {
+  constructor(status, code, message, details) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -137,6 +138,85 @@ const NAME_RE = /^[a-z0-9_-]+$/;
 
 function allSkills() {
   return [...STUDIO_SKILLS, ...yourSkills.values(), ...MACHINE_SKILLS];
+}
+
+// ---- reading any skill (mock): stand-in folders, every one marked "(mock)" -----------------------
+
+const yourSkillFolders = new Map(); // name -> [{path, text?, data?, script}]
+// A 1×1 PNG, so that a picture can be shown.
+const MOCK_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+const SKILL_USE = {
+  "studio:mock-deep-research": { picked: 6, used: 4, last_used: new Date(Date.now() - 2 * 864e5).toISOString() },
+  "studio:mock-dashboard": { picked: 2, used: 0, last_used: null },
+};
+
+function skillMarkdown(skill, body) {
+  return `---\nname: ${skill.name}\ndescription: ${skill.description}\nlicense: (mock) MIT\n---\n${body}`;
+}
+
+function mockSkillFolder(skill) {
+  if (skill.source === "yours") return yourSkillFolders.get(skill.name) ?? [{ path: "SKILL.md", text: skillMarkdown(skill, "(mock) No instructions.\n"), script: false }];
+  const body = `# ${skill.label}\n\n(mock) Stand-in instructions for ${skill.name}.\n\n1. Read reference/notes.md.\n2. Do the job.\n3. Check the result before finishing.\n`;
+  const files = [
+    { path: "SKILL.md", text: skillMarkdown(skill, body), script: false },
+    { path: "reference/notes.md", text: "(mock) Notes the skill reads.\n\n<b>This tag is shown as text, never drawn.</b>\n", script: false },
+  ];
+  if (skill.id === "studio:mock-deep-research") {
+    files.push(
+      { path: "scripts/fetch_sources.py", text: "# (mock) A script the agent may run.\nprint('fetching sources')\n", script: true },
+      { path: "assets/flow.png", data: MOCK_PNG, script: false },
+      { path: "reference/sources.pdf", data: Buffer.from("%PDF-1.4 (mock)"), script: false },
+    );
+  }
+  return files;
+}
+
+const SKILL_TEXT_EXT = /\.(md|txt|html|htm|css|json|csv|tsv|xml|yaml|yml|toml|ini|cfg|svg|py|js|mjs|cjs|ts|sh|bash|zsh|rb|pl|php|ps1|bat|cmd)$/i;
+const SKILL_PICTURE_EXT = /\.(png|jpg|jpeg|gif|webp)$/i;
+
+function skillFileKind(path) {
+  if (SKILL_PICTURE_EXT.test(path)) return "picture";
+  return SKILL_TEXT_EXT.test(path) ? "text" : "other";
+}
+
+function skillFileSize(file) {
+  return file.data ? file.data.length : Buffer.byteLength(file.text ?? "");
+}
+
+function skillFileInfo(file) {
+  return { path: file.path, size: skillFileSize(file), kind: skillFileKind(file.path), script: Boolean(file.script) };
+}
+
+function indexedSkill(id) {
+  const skill = allSkills().find((item) => item.id === id);
+  if (!skill) throw new HttpError(404, "unknown_skill", "There is no skill with that id in the library.");
+  return skill;
+}
+
+function skillFull(skill) {
+  const folder = mockSkillFolder(skill);
+  const files = folder.map(skillFileInfo).sort((a, b) => (a.path === "SKILL.md" ? -1 : b.path === "SKILL.md" ? 1 : a.path < b.path ? -1 : 1));
+  const markdown = folder.find((file) => file.path === "SKILL.md")?.text ?? "";
+  const match = /^---\n([\s\S]*?)\n---\n?/.exec(markdown);
+  const front = {};
+  for (const line of (match?.[1] ?? "").split("\n")) {
+    const at = line.indexOf(":");
+    const key = line.slice(0, at).trim();
+    if (at > 0 && key !== "name" && key !== "description") front[key] = line.slice(at + 1).trim();
+  }
+  const use = SKILL_USE[skill.id] ?? { picked: 0, used: 0, last_used: null };
+  return {
+    ...skill,
+    enabled: true,
+    body: match ? markdown.slice(match[0].length) : markdown,
+    body_cut: false,
+    front,
+    files,
+    scripts: files.filter((file) => file.script).map((file) => file.path),
+    size: files.reduce((sum, file) => sum + file.size, 0),
+    yours: skill.source === "yours",
+    ...use,
+  };
 }
 
 const MOCK_TOOLS = [
@@ -1809,6 +1889,47 @@ async function handleApi(req, res, url) {
 
   if (segments[0] === "library" && segments.length === 1 && method === "GET") return json(res, 200, library());
 
+  if (segments[0] === "library" && segments[1] === "skills" && segments[2] === "detail" && segments.length === 3 && method === "GET") {
+    return json(res, 200, skillFull(indexedSkill(url.searchParams.get("id") ?? "")));
+  }
+  if (segments[0] === "library" && segments[1] === "skills" && segments[2] === "file" && segments.length === 3 && method === "GET") {
+    const skill = indexedSkill(url.searchParams.get("id") ?? "");
+    const file = mockSkillFolder(skill).find((item) => item.path === url.searchParams.get("path"));
+    if (!file) throw new HttpError(404, "unknown_file", "That file is not part of the skill.");
+    const info = skillFileInfo(file);
+    if (url.searchParams.get("raw") === "1") {
+      if (info.kind !== "picture") throw new HttpError(415, "not_shown", "Only a picture is served as itself.");
+      res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-store" });
+      return res.end(file.data);
+    }
+    if (info.kind === "other") throw new HttpError(415, "not_shown", "Export the skill to open this file.");
+    if (info.kind === "picture") return json(res, 200, info);
+    return json(res, 200, { ...info, text: file.text ?? "", cut: false });
+  }
+  if (segments[0] === "library" && segments[1] === "skills" && segments[2] === "ask" && segments.length === 3 && method === "POST") {
+    const body = await readJson(req);
+    const skill = indexedSkill(String(body.id ?? ""));
+    const text = typeof body.text === "string" ? body.text.trim() : "";
+    const folder = `/mock/skills/${skill.name}`;
+    let name;
+    let request;
+    if (body.about === "explain") {
+      if (text.length > 2000) throw new HttpError(400, "invalid_request", "text: at most 2,000 characters.");
+      name = `About the skill: ${skill.name}`;
+      request = `Explain the skill “${skill.name}” from my library (use the make-a-skill skill, "Explaining a skill"). Its folder is ${folder}. Read SKILL.md and every other file in it before you write.${text ? `\n\nWhat I want to know: ${text}` : ""}`;
+    } else if (body.about === "change") {
+      if (skill.source !== "yours") throw new HttpError(409, "not_yours", "Only your own skills can be changed. Make your own copy first.");
+      if (!text) throw new HttpError(400, "invalid_request", "text: say what should change.");
+      name = `Skill: ${skill.name}`;
+      request = `Change my skill “${skill.name}” (use the make-a-skill skill, "Changing a skill"). Its folder is ${folder}.\n\n${text}`;
+    } else {
+      throw new HttpError(400, "invalid_request", "about: explain or change.");
+    }
+    const project = createProject(name);
+    const turnId = beginTurn(project, { text: request, connection: project.record.connection, model: project.record.model });
+    return json(res, 202, { project_id: project.record.id, turn_id: turnId });
+  }
+
   if (segments[0] === "transcribe" && segments.length === 1 && method === "POST") {
     const fields = parseMultipart(await readBody(req), req.headers["content-type"]);
     if (!fields.file?.filename) throw new HttpError(400, "bad_upload", "No recording was sent.");
@@ -1820,6 +1941,49 @@ async function handleApi(req, res, url) {
   }
 
   if (segments[0] === "skills") {
+    if (segments[1] === "copy" && segments.length === 2 && method === "POST") {
+      const body = await readJson(req);
+      const from = indexedSkill(String(body.from ?? ""));
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      if (!name || name.length > 60 || !NAME_RE.test(name)) throw new HttpError(400, "invalid_request", "name: lower-case letters, digits, - and _, 1–60 characters.");
+      const folder = mockSkillFolder(from);
+      const scripts = folder.filter((file) => file.script).map((file) => file.path);
+      const preview = {
+        name,
+        description: from.description,
+        body_start: (folder.find((file) => file.path === "SKILL.md")?.text ?? "").slice(0, 1200),
+        files: folder.map((file) => ({ path: file.path, size: skillFileSize(file) })),
+        scripts,
+        size: folder.reduce((sum, file) => sum + skillFileSize(file), 0),
+        exists: yourSkills.has(name),
+        taken_by_studio: STUDIO_SKILLS.some((skill) => skill.name === name),
+      };
+      if (preview.taken_by_studio) throw new HttpError(409, "name_taken_by_studio", `One of the studio’s own skills is called “${name}”. Choose another name.`, preview);
+      if (preview.exists && !body.replace) throw new HttpError(409, "name_taken", `You already have a skill called “${name}”.`, preview);
+      if (scripts.length && !body.allow_scripts) throw new HttpError(409, "scripts_need_confirmation", "This skill brings scripts: tick the box to accept them.", preview);
+      const skill = { id: `yours:${name}`, name, label: name, description: from.description, source: "yours", default: true };
+      yourSkills.set(name, skill);
+      yourSkillFolders.set(name, folder.map((file) => (file.path === "SKILL.md" ? { ...file, text: file.text.replace(/^name: .*$/m, `name: ${name}`) } : { ...file })));
+      return json(res, 201, skill);
+    }
+    if (segments.length === 2 && method === "GET") {
+      const skill = yourSkills.get(segments[1]);
+      if (!skill) throw new HttpError(404, "unknown_skill", "Only your own skills open here.");
+      const full = skillFull(skill);
+      return json(res, 200, { ...skill, body: full.body, files: full.files.filter((file) => file.path !== "SKILL.md").map(({ path, size }) => ({ path, size })) });
+    }
+    if (segments.length === 2 && method === "PUT") {
+      const skill = yourSkills.get(segments[1]);
+      if (!skill) throw new HttpError(404, "unknown_skill", "Only your own skills can be changed.");
+      const body = await readJson(req);
+      if (body.description === undefined && body.body === undefined) throw new HttpError(400, "invalid_request", "Nothing to change.");
+      if (typeof body.description === "string") skill.description = body.description.trim();
+      const full = skillFull(skill);
+      const instructions = typeof body.body === "string" ? body.body : full.body;
+      const rest = (yourSkillFolders.get(skill.name) ?? []).filter((file) => file.path !== "SKILL.md");
+      yourSkillFolders.set(skill.name, [{ path: "SKILL.md", text: skillMarkdown(skill, instructions), script: false }, ...rest]);
+      return json(res, 200, { ...skill, body: instructions, files: rest.map((file) => ({ path: file.path, size: skillFileSize(file) })) });
+    }
     if (segments.length === 1 && method === "POST") {
       const body = await readJson(req);
       const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -1828,11 +1992,13 @@ async function handleApi(req, res, url) {
       if (yourSkills.has(name)) throw new HttpError(409, "name_taken", "A skill with that name already exists.");
       const skill = { id: `yours:${name}`, name, label: name, description: String(body.description ?? ""), source: "yours", default: true };
       yourSkills.set(name, skill);
+      yourSkillFolders.set(name, [{ path: "SKILL.md", text: skillMarkdown(skill, body.body), script: false }]);
       return json(res, 201, skill);
     }
     if (segments.length === 2 && method === "DELETE") {
       if (!yourSkills.has(segments[1])) throw new HttpError(404, "unknown_skill", "Only skills you added can be deleted.");
       yourSkills.delete(segments[1]);
+      yourSkillFolders.delete(segments[1]);
       for (const project of projects.values()) delete project.record.library.skills[`yours:${segments[1]}`];
       res.writeHead(204);
       return res.end();
@@ -2395,7 +2561,9 @@ const server = http.createServer(async (req, res) => {
     await handleApi(req, res, url);
   } catch (error) {
     if (res.headersSent) return res.end();
-    if (error instanceof HttpError) json(res, error.status, { error: { code: error.code, message: error.message } });
+    if (error instanceof HttpError) {
+      json(res, error.status, { error: { code: error.code, message: error.message, ...(error.details !== undefined ? { details: error.details } : {}) } });
+    }
     else {
       console.error(error);
       json(res, 500, { error: { code: "internal_error", message: "The mock server hit an unexpected error." } });

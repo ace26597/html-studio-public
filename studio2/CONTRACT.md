@@ -3787,9 +3787,9 @@ The preview (200): `{name, description, body_start (≤ 1,200 characters), files
   holds scripts, their names with a box to tick ("This skill brings N scripts the agent may
   run") before **Add to my library** works; a name already there asks whether to replace it or
   to add this one under another name.
-- Every skill in the Library has **Export** (downloads the file). The person's own skills also
-  have **Open** (the instructions and files, with **Edit** for the description and instructions)
-  and **Delete**.
+- Every skill in the Library has **Export** (downloads the file) and **Open** (see "Reading any
+  skill, explaining it, and starting from one"). The person's own skills also have **Edit** for the
+  description and instructions, in the opened skill, and **Delete**.
 - **A project's menu** has **Make a skill from this…** beside Save as template: the whole page or
   app, or the selected part (offered when something is selected), and the optional note.
 - **The approval card** for `save_skill` shows the name, when it is used, the whole instructions
@@ -4730,4 +4730,107 @@ site; the studio serves the same files itself, so they can be read from the app,
   in the same tab, and a modified click opens a new one.
 - The pages carry a link back, **Your projects** (`/`), which they show only when their address
   starts with `/site/`, that is, when a studio is serving them.
+
+# Reading any skill, explaining it, and starting from one
+
+The library lists every skill it found (the studio's own, the person's, this machine's and the
+plugins'), but until this section only the person's own could be opened, and only their
+instructions. A skill is given to the agent as it is, so the person can read all of it first.
+
+## Reading: `GET /api/library/skills/detail?id=<skill id>`
+
+Any skill in the index. 404 `unknown_skill` otherwise. Nothing is run and nothing is written.
+
+```
+{…the library's skill object (id, name, label, description, source, origin, enabled, …),
+ body, body_cut,            // the instructions without their front matter; at most 200,000
+                            // characters, body_cut true when there were more
+ front: {key: text},        // what else the front matter says (allowed-tools, license, …), as written
+ files: [{path, size, kind, script}],     // every file, SKILL.md first, then by path
+ scripts: [path], size,     // the files a program could run; the folder's size in bytes
+ yours,                     // true for a skill the person made or copied: it can be changed
+ picked, used, last_used}   // how often it was picked for a request and then really used
+```
+
+- `kind` is how the file can be shown: `picture` by its ending (`.png .jpg .jpeg .gif .webp`),
+  `text` for any other file whose start reads as text (valid UTF-8 with no zero byte: Markdown,
+  a page, a script, a licence without an ending), `other` for the rest (a PDF, an Office file,
+  a font). `script` is the rule of "Skills a person makes": a script type, or a file marked
+  executable.
+- The files are the ones an export would hold: `.git`, `node_modules`, `__pycache__`, `.venv`,
+  `.history`, `.env` and `.env.*` are never listed and never served.
+- `picked`, `used`, `last_used` come from the library's own count (step 3o); 0, 0 and null for a
+  skill that was never picked.
+- It works on a shared studio, as export does. The folder's place on the machine is not in the
+  answer.
+
+## One file: `GET /api/library/skills/file?id=<skill id>&path=<path>`
+
+`path` must be one of `files`: anything else is 404 `unknown_file`, so a path cannot leave the
+skill. For `text`: `{path, size, kind, script, text, cut}`, the first 200,000 characters, `cut`
+true when there are more. A page is shown as its source, never drawn. For `picture`: the same
+without `text`; `raw=1` answers with the picture itself (`Cache-Control: no-store`). For `other`:
+415 `not_shown` ("export the skill to open this file"). `raw=1` on a file that is not a picture
+is 415 too: a skill's page or script is never handed to the browser as something to run.
+
+## A copy of one's own: `POST /api/skills/copy`
+
+```
+{from: <skill id>, name, allow_scripts?: boolean, replace?: boolean}  →  201, the new skill
+```
+
+Any skill in the index becomes one of the person's own under `name`, with every file an export
+would hold. It is an export followed by an import under that name, with the import's rules and
+answers: 409 `name_taken_by_studio`, `name_taken` (unless `replace`), `scripts_need_confirmation`
+(unless `allow_scripts`; the preview with the scripts' names is in `error.details`), 413
+`too_large`, 403 `not_for_shared`, 404 `unknown_skill`. The skill it was copied from is left as
+it was and stays in the library.
+
+## Asking the agent about a skill: `POST /api/library/skills/ask`
+
+```
+{id: <skill id>, about: "explain" | "change", text?}  →  202 {project_id, turn_id}
+```
+
+The studio makes an ordinary project and sends one request in it, which can be stopped, queued
+and continued in the chat like any other. The request names the skill's folder on this machine,
+which the agent may read and the interface never sees.
+
+- `explain`: the project is named `About the skill: <name>` and the request is
+  `Explain the skill “<name>” from my library (use the make-a-skill skill, "Explaining a skill").
+  Its folder is <folder>. Read SKILL.md and every other file in it before you write.` followed,
+  when `text` is given (at most 2,000 characters), by a blank line and `What I want to know:
+  <text>`. The agent writes the explanation on the project's page and saves nothing.
+- `change`: only for one of the person's own (`yours`); 409 `not_yours` for any other, with a
+  message to make a copy first. `text` is required and at most 2,000 characters (400
+  `invalid_request` otherwise). The project
+  is named `Skill: <name>` and the request is `Change my skill “<name>” (use the make-a-skill
+  skill, "Changing a skill"). Its folder is <folder>.`, a blank line, then `text`. The agent
+  saves through `save_skill` with `replace: true`, which asks on its card as always.
+- 404 `unknown_skill`; 403 `not_for_shared` for `change` on a shared studio. `explain` is allowed
+  there.
+
+The skill `make-a-skill` gains the two parts the requests name. **Explaining a skill:** read
+every file; say in plain words what it is for and what kind of request starts it; what it has
+the agent do, step by step; what each file is and when it is read; for each script what it does,
+what it needs (programs, keys, the network) and what it changes on the machine; what the skill
+never says and a reader would want to know; and what could be better. Quote the line a claim
+rests on. Run nothing. **Changing a skill:** read the whole skill first; change only what was
+asked; keep its files; say that scripts cannot be written through `save_skill` (a script is
+changed by hand in the skill's folder, or the skill is imported again); show what will change
+before saving.
+
+## UI
+
+- **Every skill in the Library has Open**, in the list of the studio's and the person's skills and
+  in the index of all of them. The dialog shows when it is used, where it comes from, how many
+  files and scripts it holds and how often it was picked and used; a list of its files with the
+  instructions first and scripts marked; and the chosen file as text (a picture as a picture; a
+  file of another kind names itself and points at Export).
+- Its actions: **Explain this skill** (opens the new project), **Export**, and for one that is not
+  the person's **Make my own copy**: a name (the skill's own name with `-mine`, changeable), and
+  when it holds scripts their names with the same box to tick as an import. For the person's own:
+  **Edit** (as before), **Ask for a change** (a text box; opens the project) and **Delete**.
+- **The New page dialog** gains a third choice beside a template and a folder: **A skill**, which
+  opens Library → New skill at "Describe it".
 

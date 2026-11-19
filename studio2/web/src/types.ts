@@ -245,6 +245,50 @@ export interface SkillImportPreview {
   taken_by_studio: boolean;
 }
 
+/** How a skill's file can be shown: as text, as a picture, or not at all (export to open it). */
+export type SkillFileKind = "text" | "picture" | "other";
+
+/** One file of a skill in `GET /api/library/skills/detail`. */
+export interface SkillFile {
+  path: string;
+  size: number;
+  kind: SkillFileKind | string;
+  /** A file a program could run (a script type, or marked executable). */
+  script: boolean;
+}
+
+/** `GET /api/library/skills/detail?id=…`: any skill in the index, whole. */
+export interface SkillFull extends LibrarySkill {
+  enabled?: boolean;
+  /** The instructions without their front matter (at most 200,000 characters). */
+  body: string;
+  body_cut: boolean;
+  /** What else the front matter says, as written. */
+  front: Record<string, string>;
+  /** Every file, SKILL.md first, then by path. */
+  files: SkillFile[];
+  scripts: string[];
+  /** The folder's size in bytes. */
+  size: number;
+  /** The person made or copied it: it can be changed. */
+  yours: boolean;
+  picked: number;
+  used: number;
+  last_used: string | null;
+}
+
+/** `GET /api/library/skills/file?id=…&path=…`: `text` and `cut` only for a text file. */
+export interface SkillFileContent extends SkillFile {
+  text?: string;
+  cut?: boolean;
+}
+
+/** `POST /api/library/skills/ask`. */
+export interface SkillAskAccepted {
+  project_id: string;
+  turn_id: string;
+}
+
 export interface LibraryAgent {
   name: string;
   description: string;

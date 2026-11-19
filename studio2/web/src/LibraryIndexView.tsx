@@ -17,6 +17,7 @@ import {
   withDecision,
   type Decision,
 } from "./libraryPick";
+import { SkillOpenDialog } from "./SkillOpenDialog";
 import type { LibraryIndex, LibraryItem, LibraryItemKind } from "./types";
 
 const KINDS: { kind: LibraryItemKind; label: string }[] = [
@@ -59,7 +60,20 @@ function statesFor(kind: LibraryItemKind): { value: string; label: string }[] {
 
 const NOUN: Record<LibraryItemKind, string> = { skills: "skills", connectors: "connectors", agents: "helper agents" };
 
-export function LibraryIndexView({ initialIndex }: { initialIndex?: LibraryIndex | null }) {
+export function LibraryIndexView({
+  initialIndex,
+  shared = false,
+  onOpenProject,
+  onChanged,
+}: {
+  initialIndex?: LibraryIndex | null;
+  /** A shared studio: a skill opened here can be read, explained and exported, not changed. */
+  shared?: boolean;
+  /** Go to a project (Explain this skill, Ask for a change). */
+  onOpenProject?: (id: string) => void;
+  /** A skill was copied, changed or deleted from here: the other lists reload too. */
+  onChanged?: () => void;
+}) {
   const [kind, setKind] = useState<LibraryItemKind>("skills");
   const [query, setQuery] = useState("");
   const q = useDebounced(query.trim(), 250);
@@ -75,6 +89,8 @@ export function LibraryIndexView({ initialIndex }: { initialIndex?: LibraryIndex
   const [refreshing, setRefreshing] = useState(false);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [attempt, setAttempt] = useState(0);
+  /** The id of the skill being read. */
+  const [openSkill, setOpenSkill] = useState<string | null>(null);
   const ticket = useRef(0);
   const searchId = useId();
   const stateId = useId();
@@ -280,6 +296,7 @@ export function LibraryIndexView({ initialIndex }: { initialIndex?: LibraryIndex
                     kind={kind}
                     error={rowErrors[item.id]}
                     onDecide={(decision) => decide(item, decision)}
+                    onOpen={() => setOpenSkill(item.id)}
                   />
                 ))}
               </ul>
@@ -297,20 +314,34 @@ export function LibraryIndexView({ initialIndex }: { initialIndex?: LibraryIndex
           )
         )}
       </div>
+      {openSkill && (
+        <SkillOpenDialog
+          id={openSkill}
+          shared={shared}
+          onClose={() => setOpenSkill(null)}
+          onChanged={() => {
+            setAttempt((n) => n + 1);
+            onChanged?.();
+          }}
+          onOpenProject={(id) => (onOpenProject ? onOpenProject(id) : window.location.assign(`/p/${id}`))}
+        />
+      )}
     </div>
   );
 }
 
-function ItemRow({
+export function ItemRow({
   item,
   kind,
   error,
   onDecide,
+  onOpen,
 }: {
   item: LibraryItem;
   kind: LibraryItemKind;
   error?: string;
   onDecide: (decision: Decision) => void;
+  onOpen?: () => void;
 }) {
   const title = item.label || item.name;
   const facts = kind === "skills" ? skillFacts(item) : kind === "connectors" && item.plugin_enabled === false ? ["plugin switched off in Claude Code"] : [];
@@ -331,6 +362,11 @@ function ItemRow({
           </p>
         )}
       </div>
+      {kind === "skills" && onOpen && (
+        <button type="button" className="btn btn-small lix-open" aria-label={`Open the skill ${title}`} onClick={onOpen}>
+          Open
+        </button>
+      )}
       {kind === "skills" && (
         <a
           className="btn btn-small lix-export"

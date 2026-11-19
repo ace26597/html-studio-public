@@ -132,9 +132,17 @@ export function App() {
       />
     );
   } else if (route.name === "home") {
-    page = <Home navigate={navigate} theme={theme} onToggleTheme={toggleTheme} site={health.site === true} />;
+    page = (
+      <Home
+        navigate={navigate}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        site={health.site === true}
+        shared={health.shared === true}
+      />
+    );
   } else if (route.name === "library") {
-    page = <LibraryPage navigate={navigate} theme={theme} onToggleTheme={toggleTheme} />;
+    page = <LibraryPage navigate={navigate} theme={theme} onToggleTheme={toggleTheme} shared={health.shared === true} />;
   } else if (route.name === "project") {
     page = (
       <ProjectPage

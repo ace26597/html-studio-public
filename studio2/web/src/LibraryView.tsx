@@ -3,10 +3,11 @@
 import { Fragment, useCallback, useEffect, useId, useMemo, useState } from "react";
 import { api, errorMessage } from "./api";
 import { Icon, Spinner } from "./icons";
-import { countRows, filterSections, FILTER_THRESHOLD, librarySections, type LibrarySection } from "./library";
+import { countRows, filterSections, FILTER_THRESHOLD, librarySections, type LibraryRow, type LibrarySection } from "./library";
 import { McpServersView, serverMatches } from "./McpServersView";
 import { NewSkillDialog } from "./NewSkillDialog";
 import { SkillOpenDialog } from "./SkillOpenDialog";
+import { skillRowOffers } from "./skillReader";
 import type { Library } from "./types";
 import { useConfirm, useToast } from "./ui";
 
@@ -55,6 +56,8 @@ export function LibraryView({
   manage = true,
   omit,
   onOpenProject,
+  shared = false,
+  startNewSkill = false,
 }: {
   state: LibraryState;
   compact?: boolean;
@@ -64,13 +67,21 @@ export function LibraryView({
   omit?: readonly string[];
   /** Go to a project (a skill described in the Library is made in a project of its own). */
   onOpenProject?: (id: string) => void;
+  /** A shared studio: skills can be read, explained and exported, not changed. */
+  shared?: boolean;
+  /** Open the New skill dialog at "Describe it" once (the New page dialog's "A skill"). */
+  startNewSkill?: boolean;
 }) {
   const { library, error, reload } = state;
   const toast = useToast();
   const confirm = useConfirm();
   const [query, setQuery] = useState("");
-  const [addingSkill, setAddingSkill] = useState(false);
+  const [addingSkill, setAddingSkill] = useState(startNewSkill && manage);
+  // "A skill" from the New page dialog lands on "Describe it" once; New skill afterwards starts at the choice.
+  const [describeFirst, setDescribeFirst] = useState(startNewSkill);
+  /** The id of the skill being read. */
   const [openSkill, setOpenSkill] = useState<string | null>(null);
+  const openProject = (id: string) => (onOpenProject ? onOpenProject(id) : window.location.assign(`/p/${id}`));
   // Long sections (a machine can have 100+ skills) show their first rows until expanded.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const filterId = useId();
@@ -188,42 +199,7 @@ export function LibraryView({
                       {row.note && <span className="lib-row-note">{row.note}</span>}
                     </div>
                     {row.status && <span className={`lib-status is-${row.status.tone}`}>{row.status.text}</span>}
-                    {manage && (row.exportId || row.action) && (
-                      <div className="lib-row-actions">
-                        {row.action && (
-                          <button
-                            type="button"
-                            className="btn btn-small"
-                            aria-label={`Open the skill ${row.action.name}`}
-                            onClick={() => setOpenSkill((row.action as { name: string }).name)}
-                          >
-                            Open
-                          </button>
-                        )}
-                        {row.exportId && (
-                          <a
-                            className="btn btn-small"
-                            href={api.skillExportUrl(row.exportId)}
-                            download
-                            aria-label={`Export the skill ${row.title}`}
-                          >
-                            <Icon name="download" size={13} /> Export
-                          </a>
-                        )}
-                        {row.action && (
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            aria-label={`Delete the skill ${row.action.name}`}
-                            data-tip="Delete"
-                            data-tip-align="end"
-                            onClick={() => void deleteSkill((row.action as { name: string }).name)}
-                          >
-                            <Icon name="trash" size={15} />
-                          </button>
-                        )}
-                      </div>
-                    )}
+                    {manage && (row.exportId || row.action) && <RowActions row={row} shared={shared} onOpen={setOpenSkill} onDelete={(name) => void deleteSkill(name)} />}
                   </li>
                 ))}
               </ul>
@@ -253,16 +229,75 @@ export function LibraryView({
       })}
       {addingSkill && (
         <NewSkillDialog
-          onClose={() => setAddingSkill(false)}
+          initialWay={describeFirst ? "describe" : null}
+          onClose={() => {
+            setAddingSkill(false);
+            setDescribeFirst(false);
+          }}
           onAdded={(name) => {
             setAddingSkill(false);
             toast({ message: `Added the skill “${name}”`, kind: "success" });
             reload();
           }}
-          onOpenProject={(id) => (onOpenProject ? onOpenProject(id) : window.location.assign(`/p/${id}`))}
+          onOpenProject={openProject}
         />
       )}
-      {openSkill && <SkillOpenDialog name={openSkill} onClose={() => setOpenSkill(null)} onChanged={reload} />}
+      {openSkill && (
+        <SkillOpenDialog
+          id={openSkill}
+          shared={shared}
+          onClose={() => setOpenSkill(null)}
+          onChanged={reload}
+          onOpenProject={openProject}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Open, Export and (for one's own) Delete on a skill's row. */
+export function RowActions({
+  row,
+  shared,
+  onOpen,
+  onDelete,
+}: {
+  row: LibraryRow;
+  shared: boolean;
+  onOpen: (id: string) => void;
+  onDelete: (name: string) => void;
+}) {
+  const offers = skillRowOffers(row, shared);
+  if (!offers.open && !offers.export && !offers.delete) return null;
+  return (
+    <div className="lib-row-actions">
+      {offers.open && row.exportId && (
+        <button
+          type="button"
+          className="btn btn-small"
+          aria-label={`Open the skill ${row.title}`}
+          onClick={() => onOpen(row.exportId as string)}
+        >
+          Open
+        </button>
+      )}
+      {offers.export && row.exportId && (
+        <a className="btn btn-small" href={api.skillExportUrl(row.exportId)} download aria-label={`Export the skill ${row.title}`}>
+          <Icon name="download" size={13} /> Export
+        </a>
+      )}
+      {offers.delete && row.action && (
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label={`Delete the skill ${row.action.name}`}
+          data-tip="Delete"
+          data-tip-align="end"
+          onClick={() => onDelete((row.action as { name: string }).name)}
+        >
+          <Icon name="trash" size={15} />
+        </button>
+      )}
     </div>
   );
 }

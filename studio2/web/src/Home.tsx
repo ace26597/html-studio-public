@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage } from "./api";
 import { appStateLabel, relativeTime } from "./format";
 import { Icon, Spinner } from "./icons";
+import { NEW_SKILL_HASH } from "./LibraryPage";
 import { NewProjectDialog } from "./NewProjectDialog";
 import type { Navigate } from "./router";
 import type { Theme } from "./theme";
@@ -19,6 +20,8 @@ interface HomeProps {
   onToggleTheme: () => void;
   /** The studio serves the guide and the benchmarks (`Health.site`). */
   site?: boolean;
+  /** A shared studio: no skills are added there, so the New page dialog does not offer one. */
+  shared?: boolean;
 }
 
 /**
@@ -175,7 +178,7 @@ function ProjectCard({
   );
 }
 
-export function Home({ navigate, theme, onToggleTheme, site }: HomeProps) {
+export function Home({ navigate, theme, onToggleTheme, site, shared = false }: HomeProps) {
   const toast = useToast();
   const confirm = useConfirm();
   const [projects, setProjects] = useState<Project[] | null>(null);
@@ -408,6 +411,14 @@ export function Home({ navigate, theme, onToggleTheme, site }: HomeProps) {
           onCreate={(template) => void create(template)}
           onAttach={(request) => void attachApp(request)}
           onClose={() => setDialogOpen(false)}
+          onSkill={
+            shared
+              ? undefined
+              : () => {
+                  setDialogOpen(false);
+                  navigate(`/library${NEW_SKILL_HASH}`);
+                }
+          }
         />
       )}
     </div>

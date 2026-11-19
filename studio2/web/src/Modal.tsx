@@ -12,10 +12,12 @@ interface ModalProps {
   /** While true, Escape and the backdrop do nothing (a request is in flight). */
   busy?: boolean;
   wide?: boolean;
+  /** Another class on the dialog box (a dialog that needs more room than "wide"). */
+  className?: string;
   children: ReactNode;
 }
 
-export function Modal({ title, onClose, busy = false, wide = false, children }: ModalProps) {
+export function Modal({ title, onClose, busy = false, wide = false, className, children }: ModalProps) {
   const dialog = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
@@ -57,7 +59,7 @@ export function Modal({ title, onClose, busy = false, wide = false, children }: 
       }}
     >
       <div
-        className={`dialog${wide ? " dialog-wide" : ""}`}
+        className={`dialog${wide ? " dialog-wide" : ""}${className ? ` ${className}` : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

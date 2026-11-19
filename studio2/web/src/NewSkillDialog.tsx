@@ -16,7 +16,7 @@ import {
 import { loadString, saveString } from "./storage";
 import type { SkillImportPreview } from "./types";
 
-type Way = "describe" | "write" | "import";
+export type Way = "describe" | "write" | "import";
 
 const WAYS: { way: Way; icon: IconName; title: string; what: string }[] = [
   { way: "describe", icon: "chat", title: "Describe it", what: "Say what should happen in your own words. The agent writes the skill with you." },
@@ -47,14 +47,16 @@ interface WriteDraft {
 }
 
 interface NewSkillDialogProps {
+  /** Open at one of the ways instead of the choice ("A skill" in the New page dialog opens "Describe it"). */
+  initialWay?: Way | null;
   onClose: () => void;
   /** A skill was added to the library, written here or imported. */
   onAdded: (name: string) => void;
   onOpenProject: (id: string) => void;
 }
 
-export function NewSkillDialog({ onClose, onAdded, onOpenProject }: NewSkillDialogProps) {
-  const [way, setWay] = useState<Way | null>(null);
+export function NewSkillDialog({ initialWay = null, onClose, onAdded, onOpenProject }: NewSkillDialogProps) {
+  const [way, setWay] = useState<Way | null>(initialWay);
   const [busy, setBusy] = useState(false);
   // Kept here so that Back does not lose what was typed or chosen.
   const [description, setDescriptionState] = useState(() => loadString(DRAFT_KEY) ?? "");

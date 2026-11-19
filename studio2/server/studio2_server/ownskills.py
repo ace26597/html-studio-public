@@ -38,6 +38,10 @@ ASK_REASON = "A skill in your library is given to the agent in every project fro
 REFERENCE_TYPES = frozenset(""".md .txt .html .css .json .csv .tsv .svg .png .jpg .jpeg .webp .gif .pdf .docx
  .pptx .xlsx""".split())
 SCRIPT_TYPES = frozenset(".py .js .mjs .cjs .ts .sh .bash .zsh .rb .pl .php .ps1 .bat .cmd".split())
+# Reading any skill (CONTRACT.md, "Reading any skill, explaining it, and starting from one").
+SHOWN_CHARS = 200_000
+PICTURE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
+                 ".webp": "image/webp"}
 LEFT_OUT_FOLDERS = frozenset({".git", "node_modules", "__pycache__", ".history", ".venv", "__MACOSX"})
 _writing = threading.Lock()
 
@@ -154,6 +158,120 @@ def view(library: Library, name: str) -> dict:
         raise SkillError(404, "unknown_skill", "There is no skill of yours with that name.")
     _kept, body = _split((folder / "SKILL.md").read_text("utf-8", "replace"))
     return {**library.public(entry), "body": body, "files": _other_files(folder)}
+
+
+# -- reading any skill --------------------------------------------------------------------------
+def file_kind(path: str, full: Path) -> str:
+    """How a file of a skill can be shown: `picture` by its ending, `text` when its start reads as
+    text (valid UTF-8 with no zero byte), `other` for the rest."""
+    if PurePosixPath(path).suffix.lower() in PICTURE_TYPES:
+        return "picture"
+    try:
+        with full.open("rb") as handle:
+            head = handle.read(4096)
+    except OSError:
+        return "other"
+    if b"\x00" in head:
+        return "other"
+    for cut in range(4):                    # a character may be cut in two at the end of the sample
+        try:
+            head[:len(head) - cut].decode("utf-8")
+            return "text"
+        except UnicodeDecodeError:
+            continue
+    return "other"
+
+
+def _any(library: Library, skill_id: str) -> tuple[dict, Path]:
+    entry = library.skill(skill_id)
+    if entry is None:
+        raise SkillError(404, "unknown_skill", "There is no such skill in the library.")
+    return entry, Path(entry["dir"]).resolve()
+
+
+def _listed(folder: Path) -> list[tuple[dict, Path]]:
+    """Every file of a skill as the reader lists it, the instructions first, with its full path."""
+    found = [({"path": path, "size": info.st_size, "kind": file_kind(path, full),
+               "script": is_script(path, info.st_mode)}, full) for path, full, info in _walk(folder)]
+    return sorted(found, key=lambda item: (item[0]["path"] != "SKILL.md", item[0]["path"]))
+
+
+def detail(library: Library, skill_id: str, usage: dict | None = None) -> dict:
+    """Any skill of the index, whole: its instructions, what else its front matter says, every file
+    it holds and how often it was picked and used. Nothing is run and nothing is written."""
+    entry, folder = _any(library, skill_id)
+    files = [item for item, _full in _listed(folder)]
+    try:
+        text = (folder / "SKILL.md").read_text("utf-8", "replace")
+    except OSError:
+        text = ""
+    _kept, body = _split(text)
+    front = {key: value for key, value in parse_front_matter(text[:12_000]).items()
+             if key not in ("name", "description") and value}
+    seen = (usage or {}).get(entry["id"]) or {}
+    return {**library.public(entry), "body": body[:SHOWN_CHARS], "body_cut": len(body) > SHOWN_CHARS,
+            "front": front, "files": files, "scripts": [item["path"] for item in files if item["script"]],
+            "size": sum(item["size"] for item in files), "yours": entry["source"] == "yours",
+            "picked": int(seen.get("picked") or 0), "used": int(seen.get("used") or 0),
+            "last_used": seen.get("last_used") or None}
+
+
+def one_file(library: Library, skill_id: str, path: str, raw: bool = False):
+    """One file of a skill: its text (`{path, size, kind, script, text, cut}`), or with `raw` a
+    picture as `(bytes, media type)`. Only a file the reader lists can be named, so a path cannot
+    leave the skill; a page or a script is never handed over as something a browser would run."""
+    _entry, folder = _any(library, skill_id)
+    found = next(((item, full) for item, full in _listed(folder) if item["path"] == path), None)
+    if found is None:
+        raise SkillError(404, "unknown_file", "This skill has no such file.")
+    item, full = found
+    if raw:
+        if item["kind"] != "picture":
+            raise SkillError(415, "not_shown", "Only a picture is handed over as it is.")
+        return full.read_bytes(), PICTURE_TYPES[PurePosixPath(path).suffix.lower()]
+    if item["kind"] == "other":
+        raise SkillError(415, "not_shown", "This kind of file is not shown here: export the skill to open it.")
+    if item["kind"] == "picture":
+        return dict(item)
+    with full.open("r", encoding="utf-8", errors="replace") as handle:
+        text = handle.read(SHOWN_CHARS + 1)
+    return {**item, "text": text[:SHOWN_CHARS].replace("\r\n", "\n"), "cut": len(text) > SHOWN_CHARS}
+
+
+def copy(library: Library, source_id: str, name: str, allow_scripts: bool = False, replace: bool = False) -> dict:
+    """Any skill of the index → one of the person's own under `name`: an export, then an import
+    under that name, with the import's rules. The skill it came from is left as it was."""
+    if library.settings.shared:
+        raise SkillError(403, "not_for_shared", "On a shared studio only its owner adds skills to the library.")
+    if not isinstance(name, str) or not NAME.fullmatch(name):
+        raise _invalid("name: use lower-case letters, digits, - and _ (at most 60 characters).")
+    _filename, data = export(library, source_id)
+    return import_skill(library, data, name=name, replace=replace, allow_scripts=allow_scripts)
+
+
+def question(library: Library, skill_id: str, about: str, text) -> tuple[str, str]:
+    """→ (the project's name, the request) for asking the agent about a skill. The request names
+    the skill's folder on this machine, which the agent may read and the interface never sees."""
+    entry, folder = _any(library, skill_id)
+    text = " ".join(str(text or "").split()) if about == "explain" else str(text or "").strip()
+    if about not in ("explain", "change"):
+        raise _invalid("about: explain or change.")
+    if len(text) > 2_000:
+        raise _invalid("text can be at most 2,000 characters.")
+    name = entry["name"]
+    if about == "explain":
+        ask = (f"Explain the skill “{name}” from my library (use the make-a-skill skill, \"Explaining a skill\"). "
+               f"Its folder is {folder}. Read SKILL.md and every other file in it before you write.")
+        return f"About the skill: {name}", ask + (f"\n\nWhat I want to know: {text}" if text else "")
+    if library.settings.shared:
+        raise SkillError(403, "not_for_shared", "On a shared studio only its owner changes the library's skills.")
+    if entry["source"] != "yours":
+        raise SkillError(409, "not_yours", "Only a skill of your own can be changed: make your own copy of this "
+                                           "one first, then change the copy.")
+    if not text:
+        raise _invalid("Say what should change.")
+    return f"Skill: {name}", (f"Change my skill “{name}” (use the make-a-skill skill, \"Changing a skill\"). "
+                              f"Its folder is {folder}.\n\n{text}")
 
 
 # -- writing ----------------------------------------------------------------------------------

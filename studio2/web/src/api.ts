@@ -41,7 +41,10 @@ import type {
   ShipRecipe,
   ShipRecord,
   ShipView,
+  SkillAskAccepted,
   SkillDetail,
+  SkillFileContent,
+  SkillFull,
   SkillImportPreview,
   Template,
   Version,
@@ -93,11 +96,14 @@ export function skillImportSearch(options: SkillImportOptions & { dryRun?: boole
 export class ApiError extends Error {
   status: number;
   code: string;
-  constructor(status: number, code: string, message: string) {
+  /** The contract's `error.details`, when the answer carries any (an import's preview on a 409). */
+  details?: unknown;
+  constructor(status: number, code: string, message: string, details?: unknown) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    if (details !== undefined) this.details = details;
   }
 }
 
@@ -145,12 +151,13 @@ export async function request<T>(method: string, path: string, body?: unknown, s
     }
   }
   if (!response.ok) {
-    const err = (data as { error?: { code?: string; message?: string } } | null)?.error;
+    const err = (data as { error?: { code?: string; message?: string; details?: unknown } } | null)?.error;
     if (response.status === 401 && err?.code === "access_denied") accessDenied?.();
     throw new ApiError(
       response.status,
       err?.code ?? `http_${response.status}`,
       err?.message ?? `The studio server answered with an error (${response.status}).`,
+      err?.details,
     );
   }
   return data as T;
@@ -311,6 +318,16 @@ export const api = {
   updateSkill: (name: string, change: { description?: string; body?: string }) =>
     request<SkillDetail>("PUT", `/skills/${enc(name)}`, change),
   skillExportUrl: (id: string) => `/api/library/skills/export?id=${enc(id)}`,
+  skillDetail: (id: string, signal?: AbortSignal) =>
+    request<SkillFull>("GET", `/library/skills/detail?id=${enc(id)}`, undefined, signal),
+  skillFile: (id: string, path: string, signal?: AbortSignal) =>
+    request<SkillFileContent>("GET", `/library/skills/file?id=${enc(id)}&path=${enc(path)}`, undefined, signal),
+  /** A picture of a skill, as the picture itself (only pictures are served this way). */
+  skillFileRawUrl: (id: string, path: string) => `/api/library/skills/file?id=${enc(id)}&path=${enc(path)}&raw=1`,
+  copySkill: (input: { from: string; name: string; allow_scripts?: boolean; replace?: boolean }) =>
+    request<LibrarySkill>("POST", "/skills/copy", input),
+  askAboutSkill: (input: { id: string; about: "explain" | "change"; text?: string }) =>
+    request<SkillAskAccepted>("POST", "/library/skills/ask", input),
   previewSkillImport: (file: File) => {
     const form = new FormData();
     form.append("file", file, file.name);

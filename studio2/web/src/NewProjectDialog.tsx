@@ -17,14 +17,50 @@ interface NewProjectDialogProps {
   /** Step 3k: create a project from an app on this computer. */
   onAttach: (request: AttachRequest) => void;
   onClose: () => void;
+  /** "A skill": open Library → New skill at "Describe it". Left out, the choice is not offered (a shared studio). */
+  onSkill?: () => void;
 }
 
-type Source = "template" | "folder";
+export type Source = "template" | "folder" | "skill";
+
+/** The choices at the top of the dialog, in order. "A skill" only when it can be offered. */
+export function newPageSources(withSkill: boolean): { value: Source; label: string }[] {
+  const all: { value: Source; label: string }[] = [
+    { value: "template", label: "A template or a blank page" },
+    { value: "folder", label: "An app on this computer" },
+    { value: "skill", label: "A skill" },
+  ];
+  return withSkill ? all : all.filter((item) => item.value !== "skill");
+}
+
+/** What "A skill" says: what a skill is, in plain words, and where the button goes. */
+export function SkillChoice() {
+  return (
+    <div className="newpage-skill">
+      <p className="dialog-body">
+        A skill is a set of instructions the agent follows for one kind of job, so you get the same kind of result again,
+        in any project.
+      </p>
+      <p className="dialog-body">
+        Describe what should happen in your own words. The agent asks what it needs to know and writes the skill with you;
+        nothing joins your library until you allow it.
+      </p>
+    </div>
+  );
+}
 
 const DEFAULT_TEMPLATE = "blank";
 
-export function NewProjectDialog({ creating, createError, onCreate, onAttach, onClose }: NewProjectDialogProps) {
-  const [source, setSource] = useState<Source>("template");
+export function NewProjectDialog({
+  creating,
+  createError,
+  onCreate,
+  onAttach,
+  onClose,
+  onSkill,
+  initialSource = "template",
+}: NewProjectDialogProps & { initialSource?: Source }) {
+  const [source, setSource] = useState<Source>(initialSource);
   const [attachRequest, setAttachRequest] = useState<AttachRequest | null>(null);
   const [attachBlocker, setAttachBlocker] = useState<string | null>(null);
   const submitAttach = () => {
@@ -138,12 +174,7 @@ export function NewProjectDialog({ creating, createError, onCreate, onAttach, on
       <div className="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} ref={dialog}>
         <DialogHead titleId={titleId} title="New page" onClose={onClose} busy={creating} />
         <div className="newpage-tabs" role="tablist" aria-label="Start from">
-          {(
-            [
-              ["template", "A template or a blank page"],
-              ["folder", "An app on this computer"],
-            ] as const
-          ).map(([value, label]) => (
+          {newPageSources(Boolean(onSkill)).map(({ value, label }) => (
             <button
               key={value}
               type="button"
@@ -157,7 +188,9 @@ export function NewProjectDialog({ creating, createError, onCreate, onAttach, on
             </button>
           ))}
         </div>
-        {source === "folder" ? (
+        {source === "skill" ? (
+          <SkillChoice />
+        ) : source === "folder" ? (
           <AttachForm
             disabled={creating}
             onReady={(request, blocker) => {
@@ -221,7 +254,11 @@ export function NewProjectDialog({ creating, createError, onCreate, onAttach, on
           <button type="button" className="btn" disabled={creating} onClick={onClose}>
             Cancel
           </button>
-          {source === "folder" ? (
+          {source === "skill" ? (
+            <button type="button" className="btn btn-primary" disabled={creating} onClick={onSkill}>
+              Describe it
+            </button>
+          ) : source === "folder" ? (
             <button
               type="button"
               className="btn btn-primary"
