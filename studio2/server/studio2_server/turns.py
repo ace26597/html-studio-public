@@ -17,7 +17,8 @@ from . import drawing, effort, nextsteps, tools
 from .check import check_page
 from .filecheck import NOT_FOUND_WHY, PLACEHOLDER_WHY, check_file, linked_files
 from .config import now_iso
-from .costs import AGENT_PRICED, GATEWAY_KIND, SELF_PRICED, per_turn
+from .costs import (AGENT_PRICED, GATEWAY_KIND, SELF_PRICED, add_counts, per_turn, sum_counts, take_auxiliary,
+                    turn_models)
 from . import workspace as ws
 from .harness import TurnRequest, empty_usage
 from .store import ProjectNotFound
@@ -429,6 +430,7 @@ class TurnRunner:
         started, started_at = time.monotonic(), now_iso()
         status, error, usage = "completed", None, empty_usage()
         session = {"id": project.get("session_id")}
+        request = None
 
         def emit(event: dict) -> None:
             fields = dict(event)
@@ -542,6 +544,22 @@ class TurnRunner:
             usage["duration_ms"] = int((time.monotonic() - started) * 1000)
         if status == "failed" and not error:
             error = "The turn failed without an error message."
+        # What the turn used, by model: its part of the conversation's running totals, or, for a turn
+        # that ended without a result, what its messages carried (CONTRACT.md, "What a turn used, by model").
+        totals, heard = usage.pop("session_models", None), usage.pop("models_heard", None)
+        if heard is None and request is not None and callable(request.progress.get("heard")):
+            heard = request.progress["heard"]()
+        used, usage_mark = turn_models(totals, heard, session["id"], project.get("session_usage"))
+        small = take_auxiliary(turn_id)      # the studio's own picking call before the turn
+        used = add_counts(used, small["models"])
+        if used:
+            summed = sum_counts(used)
+            usage["models"] = used
+            usage["tokens"] = {**summed, "cache_write_1h": (usage.get("tokens") or {}).get("cache_write_1h")}
+            usage["input_tokens"] = summed["input"] + summed["cache_read"] + summed["cache_write"]
+            usage["output_tokens"] = summed["output"]
+            if not totals:
+                usage["tokens_partial"] = True
         kept = {}
         total = usage.get("cost_usd")
         if isinstance(total, (int, float)) and connection["kind"] not in SELF_PRICED:
@@ -552,9 +570,13 @@ class TurnRunner:
             usage["cost_basis"] = ("plan" if usage.get("cost_estimated")
                                    else "calculated" if connection["kind"] in AGENT_PRICED else None)
             kept = {"session_cost": {"session_id": session["id"], "total_usd": total}}
+            if small["cost_usd"]:       # the picking call is a request of this turn, on its own process
+                usage["cost_usd"] = round(usage["cost_usd"] + small["cost_usd"], 6)
         elif isinstance(usage.get("session_cost_usd"), (int, float)) and connection["kind"] in SELF_PRICED:
             # A gateway prices this turn itself, but the conversation's total ran on: keep it as the mark.
             kept = {"session_cost": {"session_id": session["id"], "total_usd": usage["session_cost_usd"]}}
+        if usage_mark:
+            kept["session_usage"] = usage_mark
         self.active.pop(pid, None)
         self.tasks.pop(pid, None)
         try:  # release the project before announcing the end, so a follow-up turn is accepted

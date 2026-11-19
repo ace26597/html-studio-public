@@ -180,7 +180,7 @@ async def test_a_log_that_cannot_be_read_falls_back_to_the_turns_own_tokens(clie
     expected = 1_200 * 2 / 1e6 + 100_000 * 0.1 / 1e6 + 800 * 10 / 1e6        # cached tokens at the cache-read rate
     assert cost["source"] == "tokens" and cost["basis"] == "backup" and cost["cost_usd"] == pytest.approx(expected)
     assert cost["backup"] == {"requests": None, "usd": round(expected, 6), "rates": "list", "as_of": SHIPPED.as_of}
-    assert "403" in cost["reason"] and "own token counts" in cost["reason"] and "can be high" in cost["reason"]
+    assert "403" in cost["reason"] and "token counts" in cost["reason"] and "not the provider's bill" in cost["reason"]
     total = (await client.get(f"/api/projects/{pid}/cost")).json()
     assert total["turns"][0]["kind"] == "charged" and total["backup_usd"] == pytest.approx(expected, abs=1e-6)
 
@@ -458,3 +458,48 @@ def test_the_shipped_tier_holds_when_the_gateways_price_has_none():
     single = prices.Pricer(gateway_rates, SHIPPED)
     assert single.price("anthropic/claude-haiku-5.5", one) == pytest.approx(150_000 * 0.50 / 1e6 + 1_000 * 2.50 / 1e6)
     assert single.summary()["rates"] == "list"
+
+
+# ---- a model that cannot take pictures (CONTRACT.md, same heading) -------------------------------
+def _price_tool():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("prices_update", LIBRARY.parent / "tools" / "prices" / "update.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_price_tool_marks_a_text_only_model_and_nothing_else():
+    listing = {"data": [
+        {"id": "a/text-only", "pricing": {"prompt": "0.000001", "completion": "0.000002"},
+         "architecture": {"input_modalities": ["text"]}},
+        {"id": "a/sees", "pricing": {"prompt": "0.000001", "completion": "0.000002"},
+         "architecture": {"input_modalities": ["text", "image"]}},
+        {"id": "a/says-nothing", "pricing": {"prompt": "0.000001", "completion": "0.000002"}},
+    ]}
+    models = _price_tool().build(listing, "2026-11-19")["models"]
+    assert models["a/text-only"]["images"] is False
+    assert "images" not in models["a/sees"] and "images" not in models["a/says-nothing"]
+
+
+def test_the_shipped_list_knows_which_current_models_take_text_only():
+    data = json.loads((LIBRARY / "model-prices.json").read_text("utf-8"))["models"]
+    assert data["deepseek/deepseek-v4-pro-0813"]["images"] is False and data["z-ai/glm-5.3"]["images"] is False
+    for sees in ("anthropic/claude-opus-5.5", "openai/gpt-6.1-sol", "z-ai/glm-5.3-flash", "deepseek/deepseek-v4.1-flash"):
+        assert "images" not in data[sees], sees
+
+
+def test_only_a_known_text_only_model_on_a_translated_connection_is_kept_from_pictures():
+    gateway_connection = {"id": "g", "kind": "anthropic-gateway"}
+    assert prices.takes_pictures(gateway_connection, "openrouter/deepseek/deepseek-v4-pro-0813", SHIPPED) is False
+    assert prices.takes_pictures({"id": "l", "kind": "litellm"}, "openrouter/z-ai/glm-5.3", SHIPPED) is False
+    assert prices.takes_pictures(gateway_connection, "openrouter/z-ai/glm-5.3-flash", SHIPPED) is True
+    assert prices.takes_pictures(gateway_connection, "a-model-nobody-knows", SHIPPED) is True      # as before
+    assert prices.takes_pictures(gateway_connection, None, SHIPPED) is True
+    # The person can name one the list does not know; it is matched as the connection spells it.
+    named = {**gateway_connection, "text_only_models": ["my-local-model"]}
+    assert prices.takes_pictures(named, "my-local-model", SHIPPED) is False
+    assert prices.takes_pictures(named, "my-other-model", SHIPPED) is True
+    # Claude's own connections are never looked at, whatever the list says about a name.
+    for kind in ("claude-subscription", "anthropic-api", "bedrock"):
+        assert prices.takes_pictures({"id": "c", "kind": kind}, "deepseek-v4-pro-0813", SHIPPED) is True

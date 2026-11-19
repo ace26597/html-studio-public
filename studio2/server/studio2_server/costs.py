@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import re
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -65,6 +66,120 @@ def per_turn(total: float, session_id: str | None, prior: dict | None) -> float:
     if prior and session_id and prior.get("session_id") == session_id and _number(before) and total >= before:
         return round(total - before, 6)
     return total
+
+
+# ---- what a turn used, by model (CONTRACT.md, "What a turn used, by model") ----------------------
+COUNTS = ("input", "cache_read", "cache_write", "output")
+
+
+def model_counts(model_usage: object) -> dict:
+    """The agent program's `modelUsage` (running totals by model) in the studio's own words."""
+    out = {}
+    for name, row in (model_usage.items() if isinstance(model_usage, dict) else ()):
+        if not isinstance(row, dict):
+            continue
+        counts = _counts(row.get("inputTokens"), row.get("cacheReadInputTokens"),
+                         row.get("cacheCreationInputTokens"), row.get("outputTokens"))
+        if any(counts.values()):
+            out[str(name)] = counts
+    return out
+
+
+def message_counts(usage: object) -> dict:
+    """One assistant message's `usage` (Anthropic's names) as counts."""
+    usage = usage if isinstance(usage, dict) else {}
+    return _counts(usage.get("input_tokens"), usage.get("cache_read_input_tokens"),
+                   usage.get("cache_creation_input_tokens"), usage.get("output_tokens"))
+
+
+def _counts(*values) -> dict:
+    return {kind: value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 0
+            for kind, value in zip(COUNTS, values)}
+
+
+def add_counts(first: dict | None, second: dict | None) -> dict:
+    """Two sets of counts by model, added."""
+    out = {model: dict(counts) for model, counts in (first or {}).items()}
+    for model, counts in (second or {}).items():
+        mine = out.setdefault(model, dict.fromkeys(COUNTS, 0))
+        for kind in COUNTS:
+            mine[kind] = (mine.get(kind) or 0) + (counts.get(kind) or 0)
+    return out
+
+
+def sum_counts(models: dict | None) -> dict:
+    return {kind: sum((counts.get(kind) or 0) for counts in (models or {}).values()) for kind in COUNTS}
+
+
+def same_model(first: str, second: str) -> bool:
+    """One model under two spellings: the same name, with or without a date at the end."""
+    plain = [re.sub(r"-\d{8}$", "", str(name).strip().lower()) for name in (first, second)]
+    return plain[0] == plain[1]
+
+
+def _named(models: dict | None, model: str) -> dict:
+    """The counts kept under `model`, whatever spelling it was kept under; {} when there are none."""
+    out, found = dict.fromkeys(COUNTS, 0), False
+    for name, counts in (models or {}).items():
+        if same_model(name, model):
+            found = True
+            for kind in COUNTS:
+                out[kind] += counts.get(kind) or 0
+    return out if found else {}
+
+
+def turn_models(totals: dict | None, heard: dict | None, session_id: str | None,
+                prior: dict | None) -> tuple[dict, dict | None]:
+    """→ (what this turn used, by model; the mark to keep in the project record, or None).
+
+    `totals` are the conversation's running totals when the turn ended (None when it ended without
+    a result), `heard` what the turn's own assistant messages carried, `prior` the mark of the turn
+    before: `{session_id, models, pending}`, where `pending` is what cut-short turns since then
+    were already counted for. A new conversation, or a count that went down, starts from nothing."""
+    same = isinstance(prior, dict) and bool(session_id) and prior.get("session_id") == session_id
+    before = (prior.get("models") or {}) if same else {}
+    pending = (prior.get("pending") or {}) if same else {}
+    heard = {model: counts for model, counts in (heard or {}).items() if any(counts.values())}
+    if not totals:
+        if not heard:
+            return {}, None
+        # Nothing said what the turn used: what was heard is at least it, and the next turn's
+        # running totals will hold most of it again.
+        return heard, ({"session_id": session_id, "models": before, "pending": add_counts(pending, heard)}
+                       if session_id else None)
+    part = {}
+    for model, now in totals.items():
+        was = _named(before, model)
+        reset = any((now.get(kind) or 0) < (was.get(kind) or 0) for kind in COUNTS)
+        grown = {kind: (now.get(kind) or 0) - (0 if reset else (was.get(kind) or 0)) for kind in COUNTS}
+        owed = _named(pending, model)
+        if owed:    # counted once already; never less than what this turn itself was heard using
+            mine = _named(heard, model)
+            grown = {kind: max(grown[kind] - (owed.get(kind) or 0), mine.get(kind) or 0) for kind in COUNTS}
+        if any(grown.values()):
+            part[model] = grown
+    return part, ({"session_id": session_id, "models": totals} if session_id else None)
+
+
+# What the studio's own small calls before a turn used (cheap.py), by turn, until the turn is written.
+_AUXILIARY: dict[str, dict] = {}
+
+
+def note_auxiliary(model_usage: object, cost_usd: object = None) -> None:
+    """A small call the studio made for the turn now being prepared: its counts and the program's price."""
+    turn = CURRENT_TURN.get()
+    if not turn:
+        return
+    if len(_AUXILIARY) > 500:       # turns that never ended; never the cause of a growing studio
+        _AUXILIARY.clear()
+    kept = _AUXILIARY.setdefault(turn, {"models": {}, "cost_usd": 0.0})
+    kept["models"] = add_counts(kept["models"], model_counts(model_usage))
+    if _number(cost_usd):
+        kept["cost_usd"] += float(cost_usd)
+
+
+def take_auxiliary(turn_id: str) -> dict:
+    return _AUXILIARY.pop(turn_id, None) or {"models": {}, "cost_usd": 0.0}
 
 
 SELF_PRICED = ("litellm", GATEWAY_KIND)     # their figure is the route's own, per turn already
@@ -145,8 +260,9 @@ async def fetch_rates(client: httpx.AsyncClient, base_url: str, key: str) -> pri
         return prices.from_gateway(None)
 
 
-TOKENS_NOTE = ("Worked out by the studio from this request's own token counts at the rate of its model. "
-               "Requests a helper made on a cheaper model are priced at that rate too, so the figure can be high.")
+TOKENS_NOTE = ("Worked out by the studio from this request's token counts, each model's at its own list rate. "
+               "It is a calculation, not the provider's bill: a route that uses a dearer provider charges more.")
+PARTIAL_NOTE = "The request ended without saying what it used, so this is at least what it cost, not all of it."
 
 
 def _stamp(moment: datetime) -> str:
@@ -282,17 +398,24 @@ class Costs:
             if worked is None:
                 self._write(project_id, turn_id, None, 0, 0, "unavailable", reason)
             else:       # the log could not say: the turn's own token counts at its model's rate
-                self._write(project_id, turn_id, worked["usd"], 0, 0, "tokens", f"{reason} {TOKENS_NOTE}".strip(),
-                            basis="backup", backup=worked)
+                notes = [reason, TOKENS_NOTE]
+                if worked.get("unpriced_models"):
+                    notes.append("Not in this figure, for want of a complete rate: "
+                                 + ", ".join(worked["unpriced_models"]) + ".")
+                if worked.get("partial"):
+                    notes.append(PARTIAL_NOTE)
+                self._write(project_id, turn_id, worked["usd"], 0, 0, "tokens",
+                            " ".join(note for note in notes if note).strip(), basis="backup", backup=worked)
         else:
             self._write(project_id, turn_id, found["cost_usd"], found["requests"], found["unpriced"], "gateway",
                         basis=found["basis"], backup=found.get("backup"))
 
     async def _from_tokens(self, project_id: str, turn_id: str, connection: dict) -> dict | None:
-        """The backup for a turn whose spend log cannot be read: its own token counts (kept in
-        `turn_finished.usage.tokens`) at the rate of its model. None when either is missing or no
-        source has a complete rate."""
-        model = tokens = None
+        """The backup for a turn whose spend log cannot be read: its own token counts, each model's at
+        that model's rate (`turn_finished.usage.models`; a turn from before that field has only
+        `usage.tokens`, priced at its model). None when nothing could be priced; a model without a
+        complete rate is left out and named in `unpriced_models`."""
+        model, usage = None, {}
         try:
             for event in self.studio.log(project_id).read():
                 if event.get("turn_id") != turn_id:
@@ -300,15 +423,21 @@ class Costs:
                 if event["type"] == "turn_started":
                     model = event.get("model")
                 elif event["type"] == "turn_finished":
-                    tokens = (event.get("usage") or {}).get("tokens")
+                    usage = event.get("usage") or {}
         except Exception:   # noqa: BLE001 - the project is gone
             return None
-        if not model or not isinstance(tokens, dict):
-            return None
-        counts = {kind: tokens.get(kind) if isinstance(tokens.get(kind), int) and tokens.get(kind) > 0 else 0
-                  for kind in prices.KINDS}
-        counts[prices.LONG_WRITE] = tokens.get(prices.LONG_WRITE) if isinstance(tokens.get(prices.LONG_WRITE), int) else None
-        if not any(counts.values()):
+        tokens = usage.get("tokens") if isinstance(usage.get("tokens"), dict) else {}
+        models = usage.get("models") if isinstance(usage.get("models"), dict) and usage.get("models") else None
+        if models is None:
+            if not model or not tokens:
+                return None
+            models = {model: tokens}
+        long = tokens.get(prices.LONG_WRITE) if isinstance(tokens.get(prices.LONG_WRITE), int) else None
+        asked = [(name, {kind: counts.get(kind) if isinstance(counts.get(kind), int) and counts.get(kind) > 0 else 0
+                         for kind in prices.KINDS})
+                 for name, counts in models.items() if isinstance(counts, dict)]
+        asked = [(name, counts) for name, counts in asked if any(counts.values())]
+        if not asked:
             return None
         gateway = prices.from_gateway(None)
         try:
@@ -317,10 +446,22 @@ class Costs:
                 gateway = await fetch_rates(client, base, key)
         except Exception:   # noqa: BLE001 - no gateway prices: the shipped list is the only source
             pass
-        pricer = prices.Pricer(gateway, self.shipped)
-        if pricer.price(model, counts, summed=True) is None:     # a sum over requests, not one long prompt
+        pricer, unpriced = prices.Pricer(gateway, self.shipped), []
+        for name, counts in asked:
+            # How many written tokens had the 1-hour lifetime is known for the turn's own model only.
+            mine = len(asked) == 1 or (model and same_model(name, model))
+            counts[prices.LONG_WRITE] = long if mine else None
+            if pricer.price(name, counts, summed=True) is None:     # a sum over requests, not one long prompt
+                unpriced.append(name)
+        worked = pricer.summary()
+        if worked is None:
             return None
-        return {**pricer.summary(), "requests": None}       # the turn as a whole, not counted requests
+        worked["requests"] = None       # the turn as a whole, not counted requests
+        if unpriced:
+            worked["unpriced_models"] = unpriced
+        if usage.get("tokens_partial"):
+            worked["partial"] = True
+        return worked
 
     async def _read_tagged(self, project_id: str, turn_id: str, connection: dict,
                            started_at: str | None) -> tuple[dict | None, str | None, bool]:

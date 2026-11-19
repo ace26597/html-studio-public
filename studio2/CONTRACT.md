@@ -2549,6 +2549,30 @@ becomes a connection of kind `litellm`. The key goes through the key store like 
   can cost more; how well edits land depends on the model). It is shown in setup, in the
   terminal, in the Library and in the model menu of the chat.
 
+## A model that cannot take pictures
+
+Some models take text only. The agent sees its page by opening the screenshot from
+`look_at_page` with its Read tool, and the picture then goes to the model with the next request:
+a text-only model's provider refuses that request (OpenRouter: 404, "No endpoints found that
+support image input") and the turn fails after the work is done.
+
+- **Which models.** The price list (`library/model-prices.json`) carries `"images": false` for a
+  model whose listing says it takes no pictures (OpenRouter's `architecture.input_modalities`
+  without `image`); `tools/prices/update.py` writes it. A connection may name more in
+  `text_only_models` (a list of model names as the connection spells them). Only the two
+  translated kinds (`anthropic-gateway`, `litellm`) are looked at: every Claude model takes
+  pictures. A model the list does not know is taken to see pictures, as before.
+- **What changes for such a model.** The agent's Read of a picture file (`.png`, `.jpg`, `.jpeg`,
+  `.gif`, `.webp`, `.bmp`, `.tif`, `.tiff`, `.heic`, `.avif`, `.ico`) is refused before it
+  runs, with the reason and what to use instead: `layout` in the result of `look_at_page` (what
+  the studio measured in the browser) and `check_page`. Every other file is read as before, and
+  `look_at_page`, `render_image` and the like still run and save their files.
+- **What the person is told.** One `notice` (`info`) when the request starts: the model cannot
+  take pictures, so the assistant checks the page by measurements and cannot see screenshots or
+  pictures attached to the message.
+- **Not covered:** a connector's own tool that answers with a picture, and a PDF, which the
+  agent program also sends as a document.
+
 ## Web search
 
 `search_web` reads two public results pages that have no contract, in this order: DuckDuckGo's
@@ -3037,14 +3061,44 @@ never to the plan or to a route whose figure the agent program works out.
   (prompt − cache read − cache write) × input + cache read × its rate + cache write × its rate +
   completion × output, with the cache counts from the row's `usage_object.prompt_tokens_details`.
 - *A turn whose spend log cannot be read* (`source: "unavailable"` before this): the turn's own token
-  counts, which the agent program reports and `turn_finished.usage.tokens` keeps
-  (`{input, cache_read, cache_write, output}`, input without the cached ones), all at the rate of the
-  turn's model. Requests a helper made on a cheaper model are priced at the turn's model too, so this
-  figure can be high; it says so. `turn_cost` then has `source: "tokens"`. These counts are summed
-  over the turn's requests, so the size of each prompt is not known: on a model with a higher rate
-  for long prompts (`above`) a turn whose summed prompt is above that size stays **unpriced**, and
-  one at or below it takes the ordinary rate (no single request can have been above). A single
-  request (a spend-log row, the studio's own LiteLLM) is checked against `above` by its own size.
+  counts, each model's at that model's own rate, added up (`turn_cost` then has `source: "tokens"`).
+  The counts are `turn_finished.usage.models` (next item); a turn from before 19 November 2026 has
+  only `usage.tokens`, which is priced at the rate of the turn's model as it was then. A model
+  neither source has a complete rate for leaves its part out: the figure then covers the models
+  that could be priced, `backup.unpriced_models` names the rest, and the reason says the figure is
+  not the whole turn. These counts are summed over the turn's requests, so the size of each prompt
+  is not known: on a model with a higher rate for long prompts (`above`) a model's summed prompt
+  above that size stays **unpriced**, and one at or below it takes the ordinary rate (no single
+  request can have been above). A single request (a spend-log row, the studio's own LiteLLM) is
+  checked against `above` by its own size. A figure worked out this way is the provider's list
+  price times the tokens: a route that sends a request to a dearer provider of the same model
+  charges more, and only the spend log knows.
+- *What a turn used, by model* (`turn_finished.usage.models`:
+  `{"<model>": {input, cache_read, cache_write, output}}`, input without the cached ones). The agent
+  program reports two things with each result, and they are not the same. `usage` is what the main
+  agent's own requests used in this one turn. `modelUsage` is a running total for the whole
+  conversation, by model, and also holds what helper agents used and the program's own small
+  calls; it carries on when the conversation is resumed in a new process. Measured on 19 November
+  2026 with one helper agent: `usage` held 17,104 written tokens where `modelUsage` held 28,197.
+  The studio therefore keeps the running totals in the project record
+  (`session_usage: {session_id, models}`) and writes each turn's part: the totals at the end of the
+  turn less the totals the same conversation had reached before it, model by model. A new
+  conversation, or a count that went down, starts from nothing. `usage.tokens` is the sum over the
+  models, and `input_tokens` and `output_tokens` with it, so a turn's token count includes its
+  helpers. The studio's own picking call before the turn (`cheap.py`) is added under the model
+  that answered it. Where the agent program reports no `modelUsage`, `usage` is used as before.
+- *A turn that ended without a result* (stopped by the person, the process died, a time limit):
+  the agent program never said what it used. The studio then keeps what it heard on the way: what
+  each of the assistant's messages reported, main agent and helpers, each message once and at
+  the largest count it reported (the message itself, and the stream's `message_start` and
+  `message_delta`: a translating gateway such as LiteLLM starts every message with zeros and says
+  what it used when the message ends). A message that was cut off before its end is missing, and
+  the program's own small calls are missing, so `usage.tokens_partial` is `true`, a figure priced
+  from them says it is at least that much. The running totals of the conversation still hold
+  the cut-short turn when it is resumed (measured: all of it but the answer that was on its
+  way), so the project record keeps what was already counted (`session_usage.pending`) and the
+  next turn's part is the growth of the totals less that, and never less than what the next
+  turn itself was heard using: counted once, not twice.
 - *A long-prompt tier holds whichever source has the price.* The gateway's own price carries its
   tier from LiteLLM's fields `input_cost_per_token_above_<N>k_tokens`,
   `output_cost_per_token_above_<N>k_tokens`, `cache_read_input_token_cost_above_<N>k_tokens`,

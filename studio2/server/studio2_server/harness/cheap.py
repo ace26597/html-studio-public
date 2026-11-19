@@ -52,6 +52,8 @@ async def ask(connection: dict, system: str, prompt: str, timeout: float, secret
             if isinstance(message, AssistantMessage):
                 parts.extend(block.text for block in message.content if isinstance(block, TextBlock))
             elif isinstance(message, ResultMessage):
+                # A request of the turn it helps: what it used is counted with that turn (costs.py).
+                costs.note_auxiliary(getattr(message, "model_usage", None), getattr(message, "total_cost_usd", None))
                 if message.is_error:
                     raise CheapCallFailed(str(message.result or "the model call failed")[:300])
                 return

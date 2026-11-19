@@ -1,6 +1,7 @@
 """The Claude harness without Claude: SDK message objects are built by hand, no process is spawned."""
 
 import asyncio
+import dataclasses
 import json
 import os
 import time
@@ -232,6 +233,26 @@ def test_options_isolate_the_session_and_guard_the_workspace(tmp_path, monkeypat
     assert allowed == {} and denied["hookSpecificOutput"]["permissionDecision"] == "deny"
     assert asyncio.run(options.can_use_tool("Bash", {"command": "ls"}, None)).behavior == "allow"
     assert asyncio.run(options.can_use_tool("Edit", outside, None)).behavior == "deny"
+
+
+def test_a_text_only_model_is_kept_from_opening_pictures_and_from_nothing_else(tmp_path):
+    """CONTRACT.md, "A model that cannot take pictures": the Read of a picture is refused before it runs."""
+    request = TurnRequest("p_1", "t_1", tmp_path, "hi", None, GATEWAY, "openrouter/deepseek/deepseek-v4-pro-0813")
+    assert len(build_options(request, {}, None).hooks["PreToolUse"]) == 1          # a model that sees: no such guard
+    guards = build_options(dataclasses.replace(request, pictures=False), {}, None).hooks["PreToolUse"]
+    assert [guard.matcher for guard in guards] == ["Write|Edit|MultiEdit|NotebookEdit", "Read"]
+    hook = guards[1].hooks[0]
+
+    def read(path):
+        return asyncio.run(hook({"tool_name": "Read", "tool_input": {"file_path": path}}, "tu", {"signal": None}))
+
+    for picture in ("looks/look-1.png", str(tmp_path / "shots" / "Page.JPG"), "a.webp", "logo.ico"):
+        refused = read(picture)["hookSpecificOutput"]
+        assert refused["permissionDecision"] == "deny", picture
+        assert "takes text only" in refused["permissionDecisionReason"] and "layout" in refused["permissionDecisionReason"]
+    assert Path("looks/look-1.png").name in read("looks/look-1.png")["hookSpecificOutput"]["permissionDecisionReason"]
+    for other in ("index.html", "data/sales.csv", "notes.png.txt", "report.pdf", ""):
+        assert read(other) == {}, other
 
 
 def test_library_is_a_valid_local_plugin():

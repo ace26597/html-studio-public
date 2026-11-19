@@ -84,10 +84,13 @@ runs as you too.
   agent).
 - **A restart ends running requests.** The studio is a background process, not a managed
   service.
-- **Cost:** a request on a gateway you run yourself shows its cost only when the gateway is LiteLLM
-  with a database (the studio reads its spend log); on any other gateway no cost is shown. Only
-  OpenRouter's figures are the provider's own; the rest are calculated from a price list and say so.
-  Nothing caps what the agent's requests spend.
+- **Cost:** a request on a gateway you run yourself shows the provider's own figure only when
+  the gateway is LiteLLM with a database and its key may read the spend log. Otherwise the
+  studio works a figure out from the request's token counts, each model at its list price,
+  and says "calculated by the studio". That is not a bill: it is too low when the route sends
+  the request to a dearer provider than the list price, and a request that was stopped says
+  "at least". Only OpenRouter's figures are the provider's own. Nothing caps what the agent's
+  requests spend.
 - **Databases:** PostgreSQL has been used for real; Redshift and MySQL are untested; MongoDB
   is not supported.
 - **Office files** have not been opened in real PowerPoint, Word or Excel.

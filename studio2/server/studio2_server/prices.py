@@ -79,12 +79,26 @@ class Rates:
         return self.models[match] if match else None
 
 
+def takes_pictures(connection: dict, model: str | None, rates: "Rates") -> bool:
+    """False for a model known to take text only (CONTRACT.md, "A model that cannot take pictures"):
+    one the connection names in `text_only_models`, or one the list marks. Only a translated
+    connection is looked at, and a model nobody knows is taken to see pictures."""
+    if connection.get("kind") not in ("anthropic-gateway", "litellm") or not model:
+        return True
+    named = connection.get("text_only_models")
+    if isinstance(named, list) and str(model) in [str(name) for name in named]:
+        return False
+    found = rates.find(model)
+    return found is None or found.get("images") is not False
+
+
 def shipped(library_dir: Path) -> Rates:
     """The list that ships with the studio; an unreadable one is an empty list, never a guess."""
     try:
         data = json.loads((Path(library_dir) / "model-prices.json").read_text("utf-8"))
         models = {name: {**{kind: _rate(rates.get(kind)) for kind in (*KINDS, LONG_WRITE)},
                          "above": rates.get("above") if isinstance(rates.get("above"), dict) else None,
+                         "images": rates.get("images") is not False,
                          "free": _zero(rates.get("input")) and _zero(rates.get("output"))}
                   for name, rates in data["models"].items() if isinstance(rates, dict)}
         return Rates(models, "list", str(data.get("as_of") or "") or None)

@@ -64,7 +64,15 @@ describe("costLabel", () => {
     expect(whole?.text).toBe("$0.02 calculated by the studio + 1 unpriced");
     expect(whole?.tip).toContain("spend log could not be read");
     expect(whole?.tip).toContain("the gateway's own price for the model");
-    expect(whole?.tip).toContain("can be high");
+    expect(whole?.tip).toContain("each model at its own rate");
+    expect(whole?.tip).toContain("List prices, not a bill");
+    // a request that was cut short, and a helper model nobody prices: both are said
+    const cut = backupTip({ requests: null, rates: "list", as_of: "2026-11-19", unpriced_models: ["a-model"], partial: true });
+    expect(cut).toContain("Not in this figure, for want of a rate: a-model.");
+    expect(cut).toContain("it cost at least this");
+    expect(
+      costLabel({ cost_usd: 0.4, cost_estimated: false, cost_basis: "backup", backup: { requests: null, usd: 0.4, rates: "list", as_of: null, partial: true } })?.text,
+    ).toBe("at least $0.40 calculated by the studio");
     expect(backupTip({ requests: 1, rates: "both", as_of: "2026-11-13" })).toContain("1 request came back with no cost, so the studio priced it");
   });
 

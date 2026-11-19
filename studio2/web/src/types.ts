@@ -1003,6 +1003,10 @@ export interface CostBackup {
   rates: string;
   /** The date of the shipped list, when it was used. */
   as_of: string | null;
+  /** Models whose part is not in the figure, for want of a complete rate (a turn priced from its own counts). */
+  unpriced_models?: string[];
+  /** The turn ended without saying what it used: the figure is at least what it cost. */
+  partial?: boolean;
 }
 
 export interface CostTurn {

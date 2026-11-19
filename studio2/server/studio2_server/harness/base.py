@@ -43,6 +43,12 @@ class TurnRequest:
     studio_tool: Callable[[str, dict], Awaitable[dict]] | None = None
     # How much to do and whether to verify ({depth, verify}); already in `prompt` as <studio-effort>.
     options: dict = field(default_factory=dict)
+    # False for a model that takes text only: the harness then keeps pictures from it (set by the
+    # harness itself from the price list; CONTRACT.md, "A model that cannot take pictures").
+    pictures: bool = True
+    # Filled by the harness while it works, for a turn that ends without a result: `heard` is a
+    # function giving what the assistant's messages have used so far, by model (costs.turn_models).
+    progress: dict = field(default_factory=dict)
 
 
 @dataclass

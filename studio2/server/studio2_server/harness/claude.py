@@ -45,6 +45,11 @@ from .base import Emit, TurnRequest, TurnResult, empty_usage, public_connection
 LIBRARY_DIR = STUDIO2_ROOT / "library"
 SCRUBBED = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL")
 WRITE_TOOLS = "Write|Edit|MultiEdit|NotebookEdit"
+# What the agent program sends to the model as a picture when its Read tool opens it.
+PICTURE_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".avif", ".ico")
+NO_PICTURES = ("This model takes text only, so a picture cannot be shown to it and {name} was not opened. Judge the "
+               "page from `layout` in the result of look_at_page (what the studio measured in the browser) and from "
+               "check_page, and tell the person plainly that you could not see the page itself.")
 KINDS = {"Read": "read", "NotebookRead": "read", "Glob": "search", "Grep": "search", "WebSearch": "search",
          "web_search": "search", "Write": "edit", "Edit": "edit", "MultiEdit": "edit", "NotebookEdit": "edit",
          "Bash": "execute", "BashOutput": "execute", "KillShell": "execute", "WebFetch": "fetch",
@@ -297,6 +302,20 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
                 "permissionDecisionReason": f"{target} is outside the project folder. Stay inside the project."}}
         return {}
 
+    async def no_pictures(hook_input, _tool_use_id, _context):
+        """For a text-only model: a picture the Read tool opened would go to the model with the next
+        request, and its provider refuses that request (CONTRACT.md, "A model that cannot take pictures")."""
+        target = str((hook_input.get("tool_input") or {}).get("file_path") or "")
+        if target.lower().endswith(PICTURE_SUFFIXES):
+            return {"hookSpecificOutput": {
+                "hookEventName": "PreToolUse", "permissionDecision": "deny",
+                "permissionDecisionReason": NO_PICTURES.format(name=Path(target).name)}}
+        return {}
+
+    guards = [HookMatcher(matcher=WRITE_TOOLS, hooks=[pre_tool_use], on_failure="block")]
+    if not request.pictures:
+        guards.append(HookMatcher(matcher="Read", hooks=[no_pictures], on_failure="block"))
+
     async def can_use_tool(tool_name, tool_input, _context):
         if tool_name in WRITE_TOOLS.split("|") and outside_workspace(workspace, tool_input):
             return PermissionResultDeny(message="Files outside the project folder cannot be changed.")
@@ -344,7 +363,7 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
         # The shell itself is not confined: same trust as running Claude Code locally.
         permission_mode="acceptEdits",
         can_use_tool=can_use_tool,
-        hooks={"PreToolUse": [HookMatcher(matcher=WRITE_TOOLS, hooks=[pre_tool_use], on_failure="block")]},
+        hooks={"PreToolUse": guards},
         # [] = load no user/project/local settings: the person's own ~/.claude settings, hooks,
         # CLAUDE.md and permissions are not inherited. strict_mcp_config drops their MCP servers.
         setting_sources=[],
@@ -500,12 +519,16 @@ class EventMapper:
         self._tasks: dict[str, dict] = {}       # best-effort plan from TaskCreate / TaskUpdate
         self._agent_calls: set[str] = set()     # tool ids of sub-agent calls
         self.background: set[str] = set()       # sub-agents still working in the background
+        self._heard: dict[str, tuple[str, dict]] = {}   # API message id → (model, what that message used)
+        self._hearing: dict[str, tuple[str, str]] = {}  # who is streaming ("" or a helper's tool id) → (message id, model)
 
     def handle(self, message: Any) -> list[dict]:
         events: list[dict] = []
         if isinstance(message, StreamEvent):
+            self._hear_stream(message)
             self._stream(message, events)
         elif isinstance(message, AssistantMessage):
+            self._hear(message)
             self._assistant(message, events)
         elif isinstance(message, UserMessage) and isinstance(message.content, list):
             for block in message.content:
@@ -650,11 +673,47 @@ class EventMapper:
                        "status": "error" if block.is_error else "ok",
                        "summary": _result_text(block.content)})
 
+    def _note(self, name: str, model: str, usage: object) -> None:
+        """What one API message used, by its id: the largest count seen for each kind, since the same
+        message reports again as it goes (its parts, then its end) and never uses less."""
+        used = costs.message_counts(usage)
+        if not any(used.values()):
+            return
+        known_as, before = self._heard.get(name, (model, {}))
+        self._heard[name] = (known_as if known_as != "unknown" else model,
+                             {kind: max(used[kind], before.get(kind) or 0) for kind in used})
+
+    def _hear(self, message: AssistantMessage) -> None:
+        """Keep what one of the assistant's messages used, main agent or helper, each API message once."""
+        name = getattr(message, "message_id", None) or getattr(message, "uuid", None) or f"n{len(self._heard)}"
+        self._note(str(name), str(getattr(message, "model", "") or "unknown"), getattr(message, "usage", None))
+
+    def _hear_stream(self, message: StreamEvent) -> None:
+        """The same from the stream, where a translating gateway puts the counts: LiteLLM starts a
+        message with zeros and says what it used when the message ends (`message_delta`)."""
+        event = message.event if isinstance(message.event, dict) else {}
+        who = str(message.parent_tool_use_id or "")
+        if event.get("type") == "message_start":
+            body = event.get("message") or {}
+            self._hearing[who] = (str(body.get("id") or message.uuid), str(body.get("model") or "unknown"))
+            self._note(*self._hearing[who], body.get("usage"))
+        elif event.get("type") == "message_delta" and who in self._hearing:
+            self._note(*self._hearing[who], event.get("usage"))
+
+    def heard_models(self) -> dict:
+        """What the messages heard so far used, by model: the whole input side, too little output."""
+        out: dict = {}
+        for model, used in self._heard.values():
+            out = costs.add_counts(out, {model: used})
+        return out
+
     def turn_result(self, stderr_tail: str = "") -> TurnResult:
         result = self.result
         if result is None:
             detail = self.error or "The agent process ended before it reported a result."
-            return TurnResult("failed", self.session_id, f"{detail} {stderr_tail}".strip())
+            heard = self.heard_models()
+            return TurnResult("failed", self.session_id, f"{detail} {stderr_tail}".strip(),
+                              {**empty_usage(), **({"models_heard": heard} if heard else {})})
         raw = result.usage or {}
         tokens_in = [raw.get(key) for key in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")]
         usage = {**empty_usage(), "output_tokens": raw.get("output_tokens"), "cost_usd": result.total_cost_usd,
@@ -669,6 +728,15 @@ class EventMapper:
             # How many of the written tokens had the 1-hour lifetime (None when the program does not say):
             # Anthropic bills those at a higher rate, and the agent program writes them.
             usage["tokens"]["cache_write_1h"] = prices.long_write(raw)
+        # The conversation's running totals by model, helpers and the program's own calls included,
+        # and what this turn's messages carried: turns.py works the turn's part out of the two
+        # (CONTRACT.md, "What a turn used, by model"). Neither is written to the event as it is.
+        totals = costs.model_counts(getattr(result, "model_usage", None))
+        if totals:
+            usage["session_models"] = totals
+        heard = self.heard_models()
+        if heard:
+            usage["models_heard"] = heard
         if self.gateway:
             # Priced by the gateway, which the CLI cannot know. Its running total is still kept: the
             # conversation goes on, and the next turn's part is worked out from it (turns.py).
@@ -882,6 +950,12 @@ class ClaudeHarness:
                 return TurnResult("failed", request.session_id, str(exc))
             if endpoint.notice:
                 emit({"type": "notice", "level": "warning", "message": endpoint.notice})
+        if kind in TRANSLATED_KINDS and self.sidecar is not None:
+            if not prices.takes_pictures(request.connection, asked, prices.shipped(self.sidecar.settings.library_dir)):
+                request = dataclasses.replace(request, pictures=False)
+                emit({"type": "notice", "level": "info", "message":
+                      f"{asked} takes text only, so the assistant checks the page by measurements and cannot see "
+                      "screenshots or pictures attached to a message."})
         parent = environment()
         env, scrub = child_env(request.connection, parent, request.model, self.secrets, endpoint)
         env = {**hidden_secrets(parent), **outside_python(parent), **env}
@@ -923,6 +997,7 @@ class ClaudeHarness:
         kind = request.connection["kind"]
         mapper = EventMapper(request.workspace, kind in TRANSLATED_KINDS,
                              charged=kind in ("anthropic-api", "bedrock", "vertex", "foundry"))
+        request.progress["heard"] = mapper.heard_models     # for a turn that is stopped before any result
         started = time.monotonic()
         stderr: deque[str] = deque(maxlen=12)
         process = client = mcp_file = None

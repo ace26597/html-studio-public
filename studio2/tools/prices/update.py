@@ -64,6 +64,9 @@ def build(listing: dict, today: str) -> dict:
             rates["cache_write_1h"] = round(rates["input"] * ONE_HOUR_WRITE["times_input"], 6)
         if name in TIERS:
             rates["above"] = TIERS[name]
+        takes = (item.get("architecture") or {}).get("input_modalities")
+        if isinstance(takes, list) and takes and "image" not in takes:
+            rates["images"] = False      # a text-only model (CONTRACT.md, "A model that cannot take pictures")
         models[name] = rates
     return {"as_of": today, "source": SOURCE, "one_hour_cache_write": ONE_HOUR_WRITE,
             "note": "US dollars per million tokens. Written by tools/prices/update.py; do not edit by hand.",
