@@ -69,6 +69,16 @@ to host it, and for an app a script that starts it. Nothing is published for you
 Detail: [what you can make, skills and connectors](studio2/docs/features.md) ·
 [bringing an app and making it live](studio2/docs/apps.md).
 
+## One job, 28 models
+
+[![Eight dashboards, each built by a different model from the same request](studio2/docs/model-comparison/banner.jpg)](studio2/docs/model-comparison.md)
+
+**[Which model builds the best dashboard in the studio?](studio2/docs/model-comparison.md)** On 19
+November 2026 the same request and the same data file went to 28 models, from Claude, GPT and Gemini
+to DeepSeek, Kimi and GLM, each in a new project. Every page was then opened in a real browser and
+checked against the data's true numbers: 19 passed all eleven checks, at costs from 4 cents to 2
+dollars. The page has every result, a picture of every dashboard, and the kit to run it again.
+
 ## Examples
 
 **Eight finished pages come with the studio.** The home page lists them (reports, dashboards, explainers

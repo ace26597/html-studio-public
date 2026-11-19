@@ -1,0 +1,63 @@
+{
+ "summary": [
+  "<strong>With a Claude plan on your own computer, stay on Claude.</strong> Fable, Opus and Sonnet each passed all eleven checks in under five minutes and spent no credits.",
+  "<strong>For a shared studio, where the plan is not allowed, Claude Sonnet 5.5 through OpenRouter is the default to pick.</strong> All eleven checks in 75 seconds for $0.27: the fastest run of all, and a quarter of what GPT 6.2 Sol cost for the same result in 10.6 minutes.",
+  "<strong>Cheap models are good enough for this kind of job.</strong> Claude Haiku 5.5 ($0.04), GLM 5.3 Flash ($0.05) and DeepSeek V4.1 Flash ($0.07) each built a correct, working dashboard.",
+  "<strong>Paying more did not buy more correctness.</strong> The three dearest runs (Kimi K3.1 Pro $2.00, GPT 6.2 Astra $1.96, Grok 4.7 $1.96) were no more correct than the cheapest. Astra's table does not sort, and Grok was still working when the 15-minute limit stopped it.",
+  "<strong>Four built nothing:</strong> Kimi K2.7 Code said it was done after loading two skills, and Mistral Large 4.0, Hunyuan HY4 and MiMo V2.6 Pro had built nothing after 15 minutes.",
+  "The studio's own instructions and tools carry most of the result: the same checks pass across families and the pages share a house style. What differs between models is speed, cost and how far they push the design."
+ ],
+ "picks": [
+  {
+   "role": "Default for a shared studio",
+   "name": "Claude Sonnet 5.5",
+   "why": "Through OpenRouter: every check passed in 75 seconds for $0.27. Nothing else was both this fast and this cheap at this level."
+  },
+  {
+   "role": "Best on a Claude plan",
+   "name": "Claude Fable 5.2",
+   "why": "Puts the three findings directly under the headline numbers as big figures, with the leaderboard beside the chart. The clearest layout of information, in one reading of the pictures."
+  },
+  {
+   "role": "Cheapest that passed everything",
+   "name": "Claude Haiku 5.5",
+   "why": "$0.04 and 2.7 minutes through OpenRouter. GLM 5.3 Flash ($0.05, 2.0 minutes) and DeepSeek V4.1 Flash ($0.07) are the alternatives outside Anthropic."
+  },
+  {
+   "role": "Most designed page",
+   "name": "GPT 6.2 Sol",
+   "why": "A hero banner, section navigation and icon tiles: it looks most like a product. It took 10.6 minutes and $1.00, and its provider rate-limited it twice earlier that day."
+  },
+  {
+   "role": "Best of the mid-priced",
+   "name": "Gemini 4 Hydrogen",
+   "why": "$0.75, 5 minutes, every check, and its chart titles state the finding instead of naming the axis."
+  }
+ ],
+ "notes": {
+  "plan/fable": "Navy header band; the three findings sit right under the headline numbers as large figures, and the leaderboard is beside the monthly chart. The clearest layout of the lot.",
+  "plan/opus": "Warm cream page with orange bars; dense and tidy, cities and channels side by side with paired revenue and win-rate bars.",
+  "plan/sonnet": "The same warm palette as Opus with a larger, labelled monthly chart. Plain and clear.",
+  "anthropic/claude-sonnet-5.5": "Close to the plan run's page: clean, restrained, nothing wasted.",
+  "anthropic/claude-haiku-5.5": "Teal bars with a value on every month, section links under the title. Simple and readable; nothing looks cheap about it.",
+  "openai/gpt-6.2-sol": "The most ambitious design: a green hero banner with an illustration, tabs, icons on each tile, findings beside the chart.",
+  "openai/gpt-6.2-astra": "Polished: dark header, a highlighted revenue tile, findings beside the chart. But clicking a column heading does not reorder the orders table, which shows five rows a page.",
+  "openai/gpt-6.1-terra": "Calm green page with its own navigation and a 'Sales overview' title. Restrained and professional.",
+  "google/gemini-4-neon": "Findings first, each as a labelled card with its number; standard blue charts below. Compact.",
+  "google/gemini-4-hydrogen": "Findings up top, and each chart's title says what it shows ('Won revenue peaked in April\u2026'). Good at telling you what to look at.",
+  "google/gemini-4-carbon": "Much like Hydrogen's page, findings first. It was still checking its work when the limit stopped it.",
+  "moonshotai/kimi-k3.1-pro": "An editorial headline ('The year in solar sales.'), its own navigation and an insight panel beside the chart. Distinctive, and the dearest run here.",
+  "moonshotai/kimi-k3": "Compact and plain; abbreviates the revenue tile to $4.11M with the full figure beneath.",
+  "deepseek/deepseek-v4.1-flash": "The studio's default look, with section links and a long, complete page. Competent rather than designed.",
+  "deepseek/deepseek-v4.1-flash-1017": "A warm gradient header and a sentence that frames the year before the numbers. A step up in looks from the other Flash.",
+  "deepseek/deepseek-v4-pro-0813": "Clean default blue. It could not see its own page (text only), and it shows no sign of that.",
+  "z-ai/glm-5.3-flashx": "Plain and text-heavy near the top, with an explanation of each formula. Correct, not pretty.",
+  "z-ai/glm-5.3-flash": "Orange accent and the findings above the chart. A lot of page for five cents.",
+  "z-ai/glm-5.3": "Filter chips instead of drop-downs, clean blue charts. Also text only, also fine.",
+  "x-ai/grok-4.7": "A plain blue page that opens with a sentence summing up the year. Complete when it was stopped.",
+  "x-ai/grok-build-0.1": "The plainest: stock chart styling in cyan, and its city and channel charts put revenue and win rate on two different scales, which is hard to read.",
+  "minimax/minimax-m3.1-flash": "A report-style headline ('How Brightline Solar sold solar in 2025') in a narrow column. Complete when it was stopped.",
+  "minimax/minimax-m3": "Peach background with orange bars; simple and warm.",
+  "stepfun/step-5-preview": "Clean, with a light and dark switch of its own. It needed 86 model calls and $1.79 to get there."
+ }
+}

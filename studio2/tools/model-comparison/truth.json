@@ -1,0 +1,297 @@
+{
+ "all": {
+  "rows": 453,
+  "won": 187,
+  "lost": 253,
+  "open": 13,
+  "revenue": 4107930,
+  "win_rate": 42.5,
+  "avg_kw": 7.86
+ },
+ "city": {
+  "Austin": {
+   "rows": 101,
+   "won": 40,
+   "lost": 56,
+   "open": 5,
+   "revenue": 861250,
+   "win_rate": 41.67,
+   "avg_kw": 7.75
+  },
+  "Denver": {
+   "rows": 77,
+   "won": 30,
+   "lost": 45,
+   "open": 2,
+   "revenue": 583140,
+   "win_rate": 40.0,
+   "avg_kw": 7.04
+  },
+  "Phoenix": {
+   "rows": 86,
+   "won": 34,
+   "lost": 52,
+   "open": 0,
+   "revenue": 747770,
+   "win_rate": 39.53,
+   "avg_kw": 7.97
+  },
+  "Portland": {
+   "rows": 51,
+   "won": 26,
+   "lost": 24,
+   "open": 1,
+   "revenue": 626940,
+   "win_rate": 52.0,
+   "avg_kw": 8.48
+  },
+  "Raleigh": {
+   "rows": 66,
+   "won": 25,
+   "lost": 39,
+   "open": 2,
+   "revenue": 572590,
+   "win_rate": 39.06,
+   "avg_kw": 8.1
+  },
+  "Tampa": {
+   "rows": 72,
+   "won": 32,
+   "lost": 37,
+   "open": 3,
+   "revenue": 716240,
+   "win_rate": 46.38,
+   "avg_kw": 7.96
+  }
+ },
+ "channel": {
+  "Referral": {
+   "rows": 111,
+   "won": 72,
+   "lost": 37,
+   "open": 2,
+   "revenue": 1586970,
+   "win_rate": 66.06,
+   "avg_kw": 7.89
+  },
+  "Website": {
+   "rows": 140,
+   "won": 49,
+   "lost": 87,
+   "open": 4,
+   "revenue": 1110370,
+   "win_rate": 36.03,
+   "avg_kw": 8.11
+  },
+  "Partner": {
+   "rows": 57,
+   "won": 31,
+   "lost": 26,
+   "open": 0,
+   "revenue": 587270,
+   "win_rate": 54.39,
+   "avg_kw": 6.81
+  },
+  "Ads": {
+   "rows": 104,
+   "won": 24,
+   "lost": 73,
+   "open": 7,
+   "revenue": 561480,
+   "win_rate": 24.74,
+   "avg_kw": 8.3
+  },
+  "Walk-in": {
+   "rows": 41,
+   "won": 11,
+   "lost": 30,
+   "open": 0,
+   "revenue": 261840,
+   "win_rate": 26.83,
+   "avg_kw": 8.59
+  }
+ },
+ "person": {
+  "Maya Okafor": {
+   "rows": 83,
+   "won": 45,
+   "lost": 37,
+   "open": 1,
+   "revenue": 1025690,
+   "win_rate": 54.88,
+   "avg_kw": 8.15
+  },
+  "Daniel Reyes": {
+   "rows": 71,
+   "won": 34,
+   "lost": 35,
+   "open": 2,
+   "revenue": 736160,
+   "win_rate": 49.28,
+   "avg_kw": 7.8
+  },
+  "Priya Nair": {
+   "rows": 56,
+   "won": 27,
+   "lost": 29,
+   "open": 0,
+   "revenue": 608850,
+   "win_rate": 48.21,
+   "avg_kw": 8.02
+  },
+  "Tom Whitfield": {
+   "rows": 81,
+   "won": 27,
+   "lost": 50,
+   "open": 4,
+   "revenue": 618740,
+   "win_rate": 35.06,
+   "avg_kw": 8.17
+  },
+  "Lena Fischer": {
+   "rows": 86,
+   "won": 29,
+   "lost": 54,
+   "open": 3,
+   "revenue": 580330,
+   "win_rate": 34.94,
+   "avg_kw": 7.14
+  },
+  "Chris Abara": {
+   "rows": 76,
+   "won": 25,
+   "lost": 48,
+   "open": 3,
+   "revenue": 538160,
+   "win_rate": 34.25,
+   "avg_kw": 7.73
+  }
+ },
+ "month": {
+  "1": {
+   "rows": 29,
+   "won": 10,
+   "lost": 19,
+   "open": 0,
+   "revenue": 193510,
+   "win_rate": 34.48,
+   "avg_kw": 7.03
+  },
+  "2": {
+   "rows": 30,
+   "won": 13,
+   "lost": 17,
+   "open": 0,
+   "revenue": 298590,
+   "win_rate": 43.33,
+   "avg_kw": 8.15
+  },
+  "3": {
+   "rows": 45,
+   "won": 18,
+   "lost": 27,
+   "open": 0,
+   "revenue": 373010,
+   "win_rate": 40.0,
+   "avg_kw": 7.45
+  },
+  "4": {
+   "rows": 53,
+   "won": 27,
+   "lost": 26,
+   "open": 0,
+   "revenue": 646780,
+   "win_rate": 50.94,
+   "avg_kw": 8.65
+  },
+  "5": {
+   "rows": 59,
+   "won": 25,
+   "lost": 34,
+   "open": 0,
+   "revenue": 547350,
+   "win_rate": 42.37,
+   "avg_kw": 7.72
+  },
+  "6": {
+   "rows": 47,
+   "won": 14,
+   "lost": 33,
+   "open": 0,
+   "revenue": 295740,
+   "win_rate": 29.79,
+   "avg_kw": 7.57
+  },
+  "7": {
+   "rows": 37,
+   "won": 14,
+   "lost": 23,
+   "open": 0,
+   "revenue": 336170,
+   "win_rate": 37.84,
+   "avg_kw": 8.48
+  },
+  "8": {
+   "rows": 36,
+   "won": 16,
+   "lost": 20,
+   "open": 0,
+   "revenue": 352560,
+   "win_rate": 44.44,
+   "avg_kw": 7.97
+  },
+  "9": {
+   "rows": 40,
+   "won": 21,
+   "lost": 19,
+   "open": 0,
+   "revenue": 440660,
+   "win_rate": 52.5,
+   "avg_kw": 7.61
+  },
+  "10": {
+   "rows": 32,
+   "won": 16,
+   "lost": 16,
+   "open": 0,
+   "revenue": 369910,
+   "win_rate": 50.0,
+   "avg_kw": 8.14
+  },
+  "11": {
+   "rows": 27,
+   "won": 9,
+   "lost": 9,
+   "open": 9,
+   "revenue": 195370,
+   "win_rate": 50.0,
+   "avg_kw": 7.66
+  },
+  "12": {
+   "rows": 18,
+   "won": 4,
+   "lost": 10,
+   "open": 4,
+   "revenue": 58280,
+   "win_rate": 28.57,
+   "avg_kw": 5.4
+  }
+ },
+ "top_orders": [
+  "BL-2554",
+  "BL-2831",
+  "BL-2905",
+  "BL-2638",
+  "BL-2766",
+  "BL-2695",
+  "BL-2887",
+  "BL-2861",
+  "BL-2524",
+  "BL-2656",
+  "BL-2568",
+  "BL-2870",
+  "BL-2624",
+  "BL-2787",
+  "BL-2541"
+ ]
+}

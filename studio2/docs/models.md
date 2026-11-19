@@ -85,6 +85,8 @@ not judged.
 
 ## A harder job: the same dashboard from 28 models
 
+With a picture of every page: [the model comparison](model-comparison.md).
+
 On 19 November 2026 each model was asked once, in a new project, to build an interactive sales
 dashboard from the same 453-row data file: four headline numbers, three charts, a leaderboard, a
 sortable table of the 15 largest orders, filters for city and channel that recompute everything,

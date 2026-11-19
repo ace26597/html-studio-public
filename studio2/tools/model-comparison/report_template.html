@@ -1,0 +1,341 @@
+<title>Studio Model Comparison</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+  /* Layout: a lab report. Verdict first, then one chart, the full table, and a card per model with its pictures. */
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --ink: #14171c; --ink-2: #4a515c; --ink-3: #747c88; --line: #e0e4ea;
+    --accent: #2a78d6; --accent-soft: #e7f0fb; --good: #17734a; --bad: #b3261e; --warn: #8a5a00; --mark: #2a78d6;
+    --shadow: 0 1px 2px rgba(20, 23, 28, 0.06);
+    --display: "Space Grotesk", "Inter", system-ui, sans-serif;
+    --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101216; --surface: #181b21; --ink: #eceef2; --ink-2: #b7bdc7; --ink-3: #8b929d; --line: #2a2f38;
+      --accent: #6aa7f2; --accent-soft: #1b2a41; --good: #4cc38a; --bad: #f2716b; --warn: #f0b24d; --mark: #3987e5;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4); color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101216; --surface: #181b21; --ink: #eceef2; --ink-2: #b7bdc7; --ink-3: #8b929d; --line: #2a2f38;
+    --accent: #6aa7f2; --accent-soft: #1b2a41; --good: #4cc38a; --bad: #f2716b; --warn: #f0b24d; --mark: #3987e5;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4); color-scheme: dark;
+  }
+  [hidden] { display: none !important; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 64px;
+          padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1, h2, h3 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(26px, 4vw, 38px); line-height: 1.1; }
+  h2 { font-size: 21px; margin-bottom: 6px; }
+  h3 { font-size: 17px; }
+  p { margin: 0; }
+  .lede { color: var(--ink-2); max-width: 68ch; margin-top: 10px; font-size: 16px; }
+  .eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 8px; }
+  section { margin-top: 44px; }
+  .sub { color: var(--ink-2); max-width: 72ch; margin-bottom: 16px; }
+  code, .mono { font-family: var(--mono); font-size: 0.9em; }
+  a { color: var(--accent); }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .facts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .facts div { min-width: 0; }
+  .facts dt { font-size: 12px; color: var(--ink-3); }
+  .facts dd { margin: 0; font: 600 20px/1.3 var(--display); font-variant-numeric: tabular-nums; }
+
+  .picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .pick { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); min-width: 0; }
+  .pick .role { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+  .pick .name { font: 600 18px/1.25 var(--display); margin: 2px 0 6px; overflow-wrap: anywhere; }
+  .pick p { color: var(--ink-2); font-size: 14px; }
+  .summary { margin: 0 0 18px; padding-left: 20px; max-width: 76ch; color: var(--ink-2); }
+  .summary li { margin-bottom: 6px; }
+  .summary strong { color: var(--ink); }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+  .chart { padding: 14px 14px 8px; position: relative; }
+  .chart svg { display: block; width: 100%; height: auto; }
+  .chart text { font-family: var(--body); fill: var(--ink-2); font-size: 11.5px; }
+  .chart .axis-title { fill: var(--ink-3); font-size: 11.5px; }
+  .chart .grid { stroke: var(--line); stroke-width: 1; }
+  .chart .dot { fill: var(--mark); stroke: var(--surface); stroke-width: 2; }
+  .chart .dot.partial { fill: var(--surface); stroke: var(--mark); stroke-width: 2.5; }
+  .chart .cross { stroke: var(--bad); stroke-width: 2.5; stroke-linecap: round; }
+  .chart .hit { fill: transparent; cursor: pointer; }
+  .chart .label { fill: var(--ink); font-size: 11.5px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--ink-2); padding: 0 4px 10px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend svg { width: 14px; height: 14px; flex: none; }
+  .tip { position: absolute; z-index: 5; pointer-events: none; background: var(--ink); color: var(--bg); border-radius: 8px;
+         padding: 8px 10px; font-size: 12.5px; line-height: 1.45; max-width: 260px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25); }
+  .tip b { font-weight: 600; }
+
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: middle; }
+  th { font-weight: 500; color: var(--ink-3); font-size: 12px; position: sticky; top: 0; background: var(--surface); }
+  th button { background: none; border: 0; padding: 0; cursor: pointer; color: inherit; font-weight: inherit; }
+  th button[aria-sort="ascending"]::after { content: " \2191"; }
+  th button[aria-sort="descending"]::after { content: " \2193"; }
+  td.num, th.num { text-align: right; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--accent-soft); }
+  td .model { font-weight: 600; white-space: normal; }
+  td .id { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+  td .model a { color: inherit; text-decoration: none; }
+  td .model a:hover { text-decoration: underline; }
+  .bar { display: inline-block; height: 8px; border-radius: 0 4px 4px 0; background: var(--mark); vertical-align: middle; margin-left: 8px; }
+  .barcell { display: flex; align-items: center; justify-content: flex-end; }
+  .barcell .track { width: 70px; text-align: left; flex: none; }
+  .pips { display: inline-flex; gap: 2px; vertical-align: middle; margin-left: 8px; }
+  .pips i { width: 6px; height: 12px; border-radius: 2px; background: var(--good); }
+  .pips i.no { background: transparent; box-shadow: inset 0 0 0 1.5px var(--bad); }
+  .tag { display: inline-block; font-size: 11.5px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-2); margin-left: 6px; white-space: nowrap; }
+  .fail-word { color: var(--bad); font-weight: 600; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); gap: 18px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .card header { padding: 14px 16px 10px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+  .card header .id { font-family: var(--mono); font-size: 12px; color: var(--ink-3); flex-basis: 100%; overflow-wrap: anywhere; }
+  .shot { display: block; width: 100%; border: 0; padding: 0; background: var(--bg); cursor: zoom-in; border-block: 1px solid var(--line); }
+  .shot img { display: block; width: 100%; aspect-ratio: 1440 / 900; object-fit: cover; object-position: top; }
+  .thumbs { display: flex; gap: 8px; padding: 10px 16px 0; align-items: flex-start; }
+  .thumbs button { border: 1px solid var(--line); border-radius: 6px; padding: 0; overflow: hidden; background: var(--bg); cursor: zoom-in; flex: none; }
+  .thumbs img { display: block; height: 92px; width: auto; }
+  .thumbs .cap { font-size: 11px; color: var(--ink-3); padding: 2px 6px; text-align: left; }
+  .card .body { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .meta b { color: var(--ink); font-weight: 600; }
+  .checks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 2px 14px; font-size: 13px; }
+  .checks li { display: flex; gap: 6px; align-items: baseline; color: var(--ink-2); }
+  .checks .mark { font-weight: 700; flex: none; width: 1em; }
+  .checks .ok .mark { color: var(--good); }
+  .checks .no { color: var(--ink); }
+  .checks .no .mark { color: var(--bad); }
+  .note { font-size: 13.5px; color: var(--ink-2); border-left: 2px solid var(--line); padding-left: 10px; }
+  .note b { color: var(--ink); }
+  .card .foot { margin-top: auto; font-size: 13px; }
+  .problem { font-size: 13px; color: var(--bad); overflow-wrap: anywhere; }
+
+  details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
+  summary { cursor: pointer; font-weight: 500; }
+  pre { white-space: pre-wrap; font: 13px/1.5 var(--mono); color: var(--ink-2); margin: 10px 0 0; overflow-wrap: anywhere; }
+  .method { color: var(--ink-2); max-width: 76ch; padding-left: 20px; margin: 0 0 16px; }
+  .method li { margin-bottom: 6px; }
+
+  .lightbox { position: fixed; inset: 0; z-index: 20; background: rgba(8, 10, 14, 0.86); display: flex; flex-direction: column;
+              padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
+  .lightbox .bar2 { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #f2f3f5; padding-bottom: 10px; font-size: 14px; }
+  .lightbox .bar2 button { background: #f2f3f5; color: #14171c; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 500; }
+  .lightbox .view { overflow: auto; flex: 1; border-radius: 8px; background: #000; }
+  .lightbox img { display: block; width: 100%; max-width: 1440px; margin: 0 auto; }
+  .lightbox img.narrow { max-width: 420px; }
+  @media (prefers-reduced-motion: no-preference) { tbody tr, .shot { transition: background 120ms; } }
+  @media (max-width: 600px) { .thumbs img { height: 72px; } th, td { padding: 8px 9px; } }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Studio 2 · one request per model · <span id="date"></span></p>
+  <h1>Which model builds the best dashboard in the studio?</h1>
+  <p class="lede" id="lede"></p>
+  <dl class="facts" id="facts"></dl>
+
+  <section id="verdict">
+    <h2>What the run suggests</h2>
+    <ul class="summary" id="summary"></ul>
+    <div class="picks" id="picks"></div>
+  </section>
+
+  <section>
+    <h2>Cost against time</h2>
+    <p class="sub">Each point is one model's whole request: minutes from sending the brief to its answer, and what the OpenRouter account was charged. The cost scale is logarithmic, so each step up is ten times more. The three runs on a Claude plan cost no credits and are left out here; they are in the table.</p>
+    <div class="panel chart" id="chart">
+      <div class="legend">
+        <span><svg viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill="var(--mark)"/></svg>passed all 11 checks</span>
+        <span><svg viewBox="0 0 14 14"><circle cx="7" cy="7" r="4.5" fill="none" stroke="var(--mark)" stroke-width="2.5"/></svg>finished, failed at least one check</span>
+        <span><svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8" stroke="var(--bad)" stroke-width="2.5" stroke-linecap="round"/></svg>stopped at 15 minutes, or nothing built</span>
+      </div>
+      <div id="plot"></div>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Every model</h2>
+    <p class="sub">Sort by any heading. Checks are the eleven things the page either does or does not do, measured in a real browser against the data's true numbers. A model's name jumps to its pictures.</p>
+    <div class="panel scroll"><table id="table"><thead></thead><tbody></tbody></table></div>
+  </section>
+
+  <section>
+    <h2>The dashboards</h2>
+    <p class="sub">The first screen of each page at desktop width. Select a picture to scroll the whole page; the smaller ones are dark mode and a phone.</p>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section>
+    <h2>How this was run</h2>
+    <ul class="method">
+      <li>Every model got the same brief and the same 453-row data file, in a new project in one studio, through one route: Claude Code as the agent, a LiteLLM gateway, OpenRouter. Claude Fable, Opus and Sonnet ran on a Claude plan; Sonnet and Haiku also ran through OpenRouter.</li>
+      <li>The data is generated sample data with a fixed seed, so the right answers are known: <span id="truth"></span>.</li>
+      <li>One request per model. That shows what a model did this once; it does not show how often it would do it again. A model that failed here may pass on a retry, and the reverse.</li>
+      <li>The eleven checks are mechanical. How good a page looks is not one of them; a comment on looks is one reading of the pictures and is marked as that.</li>
+      <li>Cost is what the gateway recorded for the request. A run stopped at the 15-minute limit is counted as not finished.</li>
+    </ul>
+    <details><summary>The brief every model received</summary><pre><!--BRIEF--></pre></details>
+  </section>
+</div>
+
+<div class="lightbox" id="lightbox" hidden>
+  <div class="bar2"><span id="lightbox-title"></span><button type="button" id="lightbox-close">Close</button></div>
+  <div class="view"><img id="lightbox-img" alt=""></div>
+</div>
+
+<script>
+const DATA = /*DATA*/null;
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, ...kids) => {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs)) {
+    if (key === "class") node.className = value; else if (key === "text") node.textContent = value;
+    else if (key.startsWith("on")) node.addEventListener(key.slice(2), value); else node.setAttribute(key, value);
+  }
+  for (const kid of kids) if (kid != null) node.append(kid);
+  return node;
+};
+const money = (v) => v == null ? "" : v < 0.1 ? "$" + v.toFixed(3) : "$" + v.toFixed(2);
+const mins = (s) => s == null ? "" : s < 90 ? s + " s" : (s / 60).toFixed(1) + " min";
+const count = (v) => v == null ? "" : v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? Math.round(v / 1e3) + "k" : String(v);
+const models = DATA.models, total = DATA.checks.length;
+const anchor = (m) => "m-" + m.key.replace(/[^a-z0-9]+/gi, "-");
+const cut = (m) => String(m.status).startsWith("stopped");
+const verdictOf = (m) => m.status === "completed" && m.built ? `${m.passed} of ${total} checks`
+  : m.status === "completed" ? "said it was done with nothing built"
+  : cut(m) && m.built ? `stopped at 15 minutes; the page as it stood passes ${m.passed} of ${total}`
+  : cut(m) ? "stopped at 15 minutes with nothing built" : "failed";
+
+// ---- header ----
+const finished = models.filter((m) => m.status === "completed" && m.built), perfect = models.filter((m) => m.passed === total);
+$("date").textContent = DATA.date;
+$("lede").textContent = `${models.length} models were each asked once to build the same interactive sales dashboard from the same data file. ${finished.length} finished with a working page, and ${perfect.length} of those passed every check.`;
+for (const [label, value] of [["Models tried", models.length], ["Finished with a page", finished.length], ["Passed all " + total + " checks", perfect.length], ["OpenRouter credits spent", "$" + DATA.spent.toFixed(2)]])
+  $("facts").append(el("div", {}, el("dt", { text: label }), el("dd", { text: String(value) })));
+const t = DATA.truth;
+$("truth").textContent = `$${t.revenue.toLocaleString("en-US")} of won revenue, ${t.won} won orders, a ${t.win_rate}% win rate and ${t.avg_kw} kW on average`;
+
+// ---- verdict ----
+for (const line of DATA.summary) { const li = el("li"); li.innerHTML = line; $("summary").append(li); }
+for (const pick of DATA.picks) $("picks").append(el("div", { class: "pick" }, el("div", { class: "role", text: pick.role }), el("div", { class: "name", text: pick.name }), el("p", { text: pick.why })));
+if (!DATA.picks.length) $("verdict").hidden = true;
+
+// ---- chart: minutes (linear) against credits (log) ----
+(function chart() {
+  const pts = models.filter((m) => !m.plan && m.seconds != null && (m.cost != null || m.status !== "completed"));
+  const W = 1100, H = 430, L = 62, R = 150, T = 14, B = 46;
+  const maxMin = Math.max(6, Math.ceil(Math.max(...pts.map((m) => m.seconds / 60)) + 0.5));
+  const costs = pts.map((m) => m.cost).filter((c) => c > 0);
+  const lo = Math.pow(10, Math.floor(Math.log10(Math.min(...costs, 0.01)))), hi = Math.pow(10, Math.ceil(Math.log10(Math.max(...costs, 1))));
+  const x = (v) => L + (v / maxMin) * (W - L - R), y = (c) => T + (1 - (Math.log10(c) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo))) * (H - T - B);
+  const ns = "http://www.w3.org/2000/svg";
+  const s = (tag, attrs, text) => { const n = document.createElementNS(ns, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (text != null) n.textContent = text; return n; };
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Cost against time for each model; the same numbers are in the table below" });
+  for (let c = lo; c <= hi * 1.001; c *= 10) {
+    svg.append(s("line", { class: "grid", x1: L, x2: W - R, y1: y(c), y2: y(c) }));
+    svg.append(s("text", { x: L - 8, y: y(c) + 4, "text-anchor": "end" }, c >= 1 ? "$" + c : "$" + c.toFixed(c < 0.01 ? 3 : 2)));
+  }
+  for (let m = 0; m <= maxMin; m += maxMin > 12 ? 3 : 2) svg.append(s("text", { x: x(m), y: H - B + 18, "text-anchor": "middle" }, m + " min"));
+  svg.append(s("text", { class: "axis-title", x: L, y: H - 8 }, "Time for the whole request"));
+  const placed = [];
+  const sorted = [...pts].sort((a, b) => (b.passed - a.passed) || ((a.cost || 0) - (b.cost || 0)));
+  for (const m of sorted) {
+    const cx = x(m.seconds / 60), cy = m.cost > 0 ? y(m.cost) : H - B - 6;
+    if (m.status !== "completed" || !m.built) svg.append(s("path", { class: "cross", d: `M${cx - 5} ${cy - 5}l10 10M${cx + 5} ${cy - 5}l-10 10` }));
+    else svg.append(s("circle", { class: "dot" + (m.passed === total ? "" : " partial"), cx, cy, r: m.passed === total ? 6 : 5.5 }));
+    const box = { x1: cx + 10, x2: cx + 10 + m.label.length * 6.4, y1: cy - 8, y2: cy + 6 };
+    if (!placed.some((p) => box.x1 < p.x2 && box.x2 > p.x1 && box.y1 < p.y2 && box.y2 > p.y1)) {
+      placed.push(box); svg.append(s("text", { class: "label", x: cx + 10, y: cy + 4 }, m.label));
+    }
+    const hit = s("circle", { class: "hit", cx, cy, r: 14, tabindex: 0 });
+    const show = () => {
+      const tip = $("tip"), frame = $("chart").getBoundingClientRect(), at = hit.getBoundingClientRect();
+      tip.innerHTML = `<b>${m.label}</b><br>${m.family} · ${verdictOf(m)}<br>${mins(m.seconds)} · ${m.cost != null ? money(m.cost) : "no cost recorded"} · ${m.requests ?? "?"} model calls`;
+      tip.hidden = false;
+      const left = Math.min(Math.max(8, at.left - frame.left + 20), frame.width - tip.offsetWidth - 8);
+      tip.style.left = left + "px"; tip.style.top = Math.max(8, at.top - frame.top - tip.offsetHeight - 6) + "px";
+    };
+    hit.addEventListener("mouseenter", show); hit.addEventListener("focus", show);
+    hit.addEventListener("mouseleave", () => ($("tip").hidden = true)); hit.addEventListener("blur", () => ($("tip").hidden = true));
+    hit.addEventListener("click", () => location.hash = anchor(m));
+    svg.append(hit);
+  }
+  $("plot").append(svg);
+})();
+
+// ---- table ----
+const maxCost = Math.max(...models.map((m) => m.cost || 0)), maxSec = Math.max(...models.map((m) => m.seconds || 0));
+const columns = [
+  { key: "label", label: "Model", sort: (m) => m.label.toLowerCase() },
+  { key: "family", label: "Family", sort: (m) => m.family },
+  { key: "passed", label: "Checks", sort: (m) => m.passed, num: true },
+  { key: "seconds", label: "Time", sort: (m) => m.seconds ?? 1e9, num: true },
+  { key: "cost", label: "Credits", sort: (m) => m.plan ? -1 : m.cost ?? 1e9, num: true },
+  { key: "requests", label: "Model calls", sort: (m) => m.requests ?? -1, num: true },
+  { key: "out_tokens", label: "Output tokens", sort: (m) => m.out_tokens ?? -1, num: true },
+  { key: "price", label: "Price in / out per M", sort: (m) => m.price_out ?? -1, num: true },
+];
+let sortKey = null, sortDir = 1;
+function drawTable() {
+  const head = $("table").querySelector("thead"), body = $("table").querySelector("tbody");
+  head.replaceChildren(el("tr", {}, ...columns.map((c) => el("th", { class: c.num ? "num" : "" }, el("button", { type: "button", text: c.label, "aria-sort": sortKey === c.key ? (sortDir > 0 ? "ascending" : "descending") : "none",
+    onclick: () => { sortDir = sortKey === c.key ? -sortDir : (c.num && c.key !== "seconds" && c.key !== "cost" ? -1 : 1); sortKey = c.key; drawTable(); } })))));
+  const column = columns.find((c) => c.key === sortKey);
+  const rows = column ? [...models].sort((a, b) => { const A = column.sort(a), B = column.sort(b); return (A < B ? -1 : A > B ? 1 : 0) * sortDir; }) : models;
+  body.replaceChildren(...rows.map((m) => {
+    const pips = el("span", { class: "pips", "aria-hidden": "true" }, ...DATA.checks.map(([key]) => el("i", { class: m.checks[key] ? "" : "no" })));
+    const done = m.status === "completed";
+    return el("tr", {},
+      el("td", {}, el("div", { class: "model" }, el("a", { href: "#" + anchor(m), text: m.label }), m.plan ? el("span", { class: "tag", text: "Claude plan" }) : null, m.text_only ? el("span", { class: "tag", text: "text only" }) : null), el("div", { class: "id", text: m.id })),
+      el("td", { text: m.family }),
+      el("td", { class: "num" }, done && m.built ? el("span", { text: `${m.passed}/${total}` }) : el("span", { class: "fail-word", text: cut(m) && m.built ? `stopped · ${m.passed}/${total}` : cut(m) ? "stopped, nothing built" : "nothing built" }), m.built ? pips : null),
+      el("td", { class: "num" }, el("div", { class: "barcell" }, el("span", { text: mins(m.seconds) }), el("span", { class: "track" }, el("span", { class: "bar", style: `width:${Math.max(2, 62 * (m.seconds || 0) / maxSec)}px` })))),
+      el("td", { class: "num" }, m.plan ? el("span", { text: `none (≈ ${money(m.plan_equivalent)} at API prices)` }) : el("div", { class: "barcell" }, el("span", { text: money(m.cost) || "not recorded" }), el("span", { class: "track" }, m.cost ? el("span", { class: "bar", style: `width:${Math.max(2, 62 * m.cost / maxCost)}px` }) : null))),
+      el("td", { class: "num", text: m.requests ?? (m.plan ? "" : "") }),
+      el("td", { class: "num", text: count(m.out_tokens) }),
+      el("td", { class: "num", text: m.price_in != null ? `$${m.price_in.toFixed(2)} / $${m.price_out.toFixed(2)}` : "" }));
+  }));
+}
+drawTable();
+
+// ---- cards ----
+function open(src, title, narrow) {
+  $("lightbox-img").src = src; $("lightbox-img").className = narrow ? "narrow" : ""; $("lightbox-title").textContent = title; $("lightbox").hidden = false; $("lightbox-close").focus();
+}
+$("lightbox-close").addEventListener("click", () => ($("lightbox").hidden = true));
+$("lightbox").addEventListener("click", (event) => { if (event.target === $("lightbox")) $("lightbox").hidden = true; });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") $("lightbox").hidden = true; });
+for (const m of models) {
+  const done = m.status === "completed";
+  const card = el("article", { class: "card", id: anchor(m) });
+  card.append(el("header", {}, el("h3", { text: m.label }), el("span", { class: "tag", text: m.family }), m.plan ? el("span", { class: "tag", text: "Claude plan" }) : null, m.text_only ? el("span", { class: "tag", text: "text only" }) : null, el("div", { class: "id", text: m.id })));
+  if (m.shots.desktop) card.append(el("button", { class: "shot", type: "button", "aria-label": `Scroll the whole ${m.label} page`, onclick: () => open(m.shots.full || m.shots.desktop, m.label + " · the whole page", false) },
+    el("img", { src: m.shots.desktop, alt: `First screen of the dashboard ${m.label} built`, loading: "lazy" })));
+  const thumbs = el("div", { class: "thumbs" });
+  for (const [kind, cap, narrow] of [["dark", "Dark mode", false], ["phone", "Phone", true]]) if (m.shots[kind])
+    thumbs.append(el("button", { type: "button", "aria-label": `${cap} view of ${m.label}`, onclick: () => open(m.shots[kind], `${m.label} · ${cap.toLowerCase()}`, narrow) }, el("img", { src: m.shots[kind], alt: "", loading: "lazy" }), el("div", { class: "cap", text: cap })));
+  if (thumbs.children.length) card.append(thumbs);
+  const body = el("div", { class: "body" });
+  body.append(el("div", { class: "meta" },
+    el("span", {}, el("b", { text: verdictOf(m) })),
+    el("span", { text: mins(m.seconds) }), el("span", { text: m.plan ? `no credits (Claude plan; about ${money(m.plan_equivalent)} at API prices)` : (money(m.cost) || "cost not recorded") }),
+    m.requests ? el("span", { text: m.requests + " model calls" }) : null, el("span", { text: m.tools + " tool calls" }),
+    m.tries > 1 ? el("span", { text: `try ${m.tries} (rate-limited before)` }) : null));
+  if (!done && m.error) body.append(el("p", { class: "problem", text: m.error }));
+  if (m.note) { const note = el("p", { class: "note" }); note.innerHTML = "<b>A reading of the pictures:</b> " + m.note; body.append(note); }
+  if (m.built) body.append(el("ul", { class: "checks" }, ...DATA.checks.map(([key, label]) => el("li", { class: m.checks[key] ? "ok" : "no" }, el("span", { class: "mark", text: m.checks[key] ? "✓" : "✕" }), el("span", { text: label + (!m.checks[key] && key === "city" && m.city_detail ? ` (${m.city_detail})` : "") + (!m.checks[key] && key === "channel" && m.channel_detail ? ` (${m.channel_detail})` : "") })))));
+  if (m.outside.length) body.append(el("p", { class: "meta", text: "Loads code from: " + m.outside.join(", ") }));
+  if (m.pid && DATA.studio) body.append(el("p", { class: "foot" }, el("a", { href: DATA.studio + m.pid, target: "_blank", rel: "noreferrer", text: "Open in the studio" })));
+  card.append(body);
+  $("cards").append(card);
+}
+</script>

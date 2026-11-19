@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body { margin: 0; } img { max-width: 100%; }</style>
+<title>Studio Model Comparison</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+  /* Layout: a lab report. Verdict first, then one chart, the full table, and a card per model with its pictures. */
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --ink: #14171c; --ink-2: #4a515c; --ink-3: #747c88; --line: #e0e4ea;
+    --accent: #2a78d6; --accent-soft: #e7f0fb; --good: #17734a; --bad: #b3261e; --warn: #8a5a00; --mark: #2a78d6;
+    --shadow: 0 1px 2px rgba(20, 23, 28, 0.06);
+    --display: "Space Grotesk", "Inter", system-ui, sans-serif;
+    --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101216; --surface: #181b21; --ink: #eceef2; --ink-2: #b7bdc7; --ink-3: #8b929d; --line: #2a2f38;
+      --accent: #6aa7f2; --accent-soft: #1b2a41; --good: #4cc38a; --bad: #f2716b; --warn: #f0b24d; --mark: #3987e5;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4); color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101216; --surface: #181b21; --ink: #eceef2; --ink-2: #b7bdc7; --ink-3: #8b929d; --line: #2a2f38;
+    --accent: #6aa7f2; --accent-soft: #1b2a41; --good: #4cc38a; --bad: #f2716b; --warn: #f0b24d; --mark: #3987e5;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4); color-scheme: dark;
+  }
+  [hidden] { display: none !important; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 64px;
+          padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1, h2, h3 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(26px, 4vw, 38px); line-height: 1.1; }
+  h2 { font-size: 21px; margin-bottom: 6px; }
+  h3 { font-size: 17px; }
+  p { margin: 0; }
+  .lede { color: var(--ink-2); max-width: 68ch; margin-top: 10px; font-size: 16px; }
+  .eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 8px; }
+  section { margin-top: 44px; }
+  .sub { color: var(--ink-2); max-width: 72ch; margin-bottom: 16px; }
+  code, .mono { font-family: var(--mono); font-size: 0.9em; }
+  a { color: var(--accent); }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .facts { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .facts div { min-width: 0; }
+  .facts dt { font-size: 12px; color: var(--ink-3); }
+  .facts dd { margin: 0; font: 600 20px/1.3 var(--display); font-variant-numeric: tabular-nums; }
+
+  .picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .pick { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); min-width: 0; }
+  .pick .role { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+  .pick .name { font: 600 18px/1.25 var(--display); margin: 2px 0 6px; overflow-wrap: anywhere; }
+  .pick p { color: var(--ink-2); font-size: 14px; }
+  .summary { margin: 0 0 18px; padding-left: 20px; max-width: 76ch; color: var(--ink-2); }
+  .summary li { margin-bottom: 6px; }
+  .summary strong { color: var(--ink); }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+  .chart { padding: 14px 14px 8px; position: relative; }
+  .chart svg { display: block; width: 100%; height: auto; }
+  .chart text { font-family: var(--body); fill: var(--ink-2); font-size: 11.5px; }
+  .chart .axis-title { fill: var(--ink-3); font-size: 11.5px; }
+  .chart .grid { stroke: var(--line); stroke-width: 1; }
+  .chart .dot { fill: var(--mark); stroke: var(--surface); stroke-width: 2; }
+  .chart .dot.partial { fill: var(--surface); stroke: var(--mark); stroke-width: 2.5; }
+  .chart .cross { stroke: var(--bad); stroke-width: 2.5; stroke-linecap: round; }
+  .chart .hit { fill: transparent; cursor: pointer; }
+  .chart .label { fill: var(--ink); font-size: 11.5px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--ink-2); padding: 0 4px 10px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend svg { width: 14px; height: 14px; flex: none; }
+  .tip { position: absolute; z-index: 5; pointer-events: none; background: var(--ink); color: var(--bg); border-radius: 8px;
+         padding: 8px 10px; font-size: 12.5px; line-height: 1.45; max-width: 260px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25); }
+  .tip b { font-weight: 600; }
+
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: middle; }
+  th { font-weight: 500; color: var(--ink-3); font-size: 12px; position: sticky; top: 0; background: var(--surface); }
+  th button { background: none; border: 0; padding: 0; cursor: pointer; color: inherit; font-weight: inherit; }
+  th button[aria-sort="ascending"]::after { content: " \2191"; }
+  th button[aria-sort="descending"]::after { content: " \2193"; }
+  td.num, th.num { text-align: right; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--accent-soft); }
+  td .model { font-weight: 600; white-space: normal; }
+  td .id { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+  td .model a { color: inherit; text-decoration: none; }
+  td .model a:hover { text-decoration: underline; }
+  .bar { display: inline-block; height: 8px; border-radius: 0 4px 4px 0; background: var(--mark); vertical-align: middle; margin-left: 8px; }
+  .barcell { display: flex; align-items: center; justify-content: flex-end; }
+  .barcell .track { width: 70px; text-align: left; flex: none; }
+  .pips { display: inline-flex; gap: 2px; vertical-align: middle; margin-left: 8px; }
+  .pips i { width: 6px; height: 12px; border-radius: 2px; background: var(--good); }
+  .pips i.no { background: transparent; box-shadow: inset 0 0 0 1.5px var(--bad); }
+  .tag { display: inline-block; font-size: 11.5px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-2); margin-left: 6px; white-space: nowrap; }
+  .fail-word { color: var(--bad); font-weight: 600; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr)); gap: 18px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .card header { padding: 14px 16px 10px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+  .card header .id { font-family: var(--mono); font-size: 12px; color: var(--ink-3); flex-basis: 100%; overflow-wrap: anywhere; }
+  .shot { display: block; width: 100%; border: 0; padding: 0; background: var(--bg); cursor: zoom-in; border-block: 1px solid var(--line); }
+  .shot img { display: block; width: 100%; aspect-ratio: 1440 / 900; object-fit: cover; object-position: top; }
+  .thumbs { display: flex; gap: 8px; padding: 10px 16px 0; align-items: flex-start; }
+  .thumbs button { border: 1px solid var(--line); border-radius: 6px; padding: 0; overflow: hidden; background: var(--bg); cursor: zoom-in; flex: none; }
+  .thumbs img { display: block; height: 92px; width: auto; }
+  .thumbs .cap { font-size: 11px; color: var(--ink-3); padding: 2px 6px; text-align: left; }
+  .card .body { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .meta b { color: var(--ink); font-weight: 600; }
+  .checks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 2px 14px; font-size: 13px; }
+  .checks li { display: flex; gap: 6px; align-items: baseline; color: var(--ink-2); }
+  .checks .mark { font-weight: 700; flex: none; width: 1em; }
+  .checks .ok .mark { color: var(--good); }
+  .checks .no { color: var(--ink); }
+  .checks .no .mark { color: var(--bad); }
+  .note { font-size: 13.5px; color: var(--ink-2); border-left: 2px solid var(--line); padding-left: 10px; }
+  .note b { color: var(--ink); }
+  .card .foot { margin-top: auto; font-size: 13px; }
+  .problem { font-size: 13px; color: var(--bad); overflow-wrap: anywhere; }
+
+  details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
+  summary { cursor: pointer; font-weight: 500; }
+  pre { white-space: pre-wrap; font: 13px/1.5 var(--mono); color: var(--ink-2); margin: 10px 0 0; overflow-wrap: anywhere; }
+  .method { color: var(--ink-2); max-width: 76ch; padding-left: 20px; margin: 0 0 16px; }
+  .method li { margin-bottom: 6px; }
+
+  .lightbox { position: fixed; inset: 0; z-index: 20; background: rgba(8, 10, 14, 0.86); display: flex; flex-direction: column;
+              padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
+  .lightbox .bar2 { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #f2f3f5; padding-bottom: 10px; font-size: 14px; }
+  .lightbox .bar2 button { background: #f2f3f5; color: #14171c; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 500; }
+  .lightbox .view { overflow: auto; flex: 1; border-radius: 8px; background: #000; }
+  .lightbox img { display: block; width: 100%; max-width: 1440px; margin: 0 auto; }
+  .lightbox img.narrow { max-width: 420px; }
+  @media (prefers-reduced-motion: no-preference) { tbody tr, .shot { transition: background 120ms; } }
+  @media (max-width: 600px) { .thumbs img { height: 72px; } th, td { padding: 8px 9px; } }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Studio 2 · one request per model · <span id="date"></span></p>
+  <h1>Which model builds the best dashboard in the studio?</h1>
+  <p class="lede" id="lede"></p>
+  <dl class="facts" id="facts"></dl>
+
+  <section id="verdict">
+    <h2>What the run suggests</h2>
+    <ul class="summary" id="summary"></ul>
+    <div class="picks" id="picks"></div>
+  </section>
+
+  <section>
+    <h2>Cost against time</h2>
+    <p class="sub">Each point is one model's whole request: minutes from sending the brief to its answer, and what the OpenRouter account was charged. The cost scale is logarithmic, so each step up is ten times more. The three runs on a Claude plan cost no credits and are left out here; they are in the table.</p>
+    <div class="panel chart" id="chart">
+      <div class="legend">
+        <span><svg viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill="var(--mark)"/></svg>passed all 11 checks</span>
+        <span><svg viewBox="0 0 14 14"><circle cx="7" cy="7" r="4.5" fill="none" stroke="var(--mark)" stroke-width="2.5"/></svg>finished, failed at least one check</span>
+        <span><svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8" stroke="var(--bad)" stroke-width="2.5" stroke-linecap="round"/></svg>stopped at 15 minutes, or nothing built</span>
+      </div>
+      <div id="plot"></div>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Every model</h2>
+    <p class="sub">Sort by any heading. Checks are the eleven things the page either does or does not do, measured in a real browser against the data's true numbers. A model's name jumps to its pictures.</p>
+    <div class="panel scroll"><table id="table"><thead></thead><tbody></tbody></table></div>
+  </section>
+
+  <section>
+    <h2>The dashboards</h2>
+    <p class="sub">The first screen of each page at desktop width. Select a picture to scroll the whole page; the smaller ones are dark mode and a phone.</p>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section>
+    <h2>How this was run</h2>
+    <ul class="method">
+      <li>Every model got the same brief and the same 453-row data file, in a new project in one studio, through one route: Claude Code as the agent, a LiteLLM gateway, OpenRouter. Claude Fable, Opus and Sonnet ran on a Claude plan; Sonnet and Haiku also ran through OpenRouter.</li>
+      <li>The data is generated sample data with a fixed seed, so the right answers are known: <span id="truth"></span>.</li>
+      <li>One request per model. That shows what a model did this once; it does not show how often it would do it again. A model that failed here may pass on a retry, and the reverse.</li>
+      <li>The eleven checks are mechanical. How good a page looks is not one of them; a comment on looks is one reading of the pictures and is marked as that.</li>
+      <li>Cost is what the gateway recorded for the request. A run stopped at the 15-minute limit is counted as not finished.</li>
+    </ul>
+    <details><summary>The brief every model received</summary><pre>The attached file data/orders.csv holds sample data for a made-up rooftop-solar installer, Brightline Solar: one row per quote given in 2025.
+
+Build this project&#x27;s page as an interactive sales dashboard for the owner:
+
+1. A header with the company name and the period, and four headline numbers: revenue from won orders, number of won orders, win rate (won divided by won plus lost; open quotes are left out), and the average system size of won orders in kW.
+2. A chart of won revenue by month.
+3. A chart comparing the cities and one comparing the sales channels, each showing revenue and win rate.
+4. A leaderboard of the salespeople.
+5. A table of the 15 largest won orders that can be sorted by clicking a column heading.
+6. Filters for city and for channel that update every number, chart and table on the page.
+7. A short &quot;What stands out&quot; section with three findings from the data, each with its number.
+
+The page must read its numbers from the CSV file (do not type them in), look good in light and in dark mode, and work on a phone. When you are done, reply with the four headline numbers for the whole year.</pre></details>
+  </section>
+</div>
+
+<div class="lightbox" id="lightbox" hidden>
+  <div class="bar2"><span id="lightbox-title"></span><button type="button" id="lightbox-close">Close</button></div>
+  <div class="view"><img id="lightbox-img" alt=""></div>
+</div>
+
+<script>
+const DATA = {"models": [{"id": "anthropic/claude-sonnet-5.5", "key": "plan/sonnet", "name": "sonnet", "built": true, "label": "Claude Sonnet 5.5", "family": "Claude", "plan": true, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 103, "cost": null, "plan_equivalent": 0.26457030000000004, "requests": null, "tools": 17, "tool_errors": 1, "out_tokens": 10302, "price_in": 2.0, "price_out": 10.0, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": [], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/sonnet-desktop.jpg", "full": "shots/sonnet-full.jpg", "dark": "shots/sonnet-dark.jpg", "phone": "shots/sonnet-phone.jpg"}, "note": "The same warm palette as Opus with a larger, labelled monthly chart. Plain and clear."}, {"id": "anthropic/claude-opus-5.5", "key": "plan/opus", "name": "opus", "built": true, "label": "Claude Opus 5.5", "family": "Claude", "plan": true, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 221, "cost": null, "plan_equivalent": 1.0232953999999999, "requests": null, "tools": 26, "tool_errors": 0, "out_tokens": 19096, "price_in": 4.0, "price_out": 20.0, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": ["cdn.jsdelivr.net"], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/opus-desktop.jpg", "full": "shots/opus-full.jpg", "dark": "shots/opus-dark.jpg", "phone": "shots/opus-phone.jpg"}, "note": "Warm cream page with orange bars; dense and tidy, cities and channels side by side with paired revenue and win-rate bars."}, {"id": "anthropic/claude-fable-5.2", "key": "plan/fable", "name": "fable", "built": true, "label": "Claude Fable 5.2", "family": "Claude", "plan": true, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 291, "cost": null, "plan_equivalent": 2.7405266000000004, "requests": null, "tools": 34, "tool_errors": 0, "out_tokens": 27383, "price_in": 8.0, "price_out": 40.0, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": [], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/fable-desktop.jpg", "full": "shots/fable-full.jpg", "dark": "shots/fable-dark.jpg", "phone": "shots/fable-phone.jpg"}, "note": "Navy header band; the three findings sit right under the headline numbers as large figures, and the leaderboard is beside the monthly chart. The clearest layout of the lot."}, {"id": "anthropic/claude-haiku-5.5", "key": "anthropic/claude-haiku-5.5", "name": "anthropic_claude-haiku-5.5", "built": true, "label": "claude-haiku-5.5", "family": "Claude", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 163, "cost": 0.043296, "plan_equivalent": null, "requests": 16, "tools": 57, "tool_errors": 0, "out_tokens": 31131, "price_in": 0.09999999999999999, "price_out": 0.5, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": [], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/anthropic_claude-haiku-5.5-desktop.jpg", "full": "shots/anthropic_claude-haiku-5.5-full.jpg", "dark": "shots/anthropic_claude-haiku-5.5-dark.jpg", "phone": "shots/anthropic_claude-haiku-5.5-phone.jpg"}, "note": "Teal bars with a value on every month, section links under the title. Simple and readable; nothing looks cheap about it."}, {"id": "z-ai/glm-5.3-flash", "key": "z-ai/glm-5.3-flash", "name": "z-ai_glm-5.3-flash", "built": true, "label": "glm-5.3-flash", "family": "GLM", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 123, "cost": 0.048377, "plan_equivalent": null, "requests": 17, "tools": 26, "tool_errors": 0, "out_tokens": 14379, "price_in": 0.15, "price_out": 0.5, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": ["cdn.jsdelivr.net"], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/z-ai_glm-5.3-flash-desktop.jpg", "full": "shots/z-ai_glm-5.3-flash-full.jpg", "dark": "shots/z-ai_glm-5.3-flash-dark.jpg", "phone": "shots/z-ai_glm-5.3-flash-phone.jpg"}, "note": "Orange accent and the findings above the chart. A lot of page for five cents."}, {"id": "deepseek/deepseek-v4.1-flash", "key": "deepseek/deepseek-v4.1-flash", "name": "deepseek_deepseek-v4.1-flash", "built": true, "label": "deepseek-v4.1-flash", "family": "DeepSeek", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 275, "cost": 0.072338, "plan_equivalent": null, "requests": 57, "tools": 88, "tool_errors": 1, "out_tokens": 43161, "price_in": 0.050699999999999995, "price_out": 0.20279999999999998, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": ["cdn.jsdelivr.net"], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/deepseek_deepseek-v4.1-flash-desktop.jpg", "full": "shots/deepseek_deepseek-v4.1-flash-full.jpg", "dark": "shots/deepseek_deepseek-v4.1-flash-dark.jpg", "phone": "shots/deepseek_deepseek-v4.1-flash-phone.jpg"}, "note": "The studio's default look, with section links and a long, complete page. Competent rather than designed."}, {"id": "deepseek/deepseek-v4.1-flash-1017", "key": "deepseek/deepseek-v4.1-flash-1017", "name": "deepseek_deepseek-v4.1-flash-1017", "built": true, "label": "deepseek-v4.1-flash-1017", "family": "DeepSeek", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 303, "cost": 0.16587, "plan_equivalent": null, "requests": 59, "tools": 124, "tool_errors": 4, "out_tokens": 68918, "price_in": 0.15, "price_out": 0.6, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": ["cdn.jsdelivr.net"], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/deepseek_deepseek-v4.1-flash-1017-desktop.jpg", "full": "shots/deepseek_deepseek-v4.1-flash-1017-full.jpg", "dark": "shots/deepseek_deepseek-v4.1-flash-1017-dark.jpg", "phone": "shots/deepseek_deepseek-v4.1-flash-1017-phone.jpg"}, "note": "A warm gradient header and a sentence that frames the year before the numbers. A step up in looks from the other Flash."}, {"id": "z-ai/glm-5.3", "key": "z-ai/glm-5.3", "name": "z-ai_glm-5.3", "built": true, "label": "glm-5.3", "family": "GLM", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 315, "cost": 0.212449, "plan_equivalent": null, "requests": 25, "tools": 47, "tool_errors": 3, "out_tokens": 34322, "price_in": 0.0699, "price_out": 1.4, "text_only": true, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": ["cdn.jsdelivr.net"], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/z-ai_glm-5.3-desktop.jpg", "full": "shots/z-ai_glm-5.3-full.jpg", "dark": "shots/z-ai_glm-5.3-dark.jpg", "phone": "shots/z-ai_glm-5.3-phone.jpg"}, "note": "Filter chips instead of drop-downs, clean blue charts. Also text only, also fine."}, {"id": "z-ai/glm-5.3-flashx", "key": "z-ai/glm-5.3-flashx", "name": "z-ai_glm-5.3-flashx", "built": true, "label": "glm-5.3-flashx", "family": "GLM", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 486, "cost": 0.37581, "plan_equivalent": null, "requests": 35, "tools": 82, "tool_errors": 1, "out_tokens": 48486, "price_in": 0.37, "price_out": 1.25, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": [], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/z-ai_glm-5.3-flashx-desktop.jpg", "full": "shots/z-ai_glm-5.3-flashx-full.jpg", "dark": "shots/z-ai_glm-5.3-flashx-dark.jpg", "phone": "shots/z-ai_glm-5.3-flashx-phone.jpg"}, "note": "Plain and text-heavy near the top, with an explanation of each formula. Correct, not pretty."}, {"id": "openai/gpt-6.1-terra", "key": "openai/gpt-6.1-terra", "name": "openai_gpt-6.1-terra", "built": true, "label": "gpt-6.1-terra", "family": "GPT", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 527, "cost": 0.376036, "plan_equivalent": null, "requests": 26, "tools": 72, "tool_errors": 1, "out_tokens": 15118, "price_in": 1.0, "price_out": 5.0, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": ["fonts.googleapis.com", "fonts.gstatic.com"], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/openai_gpt-6.1-terra-desktop.jpg", "full": "shots/openai_gpt-6.1-terra-full.jpg", "dark": "shots/openai_gpt-6.1-terra-dark.jpg", "phone": "shots/openai_gpt-6.1-terra-phone.jpg"}, "note": "Calm green page with its own navigation and a 'Sales overview' title. Restrained and professional."}, {"id": "minimax/minimax-m3", "key": "minimax/minimax-m3", "name": "minimax_minimax-m3", "built": true, "label": "minimax-m3", "family": "MiniMax", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 349, "cost": 0.390009, "plan_equivalent": null, "requests": 37, "tools": 44, "tool_errors": 0, "out_tokens": 30286, "price_in": 0.3, "price_out": 1.2, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": [], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/minimax_minimax-m3-desktop.jpg", "full": "shots/minimax_minimax-m3-full.jpg", "dark": "shots/minimax_minimax-m3-dark.jpg", "phone": "shots/minimax_minimax-m3-phone.jpg"}, "note": "Peach background with orange bars; simple and warm."}, {"id": "deepseek/deepseek-v4-pro-0813", "key": "deepseek/deepseek-v4-pro-0813", "name": "deepseek_deepseek-v4-pro-0813", "built": true, "label": "deepseek-v4-pro-0813", "family": "DeepSeek", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 677, "cost": 0.522695, "plan_equivalent": null, "requests": 18, "tools": 37, "tool_errors": 2, "out_tokens": 47247, "price_in": 0.111, "price_out": 4.4399999999999995, "text_only": true, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": [], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/deepseek_deepseek-v4-pro-0813-desktop.jpg", "full": "shots/deepseek_deepseek-v4-pro-0813-full.jpg", "dark": "shots/deepseek_deepseek-v4-pro-0813-dark.jpg", "phone": "shots/deepseek_deepseek-v4-pro-0813-phone.jpg"}, "note": "Clean default blue. It could not see its own page (text only), and it shows no sign of that."}, {"id": "x-ai/grok-build-0.1", "key": "x-ai/grok-build-0.1", "name": "x-ai_grok-build-0.1", "built": true, "label": "grok-build-0.1", "family": "Grok", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 156, "cost": 0.692542, "plan_equivalent": null, "requests": 56, "tools": 67, "tool_errors": 4, "out_tokens": 17906, "price_in": 1.0, "price_out": 2.0, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": ["cdn.jsdelivr.net"], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/x-ai_grok-build-0.1-desktop.jpg", "full": "shots/x-ai_grok-build-0.1-full.jpg", "dark": "shots/x-ai_grok-build-0.1-dark.jpg", "phone": "shots/x-ai_grok-build-0.1-phone.jpg"}, "note": "The plainest: stock chart styling in cyan, and its city and channel charts put revenue and win rate on two different scales, which is hard to read."}, {"id": "google/gemini-4-hydrogen", "key": "google/gemini-4-hydrogen", "name": "google_gemini-4-hydrogen", "built": true, "label": "gemini-4-hydrogen", "family": "Gemini", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 298, "cost": 0.753054, "plan_equivalent": null, "requests": 17, "tools": 85, "tool_errors": 0, "out_tokens": 29378, "price_in": 1.5, "price_out": 7.5, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": ["cdn.jsdelivr.net"], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/google_gemini-4-hydrogen-desktop.jpg", "full": "shots/google_gemini-4-hydrogen-full.jpg", "dark": "shots/google_gemini-4-hydrogen-dark.jpg", "phone": "shots/google_gemini-4-hydrogen-phone.jpg"}, "note": "Findings up top, and each chart's title says what it shows ('Won revenue peaked in April\u2026'). Good at telling you what to look at."}, {"id": "openai/gpt-6.2-sol", "key": "openai/gpt-6.2-sol", "name": "openai_gpt-6.2-sol", "built": true, "label": "gpt-6.2-sol", "family": "GPT", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 2, "seconds": 636, "cost": 0.996338, "plan_equivalent": null, "requests": 46, "tools": 112, "tool_errors": 6, "out_tokens": 29904, "price_in": 2.0, "price_out": 10.0, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": [], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/openai_gpt-6.2-sol-desktop.jpg", "full": "shots/openai_gpt-6.2-sol-full.jpg", "dark": "shots/openai_gpt-6.2-sol-dark.jpg", "phone": "shots/openai_gpt-6.2-sol-phone.jpg"}, "note": "The most ambitious design: a green hero banner with an illustration, tabs, icons on each tile, findings beside the chart."}, {"id": "google/gemini-4-neon", "key": "google/gemini-4-neon", "name": "google_gemini-4-neon", "built": true, "label": "gemini-4-neon", "family": "Gemini", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 336, "cost": 1.031925, "plan_equivalent": null, "requests": 16, "tools": 57, "tool_errors": 0, "out_tokens": 29301, "price_in": 3.0, "price_out": 15.0, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": ["cdn.jsdelivr.net"], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/google_gemini-4-neon-desktop.jpg", "full": "shots/google_gemini-4-neon-full.jpg", "dark": "shots/google_gemini-4-neon-dark.jpg", "phone": "shots/google_gemini-4-neon-phone.jpg"}, "note": "Findings first, each as a labelled card with its number; standard blue charts below. Compact."}, {"id": "moonshotai/kimi-k3", "key": "moonshotai/kimi-k3", "name": "moonshotai_kimi-k3", "built": true, "label": "kimi-k3", "family": "Kimi", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 202, "cost": 1.54222, "plan_equivalent": null, "requests": 19, "tools": 43, "tool_errors": 0, "out_tokens": 20170, "price_in": 0.192, "price_out": 16.0, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": [], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/moonshotai_kimi-k3-desktop.jpg", "full": "shots/moonshotai_kimi-k3-full.jpg", "dark": "shots/moonshotai_kimi-k3-dark.jpg", "phone": "shots/moonshotai_kimi-k3-phone.jpg"}, "note": "Compact and plain; abbreviates the revenue tile to $4.11M with the full figure beneath."}, {"id": "stepfun/step-5-preview", "key": "stepfun/step-5-preview", "name": "stepfun_step-5-preview", "built": true, "label": "step-5-preview", "family": "Step", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 523, "cost": 1.794767, "plan_equivalent": null, "requests": 86, "tools": 122, "tool_errors": 9, "out_tokens": 78727, "price_in": 1.0, "price_out": 2.7, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": [], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/stepfun_step-5-preview-desktop.jpg", "full": "shots/stepfun_step-5-preview-full.jpg", "dark": "shots/stepfun_step-5-preview-dark.jpg", "phone": "shots/stepfun_step-5-preview-phone.jpg"}, "note": "Clean, with a light and dark switch of its own. It needed 86 model calls and $1.79 to get there."}, {"id": "moonshotai/kimi-k3.1-pro", "key": "moonshotai/kimi-k3.1-pro", "name": "moonshotai_kimi-k3.1-pro", "built": true, "label": "kimi-k3.1-pro", "family": "Kimi", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 550, "cost": 2.000296, "plan_equivalent": null, "requests": 48, "tools": 125, "tool_errors": 5, "out_tokens": 54560, "price_in": 0.253, "price_out": 8.8, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 11, "outside": ["cdn.jsdelivr.net"], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/moonshotai_kimi-k3.1-pro-desktop.jpg", "full": "shots/moonshotai_kimi-k3.1-pro-full.jpg", "dark": "shots/moonshotai_kimi-k3.1-pro-dark.jpg", "phone": "shots/moonshotai_kimi-k3.1-pro-phone.jpg"}, "note": "An editorial headline ('The year in solar sales.'), its own navigation and an insight panel beside the chart. Distinctive, and the dearest run here."}, {"id": "anthropic/claude-sonnet-5.5", "key": "anthropic/claude-sonnet-5.5", "name": "anthropic_claude-sonnet-5.5", "built": true, "label": "claude-sonnet-5.5", "family": "Claude", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 75, "cost": 0.268772, "plan_equivalent": null, "requests": 7, "tools": 12, "tool_errors": 0, "out_tokens": 8265, "price_in": 2.0, "price_out": 10.0, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": false, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 10, "outside": [], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/anthropic_claude-sonnet-5.5-desktop.jpg", "full": "shots/anthropic_claude-sonnet-5.5-full.jpg", "dark": "shots/anthropic_claude-sonnet-5.5-dark.jpg", "phone": "shots/anthropic_claude-sonnet-5.5-phone.jpg"}, "note": "Close to the plan run's page: clean, restrained, nothing wasted."}, {"id": "openai/gpt-6.2-astra", "key": "openai/gpt-6.2-astra", "name": "openai_gpt-6.2-astra", "built": true, "label": "gpt-6.2-astra", "family": "GPT", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 285, "cost": 1.96299, "plan_equivalent": null, "requests": 16, "tools": 65, "tool_errors": 1, "out_tokens": 20558, "price_in": 8.0, "price_out": 40.0, "text_only": false, "checks": {"done": true, "answer": true, "headline": true, "city": true, "channel": true, "sort": false, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 10, "outside": [], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/openai_gpt-6.2-astra-desktop.jpg", "full": "shots/openai_gpt-6.2-astra-full.jpg", "dark": "shots/openai_gpt-6.2-astra-dark.jpg", "phone": "shots/openai_gpt-6.2-astra-phone.jpg"}, "note": "Polished: dark header, a highlighted revenue tile, findings beside the chart. But clicking a column heading does not reorder the orders table, which shows five rows a page."}, {"id": "minimax/minimax-m3.1-flash", "key": "minimax/minimax-m3.1-flash", "name": "minimax_minimax-m3.1-flash", "built": true, "label": "minimax-m3.1-flash", "family": "MiniMax", "plan": false, "pid": null, "status": "stopped at the 15 minute limit", "error": "", "tries": 1, "seconds": 915, "cost": 0.196049, "plan_equivalent": null, "requests": 42, "tools": 81, "tool_errors": 1, "out_tokens": null, "price_in": 0.075, "price_out": 0.3, "text_only": false, "checks": {"done": false, "answer": false, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 9, "outside": [], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/minimax_minimax-m3.1-flash-desktop.jpg", "full": "shots/minimax_minimax-m3.1-flash-full.jpg", "dark": "shots/minimax_minimax-m3.1-flash-dark.jpg", "phone": "shots/minimax_minimax-m3.1-flash-phone.jpg"}, "note": "A report-style headline ('How Brightline Solar sold solar in 2025') in a narrow column. Complete when it was stopped."}, {"id": "google/gemini-4-carbon", "key": "google/gemini-4-carbon", "name": "google_gemini-4-carbon", "built": true, "label": "gemini-4-carbon", "family": "Gemini", "plan": false, "pid": null, "status": "stopped at the 15 minute limit", "error": "", "tries": 1, "seconds": 920, "cost": 0.715896, "plan_equivalent": null, "requests": 12, "tools": 48, "tool_errors": 0, "out_tokens": null, "price_in": 2.0, "price_out": 10.0, "text_only": false, "checks": {"done": false, "answer": false, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 9, "outside": [], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/google_gemini-4-carbon-desktop.jpg", "full": "shots/google_gemini-4-carbon-full.jpg", "dark": "shots/google_gemini-4-carbon-dark.jpg", "phone": "shots/google_gemini-4-carbon-phone.jpg"}, "note": "Much like Hydrogen's page, findings first. It was still checking its work when the limit stopped it."}, {"id": "x-ai/grok-4.7", "key": "x-ai/grok-4.7", "name": "x-ai_grok-4.7", "built": true, "label": "grok-4.7", "family": "Grok", "plan": false, "pid": null, "status": "stopped at the 15 minute limit", "error": "", "tries": 1, "seconds": 918, "cost": 1.958228, "plan_equivalent": null, "requests": 30, "tools": 139, "tool_errors": 2, "out_tokens": null, "price_in": 2.0, "price_out": 6.0, "text_only": false, "checks": {"done": false, "answer": false, "headline": true, "city": true, "channel": true, "sort": true, "top15": true, "stands": true, "dark": true, "phone": true, "clean": true}, "passed": 9, "outside": ["cdn.jsdelivr.net"], "city_detail": "correct", "channel_detail": "correct", "shots": {"desktop": "shots/x-ai_grok-4.7-desktop.jpg", "full": "shots/x-ai_grok-4.7-full.jpg", "dark": "shots/x-ai_grok-4.7-dark.jpg", "phone": "shots/x-ai_grok-4.7-phone.jpg"}, "note": "A plain blue page that opens with a sentence summing up the year. Complete when it was stopped."}, {"id": "moonshotai/kimi-k2.7-code", "key": "moonshotai/kimi-k2.7-code", "name": "moonshotai_kimi-k2.7-code", "built": false, "label": "kimi-k2.7-code", "family": "Kimi", "plan": false, "pid": null, "status": "completed", "error": "", "tries": 1, "seconds": 21, "cost": 0.016646, "plan_equivalent": null, "requests": 3, "tools": 2, "tool_errors": 0, "out_tokens": 375, "price_in": 0.65, "price_out": 3.5, "text_only": false, "checks": {"done": true, "answer": false, "headline": false, "city": false, "channel": false, "sort": false, "top15": false, "stands": false, "dark": false, "phone": false, "clean": false}, "passed": 1, "outside": [], "city_detail": "no control found", "channel_detail": "no control found", "shots": {}, "note": ""}, {"id": "xiaomi/mimo-v2.6-pro", "key": "xiaomi/mimo-v2.6-pro", "name": "xiaomi_mimo-v2.6-pro", "built": false, "label": "mimo-v2.6-pro", "family": "MiMo", "plan": false, "pid": null, "status": "stopped at the 15 minute limit", "error": "", "tries": 1, "seconds": 917, "cost": 0.022298, "plan_equivalent": null, "requests": 6, "tools": 18, "tool_errors": 0, "out_tokens": null, "price_in": 0.435, "price_out": 0.87, "text_only": false, "checks": {"done": false, "answer": false, "headline": false, "city": false, "channel": false, "sort": false, "top15": false, "stands": false, "dark": false, "phone": false, "clean": false}, "passed": 0, "outside": [], "city_detail": "no control found", "channel_detail": "no control found", "shots": {}, "note": ""}, {"id": "mistralai/mistral-large-4-0", "key": "mistralai/mistral-large-4-0", "name": "mistralai_mistral-large-4-0", "built": false, "label": "mistral-large-4-0", "family": "Mistral", "plan": false, "pid": null, "status": "stopped at the 15 minute limit", "error": "", "tries": 1, "seconds": 915, "cost": 0.084296, "plan_equivalent": null, "requests": 5, "tools": 18, "tool_errors": 0, "out_tokens": null, "price_in": 0.7, "price_out": 2.0999999999999996, "text_only": false, "checks": {"done": false, "answer": false, "headline": false, "city": false, "channel": false, "sort": false, "top15": false, "stands": false, "dark": false, "phone": false, "clean": false}, "passed": 0, "outside": [], "city_detail": "no control found", "channel_detail": "no control found", "shots": {}, "note": ""}, {"id": "tencent/hy4", "key": "tencent/hy4", "name": "tencent_hy4", "built": false, "label": "hy4", "family": "Hunyuan", "plan": false, "pid": null, "status": "stopped at the 15 minute limit", "error": "", "tries": 1, "seconds": 924, "cost": 0.167344, "plan_equivalent": null, "requests": 14, "tools": 26, "tool_errors": 0, "out_tokens": null, "price_in": 0.417, "price_out": 1.2505, "text_only": false, "checks": {"done": false, "answer": false, "headline": false, "city": false, "channel": false, "sort": false, "top15": false, "stands": false, "dark": false, "phone": false, "clean": false}, "passed": 0, "outside": [], "city_detail": "no control found", "channel_detail": "no control found", "shots": {}, "note": ""}], "checks": [["done", "Finished the request"], ["answer", "Reply gives the four headline numbers correctly"], ["headline", "Page shows the four headline numbers correctly"], ["city", "City filter recomputes correctly (Portland)"], ["channel", "Channel filter recomputes correctly (Referral)"], ["sort", "Top-orders table sorts on a heading click"], ["top15", "Table holds the true 15 largest won orders"], ["stands", "Has a \u201cWhat stands out\u201d section"], ["dark", "Dark mode has a dark background"], ["phone", "No sideways scroll at phone width"], ["clean", "No errors in the browser console"]], "studio": "", "date": "19 November 2026", "picks": [{"role": "Default for a shared studio", "name": "Claude Sonnet 5.5", "why": "Through OpenRouter: every check passed in 75 seconds for $0.27. Nothing else was both this fast and this cheap at this level."}, {"role": "Best on a Claude plan", "name": "Claude Fable 5.2", "why": "Puts the three findings directly under the headline numbers as big figures, with the leaderboard beside the chart. The clearest layout of information, in one reading of the pictures."}, {"role": "Cheapest that passed everything", "name": "Claude Haiku 5.5", "why": "$0.04 and 2.7 minutes through OpenRouter. GLM 5.3 Flash ($0.05, 2.0 minutes) and DeepSeek V4.1 Flash ($0.07) are the alternatives outside Anthropic."}, {"role": "Most designed page", "name": "GPT 6.2 Sol", "why": "A hero banner, section navigation and icon tiles: it looks most like a product. It took 10.6 minutes and $1.00, and its provider rate-limited it twice earlier that day."}, {"role": "Best of the mid-priced", "name": "Gemini 4 Hydrogen", "why": "$0.75, 5 minutes, every check, and its chart titles state the finding instead of naming the axis."}], "summary": ["<strong>With a Claude plan on your own computer, stay on Claude.<\/strong> Fable, Opus and Sonnet each passed all eleven checks in under five minutes and spent no credits.", "<strong>For a shared studio, where the plan is not allowed, Claude Sonnet 5.5 through OpenRouter is the default to pick.<\/strong> All eleven checks in 75 seconds for $0.27: the fastest run of all, and a quarter of what GPT 6.2 Sol cost for the same result in 10.6 minutes.", "<strong>Cheap models are good enough for this kind of job.<\/strong> Claude Haiku 5.5 ($0.04), GLM 5.3 Flash ($0.05) and DeepSeek V4.1 Flash ($0.07) each built a correct, working dashboard.", "<strong>Paying more did not buy more correctness.<\/strong> The three dearest runs (Kimi K3.1 Pro $2.00, GPT 6.2 Astra $1.96, Grok 4.7 $1.96) were no more correct than the cheapest. Astra's table does not sort, and Grok was still working when the 15-minute limit stopped it.", "<strong>Four built nothing:<\/strong> Kimi K2.7 Code said it was done after loading two skills, and Mistral Large 4.0, Hunyuan HY4 and MiMo V2.6 Pro had built nothing after 15 minutes.", "The studio's own instructions and tools carry most of the result: the same checks pass across families and the pages share a house style. What differs between models is speed, cost and how far they push the design."], "truth": {"rows": 453, "won": 187, "lost": 253, "open": 13, "revenue": 4107930, "win_rate": 42.5, "avg_kw": 7.86}, "spent": 16.41};
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, ...kids) => {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs)) {
+    if (key === "class") node.className = value; else if (key === "text") node.textContent = value;
+    else if (key.startsWith("on")) node.addEventListener(key.slice(2), value); else node.setAttribute(key, value);
+  }
+  for (const kid of kids) if (kid != null) node.append(kid);
+  return node;
+};
+const money = (v) => v == null ? "" : v < 0.1 ? "$" + v.toFixed(3) : "$" + v.toFixed(2);
+const mins = (s) => s == null ? "" : s < 90 ? s + " s" : (s / 60).toFixed(1) + " min";
+const count = (v) => v == null ? "" : v >= 1e6 ? (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? Math.round(v / 1e3) + "k" : String(v);
+const models = DATA.models, total = DATA.checks.length;
+const anchor = (m) => "m-" + m.key.replace(/[^a-z0-9]+/gi, "-");
+const cut = (m) => String(m.status).startsWith("stopped");
+const verdictOf = (m) => m.status === "completed" && m.built ? `${m.passed} of ${total} checks`
+  : m.status === "completed" ? "said it was done with nothing built"
+  : cut(m) && m.built ? `stopped at 15 minutes; the page as it stood passes ${m.passed} of ${total}`
+  : cut(m) ? "stopped at 15 minutes with nothing built" : "failed";
+
+// ---- header ----
+const finished = models.filter((m) => m.status === "completed" && m.built), perfect = models.filter((m) => m.passed === total);
+$("date").textContent = DATA.date;
+$("lede").textContent = `${models.length} models were each asked once to build the same interactive sales dashboard from the same data file. ${finished.length} finished with a working page, and ${perfect.length} of those passed every check.`;
+for (const [label, value] of [["Models tried", models.length], ["Finished with a page", finished.length], ["Passed all " + total + " checks", perfect.length], ["OpenRouter credits spent", "$" + DATA.spent.toFixed(2)]])
+  $("facts").append(el("div", {}, el("dt", { text: label }), el("dd", { text: String(value) })));
+const t = DATA.truth;
+$("truth").textContent = `$${t.revenue.toLocaleString("en-US")} of won revenue, ${t.won} won orders, a ${t.win_rate}% win rate and ${t.avg_kw} kW on average`;
+
+// ---- verdict ----
+for (const line of DATA.summary) { const li = el("li"); li.innerHTML = line; $("summary").append(li); }
+for (const pick of DATA.picks) $("picks").append(el("div", { class: "pick" }, el("div", { class: "role", text: pick.role }), el("div", { class: "name", text: pick.name }), el("p", { text: pick.why })));
+if (!DATA.picks.length) $("verdict").hidden = true;
+
+// ---- chart: minutes (linear) against credits (log) ----
+(function chart() {
+  const pts = models.filter((m) => !m.plan && m.seconds != null && (m.cost != null || m.status !== "completed"));
+  const W = 1100, H = 430, L = 62, R = 150, T = 14, B = 46;
+  const maxMin = Math.max(6, Math.ceil(Math.max(...pts.map((m) => m.seconds / 60)) + 0.5));
+  const costs = pts.map((m) => m.cost).filter((c) => c > 0);
+  const lo = Math.pow(10, Math.floor(Math.log10(Math.min(...costs, 0.01)))), hi = Math.pow(10, Math.ceil(Math.log10(Math.max(...costs, 1))));
+  const x = (v) => L + (v / maxMin) * (W - L - R), y = (c) => T + (1 - (Math.log10(c) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo))) * (H - T - B);
+  const ns = "http://www.w3.org/2000/svg";
+  const s = (tag, attrs, text) => { const n = document.createElementNS(ns, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (text != null) n.textContent = text; return n; };
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Cost against time for each model; the same numbers are in the table below" });
+  for (let c = lo; c <= hi * 1.001; c *= 10) {
+    svg.append(s("line", { class: "grid", x1: L, x2: W - R, y1: y(c), y2: y(c) }));
+    svg.append(s("text", { x: L - 8, y: y(c) + 4, "text-anchor": "end" }, c >= 1 ? "$" + c : "$" + c.toFixed(c < 0.01 ? 3 : 2)));
+  }
+  for (let m = 0; m <= maxMin; m += maxMin > 12 ? 3 : 2) svg.append(s("text", { x: x(m), y: H - B + 18, "text-anchor": "middle" }, m + " min"));
+  svg.append(s("text", { class: "axis-title", x: L, y: H - 8 }, "Time for the whole request"));
+  const placed = [];
+  const sorted = [...pts].sort((a, b) => (b.passed - a.passed) || ((a.cost || 0) - (b.cost || 0)));
+  for (const m of sorted) {
+    const cx = x(m.seconds / 60), cy = m.cost > 0 ? y(m.cost) : H - B - 6;
+    if (m.status !== "completed" || !m.built) svg.append(s("path", { class: "cross", d: `M${cx - 5} ${cy - 5}l10 10M${cx + 5} ${cy - 5}l-10 10` }));
+    else svg.append(s("circle", { class: "dot" + (m.passed === total ? "" : " partial"), cx, cy, r: m.passed === total ? 6 : 5.5 }));
+    const box = { x1: cx + 10, x2: cx + 10 + m.label.length * 6.4, y1: cy - 8, y2: cy + 6 };
+    if (!placed.some((p) => box.x1 < p.x2 && box.x2 > p.x1 && box.y1 < p.y2 && box.y2 > p.y1)) {
+      placed.push(box); svg.append(s("text", { class: "label", x: cx + 10, y: cy + 4 }, m.label));
+    }
+    const hit = s("circle", { class: "hit", cx, cy, r: 14, tabindex: 0 });
+    const show = () => {
+      const tip = $("tip"), frame = $("chart").getBoundingClientRect(), at = hit.getBoundingClientRect();
+      tip.innerHTML = `<b>${m.label}</b><br>${m.family} · ${verdictOf(m)}<br>${mins(m.seconds)} · ${m.cost != null ? money(m.cost) : "no cost recorded"} · ${m.requests ?? "?"} model calls`;
+      tip.hidden = false;
+      const left = Math.min(Math.max(8, at.left - frame.left + 20), frame.width - tip.offsetWidth - 8);
+      tip.style.left = left + "px"; tip.style.top = Math.max(8, at.top - frame.top - tip.offsetHeight - 6) + "px";
+    };
+    hit.addEventListener("mouseenter", show); hit.addEventListener("focus", show);
+    hit.addEventListener("mouseleave", () => ($("tip").hidden = true)); hit.addEventListener("blur", () => ($("tip").hidden = true));
+    hit.addEventListener("click", () => location.hash = anchor(m));
+    svg.append(hit);
+  }
+  $("plot").append(svg);
+})();
+
+// ---- table ----
+const maxCost = Math.max(...models.map((m) => m.cost || 0)), maxSec = Math.max(...models.map((m) => m.seconds || 0));
+const columns = [
+  { key: "label", label: "Model", sort: (m) => m.label.toLowerCase() },
+  { key: "family", label: "Family", sort: (m) => m.family },
+  { key: "passed", label: "Checks", sort: (m) => m.passed, num: true },
+  { key: "seconds", label: "Time", sort: (m) => m.seconds ?? 1e9, num: true },
+  { key: "cost", label: "Credits", sort: (m) => m.plan ? -1 : m.cost ?? 1e9, num: true },
+  { key: "requests", label: "Model calls", sort: (m) => m.requests ?? -1, num: true },
+  { key: "out_tokens", label: "Output tokens", sort: (m) => m.out_tokens ?? -1, num: true },
+  { key: "price", label: "Price in / out per M", sort: (m) => m.price_out ?? -1, num: true },
+];
+let sortKey = null, sortDir = 1;
+function drawTable() {
+  const head = $("table").querySelector("thead"), body = $("table").querySelector("tbody");
+  head.replaceChildren(el("tr", {}, ...columns.map((c) => el("th", { class: c.num ? "num" : "" }, el("button", { type: "button", text: c.label, "aria-sort": sortKey === c.key ? (sortDir > 0 ? "ascending" : "descending") : "none",
+    onclick: () => { sortDir = sortKey === c.key ? -sortDir : (c.num && c.key !== "seconds" && c.key !== "cost" ? -1 : 1); sortKey = c.key; drawTable(); } })))));
+  const column = columns.find((c) => c.key === sortKey);
+  const rows = column ? [...models].sort((a, b) => { const A = column.sort(a), B = column.sort(b); return (A < B ? -1 : A > B ? 1 : 0) * sortDir; }) : models;
+  body.replaceChildren(...rows.map((m) => {
+    const pips = el("span", { class: "pips", "aria-hidden": "true" }, ...DATA.checks.map(([key]) => el("i", { class: m.checks[key] ? "" : "no" })));
+    const done = m.status === "completed";
+    return el("tr", {},
+      el("td", {}, el("div", { class: "model" }, el("a", { href: "#" + anchor(m), text: m.label }), m.plan ? el("span", { class: "tag", text: "Claude plan" }) : null, m.text_only ? el("span", { class: "tag", text: "text only" }) : null), el("div", { class: "id", text: m.id })),
+      el("td", { text: m.family }),
+      el("td", { class: "num" }, done && m.built ? el("span", { text: `${m.passed}/${total}` }) : el("span", { class: "fail-word", text: cut(m) && m.built ? `stopped · ${m.passed}/${total}` : cut(m) ? "stopped, nothing built" : "nothing built" }), m.built ? pips : null),
+      el("td", { class: "num" }, el("div", { class: "barcell" }, el("span", { text: mins(m.seconds) }), el("span", { class: "track" }, el("span", { class: "bar", style: `width:${Math.max(2, 62 * (m.seconds || 0) / maxSec)}px` })))),
+      el("td", { class: "num" }, m.plan ? el("span", { text: `none (≈ ${money(m.plan_equivalent)} at API prices)` }) : el("div", { class: "barcell" }, el("span", { text: money(m.cost) || "not recorded" }), el("span", { class: "track" }, m.cost ? el("span", { class: "bar", style: `width:${Math.max(2, 62 * m.cost / maxCost)}px` }) : null))),
+      el("td", { class: "num", text: m.requests ?? (m.plan ? "" : "") }),
+      el("td", { class: "num", text: count(m.out_tokens) }),
+      el("td", { class: "num", text: m.price_in != null ? `$${m.price_in.toFixed(2)} / $${m.price_out.toFixed(2)}` : "" }));
+  }));
+}
+drawTable();
+
+// ---- cards ----
+function open(src, title, narrow) {
+  $("lightbox-img").src = src; $("lightbox-img").className = narrow ? "narrow" : ""; $("lightbox-title").textContent = title; $("lightbox").hidden = false; $("lightbox-close").focus();
+}
+$("lightbox-close").addEventListener("click", () => ($("lightbox").hidden = true));
+$("lightbox").addEventListener("click", (event) => { if (event.target === $("lightbox")) $("lightbox").hidden = true; });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") $("lightbox").hidden = true; });
+for (const m of models) {
+  const done = m.status === "completed";
+  const card = el("article", { class: "card", id: anchor(m) });
+  card.append(el("header", {}, el("h3", { text: m.label }), el("span", { class: "tag", text: m.family }), m.plan ? el("span", { class: "tag", text: "Claude plan" }) : null, m.text_only ? el("span", { class: "tag", text: "text only" }) : null, el("div", { class: "id", text: m.id })));
+  if (m.shots.desktop) card.append(el("button", { class: "shot", type: "button", "aria-label": `Scroll the whole ${m.label} page`, onclick: () => open(m.shots.full || m.shots.desktop, m.label + " · the whole page", false) },
+    el("img", { src: m.shots.desktop, alt: `First screen of the dashboard ${m.label} built`, loading: "lazy" })));
+  const thumbs = el("div", { class: "thumbs" });
+  for (const [kind, cap, narrow] of [["dark", "Dark mode", false], ["phone", "Phone", true]]) if (m.shots[kind])
+    thumbs.append(el("button", { type: "button", "aria-label": `${cap} view of ${m.label}`, onclick: () => open(m.shots[kind], `${m.label} · ${cap.toLowerCase()}`, narrow) }, el("img", { src: m.shots[kind], alt: "", loading: "lazy" }), el("div", { class: "cap", text: cap })));
+  if (thumbs.children.length) card.append(thumbs);
+  const body = el("div", { class: "body" });
+  body.append(el("div", { class: "meta" },
+    el("span", {}, el("b", { text: verdictOf(m) })),
+    el("span", { text: mins(m.seconds) }), el("span", { text: m.plan ? `no credits (Claude plan; about ${money(m.plan_equivalent)} at API prices)` : (money(m.cost) || "cost not recorded") }),
+    m.requests ? el("span", { text: m.requests + " model calls" }) : null, el("span", { text: m.tools + " tool calls" }),
+    m.tries > 1 ? el("span", { text: `try ${m.tries} (rate-limited before)` }) : null));
+  if (!done && m.error) body.append(el("p", { class: "problem", text: m.error }));
+  if (m.note) { const note = el("p", { class: "note" }); note.innerHTML = "<b>A reading of the pictures:</b> " + m.note; body.append(note); }
+  if (m.built) body.append(el("ul", { class: "checks" }, ...DATA.checks.map(([key, label]) => el("li", { class: m.checks[key] ? "ok" : "no" }, el("span", { class: "mark", text: m.checks[key] ? "✓" : "✕" }), el("span", { text: label + (!m.checks[key] && key === "city" && m.city_detail ? ` (${m.city_detail})` : "") + (!m.checks[key] && key === "channel" && m.channel_detail ? ` (${m.channel_detail})` : "") })))));
+  if (m.outside.length) body.append(el("p", { class: "meta", text: "Loads code from: " + m.outside.join(", ") }));
+  if (m.pid && DATA.studio) body.append(el("p", { class: "foot" }, el("a", { href: DATA.studio + m.pid, target: "_blank", rel: "noreferrer", text: "Open in the studio" })));
+  card.append(body);
+  $("cards").append(card);
+}
+</script>
+
+</html>

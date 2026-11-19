@@ -1,0 +1,13 @@
+The attached file data/orders.csv holds sample data for a made-up rooftop-solar installer, Brightline Solar: one row per quote given in 2025.
+
+Build this project's page as an interactive sales dashboard for the owner:
+
+1. A header with the company name and the period, and four headline numbers: revenue from won orders, number of won orders, win rate (won divided by won plus lost; open quotes are left out), and the average system size of won orders in kW.
+2. A chart of won revenue by month.
+3. A chart comparing the cities and one comparing the sales channels, each showing revenue and win rate.
+4. A leaderboard of the salespeople.
+5. A table of the 15 largest won orders that can be sorted by clicking a column heading.
+6. Filters for city and for channel that update every number, chart and table on the page.
+7. A short "What stands out" section with three findings from the data, each with its number.
+
+The page must read its numbers from the CSV file (do not type them in), look good in light and in dark mode, and work on a phone. When you are done, reply with the four headline numbers for the whole year.

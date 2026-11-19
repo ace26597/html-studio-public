@@ -1,0 +1,247 @@
+{
+ "source": "https://openrouter.ai/api/v1/models",
+ "as_of": "2026-11-19",
+ "models": {
+  "anthropic/claude-fable-5.2": {
+   "prompt": "0.000008",
+   "completion": "0.00004",
+   "input": [
+    "text",
+    "image",
+    "file"
+   ]
+  },
+  "anthropic/claude-haiku-5.5": {
+   "prompt": "0.0000001",
+   "completion": "0.0000005",
+   "input": [
+    "text",
+    "image",
+    "file"
+   ]
+  },
+  "anthropic/claude-opus-5.5": {
+   "prompt": "0.000004",
+   "completion": "0.00002",
+   "input": [
+    "text",
+    "image",
+    "file"
+   ]
+  },
+  "anthropic/claude-sonnet-5.5": {
+   "prompt": "0.000002",
+   "completion": "0.00001",
+   "input": [
+    "text",
+    "image",
+    "file"
+   ]
+  },
+  "deepseek/deepseek-v4-pro-0813": {
+   "prompt": "0.000000111",
+   "completion": "0.00000444",
+   "input": [
+    "text"
+   ]
+  },
+  "deepseek/deepseek-v4.1-flash": {
+   "prompt": "0.0000000507",
+   "completion": "0.0000002028",
+   "input": [
+    "text",
+    "image"
+   ]
+  },
+  "deepseek/deepseek-v4.1-flash-1017": {
+   "prompt": "0.00000015",
+   "completion": "0.0000006",
+   "input": [
+    "text",
+    "image"
+   ]
+  },
+  "google/gemini-4-carbon": {
+   "prompt": "0.000002",
+   "completion": "0.00001",
+   "input": [
+    "audio",
+    "file",
+    "image",
+    "text",
+    "video"
+   ]
+  },
+  "google/gemini-4-hydrogen": {
+   "prompt": "0.0000015",
+   "completion": "0.0000075",
+   "input": [
+    "audio",
+    "file",
+    "image",
+    "text",
+    "video"
+   ]
+  },
+  "google/gemini-4-neon": {
+   "prompt": "0.000003",
+   "completion": "0.000015",
+   "input": [
+    "audio",
+    "file",
+    "image",
+    "text",
+    "video"
+   ]
+  },
+  "minimax/minimax-m3": {
+   "prompt": "0.0000003",
+   "completion": "0.0000012",
+   "input": [
+    "text",
+    "image",
+    "video"
+   ]
+  },
+  "minimax/minimax-m3.1-flash": {
+   "prompt": "0.000000075",
+   "completion": "0.0000003",
+   "input": [
+    "text",
+    "image",
+    "video"
+   ]
+  },
+  "mistralai/mistral-large-4-0": {
+   "prompt": "0.0000007",
+   "completion": "0.0000021",
+   "input": [
+    "text",
+    "image"
+   ]
+  },
+  "moonshotai/kimi-k2.7-code": {
+   "prompt": "0.00000065",
+   "completion": "0.0000035",
+   "input": [
+    "text",
+    "image"
+   ]
+  },
+  "moonshotai/kimi-k3": {
+   "prompt": "0.000000192",
+   "completion": "0.000016",
+   "input": [
+    "text",
+    "image",
+    "video"
+   ]
+  },
+  "moonshotai/kimi-k3.1-pro": {
+   "prompt": "0.000000253",
+   "completion": "0.0000088",
+   "input": [
+    "text",
+    "image",
+    "video"
+   ]
+  },
+  "openai/gpt-6.1-terra": {
+   "prompt": "0.000001",
+   "completion": "0.000005",
+   "input": [
+    "file",
+    "image",
+    "text"
+   ]
+  },
+  "openai/gpt-6.2-astra": {
+   "prompt": "0.000008",
+   "completion": "0.00004",
+   "input": [
+    "file",
+    "image",
+    "text"
+   ]
+  },
+  "openai/gpt-6.2-sol": {
+   "prompt": "0.000002",
+   "completion": "0.00001",
+   "input": [
+    "file",
+    "image",
+    "text"
+   ]
+  },
+  "stepfun/step-5-preview": {
+   "prompt": "0.000001",
+   "completion": "0.0000027",
+   "input": [
+    "text",
+    "image",
+    "video"
+   ]
+  },
+  "tencent/hy4": {
+   "prompt": "0.000000417",
+   "completion": "0.0000012505",
+   "input": [
+    "text",
+    "image"
+   ]
+  },
+  "x-ai/grok-4.7": {
+   "prompt": "0.000002",
+   "completion": "0.000006",
+   "input": [
+    "text",
+    "image",
+    "file"
+   ]
+  },
+  "x-ai/grok-build-0.1": {
+   "prompt": "0.000001",
+   "completion": "0.000002",
+   "input": [
+    "text",
+    "image",
+    "file"
+   ]
+  },
+  "xiaomi/mimo-v2.6-pro": {
+   "prompt": "0.000000435",
+   "completion": "0.00000087",
+   "input": [
+    "text",
+    "image",
+    "video",
+    "audio"
+   ]
+  },
+  "z-ai/glm-5.3": {
+   "prompt": "0.0000000699",
+   "completion": "0.0000014",
+   "input": [
+    "text"
+   ]
+  },
+  "z-ai/glm-5.3-flash": {
+   "prompt": "0.00000015",
+   "completion": "0.0000005",
+   "input": [
+    "text",
+    "image",
+    "video"
+   ]
+  },
+  "z-ai/glm-5.3-flashx": {
+   "prompt": "0.00000037",
+   "completion": "0.00000125",
+   "input": [
+    "text",
+    "image",
+    "video"
+   ]
+  }
+ }
+}
