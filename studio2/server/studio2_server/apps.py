@@ -34,6 +34,10 @@ SLOW_POLL = 2.0
 # Alive and never answering this long after the start: said once, plainly. The app is not stopped
 # (it may still be compiling), but most likely it listens on another port or does not serve at all.
 NOT_ANSWERING_AFTER = 300.0
+# An app that had been running this long and then exits by itself is started again by the studio,
+# at most RESTARTS times in RESTART_WINDOW seconds (CONTRACT.md, "An app that stops by itself is
+# started again"). One that exits sooner is a start that fails, and stays crashed.
+RESTART_AFTER, RESTARTS, RESTART_WINDOW = 20.0, 3, 600.0
 LOCK_TIMEOUT = 180.0
 REQUIREMENTS, LOCKED = "requirements.txt", "requirements.lock"
 BARE_PYTHON = re.compile(r"^\s*(?:exec\s+)?python3?(?:\.\d+)?(?:\s|$)")
@@ -151,6 +155,16 @@ def describe_holder(pid: int) -> str:
     return f"pid {pid}" + (f" ({command})" if command else "")
 
 
+def lasted(seconds: float) -> str:
+    """A duration in plain words: "40 seconds", "12 minutes", "16 hours"."""
+    for size, word in ((3600, "hour"), (60, "minute")):
+        if seconds >= size:
+            count = int(seconds // size)
+            return f"{count} {word}{'' if count == 1 else 's'}"
+    count = int(seconds)
+    return f"{count} second{'' if count == 1 else 's'}"
+
+
 # What a project's app may inherit from the studio's own environment.
 APP_ENV = {"PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "TERM", "TZ",
            "UV_CACHE_DIR", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "NVM_DIR", "PNPM_HOME"}
@@ -185,6 +199,9 @@ class App:
         self.host = "127.0.0.1"
         self.setup: str | None = None
         self._install_began: float | None = None
+        self._answered_at: float | None = None      # when this run's port first answered (loop time)
+        self._self_restarts: deque[float] = deque()  # when the studio restarted it after it stopped by itself
+        self._restart_task: asyncio.Task | None = None
 
     def configure(self, declared: dict | None, setup: str | None) -> None:
         self.declared = declared if isinstance(declared, dict) else None
@@ -416,11 +433,14 @@ class App:
         self._line("[studio] The packages could not be locked. " + (
             f"The {LOCKED} that was there is used." if lock.is_file() else f"There is no {LOCKED} to run from."), handle)
 
-    async def _start(self) -> None:
+    async def _start(self, after_exit: str | None = None) -> None:
+        """Start the app. `after_exit` is the studio's line for a restart after the app stopped by
+        itself: the output of the run that died is kept above it, in the tail and in the log file."""
         self._kill_stale()
-        self._stopping, self.exit_code = False, None
-        self.lines.clear()
-        self.last_line = 0
+        self._stopping, self.exit_code, self._answered_at = False, None, None
+        if after_exit is None:
+            self.lines.clear()
+            self.last_line = 0
         # A project's app gets a short list of harmless variables, never the studio's whole
         # environment: that holds the access key, model keys and whatever else the person's shell
         # exported. What an app needs from the studio comes through extra_env (token and addresses).
@@ -433,7 +453,9 @@ class App:
                     "STUDIO_PROJECT_ID": self.project_id, "STUDIO_PROJECT_URL": self.url,
                     "STUDIO_ALLOWED_HOSTS": APP_ALLOWED_HOSTS})
         env.update(self.extra_env)
-        handle = self.log_path.open("w", encoding="utf-8", errors="replace")
+        handle = self.log_path.open("a" if after_exit else "w", encoding="utf-8", errors="replace")
+        if after_exit:
+            self._line(after_exit, handle)
         if not await self._clear_port(handle):
             handle.close()
             self.exit_code = None
@@ -488,8 +510,41 @@ class App:
             return
         self.pid_path.unlink(missing_ok=True)
         self.exit_code = code
-        if not self._stopping:
-            self._set("crashed")
+        if self._stopping:
+            return
+        again = self._restart_allowed()
+        self._set("crashed")
+        if again:
+            # Its own task: a Stop holds the lock while it waits for this one to end.
+            self._restart_task = asyncio.create_task(self._restart_after_exit(process, code))
+        elif len(self._self_restarts) >= RESTARTS:
+            with self.log_path.open("a", encoding="utf-8", errors="replace") as handle:
+                self._line(f"[studio] The app stopped by itself (exit code {code}). The studio has already started "
+                           f"it again {RESTARTS} times in the last {int(RESTART_WINDOW // 60)} minutes, so it does "
+                           "not try again: read the output above, or restart the app from the studio.", handle)
+
+    def _restart_allowed(self) -> bool:
+        """Whether an exit nobody asked for is followed by a start: the app had been answering for a
+        while (so this is not a start that fails), and it has not been restarted too often lately."""
+        now = asyncio.get_running_loop().time()
+        while self._self_restarts and now - self._self_restarts[0] > RESTART_WINDOW:
+            self._self_restarts.popleft()
+        if not self.run or self.address or self._answered_at is None or now - self._answered_at < RESTART_AFTER:
+            return False
+        return len(self._self_restarts) < RESTARTS
+
+    async def _restart_after_exit(self, process: asyncio.subprocess.Process, code: int) -> None:
+        async with self._lock:
+            # A Stop or a start by the person or a turn came first: theirs stands.
+            if process is not self.process or self._stopping or self.state != "crashed":
+                return
+            now = asyncio.get_running_loop().time()
+            ran = lasted(now - (self._answered_at or now))
+            self._self_restarts.append(now)
+            await self._start(after_exit=(
+                f"[studio] The app stopped by itself (exit code {code}) after running for {ran}. The studio "
+                f"started it again (restart {len(self._self_restarts)} of at most {RESTARTS} in "
+                f"{int(RESTART_WINDOW // 60)} minutes)."))
 
     async def _ready(self, process: asyncio.subprocess.Process) -> None:
         """Watch for the port to answer for as long as the process lives. Past READY_TIMEOUT the app
@@ -502,6 +557,7 @@ class App:
         while process.returncode is None and process is self.process:
             if await port_answers(self.port):
                 if process is self.process and not self._stopping:
+                    self._answered_at = loop.time()
                     self._set("running")
                 return
             if self.installing:   # the clock for answering starts once the install is done

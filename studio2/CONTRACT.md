@@ -506,6 +506,18 @@ minute or two at most, then read the app's output and check the port, not to kee
 attached app's install that runs past its own limit is stopped like a Stop: SIGTERM to the app's
 whole process group, then SIGKILL after 5 s; it is then `crashed` with its exit code.
 `error` explains an invalid `studio.json`.
+
+**An app that stops by itself is started again.** When an app that had been `running` for at
+least 20 s exits without being asked to (a development server whose worker died, a native
+library that aborted), the studio records `crashed` with its exit code and then starts it again
+by itself: `starting`, then `running`. Its output keeps what the run that died said last,
+followed by one line from the studio with the exit code, how long it had run and which restart
+this is. At most 3 such restarts in 10 minutes. Past that, and for an app that exits before it
+has been `running` for 20 s (a start that fails, a command that ends at once), it stays `crashed`
+as before, and the last line says no further restart is tried. A Stop by the person, a restart by
+the studio or the agent, and a server the studio did not start (`address`) are never restarted
+this way. An exit code of 0 is no sign of a clean stop: `next dev` exits with 0 when the process
+that serves the pages has died.
 `Project` gains `app: {configured, state}`.
 
 ## REST additions
@@ -1326,6 +1338,16 @@ that is not plainly local is refused with 403.
   so the key sign-in on the studio's name does not carry over to a page's name: use a gate (next
   item), whose token arrives with every request. An entry that is not `<port>=<name>` or
   `*=<name with {port}>` stops the server from starting.
+- **A page with its own name that shows nothing in the studio.** A gate keeps its sign-in per
+  name, and its sign-in page refuses to be shown inside another page, so a project page whose
+  name the person has not opened yet is an empty frame in the studio and no request reaches the
+  project. The interface notices it by the bridge: every page the studio serves carries it and
+  says `ready`. When the project's page is on another host than the studio and its frame has
+  said nothing 8 seconds after it was asked for, a notice over the frame says the page has its
+  own address and has not loaded here, and offers that address in a new tab ("Open the page")
+  and "Try again". Coming back to the studio's tab tries again by itself, and the notice goes
+  with the first `ready`. A page on the studio's own host (loopback, a tailnet name with a
+  port) never gets this notice.
 - **A gate in front that signs people in.** A studio behind a service that checks who a person is
   before passing a request on (an identity-aware proxy) can take that service's signed token instead
   of the access key. Set `STUDIO2_GATE_KEYS` (the `https://` address of the gate's public signing

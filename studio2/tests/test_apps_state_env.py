@@ -407,3 +407,126 @@ async def test_an_install_that_ignores_the_stop_signal_is_killed_after_the_insta
         assert any("did not finish" in text for _n, text in app.lines)
     finally:
         await app.shutdown()
+
+
+# -- an app that stops by itself is started again (CONTRACT.md, same heading) ---------------------
+
+def _free_port() -> int:
+    import socket
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+# A server that answers on $PORT and exits with code 0 when a file named `die` appears beside it,
+# the way `next dev` does when the process that serves its pages has died.
+DYING_SERVER = """
+import http.server, os, sys, threading, time
+def watch():
+    while not os.path.exists("die"):
+        time.sleep(0.05)
+    os.remove("die")
+    print("last words of this run", flush=True)
+    os._exit(0)
+threading.Thread(target=watch, daemon=True).start()
+print("serving", flush=True)
+http.server.HTTPServer(("127.0.0.1", int(os.environ["PORT"])), http.server.SimpleHTTPRequestHandler).serve_forever()
+"""
+
+
+def _dying_app(tmp_path, states):
+    from studio2_server import apps
+    (tmp_path / "ws").mkdir()
+    (tmp_path / "dir").mkdir()
+    (tmp_path / "ws" / "server.py").write_text(DYING_SERVER)
+    app = apps.App("p1", tmp_path / "ws", tmp_path / "dir", _free_port(), "http://127.0.0.1:1/",
+                   lambda _pid, fields: states.append(fields["state"]))
+    app.configure({"run": f"exec {sys.executable} server.py"}, None)
+    return app
+
+
+async def test_an_app_that_stops_by_itself_after_running_is_started_again_and_keeps_its_last_output(tmp_path, monkeypatch):
+    from studio2_server import apps
+    monkeypatch.setattr(apps, "RESTART_AFTER", 0.3)
+    states = []
+    app = _dying_app(tmp_path, states)
+    await app.sync()
+    try:
+        await until(lambda: app.state == "running")
+        first = app.process.pid
+        await asyncio.sleep(0.4)                       # past RESTART_AFTER: this was a working app
+        (tmp_path / "ws" / "die").write_text("")
+        await until(lambda: app.state == "running" and app.process and app.process.pid != first)
+        # The truth is in the events: it crashed (exit code 0 and all), then the studio started it.
+        assert states == ["starting", "running", "crashed", "starting", "running"]
+        said = [text for _n, text in app.lines]
+        assert "last words of this run" in said, "the output of the run that died is kept"
+        note = next(text for text in said if text.startswith("[studio] The app stopped by itself"))
+        assert "exit code 0" in note and "restart 1 of at most 3" in note
+        assert said.index("last words of this run") < said.index(note)
+        on_disk = app.log_path.read_text()
+        assert "last words of this run" in on_disk and note in on_disk
+    finally:
+        await app.shutdown()
+
+
+async def test_an_app_that_exits_before_it_has_run_for_a_while_stays_crashed(tmp_path, monkeypatch):
+    from studio2_server import apps
+    monkeypatch.setattr(apps, "RESTART_AFTER", 30.0)    # it will not have run that long
+    states = []
+    app = _dying_app(tmp_path, states)
+    await app.sync()
+    try:
+        await until(lambda: app.state == "running")
+        (tmp_path / "ws" / "die").write_text("")
+        await until(lambda: app.state == "crashed")
+        await asyncio.sleep(0.5)
+        assert states == ["starting", "running", "crashed"] and app.exit_code == 0
+        assert not any("started it again" in text for _n, text in app.lines)
+    finally:
+        await app.shutdown()
+
+
+async def test_no_more_than_three_restarts_in_the_window_and_the_last_line_says_so(tmp_path, monkeypatch):
+    from studio2_server import apps
+    monkeypatch.setattr(apps, "RESTART_AFTER", 0.2)
+    states = []
+    app = _dying_app(tmp_path, states)
+    await app.sync()
+    try:
+        for expected in range(1, 5):                   # dies four times
+            await until(lambda: app.state == "running")
+            await asyncio.sleep(0.3)
+            (tmp_path / "ws" / "die").write_text("")
+            await until(lambda: states.count("crashed") == expected)
+        await asyncio.sleep(0.6)
+        assert app.state == "crashed" and states.count("starting") == 4      # the first start and three restarts
+        last = [text for _n, text in app.lines][-1]
+        assert "already started it again 3 times" in last and "does not try again" in last
+        # The person can still start it, and a later exit is counted afresh once the window has passed.
+        await app.start()
+        await until(lambda: app.state == "running")
+    finally:
+        await app.shutdown()
+
+
+async def test_a_stop_by_the_person_is_never_followed_by_a_restart(tmp_path, monkeypatch):
+    from studio2_server import apps
+    monkeypatch.setattr(apps, "RESTART_AFTER", 0.2)
+    states = []
+    app = _dying_app(tmp_path, states)
+    await app.sync()
+    try:
+        await until(lambda: app.state == "running")
+        await asyncio.sleep(0.3)
+        await app.stop()
+        await asyncio.sleep(0.6)
+        assert app.state == "stopped" and states == ["starting", "running", "stopped"]
+    finally:
+        await app.shutdown()
+
+
+def test_a_duration_in_plain_words():
+    from studio2_server.apps import lasted
+    assert [lasted(s) for s in (1, 40, 60, 12 * 60 + 5, 3600, 16.5 * 3600)] == [
+        "1 second", "40 seconds", "1 minute", "12 minutes", "1 hour", "16 hours"]

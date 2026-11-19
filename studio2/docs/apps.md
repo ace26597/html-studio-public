@@ -39,6 +39,19 @@ in the chat. The studio does the shipping, not the agent:
 4. **Going back by itself.** If a command or the address check fails after the change was
    applied, the studio puts things back and says what state they are in.
 
+## When an app stops by itself
+
+An app that had been running for at least 20 seconds and then exits without being asked to is
+started again by the studio, at most three times in ten minutes. Its output keeps what the run
+that died said last, then one line from the studio with the exit code and how long it had run.
+An app that exits sooner (a start that fails) stays stopped with its output, as does one that
+has used its three restarts. Exit code 0 does not mean a clean stop: `next dev` exits with 0
+when the process that serves its pages has died. That is how this was found, on 19 November
+2026: a Next.js site's image library (`sharp` 0.34.5 with libvips 8.17.3) aborts when several
+threads read a broken SVG at once, which took the whole development server down, and the
+studio left it down. Run in tests against a small server that exits on a signal; the restart of a
+real Next.js app after such an abort has not been seen yet.
+
 ## Point at code or a running app without bringing it in
 
 Sometimes the project is not the app: you want a report on a code base, a page that explains how

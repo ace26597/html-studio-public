@@ -42,6 +42,20 @@ export interface PreviewHandle {
 
 const SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads";
 
+/** How long a page with its own name may say nothing before the shell says so (CONTRACT.md,
+ * "A page with its own name that shows nothing in the studio"). */
+export const SILENT_AFTER_MS = 8000;
+
+/** True when the project's page is on another host than the studio: behind a gate it then has a
+ * sign-in of its own, and a sign-in page does not show inside a frame. */
+export function hasOwnName(previewUrl: string, shellHost: string = window.location.hostname): boolean {
+  try {
+    return new URL(previewUrl).hostname !== shellHost;
+  } catch {
+    return false;
+  }
+}
+
 const HINTS: Record<Mode, string | null> = {
   browse: null,
   select: "Click anything on the page to point the agent at it",
@@ -51,6 +65,28 @@ const HINTS: Record<Mode, string | null> = {
 
 function str(value: unknown, max: number): string {
   return typeof value === "string" ? value.slice(0, max) : "";
+}
+
+/** Over the frame of a page with its own name that never loaded: what happened and the two ways on. */
+export function SilentNotice({ previewUrl, onTryAgain }: { previewUrl: string; onTryAgain: () => void }) {
+  return (
+    <div className="preview-silent" role="status">
+      <p className="preview-silent-title">This page has not loaded here</p>
+      <p>
+        It has its own address, <span className="preview-silent-host">{new URL(previewUrl).host}</span>, and nothing
+        has come back from it. Most often that address wants you signed in there first, and a sign-in page cannot be
+        shown inside the studio. Open the page once in its own tab, then come back.
+      </p>
+      <div className="preview-silent-actions">
+        <a className="btn btn-primary" href={previewUrl} target="_blank" rel="noreferrer">
+          Open the page
+        </a>
+        <button type="button" className="btn" onClick={onTryAgain}>
+          Try again
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
@@ -87,6 +123,11 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
   const drawRef = useRef({ tool: drawTool, color: drawColor });
   // What each frame's bridge said in `ready`; a frame that never said counts as true.
   const autoReloads = useRef(new Map<number, boolean>());
+  // A page with its own name that never says `ready`: nothing of the studio's loaded in the frame.
+  const ownName = useMemo(() => hasOwnName(previewUrl), [previewUrl]);
+  const heard = useRef(false);
+  const [silent, setSilent] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   const post = useCallback(
     (key: number, message: Record<string, unknown>) => {
@@ -121,6 +162,8 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
       if (key === null) return;
 
       if (data.type === "ready") {
+        heard.current = true;
+        setSilent(false);
         autoReloads.current.set(key, readAutoReload(data));
         // A navigation inside the visible frame: the new page says again.
         if (key === activeRef.current) handlers.current.onAutoReload?.(readAutoReload(data));
@@ -197,6 +240,38 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
     return () => window.clearTimeout(timer);
   }, [reloadToken, origin, promote]);
 
+  // Nothing heard from a page with its own name: say so instead of leaving an empty frame.
+  useEffect(() => {
+    if (!ownName) return;
+    heard.current = false;
+    const timer = window.setTimeout(() => {
+      if (!heard.current) setSilent(true);
+    }, SILENT_AFTER_MS);
+    return () => window.clearTimeout(timer);
+  }, [ownName, attempt]);
+
+  // Load the page again in a fresh frame (the person signed in at its address, or asked).
+  const tryAgain = useCallback(() => {
+    const key = nextKey.current++;
+    const path = pathRef.current.startsWith("/") ? pathRef.current : `/${pathRef.current}`;
+    pendingRef.current = null;
+    activeRef.current = key;
+    setActiveKey(key);
+    setFrames([{ key, src: origin + path }]);
+    setSilent(false);
+    setAttempt((count) => count + 1);
+  }, [origin]);
+
+  // Back from the page's own tab: try again without being asked.
+  useEffect(() => {
+    if (!silent) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tryAgain();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [silent, tryAgain]);
+
   const hint = HINTS[mode];
 
   return (
@@ -221,6 +296,7 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
         />
       ))}
       <div className="preview-ring" aria-hidden="true" />
+      {silent && <SilentNotice previewUrl={previewUrl} onTryAgain={tryAgain} />}
       {hint && (
         <div className="preview-hint" role="status">
           {hint}

@@ -1181,6 +1181,70 @@ a {
   opacity: 1;
 }
 
+/* A page with its own name that never loaded in the frame (Preview.tsx). */
+.preview-silent {
+  position: absolute;
+  /* Near the top, not the middle: on a tablet or phone the chat sheet covers the lower part. */
+  top: clamp(14px, 9vh, 96px);
+  left: 50%;
+  z-index: 3;
+  width: min(30rem, calc(100% - 32px));
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13.5px;
+  line-height: 1.5;
+  box-shadow: var(--shadow-float);
+  transform: translateX(-50%);
+}
+
+.preview-silent p {
+  margin: 0 0 12px;
+}
+
+.preview-silent-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.preview-silent-host {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.preview-silent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preview-silent-actions .btn {
+  text-decoration: none;
+}
+
+/* A phone: the chat sheet leaves little of the page showing, so the two ways on come first. */
+@media (max-width: 600px) {
+  .preview-silent {
+    top: 8px;
+    display: flex;
+    flex-direction: column;
+    padding: 14px 16px;
+  }
+
+  .preview-silent-actions {
+    order: 1;
+    margin-bottom: 12px;
+  }
+
+  .preview-silent p:not(.preview-silent-title) {
+    order: 2;
+    margin-bottom: 0;
+  }
+}
+
 .preview-hint {
   position: absolute;
   top: 14px;
