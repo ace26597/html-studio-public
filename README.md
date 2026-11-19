@@ -69,15 +69,20 @@ to host it, and for an app a script that starts it. Nothing is published for you
 Detail: [what you can make, skills and connectors](studio2/docs/features.md) ·
 [bringing an app and making it live](studio2/docs/apps.md).
 
-## One job, 28 models
+## How it works, and what was measured
 
-[![Eight dashboards, each built by a different model from the same request](studio2/docs/model-comparison/banner.jpg)](studio2/docs/model-comparison.md)
+[![Eight dashboards, each built by a different model from the same request](docs/benchmarks/model-comparison/banner.jpg)](https://ace26597.github.io/html-studio-public/benchmarks/)
 
-**[Which model builds the best dashboard in the studio?](studio2/docs/model-comparison.md)** On 19
-November 2026 the same request and the same data file went to 28 models, from Claude, GPT and Gemini
-to DeepSeek, Kimi and GLM, each in a new project. Every page was then opened in a real browser and
-checked against the data's true numbers: 19 passed all eleven checks, at costs from 4 cents to 2
-dollars. The page has every result, a picture of every dashboard, and the kit to run it again.
+**[How it works](https://ace26597.github.io/html-studio-public/)** is a short guide: what happens to a
+request, what the parts are, how the studio checks its own work, and what it is not.
+
+**[Benchmarks](https://ace26597.github.io/html-studio-public/benchmarks/)** has what was run and
+what it showed. On 19 November 2026 the same request and the same data file went to 28 models, from
+Claude, GPT and Gemini to DeepSeek, Kimi and GLM, each in a new project, and every page was opened in
+a real browser and checked against the data's true numbers: 19 passed all eleven checks, at costs
+from 4 cents to 2 dollars. Also there: a simpler request on 12 models, and the cost the studio
+shows checked against the provider's own figures. The same comparison as a page on GitHub, with a
+picture of every dashboard: [one job, the same for every model](studio2/docs/model-comparison.md).
 
 ## Examples
 
@@ -141,14 +146,14 @@ Full detail, every command and what was tested: [install and first run](studio2/
 
 ## Model accounts
 
-Claude models work best; other models are experimental.
+Claude models work best; other models are experimental, and the [benchmarks](https://ace26597.github.io/html-studio-public/benchmarks/) show which ones worked.
 
 | Account | What has actually been run |
 |---|---|
 | Your Claude plan, signed in on this computer | Almost every recorded run, on Opus, Sonnet and Haiku. Single-owner use only |
 | An Anthropic API key | Environment tested; no paid request made |
 | Claude on Amazon Bedrock, Google Vertex AI or Microsoft Foundry | Environment tested; no paid request made |
-| A gateway you run that speaks Anthropic's format, such as LiteLLM | Whole requests on a GPT model |
+| A gateway you run that speaks Anthropic's format, such as LiteLLM | Whole requests on 26 models of twelve providers through LiteLLM and OpenRouter; [what each did](studio2/docs/model-comparison.md) |
 | A key from OpenAI, OpenRouter, Azure OpenAI or Gemini | One GPT model through a stand-in gateway; no real key of these providers used |
 
 Keys go in the system keychain (or a file only you can read, on a machine without one), never in

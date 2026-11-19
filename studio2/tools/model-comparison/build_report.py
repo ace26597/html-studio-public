@@ -2,13 +2,15 @@
 
 Usage: build_report.py <run folder> [--shots <folder of pictures>] [--date "19 November 2026"]
 Reads results.jsonl, grades.jsonl, verdict.json and models.json from the run folder (see README.md)
-and writes, under studio2/docs/:
+and writes:
 
-  model-comparison.md            the page GitHub shows: findings, the table, a picture of every page
-  model-comparison/index.html    the same as one interactive page (sortable table, a cost chart,
-                                 every page in light, dark and at phone width)
-  model-comparison/shots/        the pictures both pages show
-  model-comparison/banner.jpg    eight of the pages side by side
+  studio2/docs/model-comparison.md               the page GitHub shows: findings, the table, a
+                                                 picture of every page
+  docs/benchmarks/model-comparison/index.html    the same as one interactive page of the site
+                                                 (sortable table, a cost chart, every page in
+                                                 light, dark and at phone width)
+  docs/benchmarks/model-comparison/shots/        the pictures both pages show
+  docs/benchmarks/model-comparison/banner.jpg    eight of the pages side by side
 
 Every number on the pages comes from the run's files. The only hand-written parts are in verdict.json
 (what the run suggests, and a reading of how each page looks), and the pages say so. Set STUDIO_LINK
@@ -22,7 +24,10 @@ import shutil
 from pathlib import Path
 
 HERE = Path(__file__).parent
-DOCS = HERE.parents[1] / "docs"
+DOCS = HERE.parents[1] / "docs"                                  # studio2/docs: the page GitHub shows
+SITE = HERE.parents[2] / "docs" / "benchmarks" / "model-comparison"    # the site: the interactive page
+PICTURES = "../../docs/benchmarks/model-comparison"              # the site's folder, as the page in studio2/docs names it
+LIVE = "https://ace26597.github.io/html-studio-public/benchmarks/model-comparison/"
 FAMILIES = [("anthropic/", "Claude"), ("openai/", "GPT"), ("google/", "Gemini"), ("deepseek/", "DeepSeek"),
             ("moonshotai/", "Kimi"), ("z-ai/", "GLM"), ("x-ai/", "Grok"), ("minimax/", "MiniMax"),
             ("mistralai/", "Mistral"), ("tencent/", "Hunyuan"), ("xiaomi/", "MiMo"), ("stepfun/", "Step")]
@@ -161,11 +166,11 @@ def markdown(models, verdict, truth, date, spent, shown):
         f"dashboard from the same data file. {len([m for m in built if m['status'] == 'completed'])} finished with a "
         f"working page, and {len(perfect)} of those passed every one of {total} checks made in a real browser against "
         f"the data's true numbers. It cost ${spent:.2f} of OpenRouter credits.", "",
-        "[![Eight of the dashboards, each built by a different model from the same request](model-comparison/banner.jpg)](#the-dashboards)", "",
+        f"[![Eight of the dashboards, each built by a different model from the same request]({PICTURES}/banner.jpg)](#the-dashboards)", "",
         f"*Left to right, top then bottom: {', '.join(shown)}.*" if shown else "", "",
         "The same results as one interactive page (a sortable table, cost against time, and every dashboard in light, "
-        "dark and at phone width): [`model-comparison/index.html`](model-comparison/index.html). GitHub shows that "
-        "file as source; open it from a clone to use it.", "",
+        f"dark and at phone width): [{LIVE.removeprefix('https://')}]({LIVE}). Its source is "
+        f"[`docs/benchmarks/model-comparison`]({PICTURES}).", "",
         "## What the run suggests", ""]
     lines += [f"- {strip(line)}" for line in verdict.get("summary") or []]
     lines += ["", "One run per model shows what a model did this once. It does not show how often it would do it again: "
@@ -182,8 +187,8 @@ def markdown(models, verdict, truth, date, spent, shown):
     cells = []
     for m in built:
         cell = (f"**{m['label']}**{' (Claude plan)' if m['plan'] else ''}<br>{outcome(m, total)} · {minutes(m['seconds'])} · {cost_of(m)}<br>"
-                f"<a href=\"model-comparison/{m['shots'].get('full') or m['shots']['desktop']}\">"
-                f"<img src=\"model-comparison/{m['shots']['desktop']}\" alt=\"The dashboard {html.escape(m['label'])} built\" width=\"420\"></a>"
+                f"<a href=\"{PICTURES}/{m['shots'].get('full') or m['shots']['desktop']}\">"
+                f"<img src=\"{PICTURES}/{m['shots']['desktop']}\" alt=\"The dashboard {html.escape(m['label'])} built\" width=\"420\"></a>"
                 + (f"<br>{m['note']}" if m["note"] else ""))
         cells.append(cell)
     lines += ["<table>"]
@@ -217,7 +222,7 @@ def main():
     parser.add_argument("--shots", type=Path)
     parser.add_argument("--date", default="19 November 2026")
     args = parser.parse_args()
-    out = DOCS / "model-comparison"
+    out = SITE
     models, verdict = gather(args.run, args.shots or args.run / "shots", out)
     truth = json.load(open(HERE / "truth.json"))["all"]
     spent = round(sum(m["cost"] or 0 for m in models), 2)

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTML Studio: how it works</title>
+<meta name="description" content="A page per project, with a chat connected to a real coding agent that works in the project's folder. How a request becomes a page, what the parts are, and what was tested.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<nav class="site-nav" aria-label="Site"><div class="in">
+  <a class="brand" href="index.html">HTML Studio</a>
+  <a href="index.html" aria-current="page">How it works</a>
+  <a href="benchmarks/index.html">Benchmarks</a>
+  <a href="https://github.com/ace26597/html-studio-public">GitHub</a>
+</div></nav>
+
+<main class="wrap">
+  <p class="eyebrow">How it works</p>
+  <h1>You describe a page. An agent builds it in a folder you own.</h1>
+  <p class="lede">HTML Studio is a page per project with a chat beside it. The chat is connected to a real coding agent that works in the project's folder with files, a shell, the web and its own browser, and the page changes while it works. It runs on your own computer.</p>
+  <div class="actions">
+    <a class="button primary" href="benchmarks/index.html">See the benchmarks</a>
+    <a class="button" href="https://github.com/ace26597/html-studio-public">Get it on GitHub</a>
+  </div>
+
+  <figure>
+    <img src="assets/studio-project.jpg" width="2160" height="1350" alt="A project in the studio: a finished sales dashboard fills the window, with the chat panel at the lower right showing the agent's closing notes, a saved version, the time and cost of the request, and suggested next steps">
+    <figcaption>One real request, as it ended: the page the agent built, its notes on what behaves in ways you might not expect, the version it saved, what the request took (4 minutes 15 seconds, about $2.74 at API prices on a Claude plan), and what you might ask next. This project is one of the 28 in the <a href="benchmarks/index.html">model comparison</a>.</figcaption>
+  </figure>
+
+  <section>
+    <h2>What happens when you ask</h2>
+    <p class="prose">A request is a sentence in the chat. You can also select a part of the page and say what to change, type straight into any text, draw on the page, attach files, or point at a folder or a running app on the same computer.</p>
+    <ol class="steps">
+      <li><div><b>The studio prepares the request.</b><span>It adds what it knows about the project (its data, its app, what you selected or changed yourself since last time) and picks the skills and connectors that fit this request.</span></div></li>
+      <li><div><b>The agent works in the project's folder.</b><span>It reads and writes files, runs commands, searches the web and saves what it reads, queries your data, and can start helper agents for parts of a large job.</span></div></li>
+      <li><div><b>The page changes while it works.</b><span>The project's page is served from that folder on its own address, and reloads as files change. A project with a back end has its server started and watched by the studio.</span></div></li>
+      <li><div><b>Risky steps wait for you.</b><span>A command that could do damage shows a card and waits for Allow. A file write outside the project is refused outright.</span></div></li>
+      <li><div><b>The agent looks at what it made.</b><span>It opens the page in a real browser, at desktop, tablet or phone width as the job needs, and gets what the studio measured there: text cut off, sideways scrolling, overlaps, faint text.</span></div></li>
+      <li><div><b>The studio closes the request.</b><span>It saves a version of the folder, opens the page once itself to see that it loads, shows what the request cost, and offers next steps. Any earlier version can be restored.</span></div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>The parts</h2>
+    <div class="diagram" role="img" aria-label="You, in a browser, send a request to the studio, a server on your machine. The studio drives the agent, which asks a model what to do next. The agent reads, writes and runs things in the project folder. The folder is served as the page on its own address, which you see change.">
+      <svg viewBox="0 0 960 320" xmlns="http://www.w3.org/2000/svg">
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0 0L10 5L0 10z"/></marker></defs>
+        <rect class="box" x="20" y="40" width="170" height="72" rx="10"/><text x="105" y="72" text-anchor="middle">You</text><text class="small" x="105" y="92" text-anchor="middle">in a browser</text>
+        <rect class="box hot" x="262" y="40" width="204" height="72" rx="10"/><text x="364" y="72" text-anchor="middle">The studio</text><text class="small" x="364" y="92" text-anchor="middle">a server on your machine</text>
+        <rect class="box" x="538" y="40" width="180" height="72" rx="10"/><text x="628" y="72" text-anchor="middle">The agent</text><text class="small" x="628" y="92" text-anchor="middle">Claude Code</text>
+        <rect class="box" x="790" y="40" width="150" height="72" rx="10"/><text x="865" y="72" text-anchor="middle">A model</text><text class="small" x="865" y="92" text-anchor="middle">plan, key or gateway</text>
+        <rect class="box" x="538" y="212" width="180" height="78" rx="10"/><text x="628" y="246" text-anchor="middle">The project folder</text><text class="small" x="628" y="266" text-anchor="middle">files, data, versions</text>
+        <rect class="box" x="262" y="212" width="204" height="78" rx="10"/><text x="364" y="246" text-anchor="middle">The page</text><text class="small" x="364" y="266" text-anchor="middle">on its own address</text>
+        <path class="wire" d="M190 76H258" marker-end="url(#arrow)"/><text class="small" x="224" y="66" text-anchor="middle">request</text>
+        <path class="wire" d="M466 76H534" marker-end="url(#arrow)"/><text class="small" x="500" y="66" text-anchor="middle">drives</text>
+        <path class="wire" d="M718 76H786" marker-start="url(#arrow)" marker-end="url(#arrow)"/><text class="small" x="752" y="66" text-anchor="middle">asks</text>
+        <path class="wire" d="M628 112V208" marker-end="url(#arrow)"/><text class="small" x="640" y="164">reads, writes, runs</text>
+        <path class="wire" d="M538 251H470" marker-end="url(#arrow)"/><text class="small" x="504" y="241" text-anchor="middle">served</text>
+        <path class="wire" d="M262 251H105V116" marker-end="url(#arrow)"/><text class="small" x="116" y="200">you see it change</text>
+        <path class="wire" d="M364 112V208" marker-end="url(#arrow)"/><text class="small" x="376" y="164">checks, saves</text>
+      </svg>
+    </div>
+    <div class="grid">
+      <div class="card"><h3>A project is a folder</h3><p>With its own version history, its own address and, when it needs one, its own back end. Nothing is locked inside the studio: export gives one HTML file that opens from a double click, or a folder you can host.</p></div>
+      <div class="card"><h3>The agent is a real one</h3><p>The studio drives Claude Code with the project's folder as its working directory. It has files, a shell, the web, a browser to look at its own page, and the skills and connectors the studio hands it for each request.</p></div>
+      <div class="card"><h3>The model is your choice</h3><p>Your Claude plan when you alone use the studio, an Anthropic key, Claude on a cloud account, or any model through a LiteLLM gateway. Each request can use a different one.</p></div>
+      <div class="card"><h3>Three ways to point</h3><p>Select a part and ask about it, change text in place, or draw on the page. The agent is told exactly what you selected or drew and where.</p></div>
+      <div class="card"><h3>Your own data and apps</h3><p>Files you drop in, a PostgreSQL database read-only, an app brought in as a safe copy, or a folder and a running app it only reads where they are.</p></div>
+      <div class="card"><h3>What it cost, every time</h3><p>Each request shows its cost and each page a running total, kept apart as charged, plan-equivalent and unpriced. A figure the studio worked out itself says so.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>How it keeps itself honest</h2>
+    <p class="prose">An agent that builds a page can also build a wrong one that looks right. The studio's answer is to check, and to say what was checked.</p>
+    <div class="grid two">
+      <div class="card"><h3>It looks at its page</h3><p>In a real browser, at three widths, with measurements. A page that is broken when it loads is said at the end of the request, not found by you later.</p></div>
+      <div class="card"><h3>It checks its figures</h3><p>The agent saves every page and PDF it reads. Verify content compares the marked figures on the page, and in the decks and documents made with it, against those saved sources.</p></div>
+      <div class="card"><h3>It asks before risk</h3><p>Risky commands, making an app live and buying generated media wait for your Allow. These rules read the command text: they catch ordinary mistakes and are not a sandbox.</p></div>
+      <div class="card"><h3>It is measured</h3><p>The same job was given to 28 models and every result checked in a browser against known numbers. The results, the pictures and the kit are on the <a href="benchmarks/index.html">benchmarks page</a>.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Start</h2>
+    <p class="prose">You need macOS or Linux, <code>git</code>, <code>bash</code> and <code>curl</code> or <code>wget</code>. The installer fetches the rest, uses no sudo and is safe to run again.</p>
+<pre>git clone https://github.com/ace26597/html-studio-public html-studio
+./html-studio/studio2/install.sh
+studio setup      # which model account, where it runs, who uses it
+studio start      # prints the address, normally http://127.0.0.1:8200/</pre>
+    <p class="prose" style="margin-top:14px">Then press <strong>New page</strong> and type what you want. Every command and what was tested: <a href="https://github.com/ace26597/html-studio-public/blob/main/studio2/docs/install.md">install and first run</a>.</p>
+  </section>
+
+  <section>
+    <h2>What it is not</h2>
+    <p class="prose">It is a personal project at an early stage, for one trusted person on their own machine.</p>
+    <ul class="prose">
+      <li>The agent runs commands as you, like a coding agent in a terminal. So does a project's back end.</li>
+      <li>There are no user accounts and no isolation between projects. Never put it on a public address: whoever can open the studio can run commands on the machine.</li>
+      <li>A paid model account has no spending limit inside the studio. Set one at the provider.</li>
+      <li>Claude models work best. Other models run through a translating gateway, which the agent program's maker does not support; the <a href="benchmarks/index.html">benchmarks</a> show which ones worked.</li>
+      <li>A restart ends running requests. Windows is not supported.</li>
+    </ul>
+    <p class="prose">The full list, and what has and has not been tested: <a href="https://github.com/ace26597/html-studio-public/blob/main/studio2/docs/safety.md">safety and limits</a>.</p>
+  </section>
+
+  <footer>
+    <a href="https://github.com/ace26597/html-studio-public/blob/main/README.md">The front page on GitHub</a> ·
+    <a href="https://github.com/ace26597/html-studio-public/blob/main/studio2/docs/features.md">What you can make</a> ·
+    <a href="https://github.com/ace26597/html-studio-public/blob/main/studio2/docs/models.md">Model accounts</a> ·
+    <a href="https://github.com/ace26597/html-studio-public/blob/main/studio2/CONTRACT.md">The API and event contract</a>
+  </footer>
+</main>
+</body>
+</html>

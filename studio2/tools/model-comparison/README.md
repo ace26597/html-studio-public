@@ -15,7 +15,7 @@ instructions. It is not a test of a model on its own.
 | `make_data.py`, `orders.csv`, `truth.json` | The data: 453 quotes of a made-up solar installer, generated with a fixed seed, and the right answers worked out from it |
 | `run.py` | Makes one new project per model in a running studio, uploads the data, sends the brief and records what happened (status, time, tokens, cost) |
 | `grade.py` | Opens each page in a real browser and checks it against `truth.json`; takes the pictures |
-| `build_report.py`, `report_template.html` | Write the two pages under `studio2/docs/` from a run folder |
+| `build_report.py`, `report_template.html` | Write the two pages from a run folder: the one GitHub shows (`studio2/docs/model-comparison.md`) and the interactive one of the site (`docs/benchmarks/model-comparison/`) |
 | `runs/2026-11-19/` | That run's raw results, grades, the price list of the day, and `verdict.json` |
 
 ## The eleven checks
@@ -50,7 +50,7 @@ cd studio2
 # check every page in a browser and take the pictures (the studio must still be running)
 PYTHONPATH=server .venv/bin/python tools/model-comparison/grade.py tools/model-comparison/runs/mine
 
-# write studio2/docs/model-comparison.md and studio2/docs/model-comparison/
+# write studio2/docs/model-comparison.md and docs/benchmarks/model-comparison/
 .venv/bin/python tools/model-comparison/build_report.py tools/model-comparison/runs/mine --date "<the day>"
 ```
 
@@ -69,5 +69,5 @@ each picture. Without `verdict.json` the pages hold the measurements only.
   OpenRouter, which chooses the provider. Another route can be faster, slower or dearer.
 - **Passing every check is not the same as a good page.** Nineteen pages passed everything and
   they do not look alike. The pictures are there for that.
-- **The pictures in `studio2/docs/model-comparison/shots/` are the run's**, not copied into
+- **The pictures in `docs/benchmarks/model-comparison/shots/` are the run's**, not copied into
   `runs/`: `grade.py` writes new ones into a new run folder.
