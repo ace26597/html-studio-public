@@ -6,7 +6,7 @@
 import { recheckFrom, verificationItem, type VerificationItem } from "./effort";
 import { stepsFrom, type NextStep } from "./nextSteps";
 import { asPick } from "./libraryPick";
-import type { FileChange, LibraryPick, PlanEntry, Selection, StudioEvent, Usage } from "./types";
+import type { FileChange, LibraryPick, PlanEntry, Selection, SkillApprovalInfo, StudioEvent, Usage } from "./types";
 
 export type TurnStatus = "running" | "completed" | "stopped" | "failed";
 export type ToolStatus = "running" | "ok" | "error" | "cancelled";
@@ -74,6 +74,8 @@ export interface ApprovalItem {
   tool: string;
   title: string;
   detail: string;
+  /** `save_skill`: the card is drawn from this when present (older events have none). */
+  skill?: SkillApprovalInfo | null;
   reason: string;
   status: ApprovalStatus;
   /** Who decided: `user`, or `turn_end` when the turn ended first. Null while waiting. */
@@ -426,6 +428,7 @@ function applyEvent(state: ThreadState, event: StudioEvent): ThreadState {
         tool: event.tool ?? "",
         title: event.title || "Approve an action",
         detail: event.detail ?? "",
+        skill: event.skill ?? null,
         reason: event.reason ?? "",
       };
       return withTurn(state, turnId, seq, ts, (turn) => {

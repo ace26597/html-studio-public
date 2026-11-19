@@ -330,6 +330,77 @@ export interface McpServer {
   plugin_enabled?: boolean;
 }
 
+/** `check` on a suggested package: what its registry says (`found` null: the registry could not be reached). */
+export interface PackageCheck {
+  kind: "npm" | "pypi";
+  package: string;
+  found: boolean | null;
+  version: string | null;
+  description: string | null;
+  /** When the latest version was published. */
+  published: string | null;
+  /** When the package's first version was published. */
+  first_published: string | null;
+  /** npm's count for the last seven days; null for PyPI. */
+  downloads_week: number | null;
+  repository: string | null;
+}
+
+/** `check` on a suggested web address: asked once with no key (`found` null: not asked). */
+export interface AddressCheck {
+  kind: "address";
+  found: boolean | null;
+  status: number | null;
+}
+
+export type SuggestionCheck = PackageCheck | AddressCheck;
+
+/** One connector a model suggested, from memory, with what the studio checked. */
+export interface McpSuggestion {
+  name: string;
+  label: string;
+  description: string;
+  transport: "http" | "stdio" | string;
+  url: string | null;
+  command: string | null;
+  args: string[];
+  /** Header (address) or environment (package) names, each with where the value comes from. */
+  secrets: { name: string; where: string }[];
+  why: string;
+  /** It signs in through a browser: added to the agent program, not in the studio. */
+  sign_in: boolean;
+  check: SuggestionCheck | null;
+}
+
+/** `POST /api/mcp-servers/suggest`. */
+export interface McpSuggestAnswer {
+  have: {
+    id: string;
+    name: string;
+    label: string | null;
+    source: string;
+    origin: string | null;
+    description: string | null;
+    state?: ConnectorState;
+    fix: string | null;
+  }[];
+  suggestions: McpSuggestion[];
+  left_out: { label: string; reason: string }[];
+  asked: { connection: string; model: string } | null;
+  note: string | null;
+}
+
+/** For `save_skill` only: the approval card's structured detail. */
+export interface SkillApprovalInfo {
+  description: string;
+  body: string;
+  files: { path: string; size: number; script: boolean; replaces: boolean }[];
+  scripts: { path: string; text: string; lines: number; replaces: boolean }[];
+  removed: string[];
+  kept: string[];
+  kept_scripts: string[];
+}
+
 /** Body of `POST /api/mcp-servers`; PATCH takes any subset. */
 export interface McpServerInput {
   name: string;
@@ -907,6 +978,8 @@ export interface ApprovalRequestEvent extends EventBase {
   title: string;
   detail: string;
   reason: string;
+  /** `save_skill` only (older events have none). */
+  skill?: SkillApprovalInfo | null;
 }
 export interface ApprovalResolvedEvent extends EventBase {
   type: "approval_resolved";

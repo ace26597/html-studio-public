@@ -1,7 +1,7 @@
 // MCP servers in the Library: your own, the ones on this Mac, and the studio's suggestions.
 // Each can be tested; yours can be edited and deleted. Secret values are write-only.
 
-import { useId, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { api, errorMessage } from "./api";
 import { relativeTime } from "./format";
 import { Icon, Spinner } from "./icons";
@@ -17,7 +17,24 @@ import {
   type McpForm,
 } from "./mcpServerForm";
 import { Modal } from "./Modal";
-import type { McpServer, McpTestResult } from "./types";
+import {
+  answerIsEmpty,
+  checkCaution,
+  checkLine,
+  formFromSuggestion,
+  leftOutLine,
+  MAX_SUGGEST_TEXT,
+  SIGN_IN_NOTE,
+  signInCommands,
+  SUGGEST_EXAMPLE,
+  suggestedFormNote,
+  suggestedHeading,
+  suggestionTarget,
+  suggestProblem,
+} from "./connectorSuggest";
+import { ConnectorStateNote } from "./LibraryControls";
+import { connectorState } from "./libraryPick";
+import type { McpServer, McpSuggestAnswer, McpSuggestion, McpTestResult } from "./types";
 import { useConfirm, useToast } from "./ui";
 
 export function transportLabel(transport: string): string {
@@ -77,6 +94,17 @@ export function McpServerDialog({
   onSaved: (server: McpServer) => void;
   onClose: () => void;
 }) {
+  // Adding starts at "Describe what you need"; editing goes straight to the form, as before.
+  const [step, setStep] = useState<"describe" | "form">(server ? "form" : "describe");
+  const [text, setText] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [askError, setAskError] = useState<string | null>(null);
+  const [answer, setAnswer] = useState<McpSuggestAnswer | null>(null);
+  /** The suggestion the form was filled from (its note is shown above the form). */
+  const [used, setUsed] = useState<McpSuggestion | null>(null);
+  const asked = useRef<AbortController | null>(null);
+  useEffect(() => () => asked.current?.abort(), []);
   const [form, setForm] = useState<McpForm>(() => (server ? mcpFormFromServer(server) : emptyMcpForm()));
   const [fieldError, setFieldError] = useState<McpFieldError | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -111,12 +139,70 @@ export function McpServerDialog({
     }
   };
 
+  const suggest = async () => {
+    const issue = suggestProblem(text);
+    if (issue) {
+      setProblem(issue);
+      return;
+    }
+    asked.current?.abort();
+    const controller = new AbortController();
+    asked.current = controller;
+    setAsking(true);
+    setAskError(null);
+    setAnswer(null);
+    try {
+      setAnswer(await api.suggestMcpServers({ text: text.trim() }, controller.signal));
+    } catch (cause) {
+      if ((cause as Error)?.name !== "AbortError") setAskError(errorMessage(cause));
+    } finally {
+      if (asked.current === controller) setAsking(false);
+    }
+  };
+
+  const toForm = (suggestion: McpSuggestion | null) => {
+    setUsed(suggestion);
+    setForm(suggestion ? formFromSuggestion(suggestion) : emptyMcpForm());
+    setFieldError(null);
+    setError(null);
+    setStep("form");
+  };
+
+  if (!server && step === "describe") {
+    return (
+      <Modal title="Add an MCP server" onClose={onClose} wide>
+        <DescribeStep
+          text={text}
+          problem={problem}
+          asking={asking}
+          error={askError}
+          answer={answer}
+          onText={(value) => {
+            setText(value);
+            setProblem(null);
+          }}
+          onSuggest={() => void suggest()}
+          onForm={() => toForm(null)}
+          onUse={toForm}
+        />
+      </Modal>
+    );
+  }
+
   const secretsWord = form.transport === "http" ? "Headers" : "Environment";
   const invalid = (field: McpFieldError["field"]) => (fieldError?.field === field ? true : undefined);
   const describe = (field: McpFieldError["field"]) => (fieldError?.field === field ? id("error") : undefined);
 
   return (
     <Modal title={server ? `Edit ${server.label || server.name}` : "Add an MCP server"} onClose={onClose} busy={saving} wide>
+      {!server && (
+        <div className="suggest-form-note">
+          {used && <p className="ds-note">{suggestedFormNote(used, answer?.asked?.model)}</p>}
+          <button type="button" className="btn btn-small" disabled={saving} onClick={() => setStep("describe")}>
+            <Icon name="arrow-left" size={13} /> {answer ? "Back to the suggestions" : "Back to describing it"}
+          </button>
+        </div>
+      )}
       <form
         className="ds-form"
         onSubmit={(event) => {
@@ -222,7 +308,8 @@ export function McpServerDialog({
             <legend>{secretsWord}</legend>
             {form.secrets.length === 0 && <p className="field-hint">None.</p>}
             {form.secrets.map((row, index) => (
-              <div key={row.key} className="secret-row">
+              <Fragment key={row.key}>
+              <div className="secret-row">
                 <input
                   aria-label={`${secretsWord} name ${index + 1}`}
                   value={row.name}
@@ -250,6 +337,8 @@ export function McpServerDialog({
                   <Icon name="x" size={14} />
                 </button>
               </div>
+              {row.hint && <p className="field-hint secret-hint">{row.hint}</p>}
+              </Fragment>
             ))}
             <button
               type="button"
@@ -298,6 +387,205 @@ export function McpServerDialog({
   );
 }
 
+// ---- describe what you need (adding only) -----------------------------------------------
+
+const SOURCE_WORDS: Record<string, string> = {
+  yours: "Added in this studio",
+  machine: "On this computer",
+  plugin: "From a plugin",
+  suggested: "Suggested by the studio",
+  app: "From this app",
+};
+
+export function DescribeStep({
+  text,
+  problem,
+  asking,
+  error,
+  answer,
+  now,
+  onText,
+  onSuggest,
+  onForm,
+  onUse,
+}: {
+  text: string;
+  problem: string | null;
+  asking: boolean;
+  error: string | null;
+  answer: McpSuggestAnswer | null;
+  now?: number;
+  onText: (text: string) => void;
+  onSuggest: () => void;
+  onForm: () => void;
+  onUse: (suggestion: McpSuggestion) => void;
+}) {
+  const ids = useId();
+  const left = answer ? leftOutLine(answer.left_out) : null;
+  return (
+    <div className="suggest">
+      <form
+        className="ds-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSuggest();
+        }}
+      >
+        <label className="field" htmlFor={`${ids}-text`}>
+          <span>Describe what you need</span>
+          <textarea
+            id={`${ids}-text`}
+            data-autofocus
+            className="field-textarea"
+            rows={3}
+            value={text}
+            maxLength={MAX_SUGGEST_TEXT}
+            placeholder={`For example: ${SUGGEST_EXAMPLE}`}
+            aria-invalid={problem ? true : undefined}
+            disabled={asking}
+            onChange={(event) => onText(event.target.value)}
+          />
+        </label>
+        <p className="field-hint">
+          Say what the agent should reach or do. A model suggests a server from what it remembers; the studio checks what
+          it can, and nothing is added until you press Add.
+        </p>
+        {problem && (
+          <p className="ds-field-error" role="alert">
+            {problem}
+          </p>
+        )}
+        {error && (
+          <p className="ds-error" role="alert">
+            <Icon name="alert" size={14} /> {error}
+          </p>
+        )}
+        {asking && (
+          <p className="dialog-body" role="status">
+            <Spinner /> Asking the model… (up to 40 seconds)
+          </p>
+        )}
+        <div className="dialog-actions suggest-actions">
+          <button type="button" className="btn suggest-self" disabled={asking} onClick={onForm}>
+            Fill in the form yourself
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={asking}>
+            {asking && <Spinner size={13} />}
+            Suggest
+          </button>
+        </div>
+      </form>
+
+      {answer && !asking && (
+        <div className="suggest-answer" aria-live="polite">
+          {answer.note && <p className="ds-note">{answer.note}</p>}
+          {answer.have.length > 0 && (
+            <section className="suggest-part">
+              <h3>Already in your library</h3>
+              <ul className="suggest-list">
+                {answer.have.map((item) => (
+                  <li key={item.id} className="suggest-card is-have">
+                    <span className="suggest-title">{item.label || item.name}</span>
+                    <span className="suggest-where">{item.origin || SOURCE_WORDS[item.source] || item.source}</span>
+                    {item.description && <p className="suggest-text">{item.description}</p>}
+                    {connectorState(item.state, item.fix) ? (
+                      <ConnectorStateNote state={item.state} fix={item.fix} />
+                    ) : (
+                      item.fix && <p className="field-hint">{item.fix}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {answer.suggestions.length > 0 && (
+            <section className="suggest-part">
+              <h3>{suggestedHeading(answer.asked)}</h3>
+              <ul className="suggest-list">
+                {answer.suggestions.map((suggestion) => (
+                  <SuggestionCard key={suggestion.name} suggestion={suggestion} now={now} onUse={() => onUse(suggestion)} />
+                ))}
+              </ul>
+            </section>
+          )}
+          {left && <p className="field-hint suggest-left">{left}</p>}
+          {answerIsEmpty(answer) && (
+            <div className="suggest-empty">
+              <p>Nothing was suggested, and nothing in your library matches. You can fill in the form yourself.</p>
+              <button type="button" className="btn" onClick={onForm}>
+                Fill in the form yourself
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SuggestionCard({
+  suggestion,
+  now,
+  onUse,
+}: {
+  suggestion: McpSuggestion;
+  now?: number;
+  onUse: () => void;
+}) {
+  const caution = checkCaution(suggestion.check, now);
+  const keysWord = suggestion.transport === "stdio" ? "Values it needs" : "Keys it needs";
+  return (
+    <li className="suggest-card">
+      <span className="suggest-title">
+        {suggestion.label || suggestion.name}
+        {suggestion.label && suggestion.label !== suggestion.name && <code className="mcp-name">{suggestion.name}</code>}
+      </span>
+      {suggestion.description && <p className="suggest-text">{suggestion.description}</p>}
+      {suggestion.why && (
+        <p className="suggest-text suggest-why">
+          <strong>Why it fits:</strong> {suggestion.why}
+        </p>
+      )}
+      <code className="suggest-code">{suggestionTarget(suggestion) || "—"}</code>
+      <p className="suggest-check">{checkLine(suggestion.check, now)}</p>
+      {caution && (
+        <p className="suggest-caution">
+          <Icon name="warning" size={14} /> {caution}
+        </p>
+      )}
+      {suggestion.secrets.length > 0 && (
+        <div className="suggest-keys">
+          <span className="suggest-keys-title">{keysWord}</span>
+          <ul>
+            {suggestion.secrets.map((secret) => (
+              <li key={secret.name}>
+                <code>{secret.name}</code>
+                {secret.where && <span>: {secret.where}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {suggestion.sign_in ? (
+        <div className="suggest-signin">
+          <p className="suggest-text">{SIGN_IN_NOTE}</p>
+          {signInCommands(suggestion).map((command) => (
+            <code key={command} className="suggest-code">
+              {command}
+            </code>
+          ))}
+        </div>
+      ) : (
+        <div className="suggest-use">
+          <button type="button" className="btn btn-small btn-primary" onClick={onUse}>
+            Use this
+          </button>
+        </div>
+      )}
+    </li>
+  );
+}
+
 // ---- the list --------------------------------------------------------------------------
 
 export function McpServersView({
@@ -305,16 +593,19 @@ export function McpServersView({
   query,
   onChanged,
   manage = true,
+  startAdding = false,
 }: {
   servers: McpServer[];
   query: string;
   onChanged: () => void;
   /** Add, edit and delete; testing is always available. */
   manage?: boolean;
+  /** Open the Add dialog at "Describe what you need" once (`/library#new-connector`). */
+  startAdding?: boolean;
 }) {
   const toast = useToast();
   const confirm = useConfirm();
-  const [editing, setEditing] = useState<McpServer | "new" | null>(null);
+  const [editing, setEditing] = useState<McpServer | "new" | null>(startAdding && manage ? "new" : null);
   const [tests, setTests] = useState<Record<string, { busy: boolean; result: McpTestResult | null; at: string | null; error: string | null }>>({});
   const [now] = useState(() => Date.now());
 

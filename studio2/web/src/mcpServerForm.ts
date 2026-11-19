@@ -11,6 +11,8 @@ export interface SecretRow {
   value: string;
   /** The server already holds a value for this name (editing); `value` is empty unless retyped. */
   stored: boolean;
+  /** Where the value comes from (a suggestion's `where`), shown under the row. */
+  hint?: string;
 }
 
 export interface McpForm {
@@ -26,8 +28,8 @@ export interface McpForm {
 }
 
 let rowKey = 0;
-export function secretRow(name = "", stored = false): SecretRow {
-  return { key: ++rowKey, name, value: "", stored };
+export function secretRow(name = "", stored = false, hint?: string): SecretRow {
+  return hint ? { key: ++rowKey, name, value: "", stored, hint } : { key: ++rowKey, name, value: "", stored };
 }
 
 export function emptyMcpForm(): McpForm {

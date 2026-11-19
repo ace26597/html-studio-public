@@ -246,11 +246,14 @@ class Studio:
         self.lib.record_statuses(info.get("mcp_servers") or [])
 
     async def ask(self, project_id: str, tool: str, title: str, detail: str, reason: str,
-                  detail_limit: int | None = None) -> bool:
+                  detail_limit: int | None = None, skill: dict | None = None) -> bool:
         """Ask the person, through the running turn, whatever the project's approval setting.
-        With no turn running there is nobody to ask, so the answer is no."""
+        With no turn running there is nobody to ask, so the answer is no. `skill`: what
+        `save_skill` will write, for the card to show in parts (CONTRACT.md, "The tool save_skill")."""
         approve = self.approvers.get(project_id)
         whole = {"detail_limit": detail_limit} if detail_limit else {}
+        if skill is not None:
+            whole["skill"] = skill
         return bool(approve and await approve(tool, title, detail, reason, always=True, **whole))
 
     def turn_library(self, project_id: str, picked: dict | None = None) -> dict:

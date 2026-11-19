@@ -5,7 +5,14 @@ import { RECHECK_COVERS, fileProblemLine, recheckHeadline, type Recheck } from "
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { isDrawingAttachment } from "./drawing";
 import { baseName, checkpointLabel, costLabel, formatCount, formatDuration, isImagePath, prettyInput, truncate } from "./format";
-import { isSaveSkill, parseSkillApproval } from "./skillMaking";
+import {
+  approvalFileRows,
+  isSaveSkill,
+  keptScriptsSentence,
+  keptSentence,
+  parseSkillApproval,
+  scriptFacts,
+} from "./skillMaking";
 import { Icon, Spinner, toolIcon } from "./icons";
 import { checkPageLine } from "./library";
 import { LibraryPickCard } from "./LibraryPickCard";
@@ -24,7 +31,7 @@ import {
   type ToolNode,
   type Turn,
 } from "./thread";
-import type { PlanEntry, Selection } from "./types";
+import type { PlanEntry, Selection, SkillApprovalInfo } from "./types";
 
 /** The client's side of an approval while a decision is being sent. */
 export interface DecisionState {
@@ -405,7 +412,8 @@ const RESOLVED_LABEL: Record<string, string> = {
 };
 
 /** A skill about to be saved, readable: when it is used, the instructions, the files. Shown as written. */
-export function SkillApprovalDetail({ detail }: { detail: string }) {
+export function SkillApprovalDetail({ detail, skill }: { detail: string; skill?: SkillApprovalInfo | null }) {
+  if (skill) return <SkillApprovalFromInfo skill={skill} />;
   const { description, body, files, kept } = parseSkillApproval(detail);
   return (
     <div className="skill-approval">
@@ -443,6 +451,83 @@ export function SkillApprovalDetail({ detail }: { detail: string }) {
   );
 }
 
+/** The card from the event's structured `skill`: nothing in it is left out or cut. */
+export function SkillApprovalFromInfo({ skill }: { skill: SkillApprovalInfo }) {
+  const files = approvalFileRows(skill.files);
+  const kept = keptSentence(skill.kept);
+  const keptScripts = keptScriptsSentence(skill.kept_scripts);
+  const removed = skill.removed ?? [];
+  const scripts = skill.scripts ?? [];
+  return (
+    <div className="skill-approval">
+      <div className="skill-approval-part">
+        <h4>When it is used</h4>
+        <p>{skill.description}</p>
+      </div>
+      <div className="skill-approval-part">
+        <h4>Instructions</h4>
+        <pre className="skill-text" tabIndex={0} aria-label="The skill’s instructions">
+          {skill.body}
+        </pre>
+      </div>
+      {(files.length > 0 || kept || keptScripts) && (
+        <div className="skill-approval-part">
+          <h4>Files</h4>
+          {files.length > 0 && (
+            <ul className="skill-files">
+              {files.map((file, index) => (
+                <li key={`${index}:${file.path}`}>
+                  <span className="skill-file-path">{file.path}</span>
+                  {file.marks.map((mark) => (
+                    <span key={mark} className={`badge${mark === "script" ? " badge-script" : ""}`}>
+                      {mark}
+                    </span>
+                  ))}
+                  <span className="skill-file-size">{file.size}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {kept && <p className="skill-approval-kept">{kept}</p>}
+          {keptScripts && <p className="skill-approval-kept">{keptScripts}</p>}
+        </div>
+      )}
+      {removed.length > 0 && (
+        <div className="skill-approval-part">
+          <h4>Removed</h4>
+          <ul className="skill-files">
+            {removed.map((path) => (
+              <li key={path}>
+                <span className="skill-file-path">{path}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {scripts.length > 0 && (
+        <div className="skill-approval-part">
+          <h4>Scripts the agent may run</h4>
+          <p className="skill-approval-kept">
+            The agent can run these through its shell in any project that uses the skill, under that project’s approval
+            rules. Read each one whole before you allow it.
+          </p>
+          {scripts.map((script) => (
+            <div key={script.path} className="skill-approval-script">
+              <p className="skill-approval-script-head">
+                <span className="skill-file-path">{script.path}</span>
+                <span className="skill-file-size">{scriptFacts(script)}</span>
+              </p>
+              <pre className="skill-text is-mono" tabIndex={0} aria-label={`The script ${script.path}`}>
+                {script.text}
+              </pre>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ApprovalCard({ item, actions }: { item: ApprovalItem; actions: ThreadActions }) {
   const decision = actions.decisions[item.approvalId];
   const skill = isSaveSkill(item.tool);
@@ -467,7 +552,9 @@ export function ApprovalCard({ item, actions }: { item: ApprovalItem; actions: T
         <Icon name="hand" size={15} className="approval-icon" />
         <strong>{item.title}</strong>
       </div>
-      {item.detail && (skill ? <SkillApprovalDetail detail={item.detail} /> : <pre className="approval-detail">{item.detail}</pre>)}
+      {skill
+        ? (item.skill || item.detail) && <SkillApprovalDetail detail={item.detail} skill={item.skill} />
+        : item.detail && <pre className="approval-detail">{item.detail}</pre>}
       {item.reason && <p className="approval-reason">{item.reason}</p>}
       {decision?.error && (
         <p className="approval-error" role="alert">

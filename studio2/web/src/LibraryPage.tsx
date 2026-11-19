@@ -25,10 +25,13 @@ interface LibraryPageProps {
 
 /** `/library#new-skill` (the New page dialog's "A skill") opens New skill at "Describe it". */
 export const NEW_SKILL_HASH = "#new-skill";
+/** `/library#new-connector` (the New page dialog's "A connector") opens Add an MCP server at "Describe what you need". */
+export const NEW_CONNECTOR_HASH = "#new-connector";
 
 export function LibraryPage({ navigate, theme, onToggleTheme, shared = false }: LibraryPageProps) {
   const state = useLibrary();
   const [startNewSkill] = useState(() => typeof window !== "undefined" && window.location.hash === NEW_SKILL_HASH);
+  const [startNewConnector] = useState(() => typeof window !== "undefined" && window.location.hash === NEW_CONNECTOR_HASH);
 
   useEffect(() => {
     document.title = "Library · Studio";
@@ -37,7 +40,7 @@ export function LibraryPage({ navigate, theme, onToggleTheme, shared = false }: 
       document.getElementById("data-sources")?.scrollIntoView({ block: "start" });
     }
     // Opened once: a reload or Back does not open the dialog again.
-    if (window.location.hash === NEW_SKILL_HASH) {
+    if (window.location.hash === NEW_SKILL_HASH || window.location.hash === NEW_CONNECTOR_HASH) {
       window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
     }
     return () => {
@@ -97,6 +100,7 @@ export function LibraryPage({ navigate, theme, onToggleTheme, shared = false }: 
             omit={SHOWN_ABOVE}
             shared={shared}
             startNewSkill={startNewSkill}
+            startNewConnector={startNewConnector}
             onOpenProject={(id) => navigate(`/p/${id}`)}
           />
         </section>

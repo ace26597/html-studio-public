@@ -29,12 +29,16 @@ from .library import NAME, Library, LibraryError
 MAX_DESCRIPTION, MAX_BODY = 600, 12_000
 MAX_REFERENCES, MAX_REFERENCE_BYTES, MAX_REFERENCES_BYTES = 12, 5 * 1024 * 1024, 10 * 1024 * 1024
 MAX_REFERENCE_PATH = 80     # keeps twelve file lines inside the card's limit
-CARD_LIMIT = 14_000
+MAX_PLACE = 120             # `to`: a whole path inside the skill
+MAX_SCRIPT_CHARS = 40_000   # the scripts of one call together: the card shows each one whole
+MAX_REMOVED = 50
+CARD_LIMIT, CARD_LIMIT_WITH_SCRIPTS = 14_000, 60_000
 HISTORY_KEEP = 5
 MAX_EXPORT_BYTES = 40 * 1024 * 1024
 MAX_IMPORT_FILES, MAX_PACKED_BYTES, MAX_UNPACKED_BYTES = 600, 25 * 1024 * 1024, 60 * 1024 * 1024
 MANIFEST = "studio-skill.json"
 ASK_REASON = "A skill in your library is given to the agent in every project from now on."
+ASK_REASON_SCRIPTS = ASK_REASON + " It holds scripts the agent may run through its shell."
 REFERENCE_TYPES = frozenset(""".md .txt .html .css .json .csv .tsv .svg .png .jpg .jpeg .webp .gif .pdf .docx
  .pptx .xlsx""".split())
 SCRIPT_TYPES = frozenset(".py .js .mjs .cjs .ts .sh .bash .zsh .rb .pl .php .ps1 .bat .cmd".split())
@@ -307,10 +311,37 @@ def _move_in(library: Library, name: str, stage: Path) -> bool:
     return retired is not None
 
 
+def _place(stage: Path, relative: str) -> Path:
+    """Where a file goes in the staged folder, never through a link: a folder on the way that is
+    a link is refused, and a link at the path itself is replaced by the file."""
+    current = stage
+    parts = PurePosixPath(relative).parts
+    for part in parts[:-1]:
+        current = current / part
+        if current.is_symlink() or (current.exists() and not current.is_dir()):
+            raise _invalid(f"files: {relative} cannot be written: {part} in this skill is not a plain folder.")
+        current.mkdir(exist_ok=True)
+    target = current / parts[-1]
+    if target.is_symlink():
+        target.unlink()
+    elif target.is_dir():
+        raise _invalid(f"files: {relative} is a folder in this skill.")
+    return target
+
+
+def _take_out(stage: Path, relative: str) -> None:
+    target = stage.joinpath(*PurePosixPath(relative).parts)
+    target.unlink(missing_ok=True)
+    folder = target.parent
+    while folder != stage and not any(folder.iterdir()):    # a folder left empty goes with its last file
+        folder.rmdir()
+        folder = folder.parent
+
+
 def save(library: Library, name: str, description: str, body: str, files: list[dict] | tuple = (),
-         replace: bool = False) -> dict:
-    """Write the skill. Files of a version it replaces stay unless `files` brings the same path.
-    → {replaced, files: [path]}."""
+         replace: bool = False, remove: list[str] | tuple = ()) -> dict:
+    """Write the skill. Files of a version it replaces stay unless `files` brings the same path
+    or `remove` names them. → {replaced, files: [path], scripts: [path]}."""
     target = library.own_skills / name
     stage = _stage(library)
     with _writing:
@@ -326,15 +357,16 @@ def save(library: Library, name: str, description: str, body: str, files: list[d
             else:
                 stage.mkdir()
             (stage / "SKILL.md").write_text(compose(name, description, body, kept), "utf-8")
+            for relative in remove:
+                _take_out(stage, relative)
             for item in files:
-                path = stage / item["path"]
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(item["data"])
+                _place(stage, item["path"]).write_bytes(item["data"])
             replaced = _move_in(library, name, stage)
         finally:
             shutil.rmtree(stage, ignore_errors=True)
     library.catalog.ensure(force=True)
-    return {"replaced": replaced, "files": [item["path"] for item in _other_files(target)]}
+    return {"replaced": replaced, "files": [item["path"] for item in _other_files(target)],
+            "scripts": [path for path, _full, info in _walk(target) if is_script(path, info.st_mode)]}
 
 
 def update(library: Library, name: str, fields: dict) -> dict:
@@ -357,33 +389,68 @@ def _size_text(size: int) -> str:
     return f"{size / (1024 * 1024):.1f} MB" if size >= 1024 * 1024 else f"{max(1, round(size / 1024))} KB"
 
 
-def read_references(workspace: Path, items) -> list[dict]:
+def _reads_as_text(data: bytes) -> str | None:
+    if b"\0" in data:
+        return None
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+def _place_of(item: dict, source: Path, script: bool) -> str:
+    """Where the file goes in the skill: `to` (the whole path) or `reference/` or `scripts/` with
+    `as` or the file's own name. Both the file's name and the one it is saved under were checked
+    to be of one kind, so a script cannot be saved under another ending."""
+    to = item.get("to")
+    wanted = str(to if to else (item.get("as") or source.name))
+    parts = PurePosixPath(wanted).parts
+    limit = MAX_PLACE if to else MAX_REFERENCE_PATH
+    if (not parts or len(wanted) > limit or "\\" in wanted or wanted.startswith("/")
+            or any(part == ".." or part.startswith(".") or any(ord(c) < 32 for c in part) for part in parts)):
+        raise _invalid(f"files: {wanted} cannot be used as a file name in a skill.")
+    path = "/".join(parts) if to else ("scripts/" if script else "reference/") + "/".join(parts)
+    if path in ("SKILL.md", MANIFEST) or any(part in LEFT_OUT_FOLDERS for part in parts):
+        raise _invalid(f"files: {path} cannot be written with `files`"
+                       + (": the instructions are the `body`." if path == "SKILL.md" else "."))
+    return path
+
+
+def read_files(workspace: Path, items) -> list[dict]:
     """The project's files for a skill, read now: what the person is shown is what is saved,
-    whatever happens to the project's copy while the card waits."""
+    whatever happens to the project's copy while the card waits.
+    → [{path, data, size, script, text?}] (`text` for a script)."""
     if items is None:
         return []
     if not isinstance(items, list):
-        raise _invalid("files: give a list of {path, as}.")
+        raise _invalid("files: give a list of {path, as} (or {path, to}).")
     if len(items) > MAX_REFERENCES:
-        raise _invalid(f"files: at most {MAX_REFERENCES} reference files (this has {len(items)}).")
-    out, seen, total = [], set(), 0
+        raise _invalid(f"files: at most {MAX_REFERENCES} files in one call (this has {len(items)}).")
+    out, seen, total, script_chars = [], set(), 0, 0
+    allowed = f"material to read or follow ({' '.join(sorted(REFERENCE_TYPES))}) and scripts " \
+              f"({' '.join(sorted(SCRIPT_TYPES))})"
     for item in items:
         relative = item.get("path") if isinstance(item, dict) else None
         if not isinstance(relative, str) or not relative.strip():
             raise _invalid("files: each one needs the `path` of a file in this project.")
+        if item.get("to") and item.get("as"):
+            raise _invalid(f"files: give `as` (a name) or `to` (the whole path in the skill) for {relative}, not both.")
         try:
             source = ws.safe_path(workspace, relative)
         except ws.InvalidPath:
             raise _invalid(f"files: {relative} is not a file inside this project.") from None
-        wanted = item.get("as") or source.name
-        parts = PurePosixPath(str(wanted)).parts
-        if (not parts or len(str(wanted)) > MAX_REFERENCE_PATH or "\\" in str(wanted) or str(wanted).startswith("/")
-                or any(part.startswith(".") or any(ord(c) < 32 for c in part) for part in parts)):
-            raise _invalid(f"files: {wanted} cannot be used as a file name in a skill.")
-        for name in (source.name, parts[-1]):
-            if PurePosixPath(name).suffix.lower() not in REFERENCE_TYPES:
-                raise _invalid(f"files: {name} is not allowed. A skill made here holds material to read or follow "
-                               f"({' '.join(sorted(REFERENCE_TYPES))}), and no scripts.")
+        saved_as = PurePosixPath(str(item.get("to") or item.get("as") or source.name)).name
+        kinds = set()
+        for name in (source.name, saved_as):
+            ending = PurePosixPath(name).suffix.lower()
+            if ending not in REFERENCE_TYPES and ending not in SCRIPT_TYPES:
+                raise _invalid(f"files: {name} is not allowed. A skill made here holds {allowed}.")
+            kinds.add(ending in SCRIPT_TYPES)
+        if len(kinds) > 1:
+            raise _invalid(f"files: {source.name} would be saved as {saved_as}: a script keeps a script's ending "
+                           "and a reference file keeps its own.")
+        script = kinds.pop()
+        path = _place_of(item, source, script)
         if not source.is_file():
             raise _invalid(f"files: there is no file at {relative} in this project.")
         size = source.stat().st_size
@@ -391,12 +458,47 @@ def read_references(workspace: Path, items) -> list[dict]:
             raise _invalid(f"files: {relative} is {_size_text(size)}; each file may be at most 5 MB.")
         total += size
         if total > MAX_REFERENCES_BYTES:
-            raise _invalid("files: the reference files may be at most 10 MB together.")
-        path = "reference/" + "/".join(parts)
+            raise _invalid("files: the files may be at most 10 MB together.")
         if path.casefold() in seen:
             raise _invalid(f"files: two files would be saved as {path}.")
         seen.add(path.casefold())
-        out.append({"path": path, "data": source.read_bytes(), "size": size})
+        data = source.read_bytes()
+        entry = {"path": path, "data": data, "size": len(data), "script": script}
+        if script:
+            text = _reads_as_text(data)
+            if text is None:
+                raise _invalid(f"files: {relative} is not text, so it cannot be shown to the person as a script.")
+            script_chars += len(text)
+            if script_chars > MAX_SCRIPT_CHARS:
+                raise _invalid(f"files: the scripts of one call may hold at most {MAX_SCRIPT_CHARS:,} characters "
+                               "together, because the person is shown every one whole. Save some now and the "
+                               "rest in a second call with replace: true.")
+            entry["text"] = text
+        out.append(entry)
+    return out
+
+
+def _removals(wanted, existing: list[str], given: set[str], replace: bool) -> list[str]:
+    if wanted is None or wanted == []:
+        return []
+    if not isinstance(wanted, list) or not all(isinstance(path, str) and path.strip() for path in wanted):
+        raise _invalid("remove: give a list of the paths of files in the skill.")
+    if len(wanted) > MAX_REMOVED:
+        raise _invalid(f"remove: at most {MAX_REMOVED} files in one call.")
+    if not replace:
+        raise _invalid("remove: files are taken out of a skill that exists, with replace: true.")
+    out = []
+    for raw in wanted:
+        path = raw.strip()
+        if path == "SKILL.md":
+            raise _invalid("remove: SKILL.md is the skill itself. To delete the skill, the person does that in "
+                           "their Library.")
+        if path not in existing:
+            raise _invalid(f"remove: the skill has no file at {path}.")
+        if path in given:
+            raise _invalid(f"remove: {path} is also written by `files`. Do one or the other.")
+        if path not in out:
+            out.append(path)
     return out
 
 
@@ -406,24 +508,52 @@ def plan(library: Library, workspace: Path, args: dict) -> dict:
         raise SkillError(403, "not_for_shared", "On a shared studio only its owner adds skills to the library.")
     name = check_name(library, str(args.get("name") or "").strip())
     description, body = clean_description(args.get("description")), clean_body(args.get("body"))
-    files = read_references(workspace, args.get("files"))
+    files = read_files(workspace, args.get("files"))
     replace = args.get("replace") is True
     folder = library.own_skills / name
     exists = (folder / "SKILL.md").is_file()
     if exists and not replace:
         raise SkillError(409, "name_taken", f"You already have a skill called {name}. Nothing was saved. To change it, "
                                             "read it first and call save_skill again with replace: true.")
+    had = {path: is_script(path, info.st_mode) for path, _full, info in _walk(folder) if path != "SKILL.md"} \
+        if exists else {}
     given = {item["path"] for item in files}
-    kept = [item["path"] for item in _other_files(folder) if item["path"] not in given] if exists else []
+    spelled = {path.casefold(): path for path in had}
+    for item in files:
+        if (folder / item["path"]).is_dir() and not (folder / item["path"]).is_symlink():
+            raise _invalid(f"files: {item['path']} is a folder in this skill.")
+        there = spelled.get(item["path"].casefold())
+        if there and there != item["path"]:     # one file on a disk that ignores letter case
+            raise _invalid(f"files: the skill already has {there}; write it with that spelling.")
+        item["replaces"] = item["path"] in had
+    remove = _removals(args.get("remove"), list(had), given, replace and exists)
+    kept = [path for path in had if path not in given and path not in remove]
+    kept_scripts = [path for path in kept if had[path]]
+    scripts = [item for item in files if item["script"]]
     parts = [f"When it is used: {description}", f"Instructions:\n{body}"]
     if files:
         parts.append("Files:\n" + "\n".join(f"{item['path']} ({_size_text(item['size'])})" for item in files))
+    if remove:
+        parts.append("Files removed:\n" + "\n".join(remove))
     if kept:
         more = f", and {len(kept) - 12} more" if len(kept) > 12 else ""
         parts.append("Files kept from the version it replaces: " + ", ".join(kept[:12]) + more)
+    for item in scripts:
+        lines = len(item["text"].splitlines())
+        what = "replaces the one in the skill" if item["replaces"] else "new"
+        parts.append(f"Script {item['path']} ({what}, {lines} line{'' if lines == 1 else 's'}):\n{item['text']}")
     title = f"Replace your skill “{name}”" if exists else f"Save the skill “{name}” to your library"
+    shown = {"description": description, "body": body,
+             "files": [{"path": item["path"], "size": item["size"], "script": item["script"],
+                        "replaces": item["replaces"]} for item in files],
+             "scripts": [{"path": item["path"], "text": item["text"], "lines": len(item["text"].splitlines()),
+                          "replaces": item["replaces"]} for item in scripts],
+             "removed": remove, "kept": kept, "kept_scripts": kept_scripts}
+    holds_scripts = bool(scripts or kept_scripts)
     return {"name": name, "description": description, "body": body, "files": files, "replace": replace,
-            "title": title, "detail": "\n\n".join(parts)}
+            "remove": remove, "title": title, "detail": "\n\n".join(parts), "skill": shown,
+            "reason": ASK_REASON_SCRIPTS if holds_scripts else ASK_REASON,
+            "detail_limit": CARD_LIMIT_WITH_SCRIPTS if scripts else CARD_LIMIT}
 
 
 # -- the skill file ---------------------------------------------------------------------------

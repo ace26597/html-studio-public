@@ -382,7 +382,7 @@ export function AskForm({
       <p className="field-hint">
         {explain
           ? "A new project opens where the agent reads every file of the skill and explains it on the page. Nothing is run or changed."
-          : "A new project opens where the agent reads the skill and drafts the change. Nothing is saved until you allow it."}
+          : "A new project opens where the agent reads the skill and drafts the change. It can change the instructions and add, replace or remove the skill’s files and scripts; you see every script whole before you allow anything to be saved."}
       </p>
       {problem && (
         <p className="ds-field-error" role="alert">

@@ -232,7 +232,7 @@ class TurnRunner:
         events = self.studio.log(pid)
 
         async def approve(tool: str, title: str, detail: str, reason: str, always: bool = False,
-                          detail_limit: int | None = None) -> bool:
+                          detail_limit: int | None = None, skill: dict | None = None) -> bool:
             # `always`: something that spends the person's money asks even in a project set to "allow".
             # `detail_limit`: characters to keep when the person must see the whole text to decide.
             if not always and self.studio.store.get(pid).get("approvals", "ask") == "allow":
@@ -241,7 +241,8 @@ class TurnRunner:
             future = asyncio.get_running_loop().create_future()
             self.pending.setdefault(turn_id, {})[approval_id] = future
             events.append("approval_request", turn_id, approval_id=approval_id, tool=tool, title=title,
-                          detail=detail[:detail_limit] if detail_limit else _clip(detail, 4_000), reason=reason)
+                          detail=detail[:detail_limit] if detail_limit else _clip(detail, 4_000), reason=reason,
+                          **({"skill": skill} if skill is not None else {}))
             allowed = await future  # cancelled when the turn ends first; _close_approvals announces that
             if self.pending.get(turn_id, {}).pop(approval_id, None) is not None:
                 events.append("approval_resolved", turn_id, approval_id=approval_id,

@@ -19,21 +19,39 @@ interface NewProjectDialogProps {
   onClose: () => void;
   /** "A skill": open Library → New skill at "Describe it". Left out, the choice is not offered (a shared studio). */
   onSkill?: () => void;
+  /** "A connector": open Library → Add an MCP server at "Describe what you need". Left out on a shared studio. */
+  onConnector?: () => void;
 }
 
-export type Source = "template" | "folder" | "skill";
+export type Source = "template" | "folder" | "skill" | "connector";
 
 /** The choices at the top of the dialog, in order. "A skill" only when it can be offered. */
-export function newPageSources(withSkill: boolean): { value: Source; label: string }[] {
+export function newPageSources(withSkill: boolean, withConnector: boolean = withSkill): { value: Source; label: string }[] {
   const all: { value: Source; label: string }[] = [
     { value: "template", label: "A template or a blank page" },
     { value: "folder", label: "An app on this computer" },
     { value: "skill", label: "A skill" },
+    { value: "connector", label: "A connector" },
   ];
-  return withSkill ? all : all.filter((item) => item.value !== "skill");
+  return all.filter((item) => (item.value !== "skill" || withSkill) && (item.value !== "connector" || withConnector));
 }
 
 /** What "A skill" says: what a skill is, in plain words, and where the button goes. */
+/** What "A connector" says: what a connector is, in plain words, and what the button does. */
+export function ConnectorChoice() {
+  return (
+    <div className="newpage-skill">
+      <p className="dialog-body">
+        A connector lets the agent reach a service or tool outside the project: your notes, your tickets, a search engine.
+      </p>
+      <p className="dialog-body">
+        Describe what you want it to reach, and a model suggests which connector to add. You read the suggestion, type
+        any keys it needs, and nothing is added until you press Add.
+      </p>
+    </div>
+  );
+}
+
 export function SkillChoice() {
   return (
     <div className="newpage-skill">
@@ -58,6 +76,7 @@ export function NewProjectDialog({
   onAttach,
   onClose,
   onSkill,
+  onConnector,
   initialSource = "template",
 }: NewProjectDialogProps & { initialSource?: Source }) {
   const [source, setSource] = useState<Source>(initialSource);
@@ -174,7 +193,7 @@ export function NewProjectDialog({
       <div className="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} ref={dialog}>
         <DialogHead titleId={titleId} title="New page" onClose={onClose} busy={creating} />
         <div className="newpage-tabs" role="tablist" aria-label="Start from">
-          {newPageSources(Boolean(onSkill)).map(({ value, label }) => (
+          {newPageSources(Boolean(onSkill), Boolean(onConnector)).map(({ value, label }) => (
             <button
               key={value}
               type="button"
@@ -188,7 +207,9 @@ export function NewProjectDialog({
             </button>
           ))}
         </div>
-        {source === "skill" ? (
+        {source === "connector" ? (
+          <ConnectorChoice />
+        ) : source === "skill" ? (
           <SkillChoice />
         ) : source === "folder" ? (
           <AttachForm
@@ -254,7 +275,11 @@ export function NewProjectDialog({
           <button type="button" className="btn" disabled={creating} onClick={onClose}>
             Cancel
           </button>
-          {source === "skill" ? (
+          {source === "connector" ? (
+            <button type="button" className="btn btn-primary" disabled={creating} onClick={onConnector}>
+              Describe what you need
+            </button>
+          ) : source === "skill" ? (
             <button type="button" className="btn btn-primary" disabled={creating} onClick={onSkill}>
               Describe it
             </button>

@@ -2006,6 +2006,51 @@ async function handleApi(req, res, url) {
     throw new HttpError(404, "not_found", "No such endpoint.");
   }
 
+  if (segments[0] === "mcp-servers" && segments[1] === "suggest" && segments.length === 2 && method === "POST") {
+    const body = await readJson(req);
+    const text = typeof body.text === "string" ? body.text.trim() : "";
+    if (!text || text.length > 2000) throw new HttpError(400, "invalid_request", "text: 1 to 2,000 characters.");
+    await new Promise((resolve) => setTimeout(resolve, 900 * Math.max(SPEED, 0.3)));
+    const days = (n) => new Date(Date.now() - n * 864e5).toISOString();
+    const first = allServers()[0];
+    return json(res, 200, {
+      have: first
+        ? [{ id: first.id, name: first.name, label: first.label, source: first.source, origin: first.origin ?? null, description: first.description, state: first.state, fix: first.fix ?? null }]
+        : [],
+      suggestions: [
+        {
+          name: "mock-notion",
+          label: "(mock) Notion",
+          description: "(mock) Reads and searches the pages in a Notion workspace.",
+          transport: "stdio",
+          url: null,
+          command: "npx",
+          args: ["-y", "@mock/notion-mcp-server"],
+          secrets: [{ name: "NOTION_TOKEN", where: "(mock) Notion → Settings → Connections → Develop or manage integrations." }],
+          why: "(mock) You asked to read and search Notion pages.",
+          sign_in: false,
+          check: { kind: "npm", package: "@mock/notion-mcp-server", found: true, version: "1.4.2", description: "(mock)", published: days(21), first_published: days(700), downloads_week: 41200, repository: null },
+        },
+        {
+          name: "mock-linear",
+          label: "(mock) Linear",
+          description: "(mock) Reads and updates Linear issues.",
+          transport: "http",
+          url: "https://mcp.mock-linear.example/mcp",
+          command: null,
+          args: [],
+          secrets: [],
+          why: "(mock) It signs in with your Linear account.",
+          sign_in: true,
+          check: { kind: "address", found: true, status: 401 },
+        },
+      ],
+      left_out: [{ label: "(mock) notion-tools", reason: "not on npm" }],
+      asked: { connection: "fake", model: "mock-small" },
+      note: null,
+    });
+  }
+
   if (segments[0] === "mcp-servers") {
     if (segments.length === 1 && method === "POST") {
       const server = readServerFields(await readJson(req));

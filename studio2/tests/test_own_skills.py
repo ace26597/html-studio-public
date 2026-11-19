@@ -174,7 +174,8 @@ async def test_reference_files_that_are_refused(studio, project, settings):
     outside = settings.data_dir / "outside.md"
     outside.write_text("secret")
     (workspace / "link.md").symlink_to(outside)
-    cases = [([{"path": "run.py"}], "run.py"), ([{"path": "run.py", "as": "run.txt"}], "run.py"),
+    (workspace / "tool.bin").write_bytes(b"\x7fELF")
+    cases = [([{"path": "tool.bin"}], "tool.bin is not allowed"), ([{"path": "run.py", "as": "run.txt"}], "run.txt"),
              ([{"path": "note.md", "as": "note.sh"}], "note.sh"), ([{"path": "../outside.md"}], "not a file inside"),
              ([{"path": "link.md"}], "not a file inside"), ([{"path": "missing.md"}], "no file at"),
              ([{"path": "note.md", "as": "../../x.md"}], "cannot be used"),

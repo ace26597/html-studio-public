@@ -4,7 +4,8 @@
 
 import type { TurnInput } from "./api";
 import { nameProblem } from "./library";
-import type { Project, SkillImportPreview } from "./types";
+import { formatBytes } from "./format";
+import type { Project, SkillApprovalInfo, SkillImportPreview } from "./types";
 
 /** The contract's wording. A test pins these sentences: change the contract first. */
 export const DESCRIBE_LEAD = "Make a new skill for my library from this description (use the make-a-skill skill):";
@@ -194,4 +195,49 @@ export function parseSkillApproval(detail: string): SkillApprovalParts {
     }
   }
   return { description, body: body.trim(), files, kept };
+}
+
+// ---- the approval card, from the event's structured `skill` ---------------------------------
+
+/** How many kept files are named before "and N more". */
+export const KEPT_NAMED = 12;
+
+export const REPLACES_WORDS = "replaces the one in the skill";
+
+export interface ApprovalFileRow {
+  path: string;
+  size: string;
+  /** "script", "replaces the one in the skill". */
+  marks: string[];
+}
+
+/** Every file the call writes, its size from bytes, marked when it is a script or replaces one. */
+export function approvalFileRows(files: SkillApprovalInfo["files"]): ApprovalFileRow[] {
+  return (files ?? []).map((file) => {
+    const marks: string[] = [];
+    if (file.script) marks.push("script");
+    if (file.replaces) marks.push(REPLACES_WORDS);
+    return { path: file.path, size: formatBytes(file.size), marks };
+  });
+}
+
+/** `Files kept from the version it replaces: a, b, … and N more.`, or null. */
+export function keptSentence(kept: readonly string[] | null | undefined): string | null {
+  if (!kept?.length) return null;
+  const named = kept.slice(0, KEPT_NAMED).join(", ");
+  const more = kept.length - KEPT_NAMED;
+  return `Files kept from the version it replaces: ${named}${more > 0 ? ` and ${more} more` : ""}.`;
+}
+
+/** The kept files that are scripts, every one named, or null. */
+export function keptScriptsSentence(keptScripts: readonly string[] | null | undefined): string | null {
+  if (!keptScripts?.length) return null;
+  const one = keptScripts.length === 1;
+  return `${one ? "This script is" : "These scripts are"} already in the skill and ${one ? "stays" : "stay"} as ${one ? "it is" : "they are"}: ${keptScripts.join(", ")}.`;
+}
+
+/** "new" or "replaces the one in the skill", then the line count: `new · 12 lines`. */
+export function scriptFacts(script: Pick<SkillApprovalInfo["scripts"][number], "replaces" | "lines">): string {
+  const lines = `${script.lines} ${script.lines === 1 ? "line" : "lines"}`;
+  return `${script.replaces ? REPLACES_WORDS : "new"} · ${lines}`;
 }

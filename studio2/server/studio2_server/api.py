@@ -775,6 +775,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def add_server(request: Request):
         return studio.lib.add_server(await json_object(request))
 
+    @app.post("/api/mcp-servers/suggest")
+    async def suggest_servers(request: Request):
+        # A model names connectors from memory; the studio checks what it can and adds nothing.
+        from . import connector_suggest
+        body = await json_object(request)
+        return await connector_suggest.suggest(studio, body.get("text"), body.get("connection") or None)
+
     @app.patch("/api/mcp-servers/{server_id}")
     async def update_server(server_id: str, request: Request):
         fields = await json_object(request)

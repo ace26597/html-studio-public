@@ -382,7 +382,7 @@ describe("the New page dialog's third choice", () => {
   const props = { creating: false, createError: null, onCreate: noop, onAttach: noop, onClose: noop };
 
   it("offers A skill beside a template and a folder, unless it cannot", () => {
-    expect(newPageSources(true).map((item) => item.label)).toEqual([
+    expect(newPageSources(true, false).map((item) => item.label)).toEqual([
       "A template or a blank page",
       "An app on this computer",
       "A skill",

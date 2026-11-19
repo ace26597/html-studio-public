@@ -545,7 +545,7 @@ message); they are committed with the turn's checkpoint instead of their own.
 | `turn_started` | also `attachments: [path]`, `queued_id` (string or null) | |
 | `turn_queued` | `queued_id`, `text`, `selection`, `attachments`, `connection`, `model` | A message is waiting for the running turn to end. `turn_id` is null |
 | `turn_unqueued` | `queued_id`, `reason`, `text` | It was removed without running. `reason`: `cancelled` (the person removed it, or the project is being deleted), `stopped` (Stop cleared it), `restart` (the studio restarted), `not_started` (its turn came but it could not start, for example because no connection is left to send it with). `text` is the message's text, so the thread can say what was not sent and offer it again. The thread says so for every reason except `cancelled`, and offers the text back for `stopped` and `not_started` |
-| `approval_request` | `approval_id`, `tool`, `title`, `detail`, `reason` | The agent wants to do something risky and is waiting. `title` is a short line ("Run a shell command"), `detail` the command or path, `reason` why it needs approval |
+| `approval_request` | `approval_id`, `tool`, `title`, `detail`, `reason`, `skill?` | The agent wants to do something risky and is waiting. `title` is a short line ("Run a shell command"), `detail` the command or path, `reason` why it needs approval |
 | `approval_resolved` | `approval_id`, `decision`, `by` | `decision`: `allow`, `deny`. `by`: `user`, `turn_end` (the turn ended first: always `deny`) |
 | `app_status` | `state`, `exit_code`, `run`, `slow`, `not_answering?` | The project's app changed state, or became `slow` or `not_answering` while `starting`. `turn_id` is the running turn or null |
 
@@ -3687,7 +3687,9 @@ used, what it starts from, the steps in order, what a good result looks like, ho
 checked, what must never happen), how to write the `description` so the skill is picked when it
 is needed, how to write steps another agent can follow without this conversation, what to leave
 out (anything true only of this one project: its subject, its figures, its file names), and to
-end with `save_skill`. A skill made here is instructions and reference files only: no scripts.
+end with `save_skill`. A skill made here is instructions, reference files and, where a step is
+better done by a program than described (a calculation, a conversion, a check), scripts: see "The
+tool `save_skill`" for what the person is shown.
 
 A skill made from work in a project keeps that work's look unless the person says the look does
 not matter: the body gets a part `How it looks` (the layout at desktop width and how it folds, the
@@ -3700,34 +3702,73 @@ gave the right parts and checks in a rearranged layout, so the look was added on
 ## The tool `save_skill`
 
 ```
-{name, description, body, files?: [{path, as?}], replace?: boolean}
+{name, description, body, files?: [{path, as?, to?}], remove?: [path], replace?: boolean}
 ```
 
 - `name`: lower-case letters, digits, `-` and `_`, at most 60 characters, not the name of one of
   the studio's own skills. `description`: when to use it, at most 600 characters. `body`: the
   instructions in Markdown, at most 12,000 characters, without a front-matter block (the studio
   writes it).
-- `files`: reference files copied from the project into the skill, at `reference/<as or the
-  file's name>`: at most 12, each at most 5 MB, 10 MB together. Only material to read or follow:
-  `.md .txt .html .css .json .csv .tsv .svg .png .jpg .jpeg .webp .gif .pdf .docx .pptx .xlsx`.
-  Anything else is refused by name (no scripts); the file's own name and `as` are both checked,
-  so a script cannot be saved under another ending. `as` is at most 80 characters and does not
-  start with a dot.
+- `files`: files copied from the project into the skill: at most 12, each at most 5 MB, 10 MB
+  together. Two kinds are taken and anything else is refused by name; the file's own name and the
+  name it is saved under are both checked, so one kind cannot be saved under the other's ending.
+  - **Material to read or follow**: `.md .txt .html .css .json .csv .tsv .svg .png .jpg .jpeg
+    .webp .gif .pdf .docx .pptx .xlsx`. Saved at `reference/<as or the file's name>`.
+  - **Scripts** (since 19 November 2026; until then the tool refused them): `.py .js .mjs .cjs .ts
+    .sh .bash .zsh .rb .pl .php .ps1 .bat .cmd`. Saved at `scripts/<as or the file's name>`. A
+    script must be text (UTF-8, no zero byte), and the scripts of one call may hold at most 40,000
+    characters together, because the card shows every one of them whole; more is refused with the
+    advice to save in two calls.
+  - `as` is at most 80 characters and no part of it starts with a dot. `to` is given instead of
+    `as` to name the whole path inside the skill (`to: "ooxml/scripts/pack.py"`), which is how a
+    file of a copied skill is replaced where it is: at most 120 characters, `/` between parts, no
+    part that is `..` or starts with a dot, not `SKILL.md` or `studio-skill.json`, and not the
+    path of a folder the skill already has.
+- `remove`: paths of files the skill has now, to take out of it. Only with `replace: true` on a
+  skill that exists; a path the skill does not have is refused by name, as is `SKILL.md`, and a
+  path that is also written by `files`. At most 50.
 - **It always asks**, whatever the project's approval setting: one approval card (`tool:
   "save_skill"`) titled `Save the skill “<name>” to your library` (or `Replace your skill
-  “<name>”`), whose detail is the description, the whole body and the list of files, with the
-  reason "A skill in your library is given to the agent in every project from now on." For this
-  tool the card's detail is kept whole (up to 14,000 characters) instead of being cut at 4,000.
-  With no request running there is nobody to ask and nothing is saved.
+  “<name>”`), with the reason "A skill in your library is given to the agent in every project from
+  now on." and, when the skill will hold a script after this save, " It holds scripts the agent
+  may run through its shell." With no request running there is nobody to ask and nothing is
+  saved.
+- **What the card carries.** The `approval_request` event has, for this tool only, a field
+  `skill`:
+
+  ```
+  {description, body,
+   files:   [{path, size, script, replaces}],    // every file this call writes; size in bytes
+   scripts: [{path, text, lines, replaces}],     // each script this call writes, whole
+   removed: [path], kept: [path], kept_scripts: [path]}
+  ```
+
+  `replaces` is true when the skill already has a file at that path. `kept` are the files of the
+  version being replaced that stay as they are; `kept_scripts` those of them that are scripts.
+  The event's `detail` says the same in plain text, in this order: `When it is used: …`,
+  `Instructions:` and the body, `Files:` with one `path (size)` a line, `Files removed:` with one
+  path a line, `Files kept from the version it replaces: …` (the first twelve, then a count), and
+  for each script a line `Script <path> (new | replaces the one in the skill, <n> lines):`
+  followed by its text. For this tool the detail is kept whole instead of being cut at 4,000
+  characters (up to 14,000, and up to 60,000 when it shows scripts).
+- What is read for the card is what is saved: the files are read from the project when the tool
+  is called, and a change to the project's copy while the card waits changes nothing.
 - A skill of the person's with that name is replaced only with `replace: true`; without it the
   tool refuses and says so. The version it replaces is kept in `data/skills/.history/<name>-<UTC
   time>/` (the last five per name). Replacing changes the description and the instructions and
-  keeps the skill's other files: `files` adds to them or replaces one at the same path, and the
-  card lists what is kept. A single file is not removed this way (delete the skill and save it
-  again).
+  keeps the skill's other files: `files` adds to them or replaces one at the same path, `remove`
+  takes one out, and the card lists what is kept. A replaced file keeps its executable mark. A
+  file is never written through a link: a link at the path is replaced by the file, and a path
+  whose folder is a link is refused.
 - On Allow it writes `data/skills/<name>/SKILL.md` and the files, rebuilds the index and answers
-  `{saved, id: "yours:<name>", replaced, files: [path], next}`. On Deny nothing is written and
-  the answer tells the agent not to ask again for the same text in this request.
+  `{saved, id: "yours:<name>", replaced, files: [path], scripts: [path], removed: [path], next}`.
+  On Deny nothing is written and the answer tells the agent not to ask again for the same text in
+  this request.
+- **What a script in a skill can do.** The agent runs it through its shell in whatever project
+  the skill is used, as the person, under that project's approval rules (which read the command's
+  text and are not a sandbox). That is the same as for a skill imported with its scripts; the
+  difference is who wrote it, which is why the card shows the text and always asks. The form
+  (`POST /api/skills`, `PUT /api/skills/{name}`) still writes instructions only.
 
 A saved skill is the person's own (`source: "yours"`): on by default in every project, loaded
 from the next request, switched off per project like any other.
@@ -4816,9 +4857,10 @@ the agent do, step by step; what each file is and when it is read; for each scri
 what it needs (programs, keys, the network) and what it changes on the machine; what the skill
 never says and a reader would want to know; and what could be better. Quote the line a claim
 rests on. Run nothing. **Changing a skill:** read the whole skill first; change only what was
-asked; keep its files; say that scripts cannot be written through `save_skill` (a script is
-changed by hand in the skill's folder, or the skill is imported again); show what will change
-before saving.
+asked; keep its files; show what will change before saving. A file of the skill is changed by
+writing the new version in the project and saving it with `to` set to its path in the skill, and
+taken out with `remove`; a script is run on a real example in the project before it is saved.
+(Until 19 November 2026 the tool wrote no scripts and removed no file.)
 
 ## UI
 
@@ -4834,3 +4876,96 @@ before saving.
 - **The New page dialog** gains a third choice beside a template and a folder: **A skill**, which
   opens Library → New skill at "Describe it".
 
+
+# A connector from a description
+
+Until this section a connector (an MCP server) was added by someone who already knew its address
+or its command. A person who knows only what they want ("read my Notion pages", "search our
+Sentry errors") now says that, and a model suggests which connector to add. The suggestion fills
+in the form; the person reads it, types the keys and presses Add. Nothing is added, started or
+connected by the suggestion itself.
+
+## `POST /api/mcp-servers/suggest`
+
+```
+{text, connection?}  →  200
+{have:        [{id, name, label, source, origin, description, state, fix}],
+ suggestions: [{name, label, description, transport, url, command, args,
+                secrets: [{name, where}], why, sign_in, check}],
+ left_out:    [{label, reason}],
+ asked:       {connection, model} | null,
+ note:        text | null}
+```
+
+- `text`: what the person wants to reach or do, 1 to 2,000 characters (400 `invalid_request`).
+  `connection`: the model account to ask; the studio's default when left out (400
+  `unknown_connection`).
+- `have`: up to five connectors already in the library that the description's words match (the
+  library's own word search over names, labels and descriptions; every source, the studio's
+  shipped list included). These are real: each was found on this computer or shipped with the
+  studio. A connector the model suggests that the library already has (the same address, or the
+  same package) is listed here and not under `suggestions`.
+- `suggestions`: at most three, from one question to the connection's small model (the one that
+  picks skills; `asked` names it). The model answers from what it remembers; it has no tools and
+  does not search the web. So a suggestion is a claim, and the studio checks what it can before
+  showing it:
+  - **Only two shapes are accepted.** A web address beginning `https://`, or a package started by
+    its runner: `npx -y <package> …` (npm) or `uvx <package> …` (PyPI; also `uvx --from <package>
+    <program> …`). Any other command is left out: a program named from memory cannot be checked.
+    `-y` is added to an `npx` suggestion that lacks it, since `npx` would otherwise wait for a
+    key press nobody can give.
+  - **A package is looked up in its registry** (`registry.npmjs.org`, `pypi.org`; nothing is
+    downloaded or run). `check` is `{kind: "npm" | "pypi", package, found, version, description,
+    published, first_published, downloads_week, repository}`: `published` is when that version
+    was published, `first_published` when the package's first version was, `downloads_week`
+    npm's own count for the last seven days (null for PyPI, which gives none). Any of them is
+    null when the registry did not say.
+    A package the registry does not have is left out (`left_out`, with the reason). When the
+    registry cannot be reached, `found` is null and the suggestion stays, said to be unchecked.
+  - **An address is asked once, with no key**: one `POST` of an MCP `initialize` to it, no
+    redirect followed, six seconds at most, and only when the host is a public one (every address
+    it resolves to; a loopback, private or link-local address is never asked). `check` is `{kind:
+    "address", found, status}`: `found` is false for a name that does not exist, no answer at all, 404, 410 or a server error,
+    and such a suggestion is left out; true for any other answer (401 and 403 mean it is there
+    and wants a key or a sign-in); null when it was not asked.
+  - An address or a command that holds a key (`?api_key=`, `--token=`) is left out: a key goes
+    in `secrets`, where it is stored in the keychain and never shown again.
+  - A package being in the registry shows that the name exists, not that it is safe or the one
+    the service's maker publishes: a name a model made up can be registered by someone else. The
+    interface shows the version, its date and the weekly downloads so the person can judge, and
+    says so in words when a package has fewer than 1,000 downloads a week or its first version
+    is under 30 days old.
+- `secrets`: the names of the headers (a web address) or environment values (a package) the
+  connector needs, each with `where`: one sentence on where the person gets the value (at most 300
+  characters; a longer one is cut at a word and ends with …). Never a value. At most six; a name is letters, digits, `-` and `_`.
+- `sign_in`: the model says this connector signs in through a browser (OAuth) and takes no key.
+  A connector added in the studio cannot do that. The interface then shows the command that adds
+  it to the agent program instead (`claude mcp add --scope user --transport http <name> <url>`,
+  then `claude mcp login <name>`), after which it is in the library as one of this computer's.
+- `name` is made free: when the library already has a connector of that name, `-2`, `-3` … is
+  added.
+- `asked` is null and `suggestions` empty, with `note` saying why in a sentence, when no model
+  was asked: the connection has no small model, the studio runs its scripted stand-in
+  (`STUDIO2_FAKE=1`), or the model did not answer within 40 seconds or answered with something
+  that could not be read. `have` is given all the same.
+- The question goes to the provider of the connection named, like a request's text. It is not
+  part of any request, so what it used is on no page's total: one call to the small model, a
+  fraction of a cent where it is charged at all.
+- A shared studio answers as any other: whoever may add a connector there may ask for a
+  suggestion.
+
+## UI
+
+- **Library, MCP servers, Add.** The dialog opens on **Describe what you need**: a text box with
+  an example, **Suggest**, and a link to fill in the form oneself. The answer shows *Already in
+  your library* (name, where it is from, what it does) and *Suggested by <model>, from memory*:
+  for each one what it is, why it fits, its address or command, the line the check gave (found
+  on npm with version, date and downloads; the address answered; could not be checked), the keys
+  it needs and where each comes from, and **Use this**. What was left out is said in one line.
+- **Use this** fills the form: name, label, address or command and arguments, description, and
+  one empty row per key with its `where` under it. The form says above it that the suggestion
+  came from a model's memory and what was checked. The person types the values and presses Add;
+  Test works as before, on the saved connector.
+- **New page** has a fourth choice, **A connector**, which says what a connector is and opens
+  the Library's Add dialog at *Describe what you need* (`/library#new-connector`). It is not
+  offered on a shared studio, like *A skill*.

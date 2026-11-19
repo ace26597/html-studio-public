@@ -8303,6 +8303,223 @@ a.attachment:hover {
   margin-top: 4px;
 }
 
+.skill-text.is-mono {
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+
+.skill-approval .skill-files li .badge {
+  flex: none;
+}
+
+.skill-approval-script {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  min-width: 0;
+}
+
+.skill-approval-script-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.skill-approval-script-head .skill-file-size {
+  margin-left: 0;
+}
+
+/* ---- a connector from a description ------------------------------------------------------- */
+
+.suggest {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.suggest-actions .suggest-self {
+  margin-right: auto;
+}
+
+.suggest-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.suggest-part h3 {
+  margin: 0 0 6px;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.suggest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.suggest-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.suggest-card.is-have {
+  background: var(--surface-2);
+}
+
+.suggest-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.suggest-where,
+.suggest-check {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.suggest-text {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.suggest-why strong {
+  font-weight: 600;
+}
+
+/* Long addresses and commands wrap inside their own box, never the page. */
+.suggest-code {
+  display: block;
+  max-width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.suggest-caution {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--warn-soft);
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.suggest-caution .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--warn);
+}
+
+.suggest-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+}
+
+.suggest-keys-title {
+  color: var(--text-2);
+  font-weight: 550;
+}
+
+.suggest-keys ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.suggest-signin {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.suggest-use {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.suggest-left {
+  margin: 0;
+}
+
+.suggest-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.suggest-empty p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.suggest-form-note {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.secret-hint {
+  margin: -2px 0 4px;
+}
+
+@media (max-width: 600px) {
+  .newpage-tabs {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .newpage-tab {
+    flex: 1 1 45%;
+  }
+}
+
 /* Narrow: the file list above, the chosen file below; each scrolls on its own. */
 @media (max-width: 760px) {
   .skill-panes {

@@ -445,18 +445,20 @@ async def t_save_skill(studio, project_id, args):
         plan = await asyncio.to_thread(ownskills.plan, studio.lib, _workspace(studio, project_id), args)
         if project_id not in studio.approvers:
             raise ToolError("No request is running, so there is nobody to ask. Nothing was saved.")
-        allowed = await studio.ask(project_id, "save_skill", plan["title"], plan["detail"], ownskills.ASK_REASON,
-                                   detail_limit=ownskills.CARD_LIMIT)
+        allowed = await studio.ask(project_id, "save_skill", plan["title"], plan["detail"], plan["reason"],
+                                   detail_limit=plan["detail_limit"], skill=plan["skill"])
         if not allowed:
             raise ToolError("The person did not allow this skill. Nothing was saved. Do not ask again with the same "
                             "text in this request; ask what they want changed.")
         saved = await asyncio.to_thread(ownskills.save, studio.lib, plan["name"], plan["description"], plan["body"],
-                                        plan["files"], plan["replace"])
+                                        plan["files"], plan["replace"], plan["remove"])
     except LibraryError as exc:
         raise ToolError(exc.message) from None
     return {"saved": True, "id": f"yours:{plan['name']}", "replaced": saved["replaced"], "files": saved["files"],
+            "scripts": saved["scripts"], "removed": plan["remove"],
             "next": "Tell the person what the skill does and how to start it. It is in their Library, on in every "
-                    "project from their next request; there they can open, edit, switch off or export it."}
+                    "project from their next request; there they can open it and read every file, switch it off "
+                    "or export it."}
 
 
 async def t_propose_ship_recipe(studio, project_id, args):
@@ -661,13 +663,17 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
     ("save_skill", "Save a skill to the person's library: instructions another agent follows for one kind of job, in "
      "every project from their next request. Read the `make-a-skill` skill first. `name`: lower-case letters, digits, "
      "- and _. `description`: when to use it (600 characters at most). `body`: the instructions in Markdown (12,000 "
-     "characters at most), without front matter. `files`: reference files from this project, copied to reference/<as "
-     "or the file's name> (at most 12; 5 MB each, 10 MB together; documents, data and pictures, no scripts). The "
-     "person sees all of it on a card and allows or denies it, every time. A skill of theirs with that name is "
-     "changed only with `replace: true`; its other files stay and the earlier version is kept.",
+     "characters at most), without front matter. `files`: files from this project (at most 12; 5 MB each, 10 MB "
+     "together): documents, data and pictures go to reference/<as or the file's name>, scripts (.py .js .sh and the "
+     "like; text, 40,000 characters together) to scripts/<as or the file's name>; give `to` instead of `as` to name "
+     "the whole path inside the skill, which is how a file the skill already has is replaced. `remove`: paths of "
+     "files to take out of a skill being replaced. The person sees all of it on a card, every script whole, and "
+     "allows or denies it, every time. A skill of theirs with that name is changed only with `replace: true`; its "
+     "other files stay and the earlier version is kept.",
      _schema({"name": S, "description": S, "body": S, "replace": B,
-              "files": {"type": "array", "items": {"type": "object", "properties": {"path": S, "as": S},
-                                                   "required": ["path"]}}},
+              "files": {"type": "array", "items": {"type": "object", "properties": {"path": S, "as": S, "to": S},
+                                                   "required": ["path"]}},
+              "remove": {"type": "array", "items": S}},
              ["name", "description", "body"]), t_save_skill),
     ("propose_ship_recipe", "Propose how this attached app is made live (its ship recipe); the person confirms it on a "
      "card. Give the whole recipe: `checks` (commands run in this project folder before every ship, for example the "

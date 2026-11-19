@@ -97,7 +97,11 @@ know how one is written.
   in every project from then on. Replacing a skill keeps its last five versions.
 - **Share it as a file.** Every skill in the Library has Export, and Import shows what a file
   holds before anything is added. A file that brings scripts says so and waits for a tick.
-  Skills made through the chat hold instructions and reference files only, never scripts.
+- **A script where a step needs one.** Most skills are written steps. Where a step must come
+  out the same every time (a calculation, a conversion, a pass-or-fail check) the agent can
+  write a short script, run it in the project first, and save it with the skill. The card then
+  shows every line of every script before you allow it, because the agent may later run that
+  script in any project the skill is used in.
 
 ## Reading a skill, and starting from one
 
@@ -114,8 +118,28 @@ found on your computer, the ones your plugins bring, and your own.
 - **Make my own copy** turns any skill into one of yours under a new name, with all its files.
   A skill that holds scripts lists them and waits for a tick first, as an import does.
 - **Ask for a change** to a skill of your own: say what should be different, and the agent
-  rewrites it and shows the whole result on a card for you to allow. Scripts are not changed
-  this way.
+  rewrites it and shows the result on a card for you to allow. It can change the instructions,
+  replace one file or script, add one, or take one out; the card shows each script whole, what
+  is removed and what stays, and the version before is kept.
 - **New page → A skill** is a second way to the same "describe it" flow.
+
+## A connector from a description
+
+A connector (an MCP server) lets the agent reach something outside the project: your notes, your
+tickets, a database, a search engine. You no longer need to know its address.
+
+- **Library → MCP servers → Add** opens on *Describe what you need*. Say it in a sentence
+  ("read and search the pages in my Notion workspace") and a small model suggests up to three.
+- **It answers from memory, so the studio checks what it can.** A suggestion is only ever a web
+  address or a package from npm or PyPI. The package is looked up in its registry (version,
+  date, weekly downloads) and the address is asked once with no key; what does not exist is
+  left out and said. What your library already has is shown first.
+- **Nothing is added until you press Add.** *Use this* fills in the form, with one empty row for
+  each key it needs and where to get it. You type the keys and add it; Test works as before.
+- A package being in a registry shows the name exists, not that it is safe. The form shows the
+  figures so you can judge, and says so when few people use it or it is new.
+- A connector that signs in through a browser cannot be added in the studio; you are shown the
+  two commands that add it to the agent program instead, after which the library has it.
+- **New page → A connector** leads to the same place.
 
 Add your own skills, connectors and databases on the **Library** page.

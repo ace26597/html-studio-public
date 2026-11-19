@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage } from "./api";
 import { appStateLabel, relativeTime } from "./format";
 import { Icon, Spinner } from "./icons";
-import { NEW_SKILL_HASH } from "./LibraryPage";
+import { NEW_CONNECTOR_HASH, NEW_SKILL_HASH } from "./LibraryPage";
 import { NewProjectDialog } from "./NewProjectDialog";
 import type { Navigate } from "./router";
 import type { Theme } from "./theme";
@@ -417,6 +417,14 @@ export function Home({ navigate, theme, onToggleTheme, site, shared = false }: H
               : () => {
                   setDialogOpen(false);
                   navigate(`/library${NEW_SKILL_HASH}`);
+                }
+          }
+          onConnector={
+            shared
+              ? undefined
+              : () => {
+                  setDialogOpen(false);
+                  navigate(`/library${NEW_CONNECTOR_HASH}`);
                 }
           }
         />

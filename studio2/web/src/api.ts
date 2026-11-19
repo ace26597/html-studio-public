@@ -27,6 +27,7 @@ import type {
   ProjectChoice,
   McpServer,
   McpServerInput,
+  McpSuggestAnswer,
   McpTestResult,
   Drawing,
   DrawingSaved,
@@ -339,6 +340,8 @@ export const api = {
     return request<LibrarySkill>("POST", `/skills/import${skillImportSearch(options)}`, form);
   },
   createMcpServer: (input: McpServerInput) => request<McpServer>("POST", "/mcp-servers", input),
+  suggestMcpServers: (input: { text: string; connection?: string }, signal?: AbortSignal) =>
+    request<McpSuggestAnswer>("POST", "/mcp-servers/suggest", input.connection ? input : { text: input.text }, signal),
   patchMcpServer: (mcpId: string, patch: Partial<McpServerInput>) =>
     request<McpServer>("PATCH", `/mcp-servers/${enc(mcpId)}`, patch),
   deleteMcpServer: (mcpId: string) => request<void>("DELETE", `/mcp-servers/${enc(mcpId)}`),

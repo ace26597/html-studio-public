@@ -58,6 +58,7 @@ export function LibraryView({
   onOpenProject,
   shared = false,
   startNewSkill = false,
+  startNewConnector = false,
 }: {
   state: LibraryState;
   compact?: boolean;
@@ -71,6 +72,8 @@ export function LibraryView({
   shared?: boolean;
   /** Open the New skill dialog at "Describe it" once (the New page dialog's "A skill"). */
   startNewSkill?: boolean;
+  /** Open Add an MCP server at "Describe what you need" once (the New page dialog's "A connector"). */
+  startNewConnector?: boolean;
 }) {
   const { library, error, reload } = state;
   const toast = useToast();
@@ -116,7 +119,7 @@ export function LibraryView({
   const matches = countRows(shown) + (query ? servers.filter((server) => serverMatches(server, query)).length : servers.length);
   const mcpSlot = mcpAfter(sections);
   const mcpBlock = (
-    <McpServersView key="mcp" servers={servers} query={query} onChanged={reload} manage={manage} />
+    <McpServersView key="mcp" servers={servers} query={query} onChanged={reload} manage={manage} startAdding={startNewConnector} />
   );
 
   if (error && !library) {

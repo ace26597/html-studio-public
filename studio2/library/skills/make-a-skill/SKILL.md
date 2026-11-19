@@ -7,8 +7,8 @@ description: Turn a person's description of a job, or work already done in this 
 
 A skill is a page of instructions another agent will follow later, in another project, without
 this conversation. The person does not need to know how one is written: they describe the job or
-point at work they like, and you write it. A skill made here is instructions and reference files
-only. Do not put scripts in one.
+point at work they like, and you write it. A skill made here is instructions, reference files
+and, only where a step needs one, a script (see "When a step needs a script").
 
 ## 1. Find out what the job is
 
@@ -61,6 +61,28 @@ say "you decide", decide and say what you chose.
   what each one is for (`reference/example.html`: the layout to follow, never its content).
   Take out of an example anything private or specific before saving it, or tell the person it is
   in there.
+- **When a step needs a script.** Most skills need none: an agent follows written steps well.
+  Write a script only for a step that must come out the same every time and that a program does
+  better than a description: a calculation over many rows, turning one file format into another,
+  a check with a pass or fail answer, pulling fixed fields out of a file. Never for something the
+  agent's own tools already do (reading a page, querying a database, making a chart).
+  1. Write it in this project first, as a file (`skill/scripts/<name>.py`). Prefer Python with
+     only its standard library, or a short shell script; say at the top in a comment what it
+     does, what it takes and what it prints.
+  2. It takes its inputs as arguments and writes where it is told to: no path of this project, no
+     name, date or figure of today's work inside it. It holds no key or password and reads none
+     from a file; it uses the network only when the job is to fetch something, and the body then
+     says from where.
+  3. It prints what it did, and ends with a non-zero status and a plain message when it cannot do
+     the job, so the agent running it later knows.
+  4. **Run it here on a real example before saving**, and on one input that should fail. A script
+     nobody has run is not saved.
+  5. Say in the body, at the step that uses it, exactly how to run it and what comes back:
+     "Run `python <this skill's folder>/scripts/totals.py <the csv> <the output json>`; it prints
+     the row count and writes the totals." The agent that loads the skill is told the skill's
+     folder; never write a path of this computer.
+  6. Keep it short enough to read: the person is shown every line before it is saved, and all
+     scripts of one save may be 40,000 characters together at most.
 - **How it looks is the person's choice.** Write a look into the skill only when they asked for
   one or pointed at an example; otherwise leave the look to each request.
 - **A skill made from work in this project keeps its look**, unless the person says the look
@@ -89,12 +111,15 @@ say "you decide", decide and say what you chose.
 - In a project that has its own page, do not touch that page: put the draft in your answer.
 - Read the draft once as the agent who will get it cold. Wherever you would have to guess, fix
   the wording or ask.
-- Save with `save_skill` (name, description, body, and `files` for reference files, which must be
-  in this project). The person sees the whole skill on a card and allows or denies it. If they
-  deny, ask what to change; do not send the same text again.
+- Save with `save_skill` (name, description, body, and `files` for reference files and scripts,
+  which must be in this project: a reference file goes to `reference/`, a script to `scripts/`).
+  The person sees the whole skill on a card, every script line by line, and allows or denies it.
+  Before you call it, tell them in a sentence what each script does, so the card is not the first
+  they hear of it. If they deny, ask what to change; do not send the same text again.
 - Changing a skill they already have: read it first (`search_library`, then `activate_skill`),
   change only what they asked, and save with `replace: true`. The earlier version is kept, and
-  so are the skill's reference files: `files` only adds to them or replaces one of the same name.
+  so are the skill's files: `files` adds one or replaces one at the same path, and `remove` takes
+  one out.
 - After saving, say in two or three sentences what the skill does and how to use it ("in any
   project, ask for a weekly sales review"), that it is in their Library, where it can be opened,
   edited, switched off or exported as a file to share, and offer one next step: trying it on a
@@ -133,9 +158,21 @@ When the person asks for a change to a skill of their own, they are given its fo
 whole skill first, every file. Change only what they asked for, and keep its wording and order
 elsewhere. Show what will change before saving: the lines as they are and as they will be. Then
 save with `save_skill`, `replace: true`, under the same name: the earlier version is kept, and
-so are the skill's files (`files` only adds one or replaces one of the same name).
+so are the skill's files unless you name them.
 
-`save_skill` writes instructions and reference files, never scripts. If the change needs a
-script changed or added, say so plainly and say how it is done: by hand in the skill's folder,
-or by importing the skill again as a file. A skill that is not the person's own cannot be
-changed: tell them to make their own copy in the Library first.
+- **The instructions** are the `body`: send the whole new text, not only the changed lines.
+- **One file of the skill** (a reference file or a script): you cannot write in the skill's
+  folder. Copy the file into this project (`skill/<its path>`), change the copy, and give it in
+  `files` with `to` set to its path in the skill (`{"path": "skill/scripts/totals.py", "to":
+  "scripts/totals.py"}`), so it replaces the one that is there. A new file goes in the same way.
+- **A script you changed or wrote is run here first**, on a real example and on one input that
+  should fail, as when making a skill. Say what you ran and what it printed.
+- **Taking a file out**: `remove: ["reference/old-example.html"]`. Take out only what was asked
+  for, or a file the change leaves unused, and say which. If the instructions mention the file,
+  change them in the same save.
+- The card shows the person each script whole, what is removed and what stays. A file that is
+  neither a reference type nor a script (a font, a schema, a program without an ending) cannot
+  be written this way: say so, and that it stays as it is.
+
+A skill that is not the person's own cannot be changed: tell them to make their own copy in the
+Library first.

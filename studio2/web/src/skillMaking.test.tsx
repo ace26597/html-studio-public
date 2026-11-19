@@ -17,11 +17,15 @@ import {
   skillProjectName,
   startDescribedSkill,
   type DescribeCalls,
+  approvalFileRows,
+  keptScriptsSentence,
+  keptSentence,
+  scriptFacts,
 } from "./skillMaking";
 import { skillEditProblem } from "./SkillOpenDialog";
 import type { ApprovalItem } from "./thread";
 import { ApprovalCard, SkillApprovalDetail } from "./ThreadView";
-import type { Project, Selection, SkillImportPreview } from "./types";
+import type { Project, Selection, SkillApprovalInfo, SkillImportPreview } from "./types";
 
 const preview: SkillImportPreview = {
   name: "weekly-report",
@@ -300,5 +304,86 @@ describe("editing a skill", () => {
     expect(skillEditProblem("When", " ")).toBe("Write the instructions.");
     expect(skillEditProblem("When", "x".repeat(12_001))).toContain("12,000");
     expect(skillEditProblem("When", "Body")).toBeNull();
+  });
+});
+
+describe("the approval card from the event's structured skill", () => {
+  const script = "#!/bin/sh\n" + Array.from({ length: 500 }, (_, i) => `echo line ${i} '<b>'`).join("\n");
+  const info: SkillApprovalInfo = {
+    description: "Use for the weekly report.",
+    body: "Run scripts/total.sh, then write the page.",
+    files: [
+      { path: "scripts/total.sh", size: 2048, script: true, replaces: true },
+      { path: "reference/notes.md", size: 300, script: false, replaces: false },
+      { path: "scripts/new.py", size: 40, script: true, replaces: false },
+    ],
+    scripts: [
+      { path: "scripts/total.sh", text: script, lines: 501, replaces: true },
+      { path: "scripts/new.py", text: "print(1)", lines: 1, replaces: false },
+    ],
+    removed: ["reference/old.md"],
+    kept: Array.from({ length: 15 }, (_, i) => `reference/k${i}.md`),
+    kept_scripts: ["scripts/keep.sh"],
+  };
+
+  it("marks each written file and gives its size from bytes", () => {
+    expect(approvalFileRows(info.files)).toEqual([
+      { path: "scripts/total.sh", size: "2.0 KB", marks: ["script", "replaces the one in the skill"] },
+      { path: "reference/notes.md", size: "300 B", marks: [] },
+      { path: "scripts/new.py", size: "40 B", marks: ["script"] },
+    ]);
+  });
+
+  it("names the first twelve kept files, then a count, and every kept script", () => {
+    expect(keptSentence(info.kept)).toBe(
+      `Files kept from the version it replaces: ${info.kept.slice(0, 12).join(", ")} and 3 more.`,
+    );
+    expect(keptSentence(["a.md"])).toBe("Files kept from the version it replaces: a.md.");
+    expect(keptSentence([])).toBeNull();
+    expect(keptScriptsSentence(["scripts/keep.sh"])).toBe("This script is already in the skill and stays as it is: scripts/keep.sh.");
+    expect(keptScriptsSentence(["a.sh", "b.sh"])).toBe("These scripts are already in the skill and stay as they are: a.sh, b.sh.");
+    expect(keptScriptsSentence([])).toBeNull();
+  });
+
+  it("says whether a script is new and how long it is", () => {
+    expect(scriptFacts({ replaces: false, lines: 1 })).toBe("new · 1 line");
+    expect(scriptFacts({ replaces: true, lines: 501 })).toBe("replaces the one in the skill · 501 lines");
+  });
+
+  it("draws every part, and every script whole as text", () => {
+    const html = renderToStaticMarkup(<SkillApprovalDetail detail="When it is used: ignored" skill={info} />);
+    expect(html).toContain("Use for the weekly report.");
+    expect(html).not.toContain("ignored");
+    expect(html).toContain("Run scripts/total.sh, then write the page.");
+    expect(html).toContain("<h4>Removed</h4>");
+    expect(html).toContain("reference/old.md");
+    expect(html).toContain("and 3 more.");
+    expect(html).toContain("scripts/keep.sh");
+    expect(html).toContain("Scripts the agent may run");
+    expect(html).toContain('aria-label="The script scripts/total.sh"');
+    expect(html).toContain('aria-label="The script scripts/new.py"');
+    expect(html.match(/echo line \d+ &#x27;&lt;b&gt;&#x27;/g)).toHaveLength(500);
+    expect(html).toContain("echo line 499");
+    expect(html).toContain("replaces the one in the skill · 501 lines");
+    expect(html).toContain("new · 1 line");
+    expect(html).not.toContain("<b>");
+  });
+
+  it("leaves out Removed and the scripts part when there are none", () => {
+    const html = renderToStaticMarkup(
+      <SkillApprovalDetail detail="" skill={{ ...info, removed: [], scripts: [], kept: [], kept_scripts: [], files: [] }} />,
+    );
+    expect(html).not.toContain("Removed");
+    expect(html).not.toContain("Scripts the agent may run");
+    expect(html).not.toContain("<h4>Files</h4>");
+  });
+
+  it("an event without skill keeps today's parsed card", () => {
+    const html = renderToStaticMarkup(
+      <SkillApprovalDetail detail={"When it is used: When.\n\nInstructions:\nDo it.\n\nFiles:\nreference/a.md (2 KB)"} skill={null} />,
+    );
+    expect(html).toContain("When.");
+    expect(html).toContain("reference/a.md");
+    expect(html).not.toContain("Scripts the agent may run");
   });
 });

@@ -839,6 +839,14 @@ describe("queue", () => {
 });
 
 describe("approvals", () => {
+  it("carries save_skill's structured skill to the card, and none for older events", () => {
+    const skill = { description: "d", body: "b", files: [], scripts: [{ path: "s.sh", text: "echo", lines: 1, replaces: false }], removed: [], kept: [], kept_scripts: [] };
+    const [withSkill] = approvals(onlyTurn(build(started(), ask("a1", { tool: "mcp__studio__save_skill", skill }))));
+    expect(withSkill.skill).toEqual(skill);
+    const [older] = approvals(onlyTurn(build(started(), ask("a1"))));
+    expect(older.skill).toBeNull();
+  });
+
   it("adds a waiting approval to the turn's activity, in order", () => {
     const state = build(started(), call("t1", "read", "Read index.html"), result("t1"), ask("a1"));
     const turn = onlyTurn(state);
