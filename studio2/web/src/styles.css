@@ -8203,3 +8203,181 @@ button.file-card-action:hover {
   text-align: right;
   white-space: nowrap;
 }
+
+/* ---- context from this computer: the Add dialog, the chips above the message box, the Context tab ---- */
+
+.ctx-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ctx-lede {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+.ctx-field {
+  margin-top: 10px;
+}
+
+.ctx-facts dd code,
+.ctx-where code,
+.ctx-item-where {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.ctx-top {
+  white-space: pre-wrap;
+  color: var(--text-2);
+}
+
+/* Names wrap between one another; only a name longer than the line breaks inside. */
+.ctx-facts dd code.ctx-top {
+  word-break: normal;
+}
+
+.text-input.ctx-note {
+  height: auto;
+  min-height: 64px;
+  padding: 8px 10px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.ctx-where {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 4px 0 4px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.ctx-where .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-3);
+}
+
+.ctx-where code {
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+/* the row above the message box */
+
+.ctx-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 9px 9px 0;
+}
+
+.ctx-chips-title {
+  flex: none;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.ctx-chip {
+  min-width: 0;
+  max-width: min(200px, 100%);
+  background: var(--surface-2);
+  color: var(--text-2);
+  transition:
+    background var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+
+.ctx-chip .icon {
+  flex: none;
+  color: var(--text-3);
+}
+
+.ctx-chip .chip-text {
+  opacity: 1;
+}
+
+.ctx-chip:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.ctx-more {
+  flex: none;
+  font-weight: 600;
+}
+
+/* the Context tab */
+
+.ctx-item.is-problem .ds-item-name .icon {
+  color: var(--err);
+}
+
+.ctx-item-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ctx-item-where {
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.ctx-item-note {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.ctx-item .ds-last {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.ctx-item .ds-last .icon {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* Four tabs: where the panel is narrow, the short names. */
+.plib-tabs {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+@media (max-width: 1280px) {
+  .plib-tabs .tab-long {
+    display: none;
+  }
+
+  .plib-tabs .tab-short {
+    display: inline;
+  }
+}
+
+/* A narrow panel or a phone: the Edit and Remove buttons go under the item. */
+@media (max-width: 600px) {
+  .ctx-item {
+    flex-wrap: wrap;
+  }
+
+  .ctx-item .ds-item-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

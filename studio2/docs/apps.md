@@ -39,7 +39,50 @@ in the chat. The studio does the shipping, not the agent:
 4. **Going back by itself.** If a command or the address check fails after the change was
    applied, the studio puts things back and says what state they are in.
 
-What has been run: a Next.js site attached as a safe copy from the dialog, running in the
+## Point at code or a running app without bringing it in
+
+Sometimes the project is not the app: you want a report on a code base, a page that explains how
+something works, or answers about an app while you build something else. In the chat, beside
+**Attach files**, press **Add context** and type one of:
+
+- the full path of a **folder** (`~/dev/my-app`), of any size;
+- the full path of a **file** (a spec, a schema, a log);
+- the **address** where an app is running (`http://localhost:3000`, or `localhost:3000`).
+
+Press **Check**. The studio reads without writing and shows what it found: the kind of app, the
+git branch, about how many files, the names at the top of the folder; or whether the address
+answered and its page title. Give it a label and, if it helps, a line on what it is, then **Add**.
+A project holds up to 12 of these; they are listed in the row above the message box and in the
+project's library panel under **Context**, where you edit or remove them.
+
+What happens then:
+
+- Nothing is copied, uploaded or indexed. On every request the agent is told what the items are,
+  that your questions may be about them, and what is at the top of each folder at that moment. It
+  searches a folder and reads the files a question needs.
+- **It is read only.** The agent's file tools cannot write outside the project at all, and a
+  shell command that would change something there asks you first. It is told not to run an
+  install, a build or a formatter there; that part is an instruction, not a lock. To try a change
+  it copies the files into the project. To have the studio edit the code itself, bring the folder
+  in as an app (above).
+- An address is read with ordinary requests, and the agent can look at its pages in the studio's
+  browser, never signed in as you.
+- Refused: your home folder, a disk, key files (`.env`, SSH keys) and the hidden places in your
+  home folder where keys and settings live (`~/.ssh`, `~/.aws`, `~/.config`).
+- The path is on the computer the studio runs on. From a phone or another computer, or on a
+  studio someone shares with you, it is still that computer's folder; files from your own device
+  are attached or dropped in the chat.
+
+What has been run for context, on one Mac: a Next.js and FastAPI code base of 692 tracked files
+and the address it runs at, both added from the dialog (each check answered in under a tenth of
+a second); the dialog, the row above the message box and the panel looked at in a real browser
+at desktop, tablet and phone widths; and one real request on the Claude plan (Haiku), which
+answered a question about the code from the two files that define the answer and described the
+running app's first screen from a look at it, in 19 seconds, with the folder's git state the
+same before and after. Not run: a folder past the 50,000-file count, a folder without git of
+real size, a studio on another machine or a shared one, a real iPad or phone.
+
+What has been run for bringing an app: a Next.js site attached as a safe copy from the dialog, running in the
 studio in about ten seconds with the original unchanged, and a Vite app edited in place beside
 its own dev server. Shipping has been run against stand-in folders only; no real app has been
 made live with it yet. Detail, limits and the steps for apps the dialog cannot set up:

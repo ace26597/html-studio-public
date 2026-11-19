@@ -38,6 +38,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import os from "node:os";
 
 const HOST = "127.0.0.1";
 const API_PORT = Number(process.env.MOCK_PORT ?? 8200);
@@ -320,6 +321,7 @@ function createProject(name, { createdAt = now(), template = "blank" } = {}) {
       app: { configured: false, state: "none" },
       approvals: "ask",
       data_sources: [],
+      context: [],
       library: { skills: {}, mcp_servers: {} },
       uses_template: null,
     },
@@ -1504,6 +1506,196 @@ function servePreview(project, req, res) {
   return sendProjectFile(req, res, url, filePath, body, type, headers);
 }
 
+// ---- context from this computer (a stand-in: reads the disk and asks the address for real) ----
+
+const CONTEXT_KEY_FILE = /^(\.env(\..*)?|.*\.pem|.*\.key|id_rsa.*|id_ed25519.*|credentials\.json|\.npmrc|\.netrc)$/i;
+const CONTEXT_SKIP = new Set(["node_modules", ".venv", "venv", "dist", "build", ".next", "__pycache__", ".cache", "target", ".git"]);
+
+function contextValueKind(value) {
+  if (value.startsWith("/") || value.startsWith("~")) return "path";
+  if (value.includes("://")) return "address";
+  if (/^(\[[0-9a-f:]+\]|[a-z0-9.-]+):\d+(\/.*)?$/i.test(value)) return "address";
+  return null;
+}
+
+function folderFound(dir) {
+  const names = fs.readdirSync(dir, { withFileTypes: true });
+  const keyFiles = names.filter((entry) => entry.isFile() && CONTEXT_KEY_FILE.test(entry.name)).map((entry) => entry.name).sort();
+  const shown = names.filter((entry) => entry.name !== ".git" && !keyFiles.includes(entry.name));
+  const folders = shown.filter((entry) => entry.isDirectory()).map((entry) => `${entry.name}/`).sort();
+  const files = shown.filter((entry) => !entry.isDirectory()).map((entry) => entry.name).sort();
+  const top = [...folders, ...files];
+  let git = null;
+  try {
+    const head = fs.readFileSync(path.join(dir, ".git", "HEAD"), "utf8").trim();
+    const branch = head.startsWith("ref: refs/heads/") ? head.slice(16) : null;
+    let sha = branch ? null : head;
+    if (branch) {
+      try {
+        sha = fs.readFileSync(path.join(dir, ".git", "refs", "heads", branch), "utf8").trim();
+      } catch {
+        sha = null;
+      }
+    }
+    // The mock does not run git, so the commit's subject is not known: null, not made up.
+    git = { branch, head: sha, subject: null };
+  } catch {
+    git = null;
+  }
+  let framework = null;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    if (deps.next) framework = { id: "next", label: "Next.js" };
+    else if (deps.vite) framework = { id: "vite", label: "Vite" };
+    else framework = { id: "node", label: "Node" };
+  } catch {
+    if (fs.existsSync(path.join(dir, "pyproject.toml")) || fs.existsSync(path.join(dir, "requirements.txt"))) {
+      framework = { id: "python", label: "Python" };
+    }
+  }
+  // Counted by walking (the real server asks git); stops at 50,000 files or 2 seconds.
+  let count = 0;
+  let bytes = 0;
+  let partial = false;
+  const started = Date.now();
+  const stack = [dir];
+  while (stack.length) {
+    if (count >= 50000) {
+      partial = true;
+      break;
+    }
+    if (Date.now() - started > 2000) {
+      return { git, framework, files: null, bytes: null, partial: true, key_files: keyFiles, top: top.slice(0, 40), top_more: Math.max(0, top.length - 40) };
+    }
+    const current = stack.pop();
+    let entries = [];
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (CONTEXT_SKIP.has(entry.name)) continue;
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) stack.push(full);
+      else if (entry.isFile()) {
+        count += 1;
+        try {
+          bytes += fs.statSync(full).size;
+        } catch {
+          /* gone since */
+        }
+      }
+    }
+  }
+  return { git, framework, files: count, bytes, partial, key_files: keyFiles, top: top.slice(0, 40), top_more: Math.max(0, top.length - 40) };
+}
+
+async function addressFound(address) {
+  const host = new URL(address).hostname;
+  const thisComputer = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(host);
+  try {
+    const answer = await fetch(address, { redirect: "follow", signal: AbortSignal.timeout(5000) });
+    const text = (answer.headers.get("content-type") ?? "").includes("html") ? (await answer.text()).slice(0, 65536) : "";
+    const title = /<title[^>]*>([^<]*)<\/title>/i.exec(text)?.[1]?.trim() || null;
+    return { reachable: true, status: answer.status, title, this_computer: thisComputer };
+  } catch {
+    return { reachable: false, error: `Nothing answered at ${address}.`, status: null, title: null, this_computer: thisComputer };
+  }
+}
+
+async function inspectContext(raw) {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  const kind = contextValueKind(value);
+  if (!kind) {
+    throw new HttpError(400, "invalid_request", "Type a folder's full path (~/dev/my-app) or an address (http://localhost:3000).");
+  }
+  if (kind === "address") {
+    let address = value.includes("://") ? value : `http://${value}`;
+    const refuse = (sentence) => ({ kind: "address", path: null, address, label: address, refused: sentence, found: null, notes: [] });
+    if (address.length > 2000) return refuse("The address is longer than 2,000 characters.");
+    let url;
+    try {
+      url = new URL(address);
+    } catch {
+      return refuse("This is not an address the studio can read.");
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") return refuse("Only http and https addresses can be context.");
+    if (url.username || url.password) return refuse("Leave the user name and password out of the address: the studio never keeps one.");
+    url.hash = "";
+    address = url.toString();
+    if (!value.includes("/", value.indexOf("://") + 3) && address.endsWith("/") && url.pathname === "/" && !url.search) {
+      address = address.slice(0, -1);
+    }
+    const found = await addressFound(address);
+    const notes = [];
+    if (!found.reachable) notes.push("Nothing answered there now. It can still be added: the app may be started later.");
+    if (!found.this_computer) notes.push("The agent reaches this address from the studio's computer, not from your device.");
+    return { kind: "address", path: null, address, label: url.host, refused: null, found, notes };
+  }
+  const full = path.resolve(value.startsWith("~") ? path.join(os.homedir(), value.slice(1)) : value);
+  const refuse = (sentence, k = "folder") => ({ kind: k, path: full, address: null, label: path.basename(full) || full, refused: sentence, found: null, notes: [] });
+  let real;
+  let stat;
+  try {
+    real = fs.realpathSync(full);
+    stat = fs.statSync(real);
+  } catch {
+    return refuse("Nothing is at this path.");
+  }
+  const label = path.basename(real) || real;
+  if (stat.isFile()) {
+    if (CONTEXT_KEY_FILE.test(label)) {
+      return { ...refuse("This is a key file. The studio does not hand key files to the agent as context.", "file"), path: real };
+    }
+    return { kind: "file", path: real, address: null, label, refused: null, found: { bytes: stat.size }, notes: [] };
+  }
+  if (!stat.isDirectory()) return { ...refuse("This is neither a regular file nor a folder.", "file"), path: real };
+  const home = os.homedir();
+  if (real === "/" || real === home || home.startsWith(`${real}/`)) {
+    return { ...refuse(real === home ? "This is the home folder. Choose a folder inside it." : "This folder holds the home folder. Choose a folder inside it."), path: real };
+  }
+  let found;
+  try {
+    found = folderFound(real);
+  } catch {
+    return { ...refuse("The studio cannot read this folder."), path: real };
+  }
+  const notes = [];
+  if (found.files !== null && found.files > 5000) {
+    notes.push(`About ${found.files.toLocaleString("en")} files: the agent searches it and reads only what a question needs.`);
+  }
+  if (found.key_files.length) notes.push(`Key files at its top (${found.key_files.join(", ")}): the agent is told not to open them.`);
+  return { kind: "folder", path: real, address: null, label, refused: null, found, notes };
+}
+
+function contextItemState(item) {
+  if (item.kind === "address") return Promise.resolve(addressFound(item.address)).then((found) => found.reachable
+    ? { ok: true, problem: null }
+    : { ok: false, problem: `Nothing answered at ${item.address} just now.` });
+  try {
+    fs.accessSync(item.path, fs.constants.R_OK);
+    return Promise.resolve({ ok: true, problem: null });
+  } catch {
+    return Promise.resolve({ ok: false, problem: `Nothing can be read at ${item.path} now.` });
+  }
+}
+
+function contextLabelNote(body, { label, note }) {
+  if (body.label !== undefined) {
+    const value = String(body.label).trim();
+    if (!value || value.length > 60) throw new HttpError(400, "invalid_request", "The label must be 1 to 60 characters.");
+    label = value;
+  }
+  if (body.note !== undefined) {
+    const value = String(body.note).trim();
+    if (value.length > 500) throw new HttpError(400, "invalid_request", "The note can be at most 500 characters.");
+    note = value;
+  }
+  return { label, note };
+}
+
 // ---- API ---------------------------------------------------------------------------------------
 
 function readBody(req, limit = 30 * 1024 * 1024) {
@@ -1609,6 +1801,11 @@ async function handleApi(req, res, url) {
   }
 
   if (segments[0] === "health" && method === "GET") return json(res, 200, health());
+
+  if (segments[0] === "context" && segments[1] === "inspect" && segments.length === 2 && method === "POST") {
+    const body = await readJson(req);
+    return json(res, 200, await inspectContext(body.value));
+  }
 
   if (segments[0] === "library" && segments.length === 1 && method === "GET") return json(res, 200, library());
 
@@ -2055,6 +2252,50 @@ async function handleApi(req, res, url) {
     project.record.library = next;
     await new Promise((resolve) => setTimeout(resolve, 150));
     return json(res, 200, projectLibrary(project));
+  }
+
+  if (rest === "context" && method === "GET") {
+    const items = project.record.context;
+    const states = await Promise.all(items.map((item) => contextItemState(item)));
+    return json(res, 200, items.map((item, index) => ({ ...item, state: states[index] })));
+  }
+  if (rest === "context" && method === "POST") {
+    const body = await readJson(req);
+    const inspection = await inspectContext(body.value);
+    if (inspection.refused) throw new HttpError(400, "context_refused", inspection.refused);
+    const items = project.record.context;
+    const where = inspection.path ?? inspection.address;
+    if (items.some((item) => (item.path ?? item.address) === where)) {
+      throw new HttpError(409, "already_added", "This project already has that as context.");
+    }
+    if (items.length >= 12) throw new HttpError(400, "too_many", "A project can hold at most 12 context items.");
+    const { label, note } = contextLabelNote(body, { label: inspection.label.slice(0, 60), note: "" });
+    // eslint-disable-next-line no-unused-vars
+    const { top, top_more, ...found } = inspection.found ?? {};
+    const item = {
+      id: `cx_${crypto.randomBytes(4).toString("hex")}`,
+      kind: inspection.kind,
+      path: inspection.path,
+      address: inspection.address,
+      label,
+      note,
+      added_at: now(),
+      found: inspection.found ? found : null,
+    };
+    items.push(item);
+    return json(res, 201, item);
+  }
+  if (segments[2] === "context" && segments.length === 4 && (method === "PATCH" || method === "DELETE")) {
+    const items = project.record.context;
+    const item = items.find((entry) => entry.id === segments[3]);
+    if (!item) throw new HttpError(404, "unknown_context", "That context item is not in this project.");
+    if (method === "DELETE") {
+      project.record.context = items.filter((entry) => entry !== item);
+      res.writeHead(204);
+      return res.end();
+    }
+    Object.assign(item, contextLabelNote(await readJson(req), item));
+    return json(res, 200, item);
   }
 
   if (rest === "data-sources" && method === "GET") {

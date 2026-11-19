@@ -26,6 +26,7 @@ from . import __version__
 from . import drawing, effort, generate, voice
 from . import models_api, setup_api
 from .attach import AttachError
+from . import context as contexts
 from . import workspace as ws
 from .access import AccessGuard
 from .config import Settings, model_gateway
@@ -82,6 +83,17 @@ class AttachBody(BaseModel):
     address: str | None = None
     env_files: list[str] = Field(default_factory=list, max_length=50)
     include_uncommitted: bool = False
+
+
+class ContextValue(BaseModel):
+    value: str = Field(default="", max_length=4096)
+    label: str | None = Field(default=None, max_length=200)
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class ContextPatch(BaseModel):
+    label: str | None = Field(default=None, max_length=200)
+    note: str | None = Field(default=None, max_length=2000)
 
 
 class AppConfigBody(BaseModel):
@@ -188,6 +200,24 @@ class TurnCreate(BaseModel):
     options: dict | None = None    # {depth?, verify?, check_only?} (effort.py); checked in the route
 
 
+NO_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studio · page not shown here</title>
+<style>
+:root { color-scheme: light dark; }
+body { margin: 0; min-height: 100dvh; display: grid; place-items: center; font: 16px/1.5 system-ui, sans-serif;
+       background: Canvas; color: CanvasText; }
+main { width: min(30rem, calc(100vw - 2.5rem)); display: grid; gap: .8rem; }
+h1 { font-size: 1.3rem; margin: 0; } p { margin: 0; }
+</style></head><body><main>
+<h1>This project's page cannot be shown at this address</h1>
+<p>You reached the studio through a single address (a tunnel or proxy). Each project's page lives on a
+port of its own, and this address does not carry those ports.</p>
+<p>Chat, files and history work here. To see the page, open the studio on the computer it runs on or
+on its private network.</p>
+</main></body></html>"""
+
+
 class OriginGuard:
     """Mutating /api requests from a browser must come from the studio's own origin."""
 
@@ -242,7 +272,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.studio = studio
     app.add_middleware(OriginGuard, allowed=settings.allowed_origins)
     app.add_middleware(AccessGuard, key=settings.access_key, studio_port=settings.port,
-                       open_tailnet=settings.open_tailnet, names=studio.names)  # outermost
+                       open_tailnet=settings.open_tailnet, names=studio.names, gate=studio.gate,
+                       pages=settings.page_hosts)  # outermost
 
     handlers = {
         ApiError: lambda exc: error(exc.status, exc.code, exc.message),
@@ -251,6 +282,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ownskills.SkillError: lambda exc: error(exc.status, exc.code, exc.message, exc.details),
         TemplateError: lambda exc: error(exc.status, exc.code, exc.message),
         AttachError: lambda exc: error(exc.status, exc.code, exc.message),
+        contexts.ContextError: lambda exc: error(exc.status, exc.code, exc.message),
         ShipError: lambda exc: error(exc.status, exc.code, exc.message),
         ShipRunning: lambda exc: error(409, "ship_running", "The studio is making this project live; wait until it "
                                        "finishes."),
@@ -335,6 +367,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/apps/inspect")
     async def inspect_folder(body: InspectBody):
         return await studio.inspect_folder(body.path)
+
+    @app.post("/api/context/inspect")
+    async def inspect_context(body: ContextValue):
+        return await studio.inspect_context(body.value)
+
+    @app.get("/api/projects/{project_id}/context")
+    async def project_context(project_id: str):
+        return await contexts.with_state(studio.store.get(project_id).get("context") or [])
+
+    @app.post("/api/projects/{project_id}/context", status_code=201)
+    async def add_context(project_id: str, body: ContextValue):
+        return await studio.add_context(project_id, body.value, body.label, body.note)
+
+    @app.patch("/api/projects/{project_id}/context/{item_id}")
+    async def update_context(project_id: str, item_id: str, body: ContextPatch):
+        return studio.update_context(project_id, item_id, body.model_dump(exclude_unset=True))
+
+    @app.delete("/api/projects/{project_id}/context/{item_id}", status_code=204)
+    async def remove_context(project_id: str, item_id: str):
+        studio.remove_context(project_id, item_id)
+        return Response(status_code=204)
 
     @app.post("/api/projects/attach", status_code=201)
     async def attach_project(body: AttachBody):
@@ -1156,6 +1209,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         stream = studio.log(project_id).stream(max(after, 0), settings.ping_seconds)
         return StreamingResponse(stream, media_type="text/event-stream",
                                  headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+    # -- reached through one mapped port: project pages are not carried (CONTRACT, "Access from other devices")
+    @app.get("/no-page/{rest:path}", include_in_schema=False)
+    async def no_page(rest: str):
+        return HTMLResponse(NO_PAGE, status_code=404, headers={"Cache-Control": "no-store"})
 
     # -- web UI -----------------------------------------------------------------------------
     @app.get("/{path:path}", include_in_schema=False)

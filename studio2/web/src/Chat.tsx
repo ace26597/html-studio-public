@@ -23,7 +23,8 @@ import { Icon, Spinner } from "./icons";
 import { AttachmentList, SelectionChip, ThreadView, type DecisionState } from "./ThreadView";
 import type { ChatFiles } from "./chatFiles";
 import { latestActivity, waitingApprovals, type ApprovalItem, type NoticeItem, type ThreadState, type Turn } from "./thread";
-import type { Approvals, Connection, Project, Selection } from "./types";
+import { chipList, chipTip, kindIcon } from "./context";
+import type { Approvals, Connection, ContextItem, Project, Selection } from "./types";
 import { IconButton, Menu, useToast, type MenuEntry } from "./ui";
 
 /** A file attached in the composer: uploaded straight away, sent with the next message. */
@@ -96,6 +97,10 @@ interface ChatProps {
   hidden?: boolean;
   /** The studio can transcribe recordings (`health.transcription.available`). */
   canDictate?: boolean;
+  /** "Add context" beside "Attach files": opens the dialog that adds a folder, a file or an address. */
+  onAddContext?: () => void;
+  /** A context chip: opens the project's panel on its Context tab. */
+  onOpenContext?: () => void;
 }
 
 function ApprovalsMenu({ value, onChange }: { value: Approvals; onChange: (value: Approvals) => void }) {
@@ -122,6 +127,44 @@ function ApprovalsMenu({ value, onChange }: { value: Approvals; onChange: (value
         </button>
       )}
     />
+  );
+}
+
+/** "Context", then a chip for each item (the first three) and "+N" for the rest. */
+export function ContextChips({ items, onOpen }: { items: readonly ContextItem[]; onOpen?: () => void }) {
+  if (!items.length) return null;
+  const { shown, more } = chipList(items);
+  return (
+    <div className="ctx-chips" role="group" aria-label="Context for the agent">
+      <span className="ctx-chips-title">Context</span>
+      {shown.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          className="chip ctx-chip"
+          title={chipTip(item)}
+          aria-label={`${item.label}: ${chipTip(item)}. Open the Context tab`}
+          onClick={onOpen}
+        >
+          <Icon name={kindIcon(item.kind)} size={12} />
+          <span className="chip-text">{item.label}</span>
+        </button>
+      ))}
+      {more > 0 && (
+        <button
+          type="button"
+          className="chip ctx-chip ctx-more"
+          title={items
+            .slice(shown.length)
+            .map((item) => item.label)
+            .join(", ")}
+          aria-label={`${more} more. Open the Context tab`}
+          onClick={onOpen}
+        >
+          +{more}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -270,6 +313,8 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
     onRemoveDrawing,
     hidden = false,
     canDictate = false,
+    onAddContext,
+    onOpenContext,
   } = props;
   const toast = useToast();
   // Where the caret was when dictation began, if the box had focus and the draft hasn't changed since.
@@ -751,6 +796,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
               ))}
           </div>
         )}
+        <ContextChips items={project.context ?? []} onOpen={onOpenContext} />
         <label className="sr-only" htmlFor="composer-input">
           Message
         </label>
@@ -805,6 +851,17 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
             className="attach-btn"
             onClick={() => fileInput.current?.click()}
           />
+          {onAddContext && (
+            <IconButton
+              icon="folder"
+              label="Add context"
+              tip="Add context (a folder, file or address)"
+              tipSide="top"
+              tipAlign="start"
+              className="attach-btn ctx-add-btn"
+              onClick={onAddContext}
+            />
+          )}
           {recordingOk && (
             <VoiceButton
               onBegin={beginDictation}

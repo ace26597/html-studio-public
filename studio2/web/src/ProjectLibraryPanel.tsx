@@ -1,14 +1,25 @@
-// Inside a project: which data sources this project may use, and what the studio can do.
+// Inside a project: its context from this computer, which data sources it may use, and what the
+// studio can do.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage } from "./api";
 import { DataSourceDialog, kindLabel, kindsOrKnown, sourceAddress } from "./DataSources";
 import { Icon, Spinner } from "./icons";
 import { LibraryView, useLibrary } from "./LibraryView";
 import { ProjectCapabilities } from "./ProjectCapabilities";
 import { ProjectTemplate } from "./ProjectTemplate";
-import type { Project, ProjectDataSource } from "./types";
-import { IconButton, useToast } from "./ui";
+import {
+  CONTEXT_LIMIT,
+  contextIdsKey,
+  contextTabLabel,
+  contextWhere,
+  dropContextItem,
+  foundSummary,
+  kindIcon,
+  kindName,
+} from "./context";
+import type { ContextItem, ContextState, Project, ProjectDataSource } from "./types";
+import { IconButton, useConfirm, useToast } from "./ui";
 
 interface ProjectLibraryPanelProps {
   projectId: string;
@@ -19,10 +30,19 @@ interface ProjectLibraryPanelProps {
   project?: Project | null;
   running?: boolean;
   onProjectChange?: (project: Project) => void;
+  /** Ask for a tab: when `n` changes the panel shows `tab` (a context chip asks for "context"). */
+  tabRequest?: { tab: LibraryTab; n: number } | null;
+  /** "Add context": the owner opens the Add dialog. */
+  onAddContext?: () => void;
+  /** Edit on a context item: the owner opens the edit dialog. */
+  onEditContext?: (item: ContextItem) => void;
+  /** The project's context items after a removal, or as the server listed them. */
+  onContextChange?: (items: ContextItem[]) => void;
 }
 
-type Tab = "data" | "capabilities" | "library";
-const TABS: Tab[] = ["data", "capabilities", "library"];
+export type LibraryTab = "context" | "data" | "capabilities" | "library";
+const TABS: LibraryTab[] = ["context", "data", "capabilities", "library"];
+type Tab = LibraryTab;
 
 export function ProjectLibraryPanel({
   projectId,
@@ -32,11 +52,20 @@ export function ProjectLibraryPanel({
   project = null,
   running = false,
   onProjectChange,
+  tabRequest = null,
+  onAddContext,
+  onEditContext,
+  onContextChange,
 }: ProjectLibraryPanelProps) {
   const toast = useToast();
+  const confirm = useConfirm();
   const library = useLibrary();
   const kinds = kindsOrKnown(library.library?.data_kinds);
-  const [tab, setTab] = useState<Tab>("data");
+  // Today's default stays "data"; a chip or the composer asks for "context" through `tabRequest`.
+  const [tab, setTab] = useState<Tab>(tabRequest?.tab ?? "data");
+  useEffect(() => {
+    if (tabRequest) setTab(tabRequest.tab);
+  }, [tabRequest]);
   const [sources, setSources] = useState<ProjectDataSource[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -45,6 +74,67 @@ export function ProjectLibraryPanel({
   const [adding, setAdding] = useState(false);
 
   const attachedChange = useCallback(onAttachedChange, [onAttachedChange]);
+
+  // ---- context: the items come from the project; their states from GET …/context ----------
+  const [contextList, setContextList] = useState<(ContextItem & { state?: ContextState })[] | null>(null);
+  const [contextError, setContextError] = useState<string | null>(null);
+  const [contextAttempt, setContextAttempt] = useState(0);
+  const [contextBusy, setContextBusy] = useState<Record<string, boolean>>({});
+  const [contextRowErrors, setContextRowErrors] = useState<Record<string, string>>({});
+  const idsKey = contextIdsKey(project?.context);
+  const contextChange = useCallback((items: ContextItem[]) => onContextChange?.(items), [onContextChange]);
+
+  // Read when the Context tab is shown (an address is asked whether it answers, up to 2 seconds).
+  const onContextTab = tab === "context";
+  useEffect(() => {
+    if (!onContextTab) return;
+    const controller = new AbortController();
+    setContextError(null);
+    api.listProjectContext(projectId, controller.signal).then(
+      (list) => {
+        setContextList(list);
+        contextChange(list.map(({ state: _state, ...item }) => item));
+      },
+      (cause) => {
+        if ((cause as Error)?.name !== "AbortError") setContextError(errorMessage(cause));
+      },
+    );
+    return () => controller.abort();
+    // Read again when items are added or removed; a rename needs no new states.
+  }, [projectId, idsKey, contextAttempt, contextChange, onContextTab]);
+
+  /** The project's items (current after an edit anywhere), each with the state last read. */
+  const contextItems = useMemo(() => {
+    const states = new Map((contextList ?? []).map((item) => [item.id, item.state]));
+    const items: ContextItem[] | null = project?.context ?? contextList;
+    return items ? items.map((item) => ({ ...item, state: states.get(item.id) })) : null;
+  }, [project?.context, contextList]);
+  const contextCount = contextItems?.length ?? 0;
+
+  const removeContext = async (item: ContextItem) => {
+    const ok = await confirm({
+      title: `Remove “${item.label}”?`,
+      body: "The agent is no longer told about it. Nothing at that path or address is touched.",
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!ok) return;
+    setContextBusy((map) => ({ ...map, [item.id]: true }));
+    setContextRowErrors((map) => {
+      const next = { ...map };
+      delete next[item.id];
+      return next;
+    });
+    try {
+      await api.removeProjectContext(projectId, item.id);
+      setContextList((list) => (list ? list.filter((entry) => entry.id !== item.id) : list));
+      contextChange(dropContextItem(contextItems ?? [], item.id));
+    } catch (cause) {
+      setContextRowErrors((map) => ({ ...map, [item.id]: errorMessage(cause) }));
+    } finally {
+      setContextBusy((map) => ({ ...map, [item.id]: false }));
+    }
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -117,7 +207,7 @@ export function ProjectLibraryPanel({
   return (
     <aside
       className="panel panel-right logs-panel plib"
-      aria-label="Library and data sources"
+      aria-label="Context, library and data sources"
       onKeyDown={(event) => {
         if (event.key === "Escape" && !event.defaultPrevented) {
           event.stopPropagation();
@@ -127,6 +217,7 @@ export function ProjectLibraryPanel({
     >
       <header className="panel-header">
         <div className="plib-tabs" role="tablist" aria-label="Library">
+          {tabButton("context", contextTabLabel(contextCount), contextTabLabel(contextCount))}
           {tabButton("data", attachedCount ? `Data sources · ${attachedCount}` : "Data sources", attachedCount ? `Data · ${attachedCount}` : "Data")}
           {tabButton("capabilities", "Skills & connectors", "Skills")}
           {tabButton("library", "Everything", "All")}
@@ -136,7 +227,104 @@ export function ProjectLibraryPanel({
       </header>
 
       <div className="panel-body plib-body" role="tabpanel" tabIndex={0} id={`plib-panel-${tab}`} aria-labelledby={`plib-tab-${tab}`}>
-        {tab === "data" ? (
+        {tab === "context" ? (
+          <div className="plib-data">
+            <p className="ds-lede">
+              Folders, files and addresses on this computer that this project’s questions may be about. The agent reads
+              them where they are and changes nothing there.
+            </p>
+            {contextError && (
+              <div className="lib-error" role="alert">
+                <Icon name="alert" size={15} />
+                <span>The context couldn’t be loaded: {contextError}</span>
+                <button type="button" className="btn btn-small" onClick={() => setContextAttempt((n) => n + 1)}>
+                  Try again
+                </button>
+              </div>
+            )}
+            {!contextItems && !contextError && (
+              <div className="panel-empty">
+                <Spinner />
+              </div>
+            )}
+            {contextItems && contextItems.length === 0 && (
+              <p className="lib-empty">
+                No context yet. Add a folder of code, a file, or the address of a running app for the agent to read.
+              </p>
+            )}
+            {contextItems && contextItems.length > 0 && (
+              <ul className="ds-list ctx-list">
+                {contextItems.map((item) => {
+                  const where = contextWhere(item);
+                  const summary = foundSummary(item.kind, item.found);
+                  const problem = item.state && !item.state.ok ? item.state.problem : null;
+                  return (
+                    <li key={item.id} className={`ds-item ctx-item${problem ? " is-problem" : ""}`}>
+                      <div className="ds-item-main">
+                        <span className="ds-item-name">
+                          <Icon name={kindIcon(item.kind)} size={14} />
+                          <span className="ctx-item-label">{item.label}</span>
+                          <span className="sr-only">({kindName(item.kind)})</span>
+                        </span>
+                        <code className="ctx-item-where" title={where}>
+                          {where}
+                        </code>
+                        {item.note && <p className="ctx-item-note">{item.note}</p>}
+                        {summary && <span className="ds-item-meta">{summary}</span>}
+                        {problem && (
+                          <span className="ds-last is-fail">
+                            <Icon name="alert" size={12} /> {problem}
+                          </span>
+                        )}
+                        {contextRowErrors[item.id] && (
+                          <p className="ds-error" role="alert">
+                            {contextRowErrors[item.id]}
+                          </p>
+                        )}
+                      </div>
+                      <div className="ds-item-actions">
+                        {onEditContext && (
+                          <button
+                            type="button"
+                            className="btn btn-small"
+                            aria-label={`Edit ${item.label}`}
+                            disabled={contextBusy[item.id]}
+                            onClick={() => onEditContext(item)}
+                          >
+                            Edit
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="btn btn-small"
+                          aria-label={`Remove ${item.label}`}
+                          disabled={contextBusy[item.id]}
+                          onClick={() => void removeContext(item)}
+                        >
+                          {contextBusy[item.id] ? <Spinner size={12} /> : null}
+                          Remove
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {onAddContext && (
+              <div className="plib-actions">
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  disabled={contextCount >= CONTEXT_LIMIT}
+                  title={contextCount >= CONTEXT_LIMIT ? `A project can hold at most ${CONTEXT_LIMIT} items.` : undefined}
+                  onClick={onAddContext}
+                >
+                  <Icon name="plus" size={14} strokeWidth={2.2} /> Add context
+                </button>
+              </div>
+            )}
+          </div>
+        ) : tab === "data" ? (
           <div className="plib-data">
             <p className="ds-lede">
               Attached sources can be queried read-only by the assistant and by this project’s app. Passwords stay in your

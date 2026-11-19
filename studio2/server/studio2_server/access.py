@@ -12,10 +12,13 @@ local only when its Host is a loopback name and it carries no forwarding header.
 
 from __future__ import annotations
 
+import asyncio
+import base64
 import contextvars
 import ipaddress
 import hashlib
 import json
+import logging
 import re
 import hmac
 import html
@@ -25,6 +28,9 @@ import sys
 import time
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
+from urllib.request import Request as _FetchRequest, urlopen as _urlopen
+
+log = logging.getLogger("studio2.access")
 
 COOKIE = "studio2_access"
 MAX_AGE = 30 * 24 * 3600
@@ -35,6 +41,11 @@ MIN_KEY = 24
 # The host (with port) and scheme the current request was addressed to; project links are built from them.
 REQUEST_HOST: contextvars.ContextVar[str | None] = contextvars.ContextVar("studio2_request_host", default=None)
 REQUEST_SCHEME: contextvars.ContextVar[str] = contextvars.ContextVar("studio2_request_scheme", default="http")
+# True when the address the request was sent to has another port than the studio listens on: a tunnel
+# or proxy in between carries that one port, so "<host>:<project port>" leads nowhere from there.
+REQUEST_MAPPED: contextvars.ContextVar[bool] = contextvars.ContextVar("studio2_request_mapped", default=False)
+# The names project pages have behind such an address ({port: name}; under None a name with {port}).
+REQUEST_PAGES: contextvars.ContextVar[dict | None] = contextvars.ContextVar("studio2_request_pages", default=None)
 
 
 def token_for(key: str) -> str:
@@ -51,6 +62,20 @@ def host_name(host: str) -> str:
             return f"[{inside}]"
         return host
     return host.rsplit(":", 1)[0] if ":" in host else host
+
+
+def asked_port(host: str, scheme: str) -> int | None:
+    """The port in the address the browser used: the one in `Host`, else the scheme's own."""
+    rest = (host or "").strip()
+    if rest.startswith("["):
+        rest = rest.partition("]")[2]
+    elif ":" not in rest:
+        rest = ""
+    else:
+        rest = ":" + rest.rsplit(":", 1)[1]
+    if not rest:
+        return 443 if scheme == "https" else 80
+    return int(rest[1:]) if re.fullmatch(r":\d{1,5}", rest) else None
 
 
 def is_local(scope) -> bool:
@@ -192,6 +217,9 @@ def known_names(settings) -> frozenset[str]:
     names |= {h.strip().lower().rstrip(".") for h in settings.hosts if h.strip() and not is_address(h.strip())}
     if settings.tls:
         names |= certificate_names(settings.tls[0])
+    for port, name in (getattr(settings, "page_hosts", None) or {}).items():
+        # A name with {port} in its first part counts as any one part in front of the rest.
+        names.add(name if port is not None else "*." + name.split(".", 1)[1] if "{port}" in name.split(".", 1)[0] else name)
     names |= machine_names()
     names.discard("")
     return frozenset(names)
@@ -218,6 +246,135 @@ a website cannot point its name at this computer and use the studio.</p>
 </main></body></html>"""
 
 
+# -- a gate in front that signs people in ------------------------------------------------------
+# An identity-aware proxy checks who the person is and passes the request on with a token it
+# signed. The studio checks that signature itself, so a request that merely carries the header
+# (from another program on this machine, say) gets nothing. CONTRACT.md, "Access from other devices".
+
+def _fetch_keys(url: str) -> dict:
+    with _urlopen(_FetchRequest(url, headers={"Accept": "application/json", "User-Agent": "studio2"}), timeout=5) as answer:
+        return json.loads(answer.read(262144).decode("utf-8"))
+
+
+class Gate:
+    KEEP_KEYS, RETRY, LEEWAY, REMEMBER = 3600.0, 60.0, 60, 512
+
+    def __init__(self, keys_url: str, audiences: tuple[str, ...], header: str = "Cf-Access-Jwt-Assertion",
+                 issuer: str | None = None):
+        parts = urlsplit(keys_url)
+        self.keys_url, self.audiences = keys_url, list(audiences)
+        self.header = header.strip().lower().encode("latin-1")
+        self.issuer = issuer or f"{parts.scheme}://{parts.netloc}"
+        self.fetch = _fetch_keys            # replaced in tests
+        self.keys: dict[str, object] = {}
+        self.fetched = self.tried = float("-inf")
+        self.accepted: dict[str, float] = {}     # token → the time (wall clock) until which it needs no new check
+        self.lock = asyncio.Lock()
+
+    async def _key(self, kid: str):
+        now = time.monotonic()
+        stale = now - self.fetched > self.KEEP_KEYS
+        if (kid not in self.keys or stale) and now - self.tried > self.RETRY:
+            async with self.lock:
+                if time.monotonic() - self.tried > self.RETRY:
+                    self.tried = time.monotonic()
+                    try:
+                        import jwt
+                        document = await asyncio.to_thread(self.fetch, self.keys_url)
+                        keys = {}
+                        for item in document.get("keys") or []:
+                            if isinstance(item, dict) and item.get("kty") == "RSA" and item.get("kid"):
+                                keys[str(item["kid"])] = jwt.PyJWK.from_dict(item, algorithm="RS256").key
+                        self.keys, self.fetched = keys, time.monotonic()
+                    except Exception as exc:     # no keys, no entry: the key sign-in still applies
+                        log.warning("Could not fetch the gate's keys from %s: %s", self.keys_url, exc)
+                        if stale:
+                            self.keys = {}
+        return self.keys.get(kid)
+
+    async def accepts(self, headers: dict) -> bool:
+        token = headers.get(self.header, b"").decode("latin-1").strip()
+        if not token or len(token) > 8192:
+            return False
+        until = self.accepted.get(token)
+        if until is not None:
+            if time.time() < until:
+                return True
+            self.accepted.pop(token, None)
+        try:
+            import jwt
+            head = json.loads(base64.urlsafe_b64decode(token.split(".")[0] + "=="))
+            if not isinstance(head, dict) or head.get("alg") != "RS256":
+                return False
+            key = await self._key(str(head.get("kid") or ""))
+            if key is None:
+                return False
+            claims = jwt.decode(token, key=key, algorithms=["RS256"], audience=self.audiences, issuer=self.issuer,
+                                leeway=self.LEEWAY, options={"require": ["exp", "aud", "iss"]})
+        except Exception:
+            return False
+        if len(self.accepted) >= self.REMEMBER:
+            self.accepted.clear()
+        self.accepted[token] = min(float(claims["exp"]), time.time() + 60)
+        # Through the server's own logger, so the line is in the studio's log beside the requests.
+        logging.getLogger("uvicorn.error").info(
+            "The gate signed in %s", claims.get("email") or claims.get("sub") or "someone (no email in the token)")
+        return True
+
+
+def gate_for(settings) -> Gate | None:
+    wanted = getattr(settings, "gate", None)
+    return Gate(*wanted) if wanted else None
+
+
+def check_gate(gate: tuple | None) -> None:
+    if not gate:
+        return
+    keys_url, audiences = gate[0], gate[1]
+    if not keys_url or not audiences:
+        raise SystemExit(
+            "A gate in front needs both STUDIO2_GATE_KEYS (the address of its public signing keys) and "
+            "STUDIO2_GATE_AUDIENCE (the audience its tokens name). Only one is set. Nothing was started.")
+    if not keys_url.startswith("https://") or not urlsplit(keys_url).netloc:
+        raise SystemExit("STUDIO2_GATE_KEYS must be an https:// address. Nothing was started.")
+
+
+_DNS_NAME = re.compile(r"(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}")
+
+
+def page_hosts(text: str) -> dict:
+    """STUDIO2_PAGE_HOSTS: "8403=site.example.com,*=p{port}.example.com" → {8403: "site.example.com",
+    None: "p{port}.example.com"}. Anything else stops the server: a half-read list would send people
+    to addresses that do not exist."""
+    out: dict = {}
+    for entry in (e.strip() for e in text.split(",")):
+        if not entry:
+            continue
+        port, sep, name = (part.strip().lower().rstrip(".") for part in entry.partition("="))
+        ok = bool(sep) and bool(name)
+        if ok and port == "*":
+            ok = "{port}" in name and bool(_DNS_NAME.fullmatch(name.replace("{port}", "1")))
+            key = None
+        elif ok:
+            ok = port.isdigit() and 0 < int(port) < 65536 and bool(_DNS_NAME.fullmatch(name))
+            key = int(port) if ok else None
+        if not ok or key in out:
+            raise SystemExit(
+                f"STUDIO2_PAGE_HOSTS has an entry that cannot be read or comes twice: {entry!r}. Each entry is "
+                "<port>=<name> or *=<name with {port}>, separated by commas. Nothing was started.")
+        out[key] = name
+    return out
+
+
+def page_host_for(port: int, pages: dict | None) -> str | None:
+    if not pages:
+        return None
+    if port in pages:
+        return pages[port]
+    pattern = pages.get(None)
+    return pattern.replace("{port}", str(port)) if pattern else None
+
+
 def cookie_value(scope) -> str | None:
     raw = dict(scope.get("headers") or []).get(b"cookie", b"").decode("latin-1")
     for part in raw.split(";"):
@@ -233,6 +390,13 @@ def preview_url_for(port: int) -> str:
     name = host_name(host) if host else "127.0.0.1"
     if not name or name in LOCAL_HOSTS:
         return f"http://127.0.0.1:{port}/"
+    if REQUEST_MAPPED.get():
+        # Reached through one mapped port: project ports are not carried. A project with a name of
+        # its own there (STUDIO2_PAGE_HOSTS) is at that name; for the rest, say so at this address.
+        page = page_host_for(port, REQUEST_PAGES.get())
+        if page:
+            return f"{REQUEST_SCHEME.get()}://{page}/"
+        return f"{REQUEST_SCHEME.get()}://{host}/no-page/{port}/"
     return f"{REQUEST_SCHEME.get()}://{name}:{port}/"
 
 
@@ -264,8 +428,10 @@ class AccessGuard:
     the studio itself and false for a project's preview port (which sends people there)."""
 
     def __init__(self, app, key: str | None, studio_port: int, own_login: bool = True, open_tailnet: bool = False,
-                 names: frozenset[str] = frozenset()):
+                 names: frozenset[str] = frozenset(), gate: Gate | None = None, pages: dict | None = None):
         self.app, self.key, self.studio_port, self.own_login = app, key, studio_port, own_login
+        self.pages = pages                 # names of project pages behind a mapped address
+        self.gate = gate                   # a gate in front whose signed token stands in for the key
         self.open_tailnet = open_tailnet   # the person chose "my tailnet is the boundary": no key for its devices
         self.names = names                 # the DNS names this studio answers to (known_names)
         self.token = token_for(key) if key else None
@@ -281,8 +447,13 @@ class AccessGuard:
         marker = REQUEST_HOST.set(host or None)
         scheme = "https" if scope.get("scheme") in ("https", "wss") else "http"
         scheme_marker = REQUEST_SCHEME.set(scheme)
+        mapped = self.own_login and asked_port(host, scheme) != self.studio_port
+        mapped_marker = REQUEST_MAPPED.set(mapped)
+        pages_marker = REQUEST_PAGES.set(self.pages)
         try:
             if is_local(scope) or (self.open_tailnet and is_tailnet_peer(scope)):
+                return await self.app(scope, receive, send)
+            if self.gate is not None and await self.gate.accepts(headers):
                 return await self.app(scope, receive, send)
             if not self.key:  # not opened up for other devices at all
                 return await self._plain(scope, send, 403, "This studio only answers on the machine it runs on.")
@@ -297,13 +468,18 @@ class AccessGuard:
             if not wants_page or scope["path"].startswith("/api/"):
                 return await self._plain(scope, send, 401, "Sign in to this studio first.")
             here = f"{scheme}://{host}{scope['path']}"
-            login = f"{scheme}://{host_name(host)}:{self.studio_port}/login?next={quote(here, safe='')}"
+            # On the studio's own port the sign-in page is at the address as given (behind a tunnel
+            # that has no port); a project port sends people to the studio's port on the same host.
+            place = host if self.own_login else f"{host_name(host)}:{self.studio_port}"
+            login = f"{scheme}://{place}/login?next={quote(here, safe='')}"
             await send({"type": "http.response.start", "status": 302,
                         "headers": [(b"location", login.encode("latin-1")), (b"cache-control", b"no-store")]})
             await send({"type": "http.response.body", "body": b""})
         finally:
             REQUEST_HOST.reset(marker)
             REQUEST_SCHEME.reset(scheme_marker)
+            REQUEST_MAPPED.reset(mapped_marker)
+            REQUEST_PAGES.reset(pages_marker)
 
     async def _plain(self, scope, send, status: int, message: str):
         if scope["type"] == "websocket":

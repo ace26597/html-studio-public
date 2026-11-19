@@ -1283,8 +1283,9 @@ that is not plainly local is refused with 403.
   reverse proxy on the same machine is never treated as local.
 - Every other request needs the cookie `studio2_access` (HttpOnly, SameSite=Lax, 30 days),
   set by `POST /login` with form field `key`. `GET /login` is the sign-in page. Without the
-  cookie: a page request is redirected to `http://<host>:<studio port>/login?next=…`
-  (also from a project port), anything else gets 401 `access_denied`, a WebSocket is closed
+  cookie: a page request on the studio's own port is redirected to `/login?next=…` on the host it
+  was addressed to, exactly as given (`http://<host>:<studio port>/login?next=…` when opened
+  directly); a project port sends it to `http://<host>:<studio port>/login?next=…`, anything else gets 401 `access_denied`, a WebSocket is closed
   with 4401. Eight wrong keys from one address within five minutes → 429. The cookie is the
   studio's: a project port takes it out of the `Cookie` header before passing a request or a
   WebSocket on to the project's app.
@@ -1303,6 +1304,44 @@ that is not plainly local is refused with 403.
 - `Project.preview_url` uses the host the request was addressed to, so a project opened
   from `http://100.x.y.z:8200/` gets `http://100.x.y.z:<port>/`. Clients must use it as
   sent and never build project addresses themselves.
+- **Behind a tunnel or proxy that carries one port.** When the address a request was sent to has
+  another port than the studio listens on (no port in `Host` means 443 for `https`, 80 for `http`),
+  something in between maps the port, and `<host>:<project port>` leads nowhere. The name still
+  has to be one the studio answers to (`STUDIO2_NAMES`), such a request is never local, and it
+  needs the access key like any other. The studio then works at that address as given: the
+  sign-in redirect, the cookie and the `Origin` check use it without adding a port. Project pages
+  are **not** reachable there: `Project.preview_url` is `<scheme>://<host>/no-page/<port>/`, and
+  every `GET /no-page/…` answers 404 with a short page that says so. Chat, files and history work.
+  Loopback names are never treated this way. The scheme is the connection's own; behind a proxy on
+  this machine it is what the proxy reports in `X-Forwarded-Proto` (the server takes that header
+  from loopback connections only).
+- **A name for a project's page behind such an address.** `STUDIO2_PAGE_HOSTS` gives project ports
+  names of their own there: `8403=site.example.com,8404=shop.example.com`, and `*=p{port}.example.com`
+  for every other port (`{port}` is replaced by the number). For a request that arrived through a
+  mapped address, `Project.preview_url` is then `<scheme>://<that name>/`; a project whose port has
+  no name keeps the `/no-page/<port>/` address. Whatever is in front must send each name to its
+  project's port on this machine. These names are names the studio answers to (a `{port}` name
+  counts as any one part in front of the rest). They change nothing for a studio opened directly:
+  loopback and private-network addresses keep their ports. The access cookie belongs to one host,
+  so the key sign-in on the studio's name does not carry over to a page's name: use a gate (next
+  item), whose token arrives with every request. An entry that is not `<port>=<name>` or
+  `*=<name with {port}>` stops the server from starting.
+- **A gate in front that signs people in.** A studio behind a service that checks who a person is
+  before passing a request on (an identity-aware proxy) can take that service's signed token instead
+  of the access key. Set `STUDIO2_GATE_KEYS` (the `https://` address of the gate's public signing
+  keys, a JWKS document) and `STUDIO2_GATE_AUDIENCE` (the audience the token must name; several
+  separated by commas). A request, HTTP or WebSocket, on the studio port or a project port, whose
+  header `Cf-Access-Jwt-Assertion` (another name with `STUDIO2_GATE_HEADER`) holds a token that
+  verifies is signed in: it needs no cookie and never sees the sign-in page. A token verifies when
+  it is signed with RS256 by one of the gate's keys (no other algorithm is accepted), names one of
+  the audiences, comes from the issuer (`STUDIO2_GATE_ISSUER`; default: the scheme and host of
+  `STUDIO2_GATE_KEYS`), and has not expired (60 seconds of leeway). Anything else is treated as if
+  the header were absent, so the key sign-in still applies. Such a request is still not *local*:
+  what only the studio's own computer may do stays that way. The keys are fetched when first
+  needed and kept for an hour; a token signed with a key the studio has not seen makes it fetch
+  again, at most once a minute; when the keys cannot be fetched no token is accepted. The server
+  does not start with only one of the two settings, or with a keys address that is not `https://`.
+  The studio logs the token's `email`, when it has one, the first time it accepts that token.
 - Mutating API requests are accepted from the studio's own origin: the configured loopback
   origins, or `http://<Host header>`.
 
@@ -4418,6 +4457,178 @@ when the answer's are cut.
 | A tool's answer | 60,000 characters (unchanged) | the answers above are sized to stay under it; a test builds a 104-slide deck and a 50-sheet workbook and checks they do |
 | The re-check | 10 pages and 10 files (unchanged) | `not_rechecked`, `agrees: false`, said on the card |
 | Pictures one agent opens | not a studio cap: each slide picture costs the reader up to about 1,600 tokens of its context (a picture is scaled to about 1.15 megapixels) | the skill has a reviewer look at 20 slides at a time and says which slides to look at past 60 |
+
+# Context from this computer: folders, files and addresses
+
+A person can point a project at things that already exist outside it, as context for the agent: a
+folder of code (of any size), a single file, or the address where an app is running. Nothing is
+copied, uploaded or indexed, and nothing there is changed. On every request the agent is told what
+the items are and that the person's questions may be about them; it reads a folder where it is.
+
+This is not "Bring an app by its folder". An attached app is the project: the agent edits it. A
+context item is something the project's work refers to: the agent reads it and changes nothing there.
+
+## ContextItem object
+
+```json
+{"id": "cx_1a2b3c4d", "kind": "folder", "path": "/Users/me/dev/crm", "address": null,
+ "label": "crm", "note": "Our CRM. The API is in api/.", "added_at": "…",
+ "found": {"git": {"branch": "main", "head": "<sha>", "subject": "…"}, "framework": {"id": "next", "label": "Next.js"},
+           "files": 2310, "bytes": 48000000, "partial": false, "key_files": [".env"]}}
+```
+
+- `kind`: `folder`, `file` or `address`. `path` is set for a folder or a file (absolute, with links
+  resolved), `address` for an address (as normalised below); the other is null.
+- `label`: 1 to 60 characters; by default the folder's or file's name, or the address's host and port.
+- `note`: at most 500 characters, what it is in the person's own words; the agent is given it. `""` when none.
+- `found`: what the inspection found when the item was added (below), without `top` and `top_more`.
+  It is not refreshed afterwards; removing the item and adding it again reads it anew.
+
+A project holds at most **12** items. They live in the project record only: they are not part of
+a version, a template, an export or a ship.
+
+## Inspect
+
+`POST /api/context/inspect {value}` → `ContextInspection`. Reads only. `value` is what the person
+typed, and what it is decides the kind:
+
+- it starts with `/` or `~` → a path (`~` is expanded): a folder or a file;
+- it holds `://` → an address;
+- it is `<host>:<port>` with an optional path (`localhost:3000`, `127.0.0.1:8000/admin`,
+  `[::1]:5173`) → an address, with `http://` put in front;
+- anything else → 400 `invalid_request`, "Type a folder's full path (~/dev/my-app) or an address
+  (http://localhost:3000)."
+
+```json
+{"kind": "folder", "path": "/Users/me/dev/crm", "address": null, "label": "crm", "refused": null,
+ "found": {"git": {"branch": "main", "head": "<sha>", "subject": "…"}, "framework": {"id": "next", "label": "Next.js"},
+           "files": 2310, "bytes": 48000000, "partial": false, "key_files": [".env"],
+           "top": ["api/", "src/", "README.md"], "top_more": 0},
+ "notes": ["…"]}
+```
+
+`refused` is null, or the sentence that says why this cannot be context; `found` is then null.
+`notes` are sentences for the person, shown under the result.
+
+**A folder.** `found`:
+- `git`: `{branch, head, subject}` when the folder is the top of a git work tree, else null. Read
+  the way an attach inspection reads it (`GIT_OPTIONAL_LOCKS=0`: not even git's index is refreshed).
+- `framework`: `{id, label}` from the table of known kinds in "Bring an app by its folder", or null.
+- `files`, `bytes`: the files git tracks; for a folder without git, the files its `.gitignore`
+  keeps, without `node_modules`, `.venv`, build output and caches. `partial` is true when the
+  count stopped at 50,000 files. Both are null (and `partial` true) when the folder could not be
+  counted within 20 seconds; it can still be added.
+- `key_files`: the names of the key files at the top of the folder ("Key files"), never their contents.
+- `top`: the names at the top of the folder, folders first (each ending in `/`), then files, each
+  in name order with the names that start with a dot last, at most 40; `top_more` counts the rest.
+  Left out: key files, and what is not the code (`.git`, `node_modules`, `.venv`, build output and
+  caches: the names an attach inspection leaves out of its count).
+
+Refused: nothing at the path; a path the studio cannot read; the top of a disk or a mount point;
+the home folder; a folder that holds the home folder; a folder that holds the studio's own data
+or its own repository (a folder inside them is fine); and, for a folder and a file alike, a hidden
+file or folder at the top of the home folder or anything inside one (`~/.ssh`, `~/.aws`,
+`~/.config/…`, `~/.zsh_history`: "This is in a hidden part of your home folder (~/.ssh), where keys
+and settings live. The studio does not hand those to the agent as context.").
+
+**A file.** `found`: `{"bytes": 1234}`. Refused: a key file by the one rule ("Key files"; "This is
+a key file. The studio does not hand key files to the agent as context."), and anything that is
+neither a regular file nor a folder.
+
+**An address.** `http` or `https`, a host, an optional port, path and query; a fragment is
+dropped. Any host is accepted: the studio does not proxy a context address (unlike the address of
+an app edited in place), the agent requests it as it would any page. Refused: another scheme; an
+address with a user name or password in it ("Leave the user name and password out of the address:
+the studio never keeps one."); more than 2,000 characters. `found`:
+`{"reachable": true, "status": 200, "title": "CRM", "this_computer": true}` after one `GET` (5
+seconds at most, up to 3 redirects followed, the title read from the first 64 KB of an HTML
+answer, null when there is none), or `{"reachable": false, "error": "Nothing answered at …",
+"status": null, "title": null, "this_computer": true}`. `this_computer` is true for `localhost`,
+`127.0.0.1` and `[::1]`. An address that does not answer is not refused: the app may be started
+later, and a note says so.
+
+Notes that are given: a folder of more than 5,000 files (the agent searches it and does not read
+it whole); key files at its top (the agent is told not to open them); an address on another
+machine (the agent reaches it from the studio's computer, not from the person's device); an
+address that did not answer; and, on a shared studio, that a path names a folder on the computer
+the studio runs on, not on the device of the person typing.
+
+## REST
+
+| Method and path | Body | Returns |
+|---|---|---|
+| `POST /api/context/inspect` | `{value}` | `ContextInspection` |
+| `GET /api/projects/{id}/context` | | `[ContextItem]`, each with `state` |
+| `POST /api/projects/{id}/context` | `{value, label?, note?}` | `ContextItem` (201). 400 `invalid_request`; 400 `context_refused` with the inspection's reason (also for the project's own folder, or a folder or file inside it: "This is already part of the project."); 409 `already_added` when the project has this path or address; 400 `too_many` at 12 |
+| `PATCH /api/projects/{id}/context/{item_id}` | `{label?, note?}` | `ContextItem`. 404 `unknown_context`; 400 `invalid_request` for an empty or too long label, or too long a note |
+| `DELETE /api/projects/{id}/context/{item_id}` | | 204. 404 `unknown_context` |
+
+`state` (in the list only) is `{"ok": true, "problem": null}`, or `ok` false with the sentence: a
+folder or file that is not there or cannot be read now; an address that did not answer within 2
+seconds (addresses are asked together, not one after another).
+
+`Project` gains `context: [ContextItem]` (without `state`). A change made while a request runs
+reaches the agent with the next message, since the project's facts are sent with every message.
+
+## What the agent is told
+
+When the project has context items, its facts for every message name each one: kind, label, full
+path or address, what was found when it was added (the kind of app, the git branch, about how many
+files), the person's note in quotes, and, read at that moment, whether it is there now and the
+names at the top of a folder (the same list as `top`, at most 40). With them, the rules:
+
+- The person's questions and requests may be about these; look there before answering from memory
+  or guessing, and say which files an answer came from.
+- A folder or file is read with the ordinary file tools and its full path. A folder may be very
+  large: search it first, read only the files the question needs, never read it whole, and hand a
+  broad question to sub-agents.
+- **Read only.** Create, change or delete nothing there, and run nothing there that writes: no
+  install, build, formatter or code generator, and no git command that changes anything. To try a
+  change, copy the files into the project and work on the copy. When the person wants the code
+  there itself changed, say that it was added as context, and that bringing the folder in as an
+  app (New page, "An app on this computer") is how the studio edits one.
+- Key files there (`.env` and the like) are not opened, unless the person asks for that file by name.
+- An address is requested from the shell, and seen with `look_at_page` and `url` (below). It is
+  read, not used: no form is submitted and no data changed there unless the person asks for it.
+- An item that is not there now is said to be missing instead of being guessed at.
+
+## `look_at_page`: `url`
+
+`look_at_page` takes `url` in place of `path`: the full address of a page under one of the
+project's context addresses (the same scheme, host and port). Any other address is an error that
+names the context addresses. Such a page is loaded in a clean browser: it never carries the
+person's sign-in or the agent's kept one, whatever the address (a context address may be another
+project's page). Everything else about a look is the same.
+
+## Held, and not held
+
+- **Held.** The agent's file tools cannot write outside the project folder (the hook that refuses
+  them is the same for every project). A shell command that names a path there to change it,
+  redirects into it, or runs git that changes state there asks the person first ("Approvals").
+- **Not held.** A program that writes as a side effect when run inside the folder (an install, a
+  build, a formatter) is not recognised by the approval rules: the agent is told not to run one
+  and nothing stops it. Nothing stops a shell command from reading a key file there either. As
+  everywhere in the studio, the agent's shell is not confined.
+- **A shared studio.** Context works there as attaching an app does: a path is a folder on the
+  studio's computer, and whoever may use a shared studio can already have its agent read that
+  computer. The inspection's note says whose computer the path is on.
+- **Not built.** Bringing a folder from the person's own device to a studio that runs on another
+  machine (a browser cannot hand over a path; files are attached or dropped in the chat);
+  an index or search of the folder kept by the studio; choosing per message which items apply.
+
+## UI
+
+- **The chat.** Beside "Attach files" a button "Add context" opens a dialog: one field ("A folder,
+  a file or an address", with `~/dev/my-app or http://localhost:3000` as its example), Check, then
+  what was found, the notes, a label (filled in, editable), "What is it?" (optional, the note) and
+  Add. A refused value shows its reason and cannot be added. While the project has items, a row
+  above the message box shows them: "Context", then a chip for each (an icon for the kind, the
+  label, the path or address as its tip), the first three and "+N" for the rest; a chip opens the
+  panel below.
+- **The project's library panel** gains a first tab, "Context" (with the count when there are
+  items): each item with its label, its path or address, the note, what was found, what is wrong
+  with it now (`state`), Edit (label and note) and Remove; and "Add context". The count on the
+  panel's button in the top bar is the attached data sources plus the context items.
 
 .
 

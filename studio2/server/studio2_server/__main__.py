@@ -9,7 +9,7 @@ import socket
 
 import uvicorn
 
-from .access import check_settings
+from .access import check_gate, check_settings
 from .api import create_app
 from .config import Settings
 
@@ -17,6 +17,7 @@ from .config import Settings
 def serve(settings: Settings) -> None:
     """Check the settings, bind the addresses and serve until stopped."""
     check_settings(settings.hosts, settings.access_key, settings.open_tailnet, settings.shared)
+    check_gate(settings.gate)
     access = "no key: any device on the tailnet" if settings.open_tailnet else "access key required"
     print(f"Studio 2 on http://127.0.0.1:{settings.port}/  data: {settings.data_dir}"
           f"{'  (fake harness)' if settings.fake else ''}", flush=True)

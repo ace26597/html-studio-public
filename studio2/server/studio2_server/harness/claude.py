@@ -431,6 +431,8 @@ def _studio_tool(tool: str, get) -> tuple[str, str]:
     if tool == "query_database":
         return "execute", f"Query {get('source')}: {get('sql')}"
     if tool == "look_at_page":
+        if get("url"):       # a page of an app the person added as context
+            return "read", f"Look at {get('url')}"
         return "read", f"Look at the page {get('path') or '/'}"
     if tool == "save_template":
         return "other", f"Save the template “{get('name')}”"

@@ -25,7 +25,7 @@ import webbrowser
 from pathlib import Path
 
 from . import __version__, gateway, setup
-from .access import check_settings
+from .access import check_gate, check_settings
 from .config import DEFAULT_PORT, STUDIO2_ROOT, Settings, now_iso, range_for
 
 PORT_STEP = 200         # a studio on P uses P+1…P+99 for pages and P+101…P+199 for their back ends
@@ -193,6 +193,7 @@ def cmd_start(args) -> int:
         settings.port_range = range_for(port)
     try:
         check_settings(settings.hosts, settings.access_key, settings.open_tailnet, settings.shared)
+        check_gate(settings.gate)
     except SystemExit as exc:
         say(str(exc))
         say("Run `studio setup` to choose where the studio runs and who uses it.")

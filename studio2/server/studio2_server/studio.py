@@ -14,8 +14,9 @@ from pathlib import Path
 
 from .effort import DEEP_SKILL
 from . import attach as attaching
+from . import context as contexts
 from . import workspace as ws
-from .access import AccessGuard, known_names, preview_url_for
+from .access import AccessGuard, gate_for, known_names, preview_url_for
 from .apps import Apps
 from .config import REPO_ROOT, Settings, model_gateway, now_iso
 from .datasources import KINDS as DATA_KINDS
@@ -52,9 +53,10 @@ class Studio:
         self.sessions = Sessions(lambda: bool(self.settings.shared), self._project_or_none, self._project_on_port,
                                  folder=self.store.dir, own_names=lambda: self.names | {
                                      h.strip().lower().strip("[]") for h in settings.hosts})
+        self.gate = gate_for(settings)       # one for every port: it keeps the gate's keys
         self.previews = Previews(settings.hosts, tls=settings.tls, guard=lambda app: AccessGuard(
             app, settings.access_key, settings.port, own_login=False, open_tailnet=settings.open_tailnet,
-            names=self.names), sessions=self.sessions)
+            names=self.names, gate=self.gate), sessions=self.sessions)
         self.watchers = Watchers(self._files_changed)
         self.turns = TurnRunner(self)
         self.saved = Templates(settings)
@@ -184,6 +186,7 @@ class Studio:
                 "name_suggestion": project.get("name_suggestion") or None,
                 "approvals": project.get("approvals", "ask"),
                 "data_sources": [i for i in project.get("data_sources") or [] if i in known],
+                "context": project.get("context") or [],
                 "library": project.get("library") or {"skills": {}, "mcp_servers": {}},
                 "uses_template": project.get("uses_template") or None,
                 "from_example": project.get("from_example") or None,
@@ -313,6 +316,7 @@ class Studio:
             ("look", "Look at the page", "Opens the project page in a real browser, takes a screenshot, reads console errors, and can click and type before looking.", look_reason is None, look_reason),
             ("app", "Give the project a back end", "Writes a server (for example Python or Node) that the studio runs and serves at the project URL, with logs and restart.", True, None),
             ("databases", "Query your databases", "Reads from the data sources you attach to a project. Read-only; the assistant never sees the password.", True, None),
+            ("context", "Read your own folders and running apps", "Reads a folder, a file or the address of a running app that you add to a project as context, where it is. Nothing is copied and nothing there is changed.", True, None),
             ("attachments", "Read attached files", "Reads images, PDFs, spreadsheets and text you attach or drop into the project.", True, None),
             ("sources", "Save and quote sources", "Saves every page and document it reads into the project, so each figure can be traced to the words it came from.", True, None),
             ("office", "Make PowerPoint, Word and Excel files", "Builds real files, renders them to check every slide and page, calculates spreadsheet formulas, and shows them inside the page with a download button.", office.reason() is None, office.reason()),
@@ -503,6 +507,9 @@ class Studio:
                 "databases over HTTP: POST JSON `{\"sql\": …, \"limit\": …}` to `$STUDIO_DATA_URL/<name>/query` "
                 "with the header `X-Studio-Token: $STUDIO_TOKEN` (both are environment variables of the app; "
                 "send the token from the server, never from the page).")
+        told = contexts.facts(project.get("context") or [])
+        if told:
+            lines.append(told)
         if self.looker.reason() is None:
             lines.append(
                 "- You can see the page: look_at_page loads it in a real browser and returns screenshot files "
@@ -645,6 +652,43 @@ class Studio:
     # -- attaching an app by its folder -------------------------------------------------------
     def _protected(self) -> list[Path]:
         return [self.settings.data_dir, REPO_ROOT]
+
+    # -- context from this computer (CONTRACT.md, "Context from this computer") --------------
+    async def inspect_context(self, value: str) -> dict:
+        return await contexts.inspect(value, self._protected(), self.settings.home, bool(self.settings.shared))
+
+    async def add_context(self, project_id: str, value: str, label: str | None = None,
+                          note: str | None = None) -> dict:
+        self.store.get(project_id)                      # an unknown project is a 404 before anything is read
+        found = await self.inspect_context(value)
+        if found["refused"]:
+            raise contexts.ContextError("context_refused", found["refused"])
+        if contexts.inside(found["path"], self.store.workspace(project_id)):
+            raise contexts.ContextError("context_refused", "This is already part of the project.")
+        # Read, check and write with no await in between: two adds at once cannot both pass the checks.
+        existing = self.store.get(project_id).get("context") or []
+        item = contexts.new_item(found, label, note, existing)
+        self.store.update(project_id, context=[*existing, item])
+        return item
+
+    def update_context(self, project_id: str, item_id: str, changes: dict) -> dict:
+        items = self.store.get(project_id).get("context") or []
+        current = next((item for item in items if item["id"] == item_id), None)
+        if current is None:
+            raise contexts.ContextError("unknown_context", "This project has no such context item.", 404)
+        changed = dict(current)
+        if changes.get("label") is not None:
+            changed["label"] = contexts.clean_label(changes["label"])
+        if changes.get("note") is not None:
+            changed["note"] = contexts.clean_note(changes["note"])
+        self.store.update(project_id, context=[changed if item["id"] == item_id else item for item in items])
+        return changed
+
+    def remove_context(self, project_id: str, item_id: str) -> None:
+        items = self.store.get(project_id).get("context") or []
+        if not any(item["id"] == item_id for item in items):
+            raise contexts.ContextError("unknown_context", "This project has no such context item.", 404)
+        self.store.update(project_id, context=[item for item in items if item["id"] != item_id])
 
     async def inspect_folder(self, path: str) -> dict:
         return await asyncio.to_thread(attaching.inspect, path, self._protected(), self.settings.home,

@@ -48,14 +48,15 @@ class AttachError(Exception):
 
 
 # -- reading the original ------------------------------------------------------------------
-def _git_read_bytes(folder: Path, args: list[str], stdin: bytes | None = None) -> tuple[int, bytes]:
+def _git_read_bytes(folder: Path, args: list[str], stdin: bytes | None = None,
+                    timeout: float = 60) -> tuple[int, bytes]:
     """A read-only git command on the person's folder. Never writes, never prompts."""
     env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0",
            "GIT_CONFIG_NOSYSTEM": "1"}
     for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
         env.pop(name, None)
     proc = subprocess.run(["git", "-c", "core.quotepath=false", *args], cwd=folder, env=env,
-                          input=stdin, capture_output=True, timeout=60)
+                          input=stdin, capture_output=True, timeout=timeout)
     return proc.returncode, proc.stdout
 
 
@@ -103,7 +104,7 @@ def _tracked(folder: Path) -> list[str]:
     return [name for name in out.split("\0") if name]
 
 
-def _plain_files(folder: Path) -> tuple[list[str], bool]:
+def _plain_files(folder: Path, timeout: float = 120) -> tuple[list[str], bool]:
     """A plain folder's files that its .gitignore keeps, without dependency and build folders.
     Uses a throwaway git directory in the temp folder with the folder as work tree: git reads
     the .gitignore files and writes nothing beside them."""
@@ -116,7 +117,7 @@ def _plain_files(folder: Path) -> tuple[list[str], bool]:
         env = {**os.environ, "GIT_DIR": str(git_dir), "GIT_WORK_TREE": str(folder),
                "GIT_OPTIONAL_LOCKS": "0", "GIT_CONFIG_NOSYSTEM": "1"}
         proc = subprocess.run(["git", "-c", "core.quotepath=false", "ls-files", "-z", "--others",
-                               "--exclude-standard"], cwd=folder, env=env, capture_output=True, timeout=120)
+                               "--exclude-standard"], cwd=folder, env=env, capture_output=True, timeout=timeout)
     names = [name for name in proc.stdout.decode("utf-8", "replace").split("\0") if name]
     names = [name for name in names if not SKIP_DIRS.intersection(name.split("/"))]
     return names[:COUNT_LIMIT], len(names) > COUNT_LIMIT

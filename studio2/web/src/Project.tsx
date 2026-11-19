@@ -22,7 +22,9 @@ import { Icon, Spinner } from "./icons";
 import { offeredName } from "./nameOffer";
 import { LogsDrawer } from "./LogsDrawer";
 import { useCompact, useKeyboardInset } from "./media";
-import { ProjectLibraryPanel } from "./ProjectLibraryPanel";
+import { ProjectLibraryPanel, type LibraryTab } from "./ProjectLibraryPanel";
+import { ContextDialog } from "./ContextDialog";
+import { libraryButtonText, putContextItem, sameContext } from "./context";
 import { MakeSkillDialog, makeSkillEntry } from "./MakeSkillDialog";
 import { signedInEntries } from "./signedInLook";
 import { SaveTemplateDialog } from "./SaveTemplateDialog";
@@ -39,7 +41,18 @@ import { drawingHoldsReload, heldReloadNote, shouldReloadPreview, type ReloadRea
 import { optionsForText } from "./nextSteps";
 import { lastTurn, runningChangedPaths, waitingApprovals, type ApprovalItem, type Turn } from "./thread";
 import type { DecisionState } from "./ThreadView";
-import type { AppInfo, Approvals, Health, Mode, Project, Selection, ShipStepEvent, StudioEvent, TextEdit } from "./types";
+import type {
+  AppInfo,
+  Approvals,
+  ContextItem,
+  Health,
+  Mode,
+  Project,
+  Selection,
+  ShipStepEvent,
+  StudioEvent,
+  TextEdit,
+} from "./types";
 import { IconButton, Menu, useToast, type MenuEntry } from "./ui";
 import { useProjectEvents } from "./useProjectEvents";
 import { VersionsDrawer } from "./VersionsDrawer";
@@ -254,6 +267,12 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   lastSteps.current = lastTurn(thread)?.nextSteps ?? [];
   const shipState = shipButton(project?.ship);
   const attachedCount = project?.data_sources?.length ?? 0;
+  // The library button counts both: the data sources attached and the context items.
+  const libraryButton = libraryButtonText(attachedCount, project?.context?.length ?? 0);
+  /** The Add dialog (`item` null) or the edit dialog for an item; null when closed. */
+  const [contextDialog, setContextDialog] = useState<{ item: ContextItem | null } | null>(null);
+  /** Which tab the library panel should show; null keeps its own default. */
+  const [libraryTab, setLibraryTab] = useState<{ tab: LibraryTab; n: number } | null>(null);
 
   // ---- the project's app ---------------------------------------------------------
   const refreshApp = useCallback(() => {
@@ -715,9 +734,33 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
     if (libraryOpen) closeRight();
     else {
       setSelectedSha(null);
+      setLibraryTab(null);
       openRight("library");
     }
   }, [libraryOpen, closeRight, openRight]);
+
+  // ---- context from this computer -------------------------------------------------
+  /** A chip above the message box: the library panel, on its Context tab. */
+  const openContextTab = useCallback(() => {
+    setSelectedSha(null);
+    setLibraryTab((current) => ({ tab: "context", n: (current?.n ?? 0) + 1 }));
+    openRight("library");
+  }, [openRight]);
+
+  /** The items as the server listed them, or after a removal: chips and counts follow at once. */
+  const setContextItems = useCallback((items: ContextItem[]) => {
+    setProject((current) => (!current || sameContext(current.context, items) ? current : { ...current, context: items }));
+  }, []);
+
+  const contextSaved = useCallback(
+    (item: ContextItem) => {
+      const added = !contextDialog?.item;
+      setContextDialog(null);
+      setProject((current) => (current ? { ...current, context: putContextItem(current.context ?? [], item) } : current));
+      if (added) toast({ message: `Added “${item.label}” as context. The agent is told about it from the next message.`, kind: "success" });
+    },
+    [contextDialog, toast],
+  );
 
   const setAttached = useCallback((ids: string[]) => {
     setProject((current) => {
@@ -854,9 +897,10 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
     {
       label: "Library and data sources",
       icon: "book",
-      hint: attachedCount ? `${attachedCount} attached` : undefined,
+      hint: libraryButton.count ? `${libraryButton.count} for this project` : undefined,
       onSelect: () => {
         setSelectedSha(null);
+        setLibraryTab(null);
         openRight("library");
       },
     },
@@ -1010,7 +1054,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             trigger={(props) => (
               <button type="button" className="icon-btn topbar-more" aria-label="Page menu" {...props}>
                 <Icon name="more" size={18} />
-                {(attachedCount > 0 || appConfigured) && <span className="topbar-more-dot" aria-hidden="true" />}
+                {(libraryButton.count > 0 || appConfigured) && <span className="topbar-more-dot" aria-hidden="true" />}
               </button>
             )}
           />
@@ -1156,23 +1200,15 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             type="button"
             className={`icon-btn lib-btn${libraryOpen ? " is-active" : ""}`}
             aria-pressed={libraryOpen}
-            aria-label={
-              attachedCount
-                ? `Library and data sources (${attachedCount} attached to this project)`
-                : "Library and data sources"
-            }
-            data-tip={
-              attachedCount
-                ? `Library · ${attachedCount} data ${attachedCount === 1 ? "source" : "sources"} attached`
-                : "Library and data sources"
-            }
+            aria-label={libraryButton.label}
+            data-tip={libraryButton.tip}
             data-tip-align="end"
             onClick={toggleLibrary}
           >
             <Icon name="book" size={16} />
-            {attachedCount > 0 && (
+            {libraryButton.count > 0 && (
               <span className="lib-btn-count" aria-hidden="true">
-                {attachedCount}
+                {libraryButton.count}
               </span>
             )}
           </button>
@@ -1388,6 +1424,20 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             onProjectChange={setProject}
             onManage={() => navigate("/library#data-sources")}
             onClose={closeRight}
+            tabRequest={libraryTab}
+            onAddContext={() => setContextDialog({ item: null })}
+            onEditContext={(item) => setContextDialog({ item })}
+            onContextChange={setContextItems}
+          />
+        )}
+
+        {contextDialog && (
+          <ContextDialog
+            projectId={id}
+            item={contextDialog.item}
+            count={project?.context?.length ?? 0}
+            onSaved={contextSaved}
+            onClose={() => setContextDialog(null)}
           />
         )}
 
@@ -1441,6 +1491,8 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             hidden={compact && effectiveMode === "draw"}
             compact={compact}
             canDictate={Boolean(health.transcription?.available)}
+            onAddContext={() => setContextDialog({ item: null })}
+            onOpenContext={openContextTab}
           />
         )}
 

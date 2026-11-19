@@ -12,6 +12,13 @@ runs as you too.
   similar. File writes outside the project are refused. Making an app live and buying
   generated media ask every time, even in a project set to "Allow everything". These rules
   read the command text. They catch ordinary mistakes; they are not a sandbox.
+- **Context you point at.** A folder, file or address added as context is read where it is and
+  is not changed: the agent's file tools cannot write outside the project, and a shell command
+  that names something there to change it asks first. A command that writes as a side effect when
+  run inside such a folder (an install, a build) is not caught by those rules; the agent is told
+  not to run one. Key files and the hidden places in your home folder are refused as context, but
+  the agent's shell is not confined, so that refusal keeps them out of what the agent is pointed
+  at, not out of its reach.
 - **What the agent can reach.** Its shell does not see the secrets the studio was started
   with: variables whose name looks like a key, token, secret or password are blank for it. A
   project's back end gets no keys at all and reaches models and attached databases through
@@ -23,6 +30,14 @@ runs as you too.
   add an address on your own private network, behind an access key. There are no user
   accounts and no isolation between projects yet, so whoever can open the studio can run
   commands on the machine.
+- **If it must be reachable from outside, put a gate in front and let the studio check it.** A
+  service that makes each person prove who they are before it passes a request on (an
+  identity-aware proxy) can stand in front of a tunnel to the studio. Give the studio that
+  service's public keys and audience (`STUDIO2_GATE_KEYS`, `STUDIO2_GATE_AUDIENCE`) and it checks
+  the signed token on every request itself; a request without a good one still needs the access
+  key. Run it in shared mode, so nobody's Claude plan is used for other people. This narrows who
+  can open the studio. It does not change what they can do once inside: everyone let in can run
+  commands on that machine, so the next point still holds.
 - **One trusted person per machine,** until accounts and a container per project exist. The
   agent runs as the same user as the studio, so an agent that set out to could call the
   studio's own interface on this computer and answer its own approval card.

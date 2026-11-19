@@ -16,6 +16,7 @@ from . import workspace as ws
 from .check import check_page, run_sql
 from .datasources import DataError, run_query, run_schema, to_json
 from . import convert, diagram, effort, filecheck, generate, media, nextsteps, office, services
+from . import context as contexts
 from .look import LookUnavailable
 from . import search as web_search
 from .search import SearchError
@@ -185,19 +186,33 @@ async def t_query_database(studio, project_id, args):
 
 
 async def t_look_at_page(studio, project_id, args):
-    path = str(args.get("path") or "/")
-    if not path.startswith("/") and "://" not in path:
-        path = "/" + path          # "index.html" is what the other page tools take
-    if "://" in path or path.startswith("//"):
-        raise ToolError("path must start with / and stay on the project's own URL.")
-    project = await studio.open_preview(studio.store.get(project_id))
+    outside = str(args.get("url") or "").strip()
+    if outside:
+        # A page of an app the person added as context: never with anyone's sign-in (signed_in=False),
+        # since a context address may be another project's page.
+        items = studio.store.get(project_id).get("context") or []
+        target = contexts.page_under(outside, items)
+        if target is None:
+            known = [item["address"] for item in items if item.get("kind") == "address"]
+            raise ToolError("url must be a page under one of this project's context addresses"
+                            + (f" ({', '.join(known)})." if known else
+                               ": it has none. Use path for the project's own page."))
+    else:
+        path = str(args.get("path") or "/")
+        if not path.startswith("/") and "://" not in path:
+            path = "/" + path          # "index.html" is what the other page tools take
+        if "://" in path or path.startswith("//"):
+            raise ToolError("path must start with / and stay on the project's own URL. For a page of an app the "
+                            "person added as context, give its full address as url.")
+        project = await studio.open_preview(studio.store.get(project_id))
+        target = f"http://127.0.0.1:{project['port']}" + path
     try:
         result = await studio.looker.look(
-            f"http://127.0.0.1:{project['port']}" + path, studio.store.dir(project_id) / "looks",
+            target, studio.store.dir(project_id) / "looks",
             width=max(320, min(int(args.get("width") or 1440), 2560)), dark=bool(args.get("dark")),
             full_page=args.get("full_page", True) is not False, wait_ms=int(args.get("wait_ms") or 1200),
             actions=args.get("actions") if isinstance(args.get("actions"), list) else None,
-            top=max(0, int(args.get("top") or 0)))
+            top=max(0, int(args.get("top") or 0)), signed_in=not outside)
     except LookUnavailable as exc:
         raise ToolError(str(exc)) from None
     result["next"] = look_next(result)
@@ -562,8 +577,9 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      "page in readable pieces: `tiles`), what the studio measured on it (`layout`: text cut off, sideways scrolling, "
      "overlaps, small or faint text, missing padding), console errors and failed requests. `width` 1440 is a desktop "
      "(the default), 820 a tablet, 390 a phone. One look covers 6,000 px of height; `top` starts it further down a longer page. `actions` run first: {fill, value}, {click}, {hover}, {press}, {select, value}, {wait_for}, "
-     "{wait_ms}.",
-     _schema({"path": S, "width": I, "dark": B, "full_page": B, "wait_ms": I, "top": I,
+     "{wait_ms}. `url` in place of `path`: the full address of a page under one of the project's context addresses "
+     "(an app the person pointed at), loaded without any sign-in.",
+     _schema({"path": S, "url": S, "width": I, "dark": B, "full_page": B, "wait_ms": I, "top": I,
               "actions": {"type": "array", "items": {"type": "object"}}}, []), t_look_at_page),
     ("check_page", "Check every marked figure and quote on a page against its saved source or project data, and list "
      "numbers that carry no mark. Run it before finishing any page that states facts or figures.",

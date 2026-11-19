@@ -111,6 +111,12 @@ class Settings:
     open_tailnet: bool = False         # Tailscale devices need no key (STUDIO2_OPEN_TAILNET=1); hosts must be tailnet addresses
     tls: tuple[str, str] | None = None  # (certificate file, key file): the extra addresses then speak HTTPS
     names: tuple[str, ...] = ()        # more DNS names the studio answers to (STUDIO2_NAMES); see access.known_names
+    # A gate in front that signs people in (CONTRACT, "Access from other devices"): its signed token
+    # stands in for the access key. (keys address, audiences, header name, issuer or None)
+    gate: tuple[str, tuple[str, ...], str, str | None] | None = None
+    # Names for project pages behind an address that carries one port (STUDIO2_PAGE_HOSTS):
+    # {port: name}, and under None the name with {port} for every other port. See access.page_hosts.
+    page_hosts: dict | None = None
     app_model_daily_usd: float = 2.0   # what one project's back end may spend on models per day (STUDIO2_APP_MODEL_DAILY_USD)
     generate_daily_credits: float = 100.0   # what the studio may spend on generated media per day (STUDIO2_GENERATE_DAILY_CREDITS)
     home: Path = field(default_factory=Path.home)   # where this machine's own skills and MCP servers are read from
@@ -179,6 +185,15 @@ class Settings:
             settings.app_model_daily_usd = max(0.0, float(env.get("STUDIO2_APP_MODEL_DAILY_USD") or 2.0))
         except ValueError:
             settings.app_model_daily_usd = 2.0
+        if (env.get("STUDIO2_PAGE_HOSTS") or "").strip():
+            from .access import page_hosts
+            settings.page_hosts = page_hosts(env["STUDIO2_PAGE_HOSTS"])
+        gate_keys = (env.get("STUDIO2_GATE_KEYS") or "").strip()
+        gate_audience = tuple(a.strip() for a in (env.get("STUDIO2_GATE_AUDIENCE") or "").split(",") if a.strip())
+        if gate_keys or gate_audience:
+            settings.gate = (gate_keys, gate_audience,
+                             (env.get("STUDIO2_GATE_HEADER") or "").strip() or "Cf-Access-Jwt-Assertion",
+                             (env.get("STUDIO2_GATE_ISSUER") or "").strip() or None)
         cert, key = (env.get("STUDIO2_TLS_CERT") or "").strip(), (env.get("STUDIO2_TLS_KEY") or "").strip()
         settings.tls = (str(Path(cert).expanduser()), str(Path(key).expanduser())) if cert and key else None
         return settings

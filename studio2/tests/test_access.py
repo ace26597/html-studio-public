@@ -168,3 +168,75 @@ async def test_with_the_tailnet_open_its_devices_need_no_key_and_nothing_else_ge
             assert (await relayed.get("/api/projects")).status_code == 403
     finally:
         await application.state.studio.stop()
+
+
+async def test_behind_a_tunnel_that_carries_one_port_the_studio_works_at_the_address_as_given(settings):
+    """A tunnel on this machine: loopback connection, a forwarding header, a public name with no port."""
+    application = create_app(dataclasses.replace(settings, access_key=KEY, names=("studio.example.com",)))
+    await application.state.studio.start()
+    try:
+        name = "https://studio.example.com"
+        transport = httpx.ASGITransport(app=application, client=("127.0.0.1", 5555))
+        async with httpx.AsyncClient(transport=transport, base_url=name,
+                                     headers={"X-Forwarded-For": "203.0.113.5", "CF-Connecting-IP": "203.0.113.5"}) as far:
+            assert (await far.get("/api/projects")).status_code == 401          # never local, key needed
+            page = await far.get("/p/x", headers={"Accept": "text/html"})
+            assert page.status_code == 302
+            assert page.headers["location"] == ("https://studio.example.com/login"
+                                                "?next=https%3A%2F%2Fstudio.example.com%2Fp%2Fx")
+            right = await far.post("/login", data={"key": KEY, "next": name + "/p/x"})
+            assert right.status_code == 303 and right.headers["location"] == name + "/p/x"
+            assert "Secure" in right.headers["set-cookie"]
+            cookies = {COOKIE: token_for(KEY)}
+            made = await far.post("/api/projects", json={"name": "Through the tunnel"}, cookies=cookies,
+                                  headers={"Origin": name})
+            assert made.status_code == 201, made.text
+            port = made.json()["port"]
+            assert made.json()["preview_url"] == f"https://studio.example.com/no-page/{port}/"
+            notice = await far.get(f"/no-page/{port}/__studio/files/index.html", cookies=cookies)
+            assert notice.status_code == 404 and "cannot be shown at this address" in notice.text
+            other = await far.post("/api/projects", json={"name": "x"}, cookies=cookies,
+                                   headers={"Origin": "https://studio.example.com:8200"})
+            assert other.status_code == 403
+        async with httpx.AsyncClient(transport=transport, base_url=name,
+                                     headers={"X-Forwarded-For": "203.0.113.5"}) as stranger:
+            assert (await stranger.get(f"/no-page/{port}/")).status_code == 401    # the notice is behind the key too
+        # The same studio opened directly keeps its ports.
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=application),
+                                     base_url="http://127.0.0.1:8200") as near:
+            assert (await near.get("/api/projects")).json()[0]["preview_url"].startswith("http://127.0.0.1:")
+        async with remote_client(application, **{"Cookie": f"{COOKIE}={token_for(KEY)}"}) as lan:
+            assert (await lan.get("/api/projects")).json()[0]["preview_url"].startswith("http://100.64.0.7:")
+    finally:
+        await application.state.studio.stop()
+
+
+async def test_behind_a_tunnel_a_project_page_can_have_a_name_of_its_own(settings):
+    from studio2_server.access import known_names, page_hosts
+    with pytest.raises(SystemExit):
+        page_hosts("8201=site.example.com,nonsense")
+    with pytest.raises(SystemExit):
+        page_hosts("*=pages.example.com")                 # the name for every other port needs {port}
+    with pytest.raises(SystemExit):
+        page_hosts("8201=a.example.com,8201=b.example.com")
+    first = settings.port_range[0]
+    pages = page_hosts(f"{first}=Site.Example.com, *=p{{port}}.pages.example.net")
+    assert pages == {first: "site.example.com", None: "p{port}.pages.example.net"}
+    configured = dataclasses.replace(settings, access_key=KEY, names=("studio.example.com",), page_hosts=pages)
+    assert {"site.example.com", "*.pages.example.net"} <= known_names(configured)
+    application = create_app(configured)
+    await application.state.studio.start()
+    try:
+        name = "https://studio.example.com"
+        transport = httpx.ASGITransport(app=application, client=("127.0.0.1", 5555))
+        async with httpx.AsyncClient(transport=transport, base_url=name, headers={"X-Forwarded-For": "203.0.113.5"},
+                                     cookies={COOKIE: token_for(KEY)}) as far:
+            one = (await far.post("/api/projects", json={"name": "One"}, headers={"Origin": name})).json()
+            two = (await far.post("/api/projects", json={"name": "Two"}, headers={"Origin": name})).json()
+            assert one["port"] == first and one["preview_url"] == "https://site.example.com/"
+            assert two["preview_url"] == f"https://p{two['port']}.pages.example.net/"
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=application),
+                                     base_url="http://127.0.0.1:8200") as near:     # opened directly: ports as ever
+            assert all(p["preview_url"].startswith("http://127.0.0.1:") for p in (await near.get("/api/projects")).json())
+    finally:
+        await application.state.studio.stop()

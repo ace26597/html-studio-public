@@ -11,6 +11,11 @@ is saved as a version you can restore, and a running request can be stopped.
   and marks figures so a check can compare them with the saved source.
 - **Dashboards and data analysis.** From files you drop in (CSV, Parquet, JSON) or from your own
   PostgreSQL, Redshift or MySQL database, read-only.
+- **Answers and pages about code you already have.** Beside "Attach files" in the chat, **Add
+  context** takes the full path of a folder or a file on the studio's computer, or the address
+  where an app is running (`http://localhost:3000`). Nothing is copied or uploaded, so the size of
+  the code does not matter: the agent is told on every request that it is there and searches it
+  where it is. It reads and changes nothing there. More in [apps.md](apps.md).
 - **Apps with their own back end.** A project can run its own server; the studio starts it,
   shows its log and serves it on the project's address.
 - **PowerPoint, Word and Excel files.** Real files, rendered so the agent looks at every slide

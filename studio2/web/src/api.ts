@@ -11,6 +11,9 @@ import type {
   Inspection,
   AppLogs,
   Approvals,
+  ContextInspection,
+  ContextItem,
+  ContextItemWithState,
   DataSource,
   DataSourceInput,
   DataSourceTestResult,
@@ -348,6 +351,16 @@ export const api = {
     request<void>("PUT", `/projects/${enc(id)}/data-sources/${enc(dsId)}`),
   detachDataSource: (id: string, dsId: string) =>
     request<void>("DELETE", `/projects/${enc(id)}/data-sources/${enc(dsId)}`),
+  inspectContext: (value: string, signal?: AbortSignal) =>
+    request<ContextInspection>("POST", "/context/inspect", { value }, signal),
+  listProjectContext: (id: string, signal?: AbortSignal) =>
+    request<ContextItemWithState[]>("GET", `/projects/${enc(id)}/context`, undefined, signal),
+  addProjectContext: (id: string, body: { value: string; label?: string; note?: string }) =>
+    request<ContextItem>("POST", `/projects/${enc(id)}/context`, body),
+  updateProjectContext: (id: string, itemId: string, patch: { label?: string; note?: string }) =>
+    request<ContextItem>("PATCH", `/projects/${enc(id)}/context/${enc(itemId)}`, patch),
+  removeProjectContext: (id: string, itemId: string) =>
+    request<void>("DELETE", `/projects/${enc(id)}/context/${enc(itemId)}`),
   stopTurn: (id: string, turnId: string) => request<unknown>("POST", `/projects/${enc(id)}/turns/${enc(turnId)}/stop`),
 
   eventsUrl: (id: string, after = 0) => `/api/projects/${enc(id)}/events?after=${after}`,

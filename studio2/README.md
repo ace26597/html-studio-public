@@ -33,6 +33,7 @@ The server, by concern:
 | `tools.py`, `search.py`, `sources.py`, `check.py`, `filecheck.py`, `look.py`, `layout.py`, `session.py`, `datasources.py` | The studio's 26 tools for the agent: search, saved sources, the page check, the check of figures in Office files and PDFs, looking at the page (pieces, measurements, and the person's sign-in when they allow it), databases |
 | `office.py`, `convert.py`, `diagram.py`, `media.py`, `generate.py`, `voice.py`, `drawing.py`, `templates.py`, `ownskills.py` | Office files, conversions between document formats, diagrams (Mermaid, kept in `static/vendor/mermaid`), video and pictures, generated media, dictation, drawings, templates, skills a person makes |
 | `attach.py`, `ship.py` | Bringing an app by its folder; making it live |
+| `context.py` | Folders, files and addresses a project points at as read-only context for the agent |
 | `cli.py`, `setup.py`, `setup_api.py`, `doctor.py`, `config.py`, `keystore.py`, `access.py` | The `studio` command, setup, settings, the secret store, access from other devices |
 | `gateway.py`, `modelcheck.py`, `models_api.py` | The LiteLLM the studio runs; "Check this model" |
 | `catalog.py`, `library.py`, `picker.py` | The library index and what is picked per request |
@@ -139,6 +140,9 @@ Where it runs and who may open it:
 | `STUDIO2_HOSTS` | none | Extra addresses to listen on, comma separated. Loopback is always served. Needs an access key unless `STUDIO2_OPEN_TAILNET=1` |
 | `STUDIO2_NAMES` | none | More DNS names the studio answers to, comma separated. It always answers to addresses, `localhost`, the machine's own names and the names in its TLS certificate; any other name gets a 421 page (this stops a website pointing its own name at your studio). Needed behind a proxy or for a name only your router's DNS gives |
 | `STUDIO2_ACCESS_KEY` | the one setup stored | The key other devices sign in with, at least 24 characters |
+| `STUDIO2_PAGE_HOSTS` | none | Names for project pages behind a tunnel or proxy that carries one port: `8403=site.example.com`, and `*=p{port}.example.com` for the rest, comma separated. Whatever is in front must send each name to that port here |
+| `STUDIO2_GATE_KEYS`, `STUDIO2_GATE_AUDIENCE` | none | A gate in front that signs people in (an identity-aware proxy): the `https://` address of its public signing keys and the audience its tokens name. A request whose token verifies needs no access key. Both or neither |
+| `STUDIO2_GATE_HEADER`, `STUDIO2_GATE_ISSUER` | `Cf-Access-Jwt-Assertion`; the scheme and host of the keys address | The header that carries the gate's token, and who must have issued it |
 | `STUDIO2_OPEN_TAILNET` | off | `1`: devices on your Tailscale network need no key. Every address in `STUDIO2_HOSTS` must then be a Tailscale address; refused in a shared studio |
 | `STUDIO2_SHARED` | off | `1`: shared with other people. The Claude plan is switched off and an access key is compulsory |
 | `STUDIO2_TLS_CERT`, `STUDIO2_TLS_KEY` | none | A certificate and its key. The extra addresses then answer over HTTPS only, by the name on the certificate; loopback stays plain HTTP |

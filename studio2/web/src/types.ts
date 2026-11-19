@@ -36,6 +36,8 @@ export interface Project {
   ship?: ShipView | null;
   /** The agent's looks carry the person's sign-in (effective value; false on a shared studio). */
   signed_in_looks?: boolean;
+  /** Context from this computer: folders, files and addresses the agent reads (absent on an older server). */
+  context?: ContextItem[];
 }
 
 // ---- Step 3l: make it live -------------------------------------------------------
@@ -1037,4 +1039,66 @@ export interface CostRecovery {
   recovered: number;
   unmatched: number;
   reason: string | null;
+}
+
+// ---- context from this computer (CONTRACT.md, "Context from this computer") ----------------
+
+export type ContextKind = "folder" | "file" | "address";
+
+/** What a folder's inspection found. `top` and `top_more` only in an inspection, not on an item. */
+export interface ContextFolderFound {
+  git: { branch: string | null; head: string | null; subject: string | null } | null;
+  framework: { id: string; label: string } | null;
+  /** Null (and `partial` true) when the folder could not be counted in time. */
+  files: number | null;
+  bytes: number | null;
+  partial: boolean;
+  key_files: string[];
+  top?: string[];
+  top_more?: number;
+}
+
+export interface ContextFileFound {
+  bytes: number;
+}
+
+export interface ContextAddressFound {
+  reachable: boolean;
+  status: number | null;
+  title: string | null;
+  this_computer: boolean;
+  error?: string | null;
+}
+
+export type ContextFound = ContextFolderFound | ContextFileFound | ContextAddressFound;
+
+export interface ContextItem {
+  id: string;
+  kind: ContextKind;
+  path: string | null;
+  address: string | null;
+  label: string;
+  /** "" when none. */
+  note: string;
+  added_at: string;
+  found: ContextFound | null;
+}
+
+/** In `GET /api/projects/{id}/context` only. */
+export interface ContextState {
+  ok: boolean;
+  problem: string | null;
+}
+
+export type ContextItemWithState = ContextItem & { state?: ContextState };
+
+export interface ContextInspection {
+  kind: ContextKind;
+  path: string | null;
+  address: string | null;
+  label: string;
+  /** Null, or the sentence that says why this cannot be context (`found` is then null). */
+  refused: string | null;
+  found: ContextFound | null;
+  notes: string[];
 }
