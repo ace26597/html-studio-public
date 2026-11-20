@@ -7,6 +7,7 @@ import { recheckFrom, verificationItem, type VerificationItem } from "./effort";
 import { stepsFrom, type NextStep } from "./nextSteps";
 import { asPick } from "./libraryPick";
 import type { FileChange, LibraryPick, PlanEntry, Selection, SkillApprovalInfo, StudioEvent, Usage } from "./types";
+import { answersFrom, questionsFrom, type QuestionItem } from "./questions";
 
 export type TurnStatus = "running" | "completed" | "stopped" | "failed";
 export type ToolStatus = "running" | "ok" | "error" | "cancelled";
@@ -83,7 +84,15 @@ export interface ApprovalItem {
   seq: number;
 }
 
-export type TurnItem = MessageItem | ThoughtItem | ToolItem | CheckpointItem | NoticeItem | ApprovalItem | VerificationItem;
+export type TurnItem =
+  | MessageItem
+  | ThoughtItem
+  | ToolItem
+  | CheckpointItem
+  | NoticeItem
+  | ApprovalItem
+  | QuestionItem
+  | VerificationItem;
 
 /** A message waiting for the running turn to end (`turn_queued`). */
 export interface QueuedMessage {
@@ -448,6 +457,50 @@ function applyEvent(state: ThreadState, event: StudioEvent): ThreadState {
       });
     }
 
+    case "question_request": {
+      if (!event.turn_id || !event.question_id) return state;
+      const turnId = event.turn_id;
+      const asked = questionsFrom(event.questions);
+      return withTurn(state, turnId, seq, ts, (turn) => {
+        if (turn.items.some((item) => item.type === "question" && item.questionId === event.question_id)) return turn;
+        const item: QuestionItem = {
+          type: "question",
+          key: `question:${event.question_id}`,
+          questionId: event.question_id,
+          turnId,
+          why: typeof event.why === "string" ? event.why : "",
+          questions: asked,
+          status: "waiting",
+          by: null,
+          answers: [],
+          seq,
+        };
+        return { ...turn, items: [...turn.items, item] };
+      });
+    }
+
+    case "question_resolved": {
+      if (!event.question_id) return state;
+      const answers = answersFrom(event.answers);
+      for (let index = state.entries.length - 1; index >= 0; index--) {
+        const entry = state.entries[index];
+        if (entry.type !== "turn") continue;
+        const at = entry.items.findIndex((item) => item.type === "question" && item.questionId === event.question_id);
+        if (at === -1) continue;
+        const items = entry.items.slice();
+        items[at] = {
+          ...(items[at] as QuestionItem),
+          status: event.skipped === true ? "skipped" : "answered",
+          by: event.by === "turn_end" ? "turn_end" : "user",
+          answers,
+        };
+        const entries = state.entries.slice();
+        entries[index] = { ...entry, items };
+        return { ...state, entries };
+      }
+      return state;
+    }
+
     case "approval_resolved": {
       if (!event.approval_id) return state;
       const resolve = (item: ApprovalItem): ApprovalItem => ({
@@ -669,6 +722,9 @@ function applyEvent(state: ThreadState, event: StudioEvent): ThreadState {
           if (item.type === "approval") {
             return item.status === "waiting" ? { ...item, status: "denied" as const, by: "turn_end" as const } : item;
           }
+          if (item.type === "question") {
+            return item.status === "waiting" ? { ...item, status: "skipped" as const, by: "turn_end" as const } : item;
+          }
           if (item.type !== "tool") return item;
           const tool = cancelRunning(item.tool);
           return tool === item.tool ? item : { ...item, tool };
@@ -755,6 +811,9 @@ export function latestActivity(state: ThreadState): string | null {
   if (!turn) return null;
   if (turn.items.some((item) => item.type === "approval" && item.status === "waiting")) {
     return "Waiting for your approval";
+  }
+  if (turn.items.some((item) => item.type === "question" && item.status === "waiting")) {
+    return "Waiting for your answer";
   }
   const tools = allTools(turn.items);
   let running: ToolNode | null = null;
@@ -879,6 +938,21 @@ export function turnViewItems(turn: Turn): TurnViewItem[] {
   }
   flush();
   return out;
+}
+
+/** Questions the agent asked that are waiting for the user, oldest first. */
+export function waitingQuestions(state: ThreadState): QuestionItem[] {
+  const out: QuestionItem[] = [];
+  for (const entry of state.entries) {
+    if (entry.type !== "turn" || entry.status !== "running") continue;
+    for (const item of entry.items) if (item.type === "question" && item.status === "waiting") out.push(item);
+  }
+  return out;
+}
+
+/** Everything the running request is waiting on the person for: approvals and questions. */
+export function waitingOnYou(state: ThreadState): number {
+  return waitingApprovals(state).length + waitingQuestions(state).length;
 }
 
 /** Approvals that are waiting for the user, oldest first. */

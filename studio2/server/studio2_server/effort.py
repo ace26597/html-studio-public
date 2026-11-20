@@ -1,4 +1,5 @@
-"""How much a request does (depth) and whether its result is checked (verify).
+"""How much a request does (depth), whether its result is checked (verify), and whether the agent
+asks the person first (ask).
 
 The wording the agent receives lives here and only here, so it can be tuned in one place.
 Standard with verify off adds nothing: the composed message is what it was before this step.
@@ -10,7 +11,7 @@ import re
 
 DEPTHS = ("quick", "standard", "deep")
 DEFAULT = {"depth": "standard", "verify": False}
-KEYS = {"depth", "verify"}                 # the remembered choice; a request may also say check_only or polish
+KEYS = {"depth", "verify", "ask"}          # the remembered choice; a request may also say check_only or polish
 ONCE = {"check_only", "polish"}            # true for one request only, never remembered
 DEEP_SKILL = "studio:deep-research"
 NOT_REPORTED = "Verification was asked for and was not reported."
@@ -93,6 +94,27 @@ POLISH = (
     "dark), and anything you could not check. Put what you only suggest in suggest_next_steps (one step each, "
     "three at most) instead of a long list.")
 
+ASK = (
+    "The person switched on \"Ask me first\": they would rather answer a question than have you decide "
+    "quietly. Before any other work in this request, work out whether something you do not know would change "
+    "what you make: who the result is for and what they do with it, what it should focus on or leave out, how "
+    "it should be laid out or shown (a page, a table, charts, an app), which data, source or period to use, how "
+    "long or detailed it should be.\n"
+    "- Look first at the request, the person's standing instructions for this project, its context and the "
+    "page as it is. Never ask what they already answer, what you can look up, or for permission to go ahead.\n"
+    "- When something that matters is open, call `mcp__studio__ask_person` once, before you build anything, "
+    "with one to four questions: {questions: [{question, choices?: [{label, description}], multiple?}], why?}. "
+    "Give two to five concrete choices wherever choices make sense, put the one you would pick first and say "
+    "in its description why, and set `multiple` when more than one can apply. The person can always answer in "
+    "their own words instead, so do not add an \"Other\" choice. `why` is one sentence on what the answers "
+    "change. The request waits on a card until they answer.\n"
+    "- When the request is already specific (a small edit, a fix, a selected element, a follow-up to answers "
+    "you already have), ask nothing and start.\n"
+    "- A question they leave empty, or a skip, means: decide yourself. Ask a second time in the same request "
+    "only when an answer opened a choice you cannot settle; never a third.\n"
+    "- In your closing message, name in one line each what you assumed for anything you decided without "
+    "asking. Do not repeat their answers back to them.")
+
 POLISH_TEXT = ("Polish the look: see how this page looks on a desktop first, then on a tablet and a phone, fix what "
                "is clearly off, and suggest the rest.")
 
@@ -102,7 +124,8 @@ class OptionsError(ValueError):
 
 
 def clean(raw, request: bool = True) -> dict:
-    """A request's (or, with request=False, a project's) options → {depth, verify}, plus
+    """A request's (or, with request=False, a project's) options → {depth, verify} (and `ask: True`
+    when the person wants to be asked first), plus
     `check_only: True` for a request that only checks the page or `polish: True` for one about
     how it looks. Raises OptionsError on anything unknown."""
     if raw is None:
@@ -132,13 +155,19 @@ def clean(raw, request: bool = True) -> dict:
         polish = False
     if not isinstance(polish, bool):
         raise OptionsError("polish must be true or false.")
+    ask = raw.get("ask", False)
+    if ask is None:
+        ask = False
+    if not isinstance(ask, bool):
+        raise OptionsError("ask must be true or false.")
     if check_only and polish:
         raise OptionsError("check_only and polish cannot both be set: send them as two requests.")
     if check_only:     # a request that only checks the page is a verification
         return {"depth": depth, "verify": True, "check_only": True}
     if polish:
         return {"depth": depth, "verify": verify, "polish": True}
-    return {"depth": depth, "verify": verify}
+    # `ask` is there only when it is on, so a request without it is recorded exactly as before.
+    return {"depth": depth, "verify": verify, **({"ask": True} if ask else {})}
 
 
 def block(options: dict | None) -> str:
@@ -153,6 +182,8 @@ def block(options: dict | None) -> str:
         parts.append(VERIFY)
     if options.get("polish"):
         parts.append(POLISH)
+    if options.get("ask") and not options.get("check_only") and not options.get("polish"):
+        parts.insert(0, ASK)       # first: it is about what happens before the work
     return "<studio-effort>\n" + "\n\n".join(parts) + "\n</studio-effort>" if parts else ""
 
 

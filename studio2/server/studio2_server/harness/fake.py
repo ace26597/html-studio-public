@@ -152,6 +152,7 @@ class FakeHarness:
         if "fail" in low:
             raise RuntimeError("The fake harness was asked to fail (the request contains “fail”).")
         script.plan(steps, 1)
+        answered = await self._ask(script, request, low)
 
         if request.selection:
             reply = await self._edit_selection(script, request.selection, text)
@@ -214,6 +215,8 @@ class FakeHarness:
             page = into_main(page, f"<p>You asked: “{html.escape(text)}”. {NOTE}</p>\n")
             await script.write(page, "Edit index.html (paragraph)")
             reply = "Added a heading and a paragraph that echo your request."
+        if answered:
+            reply = f"{answered} {reply}"
 
         script.plan(steps, 2)
         await self._verify(script, request, low)
@@ -273,6 +276,22 @@ class FakeHarness:
         await self._verify(script, request, (request.text or "").lower())
         await script.say("DONE")
         return TurnResult("completed", session, None, usage())
+
+    @classmethod
+    async def _ask(cls, script: "_Script", request: TurnRequest, low: str) -> str:
+        """With "Ask me first" on, ask two scripted questions (labelled as the fake harness's) before
+        the work, so tests and the mock cover the card ("no questions" in the text leaves them out).
+        → a sentence for the reply saying what came back."""
+        if not (request.options or {}).get("ask") or not request.studio_tool or "no questions" in low:
+            return ""
+        said = await cls._studio_tool(script, request, "ask_person", {
+            "why": "(fake harness) Scripted questions; no model decided to ask them.",
+            "questions": [
+                {"question": "(fake) Who is this for?", "choices": [
+                    {"label": "(fake) The team", "description": "Scripted first choice."},
+                    {"label": "(fake) A customer", "description": "Scripted second choice."}]},
+                {"question": "(fake) Anything it must include?"}]}, "Ask you before starting")
+        return "I asked first. " + said[:200]
 
     @classmethod
     async def _verify(cls, script: "_Script", request: TurnRequest, low: str) -> None:

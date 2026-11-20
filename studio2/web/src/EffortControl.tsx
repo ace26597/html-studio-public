@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { effortLabel, effortSummary } from "./effortRow";
 import { Icon } from "./icons";
+import { ASK_HINT_OFF, ASK_HINT_ON, ASK_LABEL } from "./questions";
 import { Menu, type MenuEntry } from "./ui";
 import {
   DEPTHS,
@@ -50,6 +51,18 @@ export function EffortControl({
         toggle: true,
         onSelect: () => onChange({ ...options, verify: !options.verify }),
       },
+      // Only when the server knows the switch (it sends `ask` with the project).
+      ...(options.ask === undefined
+        ? []
+        : [
+            {
+              label: ASK_LABEL,
+              hint: options.ask ? ASK_HINT_ON : ASK_HINT_OFF,
+              checked: options.ask,
+              toggle: true,
+              onSelect: () => onChange({ ...options, ask: !options.ask }),
+            } satisfies MenuEntry,
+          ]),
       { type: "separator" },
       { label: "Verify content now", icon: "shield", disabled, onSelect: onVerifyPage },
       { label: "Polish the look now", icon: "sparkle", disabled, onSelect: onPolishPage },
@@ -67,13 +80,18 @@ export function EffortControl({
           type="button"
           className="model-btn effort-btn"
           aria-label={effortSummary(options)}
-          data-tip="How much to do, verify the content, polish the look"
+          data-tip={
+            options.ask === undefined
+              ? "How much to do, verify the content, polish the look"
+              : "How much to do, verify the content, ask me first, polish the look"
+          }
           data-tip-side="top"
           data-tip-align="start"
           {...props}
         >
           <span>{effortLabel(options)}</span>
           {options.verify && <Icon name="check" size={12} strokeWidth={2.4} className="effort-btn-check" />}
+          {options.ask && <Icon name="help" size={12} strokeWidth={2.2} className="effort-btn-ask" />}
           <Icon name="chevron-down" size={12} strokeWidth={2} />
         </button>
       )}

@@ -1,6 +1,7 @@
 // Renders the thread model produced by the event reducer.
 
 import { VerificationCard } from "./EffortControl";
+import { QuestionCard, type QuestionActions } from "./QuestionCard";
 import { RECHECK_COVERS, fileProblemLine, recheckHeadline, type Recheck } from "./effort";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { isDrawingAttachment } from "./drawing";
@@ -45,6 +46,9 @@ export interface ThreadActions {
   canRetry: boolean;
   onDecide: (item: ApprovalItem, decision: "allow" | "deny") => void;
   decisions: Record<string, DecisionState>;
+  /** The person answered (or skipped) the agent's questions on a card. */
+  onAnswer?: QuestionActions["onAnswer"];
+  answering?: QuestionActions["answering"];
   /** Where a workspace file can be loaded from for a thumbnail or link, or null when it cannot. */
   fileHref: (path: string) => string | null;
   /** The project's files now, for the cards of files a request made (sizes, and which are gone). */
@@ -653,6 +657,7 @@ const TurnView = memo(function TurnView({
       last.type === "checkpoint" ||
       last.type === "notice" ||
       (last.type === "approval" && last.status !== "waiting") ||
+      (last.type === "question" && last.status !== "waiting") ||
       (last.type === "tool" && last.tool.status !== "running"));
   const usage = usageParts(turn);
   // After the turn the plan is only worth showing if it was left unfinished.
@@ -689,6 +694,14 @@ const TurnView = memo(function TurnView({
               return <Notice key={item.key} item={item} onPutBack={actions.onPutBack} />;
             case "approval":
               return <ApprovalCard key={item.key} item={item} actions={actions} />;
+            case "question":
+              return (
+                <QuestionCard
+                  key={item.key}
+                  item={item}
+                  actions={{ onAnswer: actions.onAnswer ?? (() => {}), answering: actions.answering ?? {} }}
+                />
+              );
             case "verification":
               return (
                 <div key={item.key} className="verification-with-recheck">

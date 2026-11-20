@@ -286,12 +286,20 @@ export const api = {
     if (input.model) body.model = input.model;
     if (input.attachments?.length) body.attachments = input.attachments;
     if (input.queue) body.queue = true;
-    if (input.options && (input.options.depth !== "standard" || input.options.verify)) body.options = input.options;
+    if (input.options && (input.options.depth !== "standard" || input.options.verify || input.options.ask))
+      body.options = input.options;
     return request<TurnAccepted>("POST", `/projects/${enc(id)}/turns`, body);
   },
   unqueue: (id: string, queuedId: string) => request<void>("DELETE", `/projects/${enc(id)}/queue/${enc(queuedId)}`),
   resolveApproval: (id: string, turnId: string, approvalId: string, decision: "allow" | "deny") =>
     request<void>("POST", `/projects/${enc(id)}/turns/${enc(turnId)}/approvals/${enc(approvalId)}`, { decision }),
+  /** The person's answers to the agent's questions, or `{skip: true}`. */
+  answerQuestion: (
+    id: string,
+    turnId: string,
+    questionId: string,
+    body: { answers: { id: string; chosen: string[]; text: string }[] } | { skip: true },
+  ) => request<void>("POST", `/projects/${enc(id)}/turns/${enc(turnId)}/questions/${enc(questionId)}`, body),
 
   getApp: (id: string, signal?: AbortSignal) => request<AppInfo>("GET", `/projects/${enc(id)}/app`, undefined, signal),
   appAction: (id: string, action: AppAction) => request<AppInfo>("POST", `/projects/${enc(id)}/app/${action}`),

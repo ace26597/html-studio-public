@@ -163,7 +163,7 @@ class ProjectPatch(BaseModel):
     model: str | None = None
     approvals: str | None = Field(default=None, pattern="^(ask|allow)$")
     name_suggestion: None = None    # only `null` is accepted: the person dismissed the offered name
-    turn_options: dict | None = None   # the remembered {depth, verify} (effort.py)
+    turn_options: dict | None = None   # the remembered {depth, verify, ask} (effort.py)
     signed_in_looks: bool | None = None   # looks carry the person's sign-in (session.py)
     instructions: Any = None   # what the person always wants in this project (instructions.py)
 
@@ -1197,6 +1197,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         studio.store.get(project_id)
         if studio.turns.active.get(project_id) != turn_id or not studio.turns.answer(turn_id, approval_id, body.decision):
             raise ApiError(404, "unknown_approval", "That request is no longer waiting for an answer.")
+        return Response(status_code=204)
+
+    @app.post("/api/projects/{project_id}/turns/{turn_id}/questions/{question_id}", status_code=204)
+    async def answer_question(project_id: str, turn_id: str, question_id: str, request: Request):
+        from . import questions
+        studio.store.get(project_id)
+        try:
+            body = await request.json()
+        except ValueError:
+            raise ApiError(400, "invalid_answer", "Send {answers: [...]} or {skip: true}.") from None
+        try:
+            waiting = studio.turns.active.get(project_id) == turn_id and studio.turns.reply(turn_id, question_id, body)
+        except questions.QuestionsError as exc:
+            raise ApiError(400, "invalid_answer", str(exc)) from None
+        if not waiting:
+            raise ApiError(404, "unknown_question", "That question is no longer waiting for an answer.")
         return Response(status_code=204)
 
     @app.post("/api/projects/{project_id}/turns/{turn_id}/stop", status_code=202)

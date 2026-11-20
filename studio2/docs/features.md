@@ -19,6 +19,9 @@ is saved as a version you can restore, and a running request can be stopped.
 - **Instructions for one project.** What you always want here, written once in plain words:
   "always use Indian number format", "every report ends with the sources". See
   [Instructions for a project](#instructions-for-a-project) below.
+- **Questions before the work.** Switch on *Ask me first* and the agent asks what it does not
+  know, on a card with choices and a box for your own words, instead of deciding quietly. See
+  [Ask me first](#ask-me-first) below.
 - **Apps with their own back end.** A project can run its own server; the studio starts it,
   shows its log and serves it on the project's address.
 - **PowerPoint, Word and Excel files.** Real files, rendered so the agent looks at every slide
@@ -166,5 +169,28 @@ closing section, a tone, who the reader is. Each project has a box for them.
 
 Context tells the agent *where to look*; instructions tell it *how to work*. Something you want
 in every project of a kind is better as a [skill of your own](#making-a-skill-of-your-own).
+
+## Ask me first
+
+By default the agent decides what it was not told and gets on with it. When you would rather be
+asked, switch on **Ask me first when unsure**: it is in the menu under the depth button
+("Standard") beside the model, and the button shows a small question mark while it is on. It is remembered per
+project.
+
+- **Before it starts, the agent asks what it does not know** when your answer would change the
+  result: who it is for, what to focus on, how to show it, which period or data. Up to four
+  questions on one card.
+- **Each question has choices, a box for your own words, or both.** The agent's own pick comes
+  first. Tap a choice, type instead, or do both; what you type counts for more than the choice.
+- **Leave a question empty and the agent decides it.** **Skip, decide for me** does that for all
+  of them. Either way its answer ends with what it assumed.
+- **A clear request is not held up.** "Change the title to …" starts straight away. The agent
+  is also told to read your [instructions for the project](#instructions-for-a-project) and its
+  context first, and not to ask what they already answer.
+- **The request waits for you**, as it does on an approval card, and the page says so. It asks
+  twice in one request at most. A request that only verifies or polishes never asks.
+
+Your answers belong to that request. Something you find yourself answering every time belongs
+in the project's instructions.
 
 Add your own skills, connectors and databases on the **Library** page.

@@ -9,8 +9,8 @@ export interface Project {
   preview_url: string;
   connection: string;
   model: string | null;
-  /** The remembered depth and verify choice (absent = standard, off). */
-  turn_options?: { depth?: string; verify?: boolean } | null;
+  /** The remembered depth, verify and ask-first choice. `ask` is there only from a server that knows it. */
+  turn_options?: { depth?: string; verify?: boolean; ask?: boolean } | null;
   session_id: string | null;
   running_turn: string | null;
   head: string;
@@ -844,7 +844,7 @@ export interface TurnStartedEvent extends EventBase {
   /** Step 2: set when this turn was a queued message. */
   queued_id?: string | null;
   /** How much to do and whether to verify (absent in older logs = standard, off). */
-  options?: { depth?: string; verify?: boolean; check_only?: boolean; polish?: boolean };
+  options?: { depth?: string; verify?: boolean; ask?: boolean; check_only?: boolean; polish?: boolean };
 }
 /** The result of a verification the person asked for (`report_verification`). */
 export interface VerificationEvent extends EventBase {
@@ -989,6 +989,19 @@ export interface ApprovalResolvedEvent extends EventBase {
   decision: "allow" | "deny" | string;
   by: "user" | "turn_end" | string;
 }
+export interface QuestionRequestEvent extends EventBase {
+  type: "question_request";
+  question_id: string;
+  questions: unknown;
+  why?: string;
+}
+export interface QuestionResolvedEvent extends EventBase {
+  type: "question_resolved";
+  question_id: string;
+  by: "user" | "turn_end" | string;
+  skipped: boolean;
+  answers: unknown;
+}
 export interface AppStatusEvent extends EventBase {
   type: "app_status";
   state: AppState | string;
@@ -1070,6 +1083,8 @@ export type StudioEvent =
   | NoticeEvent
   | TurnQueuedEvent
   | TurnUnqueuedEvent
+  | QuestionRequestEvent
+  | QuestionResolvedEvent
   | ApprovalRequestEvent
   | ApprovalResolvedEvent
   | AppStatusEvent

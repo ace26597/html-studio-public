@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from . import drawing, effort, nextsteps, tools
+from . import drawing, effort, nextsteps, questions, tools
 from .check import check_page
 from .filecheck import NOT_FOUND_WHY, PLACEHOLDER_WHY, check_file, linked_files
 from .config import now_iso
@@ -145,6 +145,10 @@ class TurnRunner:
         self.checked_files: dict[str, list[str]] = {}   # turn id → files check_file ran on in it
         self.reports: dict[str, dict] = {}          # turn id → {failed} of its last report_verification
         self.proposed: dict[str, list[dict]] = {}   # turn id → the agent's suggest_next_steps, cleaned
+        self.options: dict[str, dict] = {}          # turn id → the cleaned options it runs with
+        self.asking: dict[str, dict[str, dict]] = {}    # turn id → question id → {future, questions}
+        self.asked: dict[str, int] = {}             # turn id → how many times ask_person has asked in it
+        self.no_more_asks: set[str] = set()         # turns in which the person skipped the questions
 
     def start(self, project: dict, text: str, selection: dict | None,
               connection_id: str | None, model: str | None,
@@ -257,6 +261,58 @@ class TurnRunner:
                 future.cancel()
             self.studio.log(pid).append("approval_resolved", turn_id, approval_id=approval_id,
                                         decision="deny", by="turn_end")
+
+    # -- questions (CONTRACT.md, "Questions before the work") --------------------------------
+    async def ask_person(self, pid: str, args: dict) -> dict:
+        """The tool `ask_person`: one card, then wait for the person → what the agent is told.
+        Raises questions.QuestionsError when it does not ask (its message says what to do instead)."""
+        turn_id = self.active.get(pid)
+        if turn_id is None:
+            raise questions.QuestionsError(questions.NOBODY)
+        if not (self.options.get(turn_id) or {}).get("ask"):
+            raise questions.QuestionsError(questions.OFF)
+        if turn_id in self.no_more_asks:
+            raise questions.QuestionsError(questions.SKIPPED_BEFORE)
+        if self.asked.get(turn_id, 0) >= questions.MAX_ASKS:
+            raise questions.QuestionsError(questions.TOO_MANY)
+        asked, why, cut = questions.clean(args)
+        self.asked[turn_id] = self.asked.get(turn_id, 0) + 1
+        question_id = "k_" + secrets.token_hex(4)
+        future = asyncio.get_running_loop().create_future()
+        self.asking.setdefault(turn_id, {})[question_id] = {"future": future, "questions": asked}
+        events = self.studio.log(pid)
+        events.append("question_request", turn_id, question_id=question_id, questions=asked, why=why)
+        answers = await future      # cancelled when the turn ends first; _close_questions announces that
+        if self.asking.get(turn_id, {}).pop(question_id, None) is not None:
+            events.append("question_resolved", turn_id, question_id=question_id, by="user",
+                          skipped=answers is None, answers=answers or [])
+        return questions.result(asked, answers, cut)
+
+    def reply(self, turn_id: str, question_id: str, body) -> bool:
+        """The person's answers (or skip). → False when that question is not waiting. Raises
+        questions.QuestionsError when the answers are not ones the card could have sent."""
+        waiting = self.asking.get(turn_id, {}).get(question_id)
+        if waiting is None or waiting["future"].done():
+            return False
+        answers = questions.check(waiting["questions"], body)
+        if answers is None:     # said here, not when the waiting call wakes: nothing may ask in between
+            self.no_more_asks.add(turn_id)
+        waiting["future"].set_result(answers)
+        return True
+
+    def _close_questions(self, pid: str, turn_id: str) -> None:
+        for question_id, waiting in self.asking.pop(turn_id, {}).items():
+            future = waiting["future"]
+            if future.done() and not future.cancelled():
+                # Answered in the instant the turn ended, before the waiting call woke: the record
+                # still says what the person sent (they were told it was taken).
+                answers = future.result()
+                self.studio.log(pid).append("question_resolved", turn_id, question_id=question_id, by="user",
+                                            skipped=answers is None, answers=answers or [])
+                continue
+            future.cancel()
+            self.studio.log(pid).append("question_resolved", turn_id, question_id=question_id,
+                                        by="turn_end", skipped=True, answers=[])
 
     def stop(self, project_id: str, turn_id: str) -> None:
         """Idempotent: cancels the harness once; later calls and unknown turns are no-ops."""
@@ -380,10 +436,14 @@ class TurnRunner:
                 self.studio.approvers.pop(pid, None)
             if self.tasks.get(pid) is me:
                 self.tasks.pop(pid, None)
-            for held in (self.cancellable, self.late_stop, self.verified):
+            for held in (self.cancellable, self.late_stop, self.verified, self.no_more_asks):
                 held.discard(turn_id)
-            for held in (self.harness_tasks, self.checked_pages, self.checked_files, self.reports, self.proposed):
+            for held in (self.harness_tasks, self.checked_pages, self.checked_files, self.reports, self.proposed,
+                         self.options, self.asked):
                 held.pop(turn_id, None)
+            for waiting in self.asking.pop(turn_id, {}).values():
+                if not waiting["future"].done():
+                    waiting["future"].cancel()
             for future in self.pending.pop(turn_id, {}).values():
                 if not future.done():
                     future.cancel()
@@ -454,7 +514,7 @@ class TurnRunner:
             if not project.get("attach"):    # an attached app's ignore file is the person's own
                 await asyncio.to_thread(ws.ensure_ignored, workspace)
             approve = studio.approvers[pid] = self._approver(pid, turn_id)   # studio tools ask through it too
-            options = effort.clean(options)
+            options = self.options[turn_id] = effort.clean(options)
             prepared = await studio.prepare_turn(pid, turn_id, text, connection,   # this request's skills and connectors
                                                  depth=options["depth"],
                                                  check_only=bool(options.get("check_only")))
@@ -500,6 +560,7 @@ class TurnRunner:
         self.cancellable.discard(turn_id)  # from here on the turn only records its outcome
         self.harness_tasks.pop(turn_id, None)
         self._close_approvals(pid, turn_id)
+        self._close_questions(pid, turn_id)
 
         changed_files, unsaved = False, False
         try:

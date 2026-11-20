@@ -21,8 +21,9 @@ import { VoiceButton } from "./VoiceButton";
 import { formatBytes, truncate } from "./format";
 import { Icon, Spinner } from "./icons";
 import { AttachmentList, SelectionChip, ThreadView, type DecisionState } from "./ThreadView";
+import type { QuestionActions } from "./QuestionCard";
 import type { ChatFiles } from "./chatFiles";
-import { latestActivity, waitingApprovals, type ApprovalItem, type NoticeItem, type ThreadState, type Turn } from "./thread";
+import { latestActivity, waitingOnYou, type ApprovalItem, type NoticeItem, type ThreadState, type Turn } from "./thread";
 import { chipList, chipTip, kindIcon } from "./context";
 import { instructionsButton } from "./instructions";
 import type { Approvals, Connection, ContextItem, Project, Selection } from "./types";
@@ -81,6 +82,8 @@ interface ChatProps {
   onRemoveAttachment: (id: string) => void;
   onDecide: (item: ApprovalItem, decision: "allow" | "deny") => void;
   decisions: Record<string, DecisionState>;
+  onAnswer: QuestionActions["onAnswer"];
+  answering: QuestionActions["answering"];
   fileHref: (path: string) => string | null;
   /** The chat's file cards: sizes now, and opening a file (or, with null, the whole list) in Files. */
   chatFiles?: ChatFiles;
@@ -304,6 +307,8 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
     onRemoveAttachment,
     onDecide,
     decisions,
+    onAnswer,
+    answering,
     fileHref,
     chatFiles,
     onOpenFile,
@@ -371,8 +376,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
   const running = thread.runningTurnId !== null;
   const queue = thread.queue;
   const empty = thread.entries.length === 0 && queue.length === 0;
-  const waiting = waitingApprovals(thread);
-  const needsYou = waiting.length > 0;
+  const needsYou = waitingOnYou(thread) > 0;
   const fileInput = useRef<HTMLInputElement>(null);
   const [dropping, setDropping] = useState(false);
   const dropDepth = useRef(0);
@@ -402,7 +406,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
   );
 
   // On a phone an approval would otherwise wait unseen behind the collapsed bar.
-  const waitingCount = waitingApprovals(thread).length;
+  const waitingCount = waitingOnYou(thread);
   const lastWaiting = useRef(waitingCount);
   useEffect(() => {
     if (compact && waitingCount > lastWaiting.current && !open) onOpenChange(true);
@@ -429,7 +433,15 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
   // Stay pinned to the latest message unless the reader scrolled up.
   useLayoutEffect(() => {
     const element = scroller.current;
-    if (element && stick.current) element.scrollTop = element.scrollHeight;
+    if (!element || !stick.current) return;
+    // A waiting question card taller than the panel: show its top (the reason and the first
+    // question), not its end with a Send that is still off.
+    const card = element.querySelector<HTMLElement>(".question-card");
+    if (card && card.offsetHeight > element.clientHeight - 16) {
+      element.scrollTop += card.getBoundingClientRect().top - element.getBoundingClientRect().top - 8;
+      return;
+    }
+    element.scrollTop = element.scrollHeight;
   }, [thread, open]);
 
   // …and when the panel itself changes size (window resize, composer growing).
@@ -519,6 +531,13 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
       canRetry: !running && !starting,
       onDecide,
       decisions,
+      // Once answered, the chat follows the agent's work again (the card may have been read from its top).
+      onAnswer: ((item, body) => {
+        stick.current = true;
+        setShowJump(false);
+        onAnswer(item, body);
+      }) satisfies QuestionActions["onAnswer"],
+      answering,
       fileHref,
       chatFiles,
       onOpenFile,
@@ -528,7 +547,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
       onPutBack: putBackNote,
       busy: starting || queue.length > 0,
     }),
-    [onRetry, onOpenVersion, running, starting, onDecide, decisions, fileHref, chatFiles, onOpenFile, readDrawing, project.id, fillFromStep, putBackNote, queue.length],
+    [onRetry, onOpenVersion, running, starting, onDecide, decisions, onAnswer, answering, fileHref, chatFiles, onOpenFile, readDrawing, project.id, fillFromStep, putBackNote, queue.length],
   );
 
   const activity = running ? latestActivity(thread) : null;
@@ -549,7 +568,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
           className={`chat-fab${running ? " is-running" : ""}${needsYou ? " is-attention" : ""}`}
           aria-label={
             needsYou
-              ? "Open chat. The agent is waiting for your approval"
+              ? "Open chat. The agent is waiting for you"
               : running
                 ? `Open chat. Working: ${activity ?? ""}`
                 : "Open chat"

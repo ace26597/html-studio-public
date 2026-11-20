@@ -4,6 +4,8 @@ export type Depth = "quick" | "standard" | "deep";
 export interface TurnOptions {
   depth: Depth;
   verify: boolean;
+  /** "Ask me first". Left out when the server does not know the switch (it would refuse the option). */
+  ask?: boolean;
   /** Only on a "Verify content" request: the studio picks no skills or connectors by itself. */
   check_only?: boolean;
   /** Only on a "Polish the look" request: about how the page looks, not what it says. */
@@ -45,7 +47,8 @@ export const POLISH_OPTIONS: TurnOptions = { depth: "standard", verify: false, p
 export function projectOptions(raw: unknown): TurnOptions {
   const value = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const depth = DEPTHS.some((d) => d.id === value.depth) ? (value.depth as Depth) : "standard";
-  return { depth, verify: value.verify === true };
+  // `ask` only when the server sent it: an older server refuses an option it does not know.
+  return { depth, verify: value.verify === true, ...(typeof value.ask === "boolean" ? { ask: value.ask } : {}) };
 }
 
 export function depthLine(depth: Depth): string {

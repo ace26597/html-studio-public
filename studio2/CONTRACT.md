@@ -549,6 +549,8 @@ message); they are committed with the turn's checkpoint instead of their own.
 | `turn_unqueued` | `queued_id`, `reason`, `text` | It was removed without running. `reason`: `cancelled` (the person removed it, or the project is being deleted), `stopped` (Stop cleared it), `restart` (the studio restarted), `not_started` (its turn came but it could not start, for example because no connection is left to send it with). `text` is the message's text, so the thread can say what was not sent and offer it again. The thread says so for every reason except `cancelled`, and offers the text back for `stopped` and `not_started` |
 | `approval_request` | `approval_id`, `tool`, `title`, `detail`, `reason`, `skill?` | The agent wants to do something risky and is waiting. `title` is a short line ("Run a shell command"), `detail` the command or path, `reason` why it needs approval |
 | `approval_resolved` | `approval_id`, `decision`, `by` | `decision`: `allow`, `deny`. `by`: `user`, `turn_end` (the turn ended first: always `deny`) |
+| `question_request` | `question_id`, `questions`, `why` | The agent asks the person something and is waiting ("Questions before the work") |
+| `question_resolved` | `question_id`, `by`, `skipped`, `answers` | The person answered or skipped, or the turn ended first |
 | `app_status` | `state`, `exit_code`, `run`, `slow`, `not_answering?` | The project's app changed state, or became `slow` or `not_answering` while `starting`. `turn_id` is the running turn or null |
 
 - Queued messages run in order, each as its own turn, as soon as the turn before ends —
@@ -3200,7 +3202,8 @@ before the request ends (**verify**). Both are remembered per project and sent w
   `polish` together → 400 `invalid_options`.
 - `PATCH /api/projects/{id}` takes `turn_options` (`{depth?, verify?}`, same 400; `check_only` and
   `polish` are properties of one request and are refused here): the project's remembered choice, kept in the
-  project record as `turn_options` (`{depth, verify}`; absent = standard, off).
+  project record as `turn_options` (`{depth, verify}`; absent = standard, off). Both take `ask`
+  too ("Questions before the work"), and the project the API returns always has all three keys.
   A request's own `options` are not saved by sending it; the UI saves the choice when it changes.
 - `turn_started` carries `options` (`{depth, verify}`, always both keys, plus `check_only: true`
   only for a check-only request and `polish: true` only for a polish request). `turn_queued` carries the options of the queued message, and they
@@ -5023,3 +5026,125 @@ has its own; nothing here applies to another project.
   to the agent with every request in this project and only there, that a change applies from
   the next request, and that what is asked for in a message still comes first. While a request
   runs it says that the running request keeps the earlier text.
+
+# Questions before the work (Ask me first)
+
+A request can pause so the agent asks the person what it does not know, instead of deciding
+quietly. The person switches it on; without the switch nothing changes and nothing is asked.
+
+## The switch
+
+- `ask` (boolean) is a third option beside `depth` and `verify` ("How much to do"): accepted in a
+  request's `options` and in `PATCH /api/projects/{id}` `turn_options`, remembered per project,
+  and sent with each request. Anything but a boolean → 400 `invalid_options` (`null` counts as
+  left out, as for `verify`). Left out: off.
+- Cleaned options carry `ask: true` only when it is on (`turn_started`, `turn_queued`, the stored
+  `turn_options`), so a request without it is recorded exactly as before. A `check_only` or
+  `polish` request never asks: `ask` is dropped from it.
+- The project the API returns always has `turn_options` with all three keys
+  (`{depth, verify, ask}`; a project that never chose has `standard`, `false`, `false`). The
+  interface shows the switch only when `turn_options.ask` is a boolean, so an interface built
+  since, on a server started before this existed, hides it (that server would refuse the option).
+
+## What the agent receives
+
+With `ask` on, the `<studio-effort>` block gains one part (the wording is `effort.ASK`, with the
+rest): before any other work, decide whether something it does not know would change what it
+makes (who the result is for, what it should focus on, how it is laid out or shown, which data
+or period, how long or detailed); look first at the request, the project's instructions, its
+context and the existing page, and never ask what they answer; when something that matters is
+open, call `mcp__studio__ask_person` once with one to four questions, choices where choices make
+sense and its own pick first; when the request is already specific, ask nothing and start; say
+in the closing message what it assumed for anything it decided itself. With `ask` off the block
+has no such part and the message is byte for byte what it was.
+
+## The tool `ask_person`
+
+```
+{questions: [{question (≤ 300 chars), choices?: [{label (≤ 80), description? (≤ 200)} | string],
+              multiple?: boolean}],
+ why?: string (≤ 300)}
+```
+
+- The tool's schema asks for objects; a plain string for a question or a choice is taken as its
+  text. White space is folded and texts are cut at a word. A question with no text is dropped. Choices
+  with an empty or repeated label (letter case ignored) are dropped; at most 6 are kept; a
+  question left with fewer than 2 has none and is answered in words. `multiple` counts only with
+  choices. At most 4 questions are kept, numbered `q1`…`q4`. `questions` that is not a list, or
+  that leaves no question → the tool answers with an error.
+- **It waits for the person**, like an approval: one `question_request` event, then the request
+  is paused until the person answers or skips, or the request ends.
+- **When it does not ask** (the tool answers with an error that says what to do instead, and
+  writes no event): `ask` is off for this request ("decide yourself and say what you assumed");
+  no request is running; this request has already asked twice; the person skipped an earlier
+  question in this request.
+- **What it answers.** After an answer: `{answered: true, answers: [{question, chosen: [label],
+  text}], cut, next}`. A question the person left empty has `chosen: []`, `text: ""` and
+  `unanswered: true`. `cut` is how many questions over the limit were not asked. After a skip:
+  `{answered: false, next}`. `next` tells the agent what follows: what the person typed outranks
+  a choice; an unanswered question, or a skip, means decide and say what was assumed; after a
+  skip, do not ask again in this request.
+- The agent program's own `AskUserQuestion` tool is taken away from the agent (and, should it be
+  called all the same, refused with a line that points to `mcp__studio__ask_person` with `ask`
+  on, or says to decide with it off): there is one card, one path.
+- The scripted agent (`STUDIO2_FAKE=1`) asks two questions labelled "(fake)" before its work when
+  `ask` is on, unless the message contains "no questions".
+
+## Events
+
+```json
+{"type": "question_request", "question_id": "k_1a2b3c4d", "why": "The request does not say who reads it.",
+ "questions": [{"id": "q1", "question": "Who is this report for?", "multiple": false,
+                "choices": [{"label": "The board", "description": "Short, figures first."},
+                            {"label": "The sales team", "description": "Detail by region."}]},
+               {"id": "q2", "question": "Which period should it cover?", "multiple": false, "choices": []}]}
+{"type": "question_resolved", "question_id": "k_1a2b3c4d", "by": "user", "skipped": false,
+ "answers": [{"id": "q1", "chosen": ["The board"], "text": ""},
+             {"id": "q2", "chosen": [], "text": "July to September 2026"}]}
+```
+
+`by`: `user`, or `turn_end` (the request ended first, or the studio was restarted while the card
+waited: `skipped: true`, `answers: []`). An answer taken in the instant the request ended is
+still recorded as the person's (`by: "user"`). A skip by
+the person is `by: "user"`, `skipped: true`, `answers: []`. `answers` has one entry per question,
+in order. Every `question_request` is followed by exactly one `question_resolved` before the
+turn's `turn_finished`. While a question waits the project's `running_turn` stays set; Stop ends
+the request as at any other point.
+
+## REST
+
+`POST /api/projects/{id}/turns/{turn_id}/questions/{question_id}` with
+`{answers: [{id, chosen?: [label], text?: string}]}` or `{skip: true}` → 204.
+
+- 404 `unknown_question` when it is not waiting (answered, skipped, or the request has ended).
+- 400 `invalid_answer`: an `id` the card does not have, or one given twice; `chosen` that is not
+  a list of that question's labels, or more than one for a question that is not `multiple`;
+  `text` that is not text or is over 2,000 characters; no question answered and no `skip`.
+- A question left out of `answers` is unanswered. `text` is trimmed and may stand beside a choice
+  or instead of one.
+
+## UI
+
+- **The switch** is in the depth menu ("Standard"), under *Verify after each request*: **Ask me
+  first when unsure**, on or off, like the verify row. The control shows a small question mark
+  when it is on.
+- **The card** appears in the chat where the request paused, like an approval card: the agent's
+  reason (`why`) when it gave one, then each question with its choices (one, or several when
+  `multiple`) and a box for an answer in the person's own words; a question without choices has
+  only the box. **Send answers** is off until one question has an answer; **Skip, decide for
+  me** sends the skip. Once resolved the card becomes a record: each question with what was
+  answered, "No answer" for one left empty, or one line saying the questions were skipped (by the
+  person, or because the request ended first).
+- A waiting question counts as "waiting for you" wherever a waiting approval does (the
+  collapsed chat bar on a phone, the page's title).
+
+## Choices made here
+
+- **Off unless switched on**, per project. Nothing is asked in a project that did not choose it.
+- **The request waits; it does not end.** The answer goes back into the same request, so the
+  agent carries on with everything it had read. A studio restart ends a waiting request like any
+  running one.
+- **Twice per request at most**, four questions each, so a request cannot turn into an
+  interview. A skip ends the asking for that request.
+- **Answers are not kept as instructions.** They belong to the request; what the person always
+  wants goes in "Instructions for a project", which the agent is told to read before asking.

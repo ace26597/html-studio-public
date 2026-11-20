@@ -41,7 +41,8 @@ import { loadString, saveString } from "./storage";
 import type { Theme } from "./theme";
 import { drawingHoldsReload, heldReloadNote, shouldReloadPreview, type ReloadReason } from "./reload";
 import { optionsForText } from "./nextSteps";
-import { lastTurn, runningChangedPaths, waitingApprovals, type ApprovalItem, type Turn } from "./thread";
+import { lastTurn, runningChangedPaths, waitingOnYou, type ApprovalItem, type Turn } from "./thread";
+import type { QuestionActions } from "./QuestionCard";
 import type { DecisionState } from "./ThreadView";
 import type {
   AppInfo,
@@ -117,6 +118,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   const [nameDraft, setNameDraft] = useState("");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [decisions, setDecisions] = useState<Record<string, DecisionState>>({});
+  const [answering, setAnswering] = useState<QuestionActions["answering"]>({});
   const [unqueuing, setUnqueuing] = useState<ReadonlySet<string>>(() => new Set());
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [appError, setAppError] = useState<string | null>(null);
@@ -263,7 +265,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
 
   const { thread, stream, receivedSeq, applyAppInfo } = useProjectEvents(id, onLive, !loadError?.missing);
   const running = thread.runningTurnId !== null;
-  const needsYou = waitingApprovals(thread).length > 0;
+  const needsYou = waitingOnYou(thread) > 0;
   // The chips under the last answer: a message that is exactly one of them goes with its options.
   const lastSteps = useRef(lastTurn(thread)?.nextSteps ?? []);
   lastSteps.current = lastTurn(thread)?.nextSteps ?? [];
@@ -550,6 +552,19 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
         () => {},
         (error) =>
           setDecisions((map) => ({ ...map, [item.approvalId]: { pending: null, error: errorMessage(error) } })),
+      );
+    },
+    [id],
+  );
+
+  const answerQuestion = useCallback<QuestionActions["onAnswer"]>(
+    (item, body) => {
+      const pending = "skip" in body ? "skip" : "send";
+      setAnswering((map) => ({ ...map, [item.questionId]: { pending, error: null } }));
+      api.answerQuestion(id, item.turnId, item.questionId, body).then(
+        // The card becomes a record when `question_resolved` arrives; until then it stays busy.
+        () => {},
+        (error) => setAnswering((map) => ({ ...map, [item.questionId]: { pending: null, error: errorMessage(error) } })),
       );
     },
     [id],
@@ -1498,6 +1513,8 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             onRemoveAttachment={removeAttachment}
             onDecide={decide}
             decisions={decisions}
+            onAnswer={answerQuestion}
+            answering={answering}
             fileHref={fileHref}
             chatFiles={chatFiles}
             onOpenFile={openFileFromChat}

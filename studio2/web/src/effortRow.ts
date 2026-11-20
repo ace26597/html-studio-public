@@ -8,5 +8,7 @@ export function effortLabel(options: TurnOptions): string {
 
 /** What a screen reader hears for the button: "How much to do: Deep, and its content is verified". */
 export function effortSummary(options: TurnOptions): string {
-  return `How much to do: ${effortLabel(options)}${options.verify ? ", and its content is verified" : ""}`;
+  return `How much to do: ${effortLabel(options)}${options.verify ? ", and its content is verified" : ""}${
+    options.ask ? ", and the agent asks you first" : ""
+  }`;
 }

@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 from .effort import DEEP_SKILL
+from . import effort
 from . import attach as attaching
 from . import context as contexts
 from . import workspace as ws
@@ -188,6 +189,8 @@ class Studio:
                 "data_sources": [i for i in project.get("data_sources") or [] if i in known],
                 "context": project.get("context") or [],
                 "instructions": project.get("instructions") or "",
+                # All three keys always: the interface shows "Ask me first" only when `ask` is there.
+                "turn_options": {**effort.DEFAULT, "ask": False, **(project.get("turn_options") or {})},
                 "library": project.get("library") or {"skills": {}, "mcp_servers": {}},
                 "uses_template": project.get("uses_template") or None,
                 "from_example": project.get("from_example") or None,
@@ -817,6 +820,10 @@ class Studio:
             for approval_id in ids:
                 self.log(pid).append("approval_resolved", turn_id, approval_id=approval_id,
                                      decision="deny", by="turn_end")
+        for turn_id, ids in self.log(pid).unanswered().items():
+            for question_id in ids:
+                self.log(pid).append("question_resolved", turn_id, question_id=question_id,
+                                     by="turn_end", skipped=True, answers=[])
         for item in queued:
             self.log(pid).append("turn_unqueued", None, queued_id=item["queued_id"], reason="restart",
                                  text=item.get("text") or "")

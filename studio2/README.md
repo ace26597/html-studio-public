@@ -33,7 +33,7 @@ The server, by concern:
 | `api.py`, `studio.py`, `store.py`, `events.py`, `turns.py` | Routes, the project record, the event log, one agent turn per project at a time |
 | `harness/` (`base.py`, `claude.py`, `fake.py`, `cheap.py`) | The agent program behind one interface: Claude Agent SDK, the scripted agent, the cheap-model call |
 | `workspace.py`, `watcher.py`, `preview.py`, `apps.py`, `static/bridge.js` | A project's folder and git history, live reload, the page proxy, a project's own back end, the select/edit/draw bridge |
-| `tools.py`, `search.py`, `sources.py`, `check.py`, `filecheck.py`, `look.py`, `layout.py`, `session.py`, `datasources.py` | The studio's 26 tools for the agent: search, saved sources, the page check, the check of figures in Office files and PDFs, looking at the page (pieces, measurements, and the person's sign-in when they allow it), databases |
+| `tools.py`, `search.py`, `sources.py`, `check.py`, `filecheck.py`, `look.py`, `layout.py`, `session.py`, `datasources.py` | The studio's 27 tools for the agent: search, saved sources, the page check, the check of figures in Office files and PDFs, looking at the page (pieces, measurements, and the person's sign-in when they allow it), databases |
 | `office.py`, `convert.py`, `diagram.py`, `media.py`, `generate.py`, `voice.py`, `drawing.py`, `templates.py`, `ownskills.py` | Office files, conversions between document formats, diagrams (Mermaid, kept in `static/vendor/mermaid`), video and pictures, generated media, dictation, drawings, templates, skills a person makes |
 | `attach.py`, `ship.py` | Bringing an app by its folder; making it live |
 | `context.py` | Folders, files and addresses a project points at as read-only context for the agent |

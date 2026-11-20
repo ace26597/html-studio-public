@@ -403,12 +403,14 @@ function createProject(name, { createdAt = now(), template = "blank" } = {}) {
       data_sources: [],
       context: [],
       instructions: "",
+      turn_options: { depth: "standard", verify: false, ask: false },
       library: { skills: {}, mcp_servers: {} },
       uses_template: null,
     },
     app: { run: null, state: "none", pid: null, exit_code: null, started_at: null, error: null, lines: [], timers: [] },
     queue: [],
     approvalsWaiting: new Map(),
+    questionsWaiting: new Map(),
     files: new Map(),
     versions: [],
     events: [],
@@ -1080,6 +1082,39 @@ async function runTurn(project, turnId, text, selection, attachments = []) {
     await tool("execute", "Bash", `Run ${command}`, { command }, "(mock) Nothing was installed; the mock server does not run commands.", { ms: 500 });
   };
 
+  // "Ask me first" (or the words "ask me"): two stand-in questions on a card, then the answers echoed.
+  const askFirst = async () => {
+    const question_id = newId("question");
+    const questions = [
+      {
+        id: "q1",
+        question: "(mock) Who is this page for?",
+        multiple: false,
+        choices: [
+          { label: "(mock) The team", description: "Stand-in first choice." },
+          { label: "(mock) A customer", description: "Stand-in second choice." },
+        ],
+      },
+      { id: "q2", question: "(mock) Anything it must include?", multiple: false, choices: [] },
+    ];
+    turn.pendingQuestion = question_id;
+    e("question_request", { question_id, questions, why: "(mock) Stand-in questions; no model decided to ask them." });
+    const answers = await new Promise((resolve, reject) => {
+      if (turn.stopped) return reject(new Stopped());
+      project.questionsWaiting.set(question_id, { questions, resolve });
+      turn.cancel = () => {
+        project.questionsWaiting.delete(question_id);
+        reject(new Stopped());
+      };
+    });
+    turn.cancel = null;
+    turn.pendingQuestion = null;
+    e("question_resolved", { question_id, by: "user", skipped: answers === null, answers: answers ?? [] });
+    if (answers === null) return void (await say("You skipped the questions, so I decided myself. (Mock.)"));
+    const given = answers.filter((a) => a.chosen.length || a.text).map((a) => [...a.chosen, a.text].filter(Boolean).join(" · "));
+    await say(`Thanks. I will work from: ${given.join("; ")}. (Mock: the answers change nothing here.)`);
+  };
+
   const backend = async () => {
     const run = /crash/i.test(text)
       ? "python crash_on_start.py --port $PORT"
@@ -1095,6 +1130,7 @@ async function runTurn(project, turnId, text, selection, attachments = []) {
     if (attachments.length) {
       await say(`I can see ${attachments.length === 1 ? "the attached file" : `${attachments.length} attached files`}: ${attachments.map((item) => `\`${item}\``).join(", ")}.`);
     }
+    if (project.record.turn_options?.ask || /\bask me\b/i.test(text)) await askFirst();
     if (/\brisky\b/i.test(text)) await risky();
     if (/\bbackend\b/i.test(text)) await backend();
     if (/\brender\b/i.test(text)) {
@@ -1208,6 +1244,11 @@ async function runTurn(project, turnId, text, selection, attachments = []) {
     }
   }
 
+  if (turn.pendingQuestion) {
+    project.questionsWaiting.delete(turn.pendingQuestion);
+    e("question_resolved", { question_id: turn.pendingQuestion, by: "turn_end", skipped: true, answers: [] });
+    turn.pendingQuestion = null;
+  }
   if (turn.pendingApproval) {
     project.approvalsWaiting.delete(turn.pendingApproval);
     e("approval_resolved", { approval_id: turn.pendingApproval, decision: "deny", by: "turn_end" });
@@ -2222,6 +2263,10 @@ async function handleApi(req, res, url) {
         }
         project.record.approvals = body.approvals;
       }
+      if (body.turn_options && typeof body.turn_options === "object") {
+        const depth = ["quick", "standard", "deep"].includes(body.turn_options.depth) ? body.turn_options.depth : "standard";
+        project.record.turn_options = { depth, verify: body.turn_options.verify === true, ask: body.turn_options.ask === true };
+      }
       if ("instructions" in body) {
         if (body.instructions !== null && typeof body.instructions !== "string") {
           throw new HttpError(400, "invalid_request", "Instructions are plain text.");
@@ -2382,6 +2427,32 @@ async function handleApi(req, res, url) {
     if (!resolve) throw new HttpError(404, "unknown_approval", "That approval is not waiting any more.");
     project.approvalsWaiting.delete(segments[5]);
     resolve(body.decision);
+    res.writeHead(204);
+    return res.end();
+  }
+
+  if (segments[2] === "turns" && segments[4] === "questions" && segments.length === 6 && method === "POST") {
+    const body = await readJson(req);
+    const waiting = project.turn?.id === segments[3] ? project.questionsWaiting.get(segments[5]) : null;
+    if (!waiting) throw new HttpError(404, "unknown_question", "That question is no longer waiting for an answer.");
+    let answers = null;
+    if (body.skip !== true) {
+      if (!Array.isArray(body.answers)) throw new HttpError(400, "invalid_answer", "answers must be a list of {id, chosen?, text?}.");
+      answers = waiting.questions.map((question) => {
+        const given = body.answers.find((item) => item && item.id === question.id) ?? {};
+        const labels = question.choices.map((choice) => choice.label);
+        const chosen = Array.isArray(given.chosen) ? given.chosen : [];
+        if (chosen.some((label) => !labels.includes(label)) || (chosen.length > 1 && !question.multiple)) {
+          throw new HttpError(400, "invalid_answer", "chosen must be a list of that question's own choices.");
+        }
+        return { id: question.id, chosen, text: typeof given.text === "string" ? given.text.trim().slice(0, 2000) : "" };
+      });
+      if (!answers.some((answer) => answer.chosen.length || answer.text)) {
+        throw new HttpError(400, "invalid_answer", "Answer at least one question, or skip them.");
+      }
+    }
+    project.questionsWaiting.delete(segments[5]);
+    waiting.resolve(answers);
     res.writeHead(204);
     return res.end();
   }

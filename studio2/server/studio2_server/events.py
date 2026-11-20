@@ -98,6 +98,16 @@ class EventLog:
                 open_turns.remove(event["turn_id"])
         return open_turns
 
+    def unanswered(self) -> dict[str, list[str]]:
+        """→ {turn id: ids of question cards never resolved} ("Questions before the work")."""
+        asked: dict[str, list[str]] = {}
+        for event in self.read():
+            if event["type"] == "question_request":
+                asked.setdefault(event["turn_id"], []).append(event["question_id"])
+            elif event["type"] == "question_resolved" and event["question_id"] in asked.get(event["turn_id"], []):
+                asked[event["turn_id"]].remove(event["question_id"])
+        return {turn: ids for turn, ids in asked.items() if ids}
+
     def unresolved(self) -> tuple[list[dict], dict[str, list[str]]]:
         """→ (queued messages never started or removed, {turn id: approval ids never answered})."""
         queued: dict[str, dict] = {}

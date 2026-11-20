@@ -542,6 +542,15 @@ async def t_suggest_next_steps(studio, project_id: str, args: dict) -> dict:
     return {"kept": len(kept), "cut": cut}
 
 
+async def t_ask_person(studio, project_id: str, args: dict) -> dict:
+    """Ask the person on a card and wait for the answer (CONTRACT.md, "Questions before the work")."""
+    from . import questions
+    try:
+        return await studio.turns.ask_person(project_id, args)
+    except questions.QuestionsError as exc:
+        raise ToolError(str(exc)) from None
+
+
 def _schema(properties: dict, required: list[str]) -> dict:
     return {"type": "object", "properties": properties, "required": required, "additionalProperties": False}
 
@@ -702,6 +711,19 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      "cannot join the request that is running: the studio connects it when the person sends their next message, so "
      "say so plainly. `reason`: what you need it for.",
      _schema({"id": S, "reason": S}, ["id"]), t_request_connector),
+    ("ask_person", "Ask the person one to four questions on a card and wait for their answers, when they switched "
+     "on \"Ask me first\" and something you do not know would change what you make. Each question may have "
+     "`choices` (two to six, each a label and a short description; put your own pick first) and `multiple` when "
+     "more than one can apply; without choices they answer in words, and they can always type their own answer. "
+     "`why`: one sentence on what the answers change. They may skip: then decide yourself and say what you "
+     "assumed. Twice per request at most. It answers with an error, and you decide yourself, when the person has "
+     "not switched questions on.",
+     _schema({"questions": {"type": "array", "items": {"type": "object", "properties": {
+                  "question": S, "multiple": B,
+                  "choices": {"type": "array", "items": {"type": "object", "properties": {"label": S, "description": S},
+                                                         "required": ["label"]}}},
+                  "required": ["question"]}},
+              "why": S}, ["questions"]), t_ask_person),
 ]
 HANDLERS = {name: handler for name, _d, _s, handler in TOOLS}
 

@@ -40,6 +40,7 @@ from ..config import STUDIO2_ROOT, TRANSLATED_KINDS, connection_key, environment
 from ..risk import risky_command
 from .. import workspace as ws
 from .. import prices
+from .. import questions
 from .base import Emit, TurnRequest, TurnResult, empty_usage, public_connection
 
 LIBRARY_DIR = STUDIO2_ROOT / "library"
@@ -319,6 +320,9 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
     async def can_use_tool(tool_name, tool_input, _context):
         if tool_name in WRITE_TOOLS.split("|") and outside_workspace(workspace, tool_input):
             return PermissionResultDeny(message="Files outside the project folder cannot be changed.")
+        if tool_name == questions.BUILT_IN:     # one card, one path: the studio's own ask_person
+            return PermissionResultDeny(
+                message=questions.BUILT_IN_ON if (request.options or {}).get("ask") else questions.OFF)
         if tool_name == "Bash":
             command = str(tool_input.get("command") or "")
             # In place, the folder's own .git is the person's repository: git that discards work asks.
@@ -363,6 +367,9 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
         # The shell itself is not confined: same trust as running Claude Code locally.
         permission_mode="acceptEdits",
         can_use_tool=can_use_tool,
+        # The agent program's own question tool is taken away: the studio asks through `ask_person`,
+        # on a card the person sees, and only when they switched "Ask me first" on.
+        disallowed_tools=[questions.BUILT_IN],
         hooks={"PreToolUse": guards},
         # [] = load no user/project/local settings: the person's own ~/.claude settings, hooks,
         # CLAUDE.md and permissions are not inherited. strict_mcp_config drops their MCP servers.
@@ -455,6 +462,8 @@ def _studio_tool(tool: str, get) -> tuple[str, str]:
         return "read", f"Look at the page {get('path') or '/'}"
     if tool == "save_template":
         return "other", f"Save the template “{get('name')}”"
+    if tool == "ask_person":
+        return "other", "Ask you before starting"
     if tool == "save_skill":
         return "other", f"{'Replace' if get('replace') else 'Save'} the skill “{get('name')}”"
     if tool == "render_document":
