@@ -3038,6 +3038,61 @@ a.attachment:hover {
   border-radius: 13px;
 }
 
+/* Instructions for a project: the button under the message box and the dialog */
+
+.instructions-btn {
+  position: relative;
+}
+
+.instructions-btn.is-on {
+  color: var(--accent-text);
+}
+
+.instructions-btn.is-on::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--surface);
+}
+
+.instructions-text {
+  min-height: 180px;
+  max-height: 52vh;
+}
+
+.instructions-under {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.instructions-under .field-hint {
+  margin: 0;
+}
+
+.instructions-count {
+  flex: none;
+  color: var(--text-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.instructions-count.is-over {
+  color: var(--err);
+  font-weight: 600;
+}
+
+.instructions-clear {
+  margin-right: auto;
+}
+
 .send-btn.is-queue {
   background: var(--accent-soft);
   color: var(--accent-text);

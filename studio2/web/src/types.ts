@@ -38,6 +38,8 @@ export interface Project {
   signed_in_looks?: boolean;
   /** Context from this computer: folders, files and addresses the agent reads (absent on an older server). */
   context?: ContextItem[];
+  /** What the person always wants in this project, in their words; "" when none (absent on an older server). */
+  instructions?: string;
 }
 
 // ---- Step 3l: make it live -------------------------------------------------------

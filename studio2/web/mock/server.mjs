@@ -402,6 +402,7 @@ function createProject(name, { createdAt = now(), template = "blank" } = {}) {
       approvals: "ask",
       data_sources: [],
       context: [],
+      instructions: "",
       library: { skills: {}, mcp_servers: {} },
       uses_template: null,
     },
@@ -2220,6 +2221,16 @@ async function handleApi(req, res, url) {
           throw new HttpError(400, "bad_request", "approvals must be \"ask\" or \"allow\".");
         }
         project.record.approvals = body.approvals;
+      }
+      if ("instructions" in body) {
+        if (body.instructions !== null && typeof body.instructions !== "string") {
+          throw new HttpError(400, "invalid_request", "Instructions are plain text.");
+        }
+        const text = (body.instructions ?? "").replace(/\r\n?/g, "\n").split("\n").map((line) => line.replace(/[ \t]+$/, "")).join("\n").trim();
+        if (Array.from(text).length > 4000) {
+          throw new HttpError(400, "invalid_request", `Instructions can be 4,000 characters at most; this is ${Array.from(text).length.toLocaleString("en-US")}.`);
+        }
+        project.record.instructions = text;
       }
       project.record.updated_at = now();
       return json(res, 200, project.record);

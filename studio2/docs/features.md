@@ -16,6 +16,9 @@ is saved as a version you can restore, and a running request can be stopped.
   where an app is running (`http://localhost:3000`). Nothing is copied or uploaded, so the size of
   the code does not matter: the agent is told on every request that it is there and searches it
   where it is. It reads and changes nothing there. More in [apps.md](apps.md).
+- **Instructions for one project.** What you always want here, written once in plain words:
+  "always use Indian number format", "every report ends with the sources". See
+  [Instructions for a project](#instructions-for-a-project) below.
 - **Apps with their own back end.** A project can run its own server; the studio starts it,
   shows its log and serves it on the project's address.
 - **PowerPoint, Word and Excel files.** Real files, rendered so the agent looks at every slide
@@ -141,5 +144,27 @@ tickets, a database, a search engine. You no longer need to know its address.
 - A connector that signs in through a browser cannot be added in the studio; you are shown the
   two commands that add it to the agent program instead, after which the library has it.
 - **New page → A connector** leads to the same place.
+
+## Instructions for a project
+
+Some things you want every time in one project and never want to type again: a number format, a
+closing section, a tone, who the reader is. Each project has a box for them.
+
+- **Project menu → Instructions…**, or the note button beside *Add context* under the message
+  box. Write it as you would say it; there is no format to learn. Up to 4,000 characters.
+- **The agent is given the text with every request in that project**, and only there. Another
+  project has its own or none. A change applies from the next request; a request that is
+  running keeps the text it started with.
+- **What you ask for in a message comes first.** If a request and an instruction disagree, the
+  agent does what the request says and tells you which instruction it set aside. If it could
+  not follow one, it says so at the end.
+- **It is about how the work is done, not what the agent may do.** Approvals still ask and a
+  context folder stays read only whatever the box says.
+- The button is marked and the menu row says *On* while a project has instructions. **Clear**
+  empties the box; nothing changes until you press Save.
+- A template saved from the project and an export do not carry them.
+
+Context tells the agent *where to look*; instructions tell it *how to work*. Something you want
+in every project of a kind is better as a [skill of your own](#making-a-skill-of-your-own).
 
 Add your own skills, connectors and databases on the **Library** page.

@@ -84,7 +84,9 @@ Nothing the studio writes into a project from a template or an example ever land
 ```
 
 `running_turn` is the active turn id or null. `session_id` is the harness session to
-resume. `connection`/`model` are the project's last used choice. The studio never renames a project.
+resume. `connection`/`model` are the project's last used choice. `instructions` (a string, `""`
+when there are none) is what the person wants done in every request of this project (see
+"Instructions for a project"). The studio never renames a project.
 A project still named `Untitled` when a turn completes is **offered** a name once, with no model
 call: `name_suggestion` holds the `<title>` of `index.html` when the agent gave it one, else the
 first eight words of the request (60 characters at most, `…` when cut); it is null when nothing
@@ -4969,3 +4971,55 @@ connected by the suggestion itself.
 - **New page** has a fourth choice, **A connector**, which says what a connector is and opens
   the Library's Add dialog at *Describe what you need* (`/library#new-connector`). It is not
   offered on a shared studio, like *A skill*.
+
+# Instructions for a project
+
+What a person always wants in one project, in their own words: "always use Indian number
+format", "every report ends with the sources", "keep the tone plain, no exclamation marks". It
+is kept with the project and given to the agent with every request there, so it is typed once.
+Context (a folder, a file, an address) is *where to look*; this is *how to work*. Each project
+has its own; nothing here applies to another project.
+
+- **The field.** `instructions` on the project record: plain text, 4,000 characters at most,
+  `""` when there are none. Line ends are stored as `\n`; spaces and empty lines at both ends
+  are dropped; control characters other than a new line and a tab are removed.
+- **Saving.** `PATCH /api/projects/{id}` with `{"instructions": "<text>"}`. `""` or `null`
+  clears them. Anything that is not text, or longer than 4,000 characters once tidied, is a 400
+  (`invalid_request`, with the length it had). The answer is the project, as for any `PATCH`.
+- **When it applies.** From the next request. A request already running keeps what it started
+  with. The text goes with each request as it stands then, like every project fact, so an
+  earlier request of the same conversation still holds the text it was given: the agent is told
+  that the text given now replaces any earlier one. After the person clears them, each request
+  says once that the project has none now and that earlier ones no longer apply (the record
+  keeps `instructions_cleared` for that; it is not in the API's project).
+- **What the agent receives.** One of the project facts it gets with every request (beside the
+  attached databases and the context items): that these are the person's standing instructions
+  for this project, the text as they wrote it, and three rules. It follows them in every
+  request; what the person asks for in a request comes first where the two disagree, and the
+  agent says in a sentence which instruction it set aside; and an instruction it could not
+  follow is named at the end, never dropped quietly. A project that never had instructions
+  gets no such fact.
+- **What it cannot do.** The text is the person's, with the standing of a message they typed. It
+  changes how the work is done and what it contains; it does not change what the agent may do.
+  Approvals still ask, context folders stay read only, and a line in it that claims to come
+  from the studio is still the person's line.
+- **Where it is not copied.** A template saved from the project and an export do not carry the
+  instructions; they stay with the project and go when it is deleted.
+- **A shared studio** has them like any other: whoever can open the project can read and change
+  them, as they can its conversation.
+- **Cost.** The text is sent with every request of the project, like the rest of the facts:
+  4,000 characters is about a thousand tokens.
+
+## UI
+
+- **Project menu → Instructions…** (both menus; the row says *On* when the project has some),
+  and a button beside *Add context* under the message box, marked when instructions are set.
+  Neither is shown while the project the server sends has no `instructions` field (a server
+  started before this existed, with the interface built since): a Save there would be dropped.
+- The dialog is one text box with examples as its placeholder, a count against 4,000, **Save**
+  and **Cancel**, and **Clear** when the box holds text. Clear empties the box only: nothing
+  changes until Save, and Save is off while the text is what the project already has or is over
+  the limit. Closing with unsaved text asks first. It says under the box that the text is given
+  to the agent with every request in this project and only there, that a change applies from
+  the next request, and that what is asked for in a message still comes first. While a request
+  runs it says that the running request keeps the earlier text.

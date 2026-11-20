@@ -24,6 +24,8 @@ import { LogsDrawer } from "./LogsDrawer";
 import { useCompact, useKeyboardInset } from "./media";
 import { ProjectLibraryPanel, type LibraryTab } from "./ProjectLibraryPanel";
 import { ContextDialog } from "./ContextDialog";
+import { InstructionsDialog } from "./InstructionsDialog";
+import { instructionsEntries, instructionsKept, instructionsSavedMessage } from "./instructions";
 import { libraryButtonText, putContextItem, sameContext } from "./context";
 import { MakeSkillDialog, makeSkillEntry } from "./MakeSkillDialog";
 import { signedInEntries } from "./signedInLook";
@@ -271,6 +273,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   const libraryButton = libraryButtonText(attachedCount, project?.context?.length ?? 0);
   /** The Add dialog (`item` null) or the edit dialog for an item; null when closed. */
   const [contextDialog, setContextDialog] = useState<{ item: ContextItem | null } | null>(null);
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
   /** Which tab the library panel should show; null keeps its own default. */
   const [libraryTab, setLibraryTab] = useState<{ tab: LibraryTab; n: number } | null>(null);
 
@@ -938,6 +941,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
       onSelect: () => setSavingTemplate(true),
     },
     makeSkillEntry(() => setMakingSkill(true)),
+    ...instructionsEntries(project, () => setInstructionsOpen(true)),
     {
       label: "Export…",
       icon: "download",
@@ -1261,6 +1265,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
                 onSelect: () => setSavingTemplate(true),
               },
               makeSkillEntry(() => setMakingSkill(true)),
+              ...instructionsEntries(project, () => setInstructionsOpen(true)),
               {
                 label: "Export…",
                 icon: "download",
@@ -1441,6 +1446,20 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
           />
         )}
 
+        {instructionsOpen && project && instructionsKept(project) && (
+          <InstructionsDialog
+            projectId={id}
+            saved={project.instructions ?? ""}
+            running={running}
+            onSaved={(next, text) => {
+              setInstructionsOpen(false);
+              setProject((current) => (current ? { ...current, instructions: next.instructions ?? "" } : current));
+              toast({ message: instructionsSavedMessage(text), kind: "success" });
+            }}
+            onClose={() => setInstructionsOpen(false)}
+          />
+        )}
+
         {logsOpen && <LogsDrawer projectId={id} app={thread.app} onClose={closeRight} />}
 
         {costOpen && <CostDialog projectId={id} running={running} onClose={() => setCostOpen(false)} />}
@@ -1493,6 +1512,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             canDictate={Boolean(health.transcription?.available)}
             onAddContext={() => setContextDialog({ item: null })}
             onOpenContext={openContextTab}
+            onOpenInstructions={instructionsKept(project) ? () => setInstructionsOpen(true) : undefined}
           />
         )}
 

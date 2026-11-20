@@ -11,6 +11,7 @@ import tempfile
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 import httpx
 from fastapi import Body, FastAPI, File, Form, Header, Request, UploadFile
@@ -23,7 +24,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from uvicorn.server import ServerState
 
 from . import __version__
-from . import drawing, effort, generate, voice
+from . import drawing, effort, generate, instructions, voice
 from . import models_api, setup_api
 from .attach import AttachError
 from . import context as contexts
@@ -164,6 +165,7 @@ class ProjectPatch(BaseModel):
     name_suggestion: None = None    # only `null` is accepted: the person dismissed the offered name
     turn_options: dict | None = None   # the remembered {depth, verify} (effort.py)
     signed_in_looks: bool | None = None   # looks carry the person's sign-in (session.py)
+    instructions: Any = None   # what the person always wants in this project (instructions.py)
 
 
 class FilePut(BaseModel):
@@ -431,6 +433,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             changes["approvals"] = body.approvals
         if body.turn_options is not None:
             changes["turn_options"] = checked_options(body.turn_options, request=False)
+        if "instructions" in body.model_fields_set:
+            try:
+                changes["instructions"] = instructions.clean(body.instructions)
+                # Cleared after having some: the agent is told once per request that none apply now.
+                changes["instructions_cleared"] = not changes["instructions"] and bool(
+                    project.get("instructions") or project.get("instructions_cleared"))
+            except instructions.InstructionsError as exc:
+                raise ApiError(400, "invalid_request", str(exc)) from None
         if body.signed_in_looks is not None:
             if body.signed_in_looks and settings.shared:
                 raise ApiError(403, "not_for_shared", "On a shared studio the agent never sees an app signed in "

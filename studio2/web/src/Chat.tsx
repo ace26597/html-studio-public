@@ -24,6 +24,7 @@ import { AttachmentList, SelectionChip, ThreadView, type DecisionState } from ".
 import type { ChatFiles } from "./chatFiles";
 import { latestActivity, waitingApprovals, type ApprovalItem, type NoticeItem, type ThreadState, type Turn } from "./thread";
 import { chipList, chipTip, kindIcon } from "./context";
+import { instructionsButton } from "./instructions";
 import type { Approvals, Connection, ContextItem, Project, Selection } from "./types";
 import { IconButton, Menu, useToast, type MenuEntry } from "./ui";
 
@@ -101,6 +102,8 @@ interface ChatProps {
   onAddContext?: () => void;
   /** A context chip: opens the project's panel on its Context tab. */
   onOpenContext?: () => void;
+  /** "Instructions" beside "Add context": what the person always wants in this project. */
+  onOpenInstructions?: () => void;
 }
 
 function ApprovalsMenu({ value, onChange }: { value: Approvals; onChange: (value: Approvals) => void }) {
@@ -315,7 +318,9 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
     canDictate = false,
     onAddContext,
     onOpenContext,
+    onOpenInstructions,
   } = props;
+  const standing = instructionsButton(project);
   const toast = useToast();
   // Where the caret was when dictation began, if the box had focus and the draft hasn't changed since.
   const dictationCaret = useRef<{ draft: string; start: number; end: number } | null>(null);
@@ -860,6 +865,17 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
               tipAlign="start"
               className="attach-btn ctx-add-btn"
               onClick={onAddContext}
+            />
+          )}
+          {onOpenInstructions && (
+            <IconButton
+              icon="note"
+              label={standing.label}
+              tip={standing.tip}
+              tipSide="top"
+              tipAlign="start"
+              className={`attach-btn instructions-btn${standing.on ? " is-on" : ""}`}
+              onClick={onOpenInstructions}
             />
           )}
           {recordingOk && (

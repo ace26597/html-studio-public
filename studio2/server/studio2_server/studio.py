@@ -24,7 +24,7 @@ from .datasources import DataSources, KeychainSecrets, MemorySecrets, driver_ava
 from .events import EventHub, EventLog
 from .examples import Examples
 from .harness import Registry, empty_usage
-from . import generate, media, nextsteps, office, services, ship as shipping, tools
+from . import generate, instructions, media, nextsteps, office, services, ship as shipping, tools
 from .modelcheck import ModelChecks
 from .costs import CURRENT_TURN, RESTART_ERROR, Costs
 from .library import KeychainJson, Library, MemoryJson
@@ -181,12 +181,13 @@ class Studio:
         """The Project object the API returns."""
         app = self.apps.get(project["id"])
         known = {item["id"] for item in self.data.list()}
-        public = {key: value for key, value in project.items() if key not in ("token", "name_offered")}
+        public = {key: value for key, value in project.items() if key not in ("token", "name_offered", "instructions_cleared")}
         return {**public, "preview_url": preview_url_for(project["port"]),
                 "name_suggestion": project.get("name_suggestion") or None,
                 "approvals": project.get("approvals", "ask"),
                 "data_sources": [i for i in project.get("data_sources") or [] if i in known],
                 "context": project.get("context") or [],
+                "instructions": project.get("instructions") or "",
                 "library": project.get("library") or {"skills": {}, "mcp_servers": {}},
                 "uses_template": project.get("uses_template") or None,
                 "from_example": project.get("from_example") or None,
@@ -513,6 +514,9 @@ class Studio:
         told = contexts.facts(project.get("context") or [])
         if told:
             lines.append(told)
+        standing = instructions.fact(project.get("instructions"), bool(project.get("instructions_cleared")))
+        if standing:
+            lines.append(standing)
         if self.looker.reason() is None:
             lines.append(
                 "- You can see the page: look_at_page loads it in a real browser and returns screenshot files "

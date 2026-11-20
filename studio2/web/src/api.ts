@@ -241,6 +241,7 @@ export const api = {
       name_suggestion?: null;
       turn_options?: TurnOptions;
       signed_in_looks?: boolean;
+      instructions?: string;
     },
   ) =>
     request<Project>("PATCH", `/projects/${enc(id)}`, patch),
