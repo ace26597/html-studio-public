@@ -543,7 +543,7 @@ async def t_suggest_next_steps(studio, project_id: str, args: dict) -> dict:
 
 
 async def t_ask_person(studio, project_id: str, args: dict) -> dict:
-    """Ask the person on a card and wait for the answer (CONTRACT.md, "Questions before the work")."""
+    """Put a card to the person and wait for the answer (CONTRACT.md, "How much to involve the person")."""
     from . import questions
     try:
         return await studio.turns.ask_person(project_id, args)
@@ -711,19 +711,25 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      "cannot join the request that is running: the studio connects it when the person sends their next message, so "
      "say so plainly. `reason`: what you need it for.",
      _schema({"id": S, "reason": S}, ["id"]), t_request_connector),
-    ("ask_person", "Ask the person one to four questions on a card and wait for their answers, when they switched "
-     "on \"Ask me first\" and something you do not know would change what you make. Each question may have "
-     "`choices` (two to six, each a label and a short description; put your own pick first) and `multiple` when "
-     "more than one can apply; without choices they answer in words, and they can always type their own answer. "
-     "`why`: one sentence on what the answers change. They may skip: then decide yourself and say what you "
-     "assumed. Twice per request at most. It answers with an error, and you decide yourself, when the person has "
-     "not switched questions on.",
-     _schema({"questions": {"type": "array", "items": {"type": "object", "properties": {
+    ("ask_person", "Put a card to the person and wait for their answer, when they set how much to involve them "
+     "above 0. `kind`: questions (things you need to know before or while you work), plan (what you mean to build: "
+     "the plan in `summary`, before you build) or checkpoint (a part you have made: its name in `title`, what you "
+     "made and found in `summary`). `summary` is short Markdown. `references` are what the plan or the part rests "
+     "on, each a label with a `url` or the `path` of a file in this project, and a `note`. `questions`: one to "
+     "four; each may have `choices` (two to six, a label and a short description each; your own pick first) and "
+     "`multiple` when more than one can apply; they can always type their own answer. A plan or a checkpoint "
+     "without a question asks whether to go ahead. `why`: one sentence on what the answers change. They may tell "
+     "you to go on by yourself: then decide, and do not ask again. The answer says how many more cards this "
+     "request may show. It answers with an error, and you decide yourself, when the person wants no questions.",
+     _schema({"kind": {"type": "string", "enum": ["questions", "plan", "checkpoint"]}, "title": S, "summary": S,
+              "references": {"type": "array", "items": {"type": "object", "properties": {
+                  "label": S, "url": S, "path": S, "note": S}, "required": ["label"]}},
+              "questions": {"type": "array", "items": {"type": "object", "properties": {
                   "question": S, "multiple": B,
                   "choices": {"type": "array", "items": {"type": "object", "properties": {"label": S, "description": S},
                                                          "required": ["label"]}}},
                   "required": ["question"]}},
-              "why": S}, ["questions"]), t_ask_person),
+              "why": S}, []), t_ask_person),
 ]
 HANDLERS = {name: handler for name, _d, _s, handler in TOOLS}
 

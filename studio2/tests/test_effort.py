@@ -45,7 +45,7 @@ async def test_unknown_options_are_a_400(client, project):
 async def test_the_project_remembers_the_choice(client, project):
     pid = project["id"]
     saved = await client.patch(f"/api/projects/{pid}", json={"turn_options": {"depth": "deep", "verify": True}})
-    kept = {"depth": "deep", "verify": True, "ask": False}      # the API always says all three (test_questions.py)
+    kept = {"depth": "deep", "verify": True, "involve": 0}      # the API always says all three (test_questions.py)
     assert saved.status_code == 200 and saved.json()["turn_options"] == kept
     assert (await client.get(f"/api/projects/{pid}")).json()["turn_options"] == kept
     await client.patch(f"/api/projects/{pid}", json={"name": "Renamed"})   # other changes keep it

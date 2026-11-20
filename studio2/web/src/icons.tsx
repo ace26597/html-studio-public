@@ -69,6 +69,22 @@ const PATHS = {
       <path d="M12 8h.01" />
     </>
   ),
+  expand: (
+    <>
+      <path d="M15 3h6v6" />
+      <path d="M21 3l-7 7" />
+      <path d="M9 21H3v-6" />
+      <path d="M3 21l7-7" />
+    </>
+  ),
+  shrink: (
+    <>
+      <path d="M14 4v6h6" />
+      <path d="M21 3l-7 7" />
+      <path d="M10 20v-6H4" />
+      <path d="M3 21l7-7" />
+    </>
+  ),
   help: (
     <>
       <circle cx="12" cy="12" r="10" />

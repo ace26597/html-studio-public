@@ -9,8 +9,8 @@ export interface Project {
   preview_url: string;
   connection: string;
   model: string | null;
-  /** The remembered depth, verify and ask-first choice. `ask` is there only from a server that knows it. */
-  turn_options?: { depth?: string; verify?: boolean; ask?: boolean } | null;
+  /** The remembered depth, verify and involve-me choice. `involve` is there only from a server that knows it. */
+  turn_options?: { depth?: string; verify?: boolean; involve?: number } | null;
   session_id: string | null;
   running_turn: string | null;
   head: string;
@@ -844,7 +844,7 @@ export interface TurnStartedEvent extends EventBase {
   /** Step 2: set when this turn was a queued message. */
   queued_id?: string | null;
   /** How much to do and whether to verify (absent in older logs = standard, off). */
-  options?: { depth?: string; verify?: boolean; ask?: boolean; check_only?: boolean; polish?: boolean };
+  options?: { depth?: string; verify?: boolean; involve?: number; check_only?: boolean; polish?: boolean };
 }
 /** The result of a verification the person asked for (`report_verification`). */
 export interface VerificationEvent extends EventBase {
@@ -992,6 +992,10 @@ export interface ApprovalResolvedEvent extends EventBase {
 export interface QuestionRequestEvent extends EventBase {
   type: "question_request";
   question_id: string;
+  kind?: string;
+  title?: string;
+  summary?: string;
+  references?: unknown;
   questions: unknown;
   why?: string;
 }

@@ -1,13 +1,17 @@
 import { useState } from "react";
 import { Icon } from "./icons";
+import { Markdown } from "./markdown";
 import {
   ANSWER_MAX,
   answersBody,
+  cardHeading,
   recordHeadline,
   recordRows,
   sendLabel,
   sendProblem,
   setText,
+  skipLabel,
+  summaryLabel,
   toggleChoice,
   waitingHint,
   type AnswerState,
@@ -15,11 +19,42 @@ import {
   type Question,
   type QuestionAnswer,
   type QuestionItem,
+  type Reference,
 } from "./questions";
 
 export interface QuestionActions {
   onAnswer: (item: QuestionItem, body: { answers: QuestionAnswer[] } | { skip: true }) => void;
   answering: Record<string, AnswerState>;
+  /** Open a file of the project in the Files panel (a reference that names one). */
+  onOpenFile?: (path: string) => void;
+}
+
+/** What a plan or a part rests on: an address opens in a new tab, a project file in the Files panel. */
+export function References({ items, onOpenFile }: { items: Reference[]; onOpenFile?: (path: string) => void }) {
+  if (!items.length) return null;
+  return (
+    <ul className="question-refs" aria-label="What this rests on">
+      {items.map((item, index) => (
+        <li key={index} className="question-ref">
+          <Icon name={item.url ? "external" : "note"} size={12} className="question-ref-icon" />
+          <span className="question-ref-text">
+          {item.url ? (
+            <a href={item.url} target="_blank" rel="noopener noreferrer">
+              {item.label}
+            </a>
+          ) : item.path && onOpenFile ? (
+            <button type="button" className="question-ref-file" onClick={() => onOpenFile(item.path!)}>
+              {item.label}
+            </button>
+          ) : (
+            <span>{item.label}</span>
+          )}
+          {item.note && <span className="question-ref-note"> {item.note}</span>}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function QuestionField({
@@ -83,7 +118,7 @@ function QuestionField({
 }
 
 /** The record a card becomes once it is answered, skipped, or the request has ended. */
-export function QuestionRecord({ item }: { item: QuestionItem }) {
+export function QuestionRecord({ item, onOpenFile }: { item: QuestionItem; onOpenFile?: (path: string) => void }) {
   const rows = recordRows(item);
   return (
     <div className={`question-record is-${item.status}`}>
@@ -91,6 +126,13 @@ export function QuestionRecord({ item }: { item: QuestionItem }) {
         <Icon name={item.status === "answered" ? "check" : "x"} size={13} strokeWidth={2.2} className="question-record-icon" />
         <span>{recordHeadline(item)}</span>
       </p>
+      {(item.summary || item.references.length > 0) && (
+        <details className="question-record-summary">
+          <summary>{summaryLabel(item)}</summary>
+          {item.summary && <Markdown text={item.summary} />}
+          <References items={item.references} onOpenFile={onOpenFile} />
+        </details>
+      )}
       {rows.length > 0 && (
         <dl className="question-record-rows">
           {rows.map((row) => (
@@ -117,17 +159,23 @@ export function QuestionCard({
   startWith?: Draft;
 }) {
   const [draft, setDraft] = useState<Draft>(startWith ?? {});
-  if (item.status !== "waiting") return <QuestionRecord item={item} />;
+  if (item.status !== "waiting") return <QuestionRecord item={item} onOpenFile={actions.onOpenFile} />;
   const state = actions.answering[item.questionId];
   const busy = state?.pending ?? null;
   const problem = sendProblem(item, draft);
   return (
-    <section className="approval question-card" aria-label="The agent has a question for you">
+    <section className={`approval question-card is-${item.kind}`} aria-label={`The agent is waiting for you: ${cardHeading(item)}`}>
       <div className="approval-head">
         <Icon name="help" size={15} className="approval-icon" />
-        <strong>{item.questions.length === 1 ? "A question before I start" : "A few questions before I start"}</strong>
+        <strong>{cardHeading(item)}</strong>
       </div>
       {item.why && <p className="question-why">{item.why}</p>}
+      {item.summary && (
+        <div className="question-summary">
+          <Markdown text={item.summary} />
+        </div>
+      )}
+      <References items={item.references} onOpenFile={actions.onOpenFile} />
       {item.questions.map((question, index) => (
         <QuestionField
           key={question.id}
@@ -152,7 +200,7 @@ export function QuestionCard({
           disabled={busy !== null}
           onClick={() => actions.onAnswer(item, { skip: true })}
         >
-          {busy === "skip" ? "Skipping…" : "Skip, decide for me"}
+          {busy === "skip" ? "Telling the agent…" : skipLabel(item)}
         </button>
         <button
           type="button"

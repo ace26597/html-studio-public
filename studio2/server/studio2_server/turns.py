@@ -262,31 +262,33 @@ class TurnRunner:
             self.studio.log(pid).append("approval_resolved", turn_id, approval_id=approval_id,
                                         decision="deny", by="turn_end")
 
-    # -- questions (CONTRACT.md, "Questions before the work") --------------------------------
+    # -- the agent's cards (CONTRACT.md, "How much to involve the person") -------------------
     async def ask_person(self, pid: str, args: dict) -> dict:
         """The tool `ask_person`: one card, then wait for the person → what the agent is told.
         Raises questions.QuestionsError when it does not ask (its message says what to do instead)."""
         turn_id = self.active.get(pid)
         if turn_id is None:
             raise questions.QuestionsError(questions.NOBODY)
-        if not (self.options.get(turn_id) or {}).get("ask"):
+        allowed = effort.INVOLVE_CARDS.get((self.options.get(turn_id) or {}).get("involve") or 0, 0)
+        if not allowed:
             raise questions.QuestionsError(questions.OFF)
         if turn_id in self.no_more_asks:
             raise questions.QuestionsError(questions.SKIPPED_BEFORE)
-        if self.asked.get(turn_id, 0) >= questions.MAX_ASKS:
+        if self.asked.get(turn_id, 0) >= allowed:     # the stop caps the cards (1, 2, 4, 12)
             raise questions.QuestionsError(questions.TOO_MANY)
-        asked, why, cut = questions.clean(args)
+        card = questions.clean(args, self.studio.store.workspace(pid))
+        asked, cut = card.pop("questions"), card.pop("cut")
         self.asked[turn_id] = self.asked.get(turn_id, 0) + 1
         question_id = "k_" + secrets.token_hex(4)
         future = asyncio.get_running_loop().create_future()
         self.asking.setdefault(turn_id, {})[question_id] = {"future": future, "questions": asked}
         events = self.studio.log(pid)
-        events.append("question_request", turn_id, question_id=question_id, questions=asked, why=why)
+        events.append("question_request", turn_id, question_id=question_id, questions=asked, **card)
         answers = await future      # cancelled when the turn ends first; _close_questions announces that
         if self.asking.get(turn_id, {}).pop(question_id, None) is not None:
             events.append("question_resolved", turn_id, question_id=question_id, by="user",
                           skipped=answers is None, answers=answers or [])
-        return questions.result(asked, answers, cut)
+        return questions.result(asked, answers, cut, max(0, allowed - self.asked.get(turn_id, 0)))
 
     def reply(self, turn_id: str, question_id: str, body) -> bool:
         """The person's answers (or skip). → False when that question is not waiting. Raises

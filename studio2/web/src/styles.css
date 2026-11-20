@@ -56,7 +56,7 @@
   --left-w: 280px;
   --right-w: 340px;
   --logs-w: min(560px, 44vw);
-  --chat-w: min(420px, 36vw);
+  --chat-w: clamp(380px, 32vw, 460px);
 }
 
 :root[data-theme="dark"] {
@@ -1812,6 +1812,7 @@ a {
   display: flex;
   flex-direction: column;
   width: var(--chat-w);
+  max-width: calc(100% - 40px - var(--right-inset));
   max-height: min(70dvh, calc(100% - 40px));
   border-radius: 18px;
   border: 1px solid var(--border);
@@ -1819,6 +1820,138 @@ a {
   box-shadow: var(--shadow-float);
   transform-origin: calc(100% - 26px) calc(100% - 26px);
   animation: chat-in var(--slow) var(--ease);
+}
+
+/* A desktop panel the person gave a height: that height, up to the room there is. */
+.chat.is-sized {
+  height: min(var(--chat-h), calc(100% - 40px));
+  max-height: none;
+}
+
+.chat.is-sized .chat-body {
+  flex: 1;
+}
+
+.chat.is-resizing {
+  user-select: none;
+}
+
+/* The edges that resize it: it sits at the bottom right, so the left edge, the top edge and their corner. */
+.chat-resize {
+  position: absolute;
+  z-index: 5;
+  touch-action: none;
+}
+
+.chat-resize.is-left {
+  top: 18px;
+  bottom: 18px;
+  left: -4px;
+  width: 9px;
+  cursor: ew-resize;
+}
+
+.chat-resize.is-top {
+  top: -4px;
+  left: 18px;
+  right: 18px;
+  height: 9px;
+  cursor: ns-resize;
+}
+
+.chat-resize.is-corner {
+  top: -4px;
+  left: -4px;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+}
+
+.chat-resize::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 3px;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+
+.chat-resize.is-corner::after {
+  inset: 3px 9px 9px 3px;
+  border-radius: 12px 3px 3px 3px;
+}
+
+.chat-resize:hover::after,
+.chat.is-resizing .chat-resize::after {
+  opacity: 0.45;
+}
+
+/* How the next request runs: a quiet strip under the composer, each setting named. */
+.chat-options {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  margin: -4px 10px 8px;
+  min-width: 0;
+}
+
+.chat-options .menu-wrap {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.opt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0 7px;
+  border-radius: 7px;
+  color: var(--text-3);
+  font-size: 12px;
+  white-space: nowrap;
+  transition:
+    background var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+
+.opt-btn:hover,
+.opt-btn[aria-expanded="true"] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.opt-k {
+  flex: none;
+  color: var(--text-3);
+}
+
+.opt-v {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-2);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.opt-btn.is-on .opt-v {
+  color: var(--accent-text);
+}
+
+.opt-btn > .icon {
+  flex: none;
+  opacity: 0.7;
+}
+
+/* A phone's collapsed bar keeps to the message box. */
+.chat.sheet.is-bar .chat-options {
+  display: none;
 }
 
 .chat-header {
@@ -2876,6 +3009,85 @@ a {
 .question-card .approval-icon,
 .question-card .approval-hint {
   color: var(--accent-text);
+}
+
+.question-summary {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.question-summary > :first-child,
+.question-record-summary > :nth-child(2) {
+  margin-top: 0;
+}
+
+.question-summary > :last-child {
+  margin-bottom: 0;
+}
+
+.question-refs {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.question-ref {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-2);
+}
+
+.question-ref-icon {
+  flex: none;
+  margin-top: 3px;
+  color: var(--text-3);
+}
+
+.question-ref-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.question-ref a,
+.question-ref-file {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.question-ref-note {
+  color: var(--text-3);
+}
+
+.question-record-summary {
+  margin-left: 20px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.question-record-summary > summary {
+  cursor: pointer;
+  color: var(--text-3);
 }
 
 .question-why {
@@ -7532,7 +7744,48 @@ a.attachment:hover {
    The tick says the result will be checked. */
 .effort-btn { flex: none; }
 .effort-btn-check { flex: none; color: var(--accent-text); margin-left: -1px; }
-.effort-btn-ask { flex: none; color: var(--accent-text); }
+.effort-btn-involve { flex: none; color: var(--accent-text); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+/* "Involve me": the slider in the depth menu */
+.menu:has(.involve) { min-width: 272px; max-height: min(460px, calc(100vh - 120px)); }
+.menu-custom { padding: 2px 0; }
+.involve { display: flex; flex-direction: column; gap: 5px; padding: 7px 9px 6px; }
+.involve-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--text); }
+.involve-value { color: var(--accent-text); font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.involve-range {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.involve-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--accent) var(--involve, 0%), var(--border) var(--involve, 0%));
+}
+.involve-range::-moz-range-track { height: 4px; border-radius: 2px; background: var(--border); }
+.involve-range::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+.involve-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.involve-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--surface); background: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.involve-range:focus-visible { outline: none; }
+.involve-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-ring); }
+.involve-ticks { display: flex; justify-content: space-between; margin: -4px 7px 0; }
+.involve-ticks span { width: 2px; height: 4px; border-radius: 1px; background: var(--border); }
+.involve-ticks span.is-on { background: var(--accent); }
+.involve-ends { display: flex; justify-content: space-between; color: var(--text-3); font-size: 11px; }
+.involve-line { min-height: 2.9em; margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.45; white-space: normal; }
 /* A long model name gives way before the depth button or Send does. */
 .composer-bar .menu-wrap { flex: none; }
 .composer-bar .menu-wrap:has(> .model-btn:not(.effort-btn)) { flex: 0 1 auto; min-width: 0; }
@@ -9190,5 +9443,64 @@ button.file-card-action:hover {
   .ctx-item .ds-item-actions {
     width: 100%;
     justify-content: flex-end;
+  }
+}
+
+/* ---- glass: the top bar and the chat panel ------------------------------------------
+   Translucent, with what is behind blurred through. The chat floats over the page, so the page
+   shows through it; the top bar has the same material. Opaque enough that muted text keeps its
+   contrast over a dark page; solid where the browser cannot blur or the person asked for less
+   transparency. */
+:root {
+  --glass: color-mix(in srgb, var(--surface) 80%, transparent);
+  --glass-inner: color-mix(in srgb, var(--surface) 72%, transparent);
+  --glass-filter: saturate(1.8) blur(26px);
+  --glass-rim: inset 0 1px 0 color-mix(in srgb, var(--surface) 55%, #fff), inset 0 0 0 0.5px color-mix(in srgb, var(--surface) 70%, #fff);
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .topbar,
+  .chat {
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+  }
+
+  .chat {
+    border-color: color-mix(in srgb, var(--border) 65%, transparent);
+    box-shadow: var(--shadow-float), var(--glass-rim);
+  }
+
+  .topbar {
+    border-bottom-color: color-mix(in srgb, var(--border) 70%, transparent);
+    box-shadow: var(--glass-rim);
+  }
+
+  /* The conversation fades at the panel's edges instead of running under a solid band. */
+  .chat-header::after,
+  .composer::before {
+    display: none;
+  }
+
+  .chat-scroll {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 14px), transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 14px), transparent 100%);
+  }
+
+  .chat .composer {
+    background: var(--glass-inner);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .topbar,
+  .chat {
+    background: var(--surface);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .chat .composer {
+    background: var(--surface);
   }
 }

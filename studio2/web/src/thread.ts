@@ -7,7 +7,7 @@ import { recheckFrom, verificationItem, type VerificationItem } from "./effort";
 import { stepsFrom, type NextStep } from "./nextSteps";
 import { asPick } from "./libraryPick";
 import type { FileChange, LibraryPick, PlanEntry, Selection, SkillApprovalInfo, StudioEvent, Usage } from "./types";
-import { answersFrom, questionsFrom, type QuestionItem } from "./questions";
+import { answersFrom, cardKind, questionsFrom, referencesFrom, type QuestionItem } from "./questions";
 
 export type TurnStatus = "running" | "completed" | "stopped" | "failed";
 export type ToolStatus = "running" | "ok" | "error" | "cancelled";
@@ -468,7 +468,11 @@ function applyEvent(state: ThreadState, event: StudioEvent): ThreadState {
           key: `question:${event.question_id}`,
           questionId: event.question_id,
           turnId,
+          kind: cardKind(event.kind),
+          title: typeof event.title === "string" ? event.title : "",
           why: typeof event.why === "string" ? event.why : "",
+          summary: typeof event.summary === "string" ? event.summary : "",
+          references: referencesFrom(event.references),
           questions: asked,
           status: "waiting",
           by: null,

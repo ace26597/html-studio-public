@@ -189,8 +189,8 @@ class Studio:
                 "data_sources": [i for i in project.get("data_sources") or [] if i in known],
                 "context": project.get("context") or [],
                 "instructions": project.get("instructions") or "",
-                # All three keys always: the interface shows "Ask me first" only when `ask` is there.
-                "turn_options": {**effort.DEFAULT, "ask": False, **(project.get("turn_options") or {})},
+                # All three keys always: the interface shows the scale only when `involve` is there.
+                "turn_options": self._turn_options(project),
                 "library": project.get("library") or {"skills": {}, "mcp_servers": {}},
                 "uses_template": project.get("uses_template") or None,
                 "from_example": project.get("from_example") or None,
@@ -198,6 +198,14 @@ class Studio:
                 "signed_in_looks": self.sessions.allowed(project),
                 "ship": self.ships.view(project) if project.get("attach") else None,
                 "app": {"configured": bool(app and (app.run or app.address)), "state": app.state if app else "none"}}
+
+    @staticmethod
+    def _turn_options(project: dict) -> dict:
+        try:
+            kept = effort.clean(project.get("turn_options"), False)
+        except effort.OptionsError:     # a record written by hand: the view never fails on it
+            kept = {}
+        return {**effort.DEFAULT, "involve": 0, **kept}
 
     def token(self, project_id: str) -> str:
         project = self.store.get(project_id)

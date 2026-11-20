@@ -1,5 +1,5 @@
-"""How much a request does (depth), whether its result is checked (verify), and whether the agent
-asks the person first (ask).
+"""How much a request does (depth), whether its result is checked (verify), and how much the agent
+involves the person while it works (involve).
 
 The wording the agent receives lives here and only here, so it can be tuned in one place.
 Standard with verify off adds nothing: the composed message is what it was before this step.
@@ -11,7 +11,7 @@ import re
 
 DEPTHS = ("quick", "standard", "deep")
 DEFAULT = {"depth": "standard", "verify": False}
-KEYS = {"depth", "verify", "ask"}          # the remembered choice; a request may also say check_only or polish
+KEYS = {"depth", "verify", "involve", "ask"}   # the remembered choice (`ask`: the switch `involve` replaced, read only)
 ONCE = {"check_only", "polish"}            # true for one request only, never remembered
 DEEP_SKILL = "studio:deep-research"
 NOT_REPORTED = "Verification was asked for and was not reported."
@@ -94,24 +94,71 @@ POLISH = (
     "dark), and anything you could not check. Put what you only suggest in suggest_next_steps (one step each, "
     "three at most) instead of a long list.")
 
-ASK = (
-    "The person switched on \"Ask me first\": they would rather answer a question than have you decide "
-    "quietly. Before any other work in this request, work out whether something you do not know would change "
-    "what you make: who the result is for and what they do with it, what it should focus on or leave out, how "
-    "it should be laid out or shown (a page, a table, charts, an app), which data, source or period to use, how "
-    "long or detailed it should be.\n"
-    "- Look first at the request, the person's standing instructions for this project, its context and the "
-    "page as it is. Never ask what they already answer, what you can look up, or for permission to go ahead.\n"
-    "- When something that matters is open, call `mcp__studio__ask_person` once, before you build anything, "
-    "with one to four questions: {questions: [{question, choices?: [{label, description}], multiple?}], why?}. "
-    "Give two to five concrete choices wherever choices make sense, put the one you would pick first and say "
-    "in its description why, and set `multiple` when more than one can apply. The person can always answer in "
-    "their own words instead, so do not add an \"Other\" choice. `why` is one sentence on what the answers "
-    "change. The request waits on a card until they answer.\n"
-    "- When the request is already specific (a small edit, a fix, a selected element, a follow-up to answers "
-    "you already have), ask nothing and start.\n"
-    "- A question they leave empty, or a skip, means: decide yourself. Ask a second time in the same request "
-    "only when an answer opened a choice you cannot settle; never a third.\n"
+# -- how much to involve the person (CONTRACT.md, "How much to involve the person") --------------
+INVOLVE_STOPS = (0, 25, 50, 75, 100)
+INVOLVE_NAMES = {0: "On its own", 25: "Only if stuck", 50: "Ask first", 75: "Agree the plan", 100: "Step by step"}
+INVOLVE_CARDS = {0: 0, 25: 1, 50: 2, 75: 4, 100: 12}      # how many cards one request may show
+
+_ASK_FIRST = (
+    "Before any other work, work out whether something you do not know would change what you make: who the "
+    "result is for and what they do with it, what it should focus on or leave out, how it should be laid out "
+    "or shown (a page, a table, charts, an app), which data, source or period to use, how long or detailed it "
+    "should be. When something that matters is open, ask once before you build anything (kind: \"questions\"), "
+    "one to four questions.")
+_PLAN = (
+    "Then, for anything bigger than a small edit, put your plan to them before you build (kind: \"plan\"). "
+    "`summary` is the plan in a few lines of Markdown: for a report or a page, the sections in order with a "
+    "line on what each will say and show; for an app, the screens or features and the data behind them; for "
+    "research, the questions you will answer and where you will start. `references` are the sources, files or "
+    "data you mean to rely on. Ask one question: whether to go ahead, with \"Go ahead\" first and the one or "
+    "two changes they are most likely to want as the other choices. You may read first (look at the data, "
+    "search enough to plan honestly), but build nothing until they answer; then build to the plan as they "
+    "changed it.")
+INVOLVE = {
+    25: ("The person set how much to involve them to 25 of 100, \"Only if stuck\". Work on your own. Ask only "
+         "when you cannot sensibly go on: the request can be read in two ways that lead to different results "
+         "and nothing settles which, or something only they have is missing (a figure, a file, a decision that "
+         "is theirs). Then ask once (kind: \"questions\"), one or two questions. Anything short of that, decide "
+         "yourself."),
+    50: ("The person set how much to involve them to 50 of 100, \"Ask first\": they would rather answer a "
+         "question than have you decide quietly. " + _ASK_FIRST + " Ask a second time in the same request only "
+         "when an answer opened a choice you cannot settle. After that, build it on your own."),
+    75: ("The person set how much to involve them to 75 of 100, \"Agree the plan\": they want to agree the "
+         "direction before you build.\n"
+         "1. " + _ASK_FIRST + "\n"
+         "2. " + _PLAN + "\n"
+         "3. After the go-ahead, build it on your own; come back only if the plan turns out not to work."),
+    100: ("The person set how much to involve them to 100 of 100, \"Step by step\": they want to work through "
+          "it with you.\n"
+          "1. " + _ASK_FIRST + "\n"
+          "2. " + _PLAN + "\n"
+          "3. Then build in parts, never all at once. After each part that stands alone (a section of a report, "
+          "a chart or table with its finding, a screen or feature of an app) stop and check in before you start "
+          "the next (kind: \"checkpoint\"). Anything that had a plan gets check-ins: the first one after the "
+          "first part, so they can correct the direction while little is built; a one-page piece two or three in "
+          "all, a long report one per section, small parts grouped. At this setting, building the whole piece and "
+          "showing it at the end is the one thing they asked you not to do. `title` names the part. `summary` says in a few lines what you made and what you "
+          "found: the figures that matter, anything that surprised you, anything you could not confirm. "
+          "`references` are what the part rests on, so they can open it: each source's address, each project "
+          "file. The questions ask what you need for the next part, or whether to keep, change or drop this "
+          "one. The page updates as you work, so they can look at the part itself while the card waits. Use "
+          "each answer for the parts still to come; when it changes a part already made, fix that first."),
+}
+INVOLVE_HOW = (
+    "How to ask: call `mcp__studio__ask_person` with {kind, title?, summary?, references?: [{label, url? or "
+    "path?, note?}], questions: [{question, choices?: [{label, description}], multiple?}], why?}. The request "
+    "waits on a card until the person answers.\n"
+    "- Give two to five concrete choices wherever choices make sense, your own pick first with the reason in "
+    "its description, and set `multiple` when more than one can apply. They can always answer in their own "
+    "words instead, so add no \"Other\" choice. `why` is one sentence on what the answers change.\n"
+    "- Never ask what the request, the person's standing instructions for this project, its context or the "
+    "page already answer, what you can look up yourself, or for permission in general.\n"
+    "- Match the asking to the work, whatever the setting. A small or specific request (a fix, a wording "
+    "change, a selected element, a follow-up to answers you already have) gets no card at all: do it. For "
+    "anything larger, do what the setting above says, sized to the piece: the bigger and the more open it is, "
+    "the more of the setting's cards it earns.\n"
+    "- A question they leave empty is yours to decide. When they press the button that tells you to go on by "
+    "yourself, the tool says so: do not ask again in this request.\n"
     "- In your closing message, name in one line each what you assumed for anything you decided without "
     "asking. Do not repeat their answers back to them.")
 
@@ -124,8 +171,8 @@ class OptionsError(ValueError):
 
 
 def clean(raw, request: bool = True) -> dict:
-    """A request's (or, with request=False, a project's) options → {depth, verify} (and `ask: True`
-    when the person wants to be asked first), plus
+    """A request's (or, with request=False, a project's) options → {depth, verify} (and `involve`
+    when the person wants to be involved: 25, 50, 75 or 100), plus
     `check_only: True` for a request that only checks the page or `polish: True` for one about
     how it looks. Raises OptionsError on anything unknown."""
     if raw is None:
@@ -155,19 +202,20 @@ def clean(raw, request: bool = True) -> dict:
         polish = False
     if not isinstance(polish, bool):
         raise OptionsError("polish must be true or false.")
-    ask = raw.get("ask", False)
-    if ask is None:
-        ask = False
-    if not isinstance(ask, bool):
-        raise OptionsError("ask must be true or false.")
+    involve = raw.get("involve")
+    if involve is None:      # `ask: true` was the on/off switch of the same day: the middle stop
+        involve = 50 if raw.get("ask") is True else 0
+    if not isinstance(involve, int) or isinstance(involve, bool) or involve not in INVOLVE_STOPS:
+        raise OptionsError("involve must be 0, 25, 50, 75 or 100.")
+    involve = int(involve)
     if check_only and polish:
         raise OptionsError("check_only and polish cannot both be set: send them as two requests.")
     if check_only:     # a request that only checks the page is a verification
         return {"depth": depth, "verify": True, "check_only": True}
     if polish:
         return {"depth": depth, "verify": verify, "polish": True}
-    # `ask` is there only when it is on, so a request without it is recorded exactly as before.
-    return {"depth": depth, "verify": verify, **({"ask": True} if ask else {})}
+    # `involve` is there only above 0, so a request without it is recorded exactly as before.
+    return {"depth": depth, "verify": verify, **({"involve": involve} if involve else {})}
 
 
 def block(options: dict | None) -> str:
@@ -182,8 +230,9 @@ def block(options: dict | None) -> str:
         parts.append(VERIFY)
     if options.get("polish"):
         parts.append(POLISH)
-    if options.get("ask") and not options.get("check_only") and not options.get("polish"):
-        parts.insert(0, ASK)       # first: it is about what happens before the work
+    stop = options.get("involve") or 0
+    if stop in INVOLVE and not options.get("check_only") and not options.get("polish"):
+        parts.insert(0, INVOLVE[stop] + "\n" + INVOLVE_HOW)      # first: it is about what happens before the work
     return "<studio-effort>\n" + "\n\n".join(parts) + "\n</studio-effort>" if parts else ""
 
 

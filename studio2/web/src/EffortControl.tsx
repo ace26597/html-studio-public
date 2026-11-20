@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
-import { effortLabel, effortSummary } from "./effortRow";
+import { type ButtonHTMLAttributes, type CSSProperties, useEffect, useMemo, useState } from "react";
+import { VERIFY_OFF_TIP, VERIFY_ON_TIP, effortLabel } from "./effortRow";
 import { Icon } from "./icons";
-import { ASK_HINT_OFF, ASK_HINT_ON, ASK_LABEL } from "./questions";
+import { INVOLVE_STOPS, involveStop } from "./questions";
 import { Menu, type MenuEntry } from "./ui";
 import {
   DEPTHS,
+  depthLine,
   MATCH_MEANS,
   STATUS_LABEL,
   verificationHeadline,
@@ -13,25 +14,41 @@ import {
   type VerificationItem,
 } from "./effort";
 
-/**
- * How much to do, in the composer's bar beside the model: a quiet button that names the depth
- * (with a tick when the content will be verified) and opens a menu with the three steps, the
- * verify switch, "Verify content now" and "Polish the look now". Nothing is added to the
- * composer's height.
- */
-export function EffortControl({
-  options,
-  onChange,
-  onVerifyPage,
-  onPolishPage,
-  disabled,
+/** One setting in the strip under the composer: what it is, and what it is set to. */
+export function OptionButton({
+  caption,
+  value,
+  tip,
+  on,
+  chevron = true,
+  ...rest
 }: {
-  options: TurnOptions;
-  onChange: (next: TurnOptions) => void;
-  onVerifyPage: () => void;
-  onPolishPage: () => void;
-  disabled?: boolean;
-}) {
+  caption: string;
+  value: string;
+  tip: string;
+  /** Marks a setting that is switched on (and, without `chevron`, makes the button a switch). */
+  on?: boolean;
+  chevron?: boolean;
+} & ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      className={`opt-btn${on ? " is-on" : ""}`}
+      aria-label={`${caption}: ${value}`}
+      data-tip={tip}
+      data-tip-side="top"
+      data-tip-align="start"
+      {...rest}
+    >
+      <span className="opt-k">{caption}</span>
+      <span className="opt-v">{value}</span>
+      {chevron && <Icon name="chevron-down" size={11} strokeWidth={2} />}
+    </button>
+  );
+}
+
+/** How much a request does: Quick, Standard or Deep. */
+export function DepthPicker({ options, onChange }: { options: TurnOptions; onChange: (next: TurnOptions) => void }) {
   const entries = useMemo<MenuEntry[]>(
     () => [
       { type: "section", label: "How much to do" },
@@ -43,31 +60,8 @@ export function EffortControl({
           onSelect: () => step.id !== options.depth && onChange({ ...options, depth: step.id }),
         }),
       ),
-      { type: "separator" },
-      {
-        label: "Verify after each request",
-        hint: options.verify ? "on" : "off",
-        checked: options.verify,
-        toggle: true,
-        onSelect: () => onChange({ ...options, verify: !options.verify }),
-      },
-      // Only when the server knows the switch (it sends `ask` with the project).
-      ...(options.ask === undefined
-        ? []
-        : [
-            {
-              label: ASK_LABEL,
-              hint: options.ask ? ASK_HINT_ON : ASK_HINT_OFF,
-              checked: options.ask,
-              toggle: true,
-              onSelect: () => onChange({ ...options, ask: !options.ask }),
-            } satisfies MenuEntry,
-          ]),
-      { type: "separator" },
-      { label: "Verify content now", icon: "shield", disabled, onSelect: onVerifyPage },
-      { label: "Polish the look now", icon: "sparkle", disabled, onSelect: onPolishPage },
     ],
-    [options, onChange, onVerifyPage, onPolishPage, disabled],
+    [options, onChange],
   );
   return (
     <Menu
@@ -75,27 +69,141 @@ export function EffortControl({
       side="top"
       align="start"
       entries={entries}
+      trigger={(props) => <OptionButton caption="Depth" value={effortLabel(options)} tip={depthLine(options.depth)} {...props} />}
+    />
+  );
+}
+
+/** Whether the content is checked after each request: a switch, one click. */
+export function VerifyToggle({ options, onChange }: { options: TurnOptions; onChange: (next: TurnOptions) => void }) {
+  return (
+    <OptionButton
+      caption="Verify"
+      value={options.verify ? "on" : "off"}
+      tip={options.verify ? VERIFY_ON_TIP : VERIFY_OFF_TIP}
+      on={options.verify}
+      chevron={false}
+      aria-label="Verify the content after each request"
+      aria-pressed={options.verify}
+      onClick={() => onChange({ ...options, verify: !options.verify })}
+    />
+  );
+}
+
+/** How much the agent involves the person: the slider. Shown only when the server knows the scale. */
+export function InvolvePicker({ options, onChange }: { options: TurnOptions; onChange: (next: TurnOptions) => void }) {
+  const entries = useMemo<MenuEntry[]>(
+    () => [
+      {
+        type: "custom",
+        render: () => <InvolveSlider value={options.involve ?? 0} onChange={(involve) => onChange({ ...options, involve })} />,
+      },
+    ],
+    [options, onChange],
+  );
+  if (options.involve === undefined) return null;
+  const stop = involveStop(options.involve);
+  return (
+    <Menu
+      label="How much to involve you"
+      side="top"
+      align="start"
+      entries={entries}
+      trigger={(props) => (
+        <OptionButton caption="Involve" value={`${stop.value}%`} tip={`${stop.name}: ${stop.line}`} on={stop.value > 0} {...props} />
+      )}
+    />
+  );
+}
+
+/** Things to do to the page now, beside the other actions in the composer: verify its content, polish its look. */
+export function PageChecks({
+  onVerifyPage,
+  onPolishPage,
+  disabled,
+}: {
+  onVerifyPage: () => void;
+  onPolishPage: () => void;
+  disabled?: boolean;
+}) {
+  const entries = useMemo<MenuEntry[]>(
+    () => [
+      { type: "section", label: "Check this page now" },
+      { label: "Verify content", hint: "figures against sources", icon: "shield", disabled, onSelect: onVerifyPage },
+      { label: "Polish the look", hint: "desktop, tablet, phone", icon: "sparkle", disabled, onSelect: onPolishPage },
+    ],
+    [onVerifyPage, onPolishPage, disabled],
+  );
+  return (
+    <Menu
+      label="Check this page now"
+      side="top"
+      align="start"
+      entries={entries}
       trigger={(props) => (
         <button
           type="button"
-          className="model-btn effort-btn"
-          aria-label={effortSummary(options)}
-          data-tip={
-            options.ask === undefined
-              ? "How much to do, verify the content, polish the look"
-              : "How much to do, verify the content, ask me first, polish the look"
-          }
+          className="icon-btn attach-btn page-checks-btn"
+          aria-label="Check this page now"
+          data-tip="Check this page now: verify its content or polish its look"
           data-tip-side="top"
           data-tip-align="start"
           {...props}
         >
-          <span>{effortLabel(options)}</span>
-          {options.verify && <Icon name="check" size={12} strokeWidth={2.4} className="effort-btn-check" />}
-          {options.ask && <Icon name="help" size={12} strokeWidth={2.2} className="effort-btn-ask" />}
-          <Icon name="chevron-down" size={12} strokeWidth={2} />
+          <Icon name="sparkle" size={16} />
         </button>
       )}
     />
+  );
+}
+
+/**
+ * "Involve me": a slider of five stops, from the agent working on its own to checking in after
+ * each part. It names the stop it is on and says what the agent will do there.
+ */
+export function InvolveSlider({ value, onChange }: { value: number; onChange: (next: number) => void }) {
+  // What the thumb shows while the choice is on its way to the server.
+  const [shown, setShown] = useState(value);
+  useEffect(() => setShown(value), [value]);
+  const stop = involveStop(shown);
+  return (
+    <div className="involve">
+      <div className="involve-head">
+        <label htmlFor="involve-range">Involve me</label>
+        <span className="involve-value">
+          {stop.name} · {stop.value}%
+        </span>
+      </div>
+      <input
+        id="involve-range"
+        className="involve-range"
+        type="range"
+        min={0}
+        max={100}
+        step={25}
+        value={stop.value}
+        data-menu-focus
+        aria-valuetext={`${stop.name}, ${stop.value} percent`}
+        style={{ "--involve": `${stop.value}%` } as CSSProperties}
+        onChange={(event) => {
+          const next = involveStop(Number(event.target.value)).value;
+          setShown(next);
+          if (next !== value) onChange(next);
+        }}
+      />
+      <div className="involve-ticks" aria-hidden="true">
+        {INVOLVE_STOPS.map((each) => (
+          <span key={each.value} className={each.value === stop.value ? "is-on" : undefined} />
+        ))}
+      </div>
+      <div className="involve-ends" aria-hidden="true">
+        <span>On its own</span>
+        <span>Step by step</span>
+      </div>
+      <p className="involve-line" aria-live="polite">
+        {stop.line}
+      </p>
+    </div>
   );
 }
 

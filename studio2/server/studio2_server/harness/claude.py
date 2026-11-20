@@ -322,7 +322,7 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
             return PermissionResultDeny(message="Files outside the project folder cannot be changed.")
         if tool_name == questions.BUILT_IN:     # one card, one path: the studio's own ask_person
             return PermissionResultDeny(
-                message=questions.BUILT_IN_ON if (request.options or {}).get("ask") else questions.OFF)
+                message=questions.BUILT_IN_ON if (request.options or {}).get("involve") else questions.OFF)
         if tool_name == "Bash":
             command = str(tool_input.get("command") or "")
             # In place, the folder's own .git is the person's repository: git that discards work asks.
@@ -368,7 +368,7 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
         permission_mode="acceptEdits",
         can_use_tool=can_use_tool,
         # The agent program's own question tool is taken away: the studio asks through `ask_person`,
-        # on a card the person sees, and only when they switched "Ask me first" on.
+        # on a card the person sees, and only as much as they set on the scale.
         disallowed_tools=[questions.BUILT_IN],
         hooks={"PreToolUse": guards},
         # [] = load no user/project/local settings: the person's own ~/.claude settings, hooks,
@@ -463,7 +463,10 @@ def _studio_tool(tool: str, get) -> tuple[str, str]:
     if tool == "save_template":
         return "other", f"Save the template “{get('name')}”"
     if tool == "ask_person":
-        return "other", "Ask you before starting"
+        kind = get("kind")
+        return "other", ("Show you the plan" if kind == "plan" else
+                         f"Check in with you{': ' + get('title') if get('title') else ''}" if kind == "checkpoint" else
+                         "Ask you")
     if tool == "save_skill":
         return "other", f"{'Replace' if get('replace') else 'Save'} the skill “{get('name')}”"
     if tool == "render_document":

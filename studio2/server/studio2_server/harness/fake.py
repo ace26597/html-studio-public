@@ -279,10 +279,10 @@ class FakeHarness:
 
     @classmethod
     async def _ask(cls, script: "_Script", request: TurnRequest, low: str) -> str:
-        """With "Ask me first" on, ask two scripted questions (labelled as the fake harness's) before
-        the work, so tests and the mock cover the card ("no questions" in the text leaves them out).
-        → a sentence for the reply saying what came back."""
-        if not (request.options or {}).get("ask") or not request.studio_tool or "no questions" in low:
+        """With the person involved (`involve` above 0), ask two scripted questions (labelled as the
+        fake harness's) before the work, so tests cover the card ("no questions" in the text leaves
+        them out). → a sentence for the reply saying what came back."""
+        if not (request.options or {}).get("involve") or not request.studio_tool or "no questions" in low:
             return ""
         said = await cls._studio_tool(script, request, "ask_person", {
             "why": "(fake harness) Scripted questions; no model decided to ask them.",
@@ -290,7 +290,7 @@ class FakeHarness:
                 {"question": "(fake) Who is this for?", "choices": [
                     {"label": "(fake) The team", "description": "Scripted first choice."},
                     {"label": "(fake) A customer", "description": "Scripted second choice."}]},
-                {"question": "(fake) Anything it must include?"}]}, "Ask you before starting")
+                {"question": "(fake) Anything it must include?"}]}, "Ask you")
         return "I asked first. " + said[:200]
 
     @classmethod

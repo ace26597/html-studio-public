@@ -156,6 +156,8 @@ export type MenuEntry =
       onSelect: () => void;
     }
   | { type: "section"; label: string; note?: string | null }
+  /** Anything else (a slider). A control in it joins the arrow-key walk with `data-menu-focus`. */
+  | { type: "custom"; render: () => ReactNode }
   | { type: "separator" };
 
 interface MenuProps {
@@ -172,6 +174,9 @@ interface MenuProps {
   label: string;
   onOpenChange?: (open: boolean) => void;
 }
+
+/** What the arrow keys walk through in an open menu. */
+const MENU_STOPS = '[role^="menuitem"]:not(:disabled), [data-menu-focus]:not(:disabled)';
 
 export function Menu({ entries, trigger, align = "end", side = "bottom", label, onOpenChange }: MenuProps) {
   const [open, setOpenState] = useState(false);
@@ -196,7 +201,7 @@ export function Menu({ entries, trigger, align = "end", side = "bottom", label, 
     const onBlur = () => setOpen(false);
     document.addEventListener("mousedown", onDown);
     window.addEventListener("blur", onBlur);
-    const first = list.current?.querySelector<HTMLElement>('[role^="menuitem"]:not(:disabled)');
+    const first = list.current?.querySelector<HTMLElement>(MENU_STOPS);
     first?.focus();
     return () => {
       document.removeEventListener("mousedown", onDown);
@@ -230,9 +235,13 @@ export function Menu({ entries, trigger, align = "end", side = "bottom", label, 
       return;
     }
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End") return;
-    event.preventDefault();
-    const items = Array.from(list.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]:not(:disabled)') ?? []);
+    const items = Array.from(list.current?.querySelectorAll<HTMLElement>(MENU_STOPS) ?? []);
     if (!items.length) return;
+    // A slider in the menu keeps Home and End, and the up and down arrows too when it is the only
+    // thing in the menu: they move its thumb. With other rows, up and down walk on to them.
+    const slider = (event.target as HTMLElement).matches?.('input[type="range"]');
+    if (slider && (event.key === "Home" || event.key === "End" || items.length === 1)) return;
+    event.preventDefault();
     const current = items.indexOf(document.activeElement as HTMLElement);
     let next = 0;
     if (event.key === "ArrowDown") next = (current + 1) % items.length;
@@ -253,6 +262,7 @@ export function Menu({ entries, trigger, align = "end", side = "bottom", label, 
         <div id={id} ref={list} className={`menu menu-${align} menu-${side}`} role="menu" aria-label={label}>
           {entries.map((entry, index) => {
             if (entry.type === "separator") return <div key={index} className="menu-separator" role="separator" />;
+            if (entry.type === "custom") return <div key={index} className="menu-custom">{entry.render()}</div>;
             if (entry.type === "section") {
               return (
                 <div key={index} className="menu-section">

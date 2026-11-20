@@ -403,7 +403,7 @@ function createProject(name, { createdAt = now(), template = "blank" } = {}) {
       data_sources: [],
       context: [],
       instructions: "",
-      turn_options: { depth: "standard", verify: false, ask: false },
+      turn_options: { depth: "standard", verify: false, involve: 0 },
       library: { skills: {}, mcp_servers: {} },
       uses_template: null,
     },
@@ -1082,26 +1082,15 @@ async function runTurn(project, turnId, text, selection, attachments = []) {
     await tool("execute", "Bash", `Run ${command}`, { command }, "(mock) Nothing was installed; the mock server does not run commands.", { ms: 500 });
   };
 
-  // "Ask me first" (or the words "ask me"): two stand-in questions on a card, then the answers echoed.
-  const askFirst = async () => {
+  // "Involve me" above 0 (or the words "ask me"): stand-in cards, then what came back echoed.
+  // From 75 a plan card follows the questions; at 100 one check-in follows the plan.
+  const card = async (fields) => {
     const question_id = newId("question");
-    const questions = [
-      {
-        id: "q1",
-        question: "(mock) Who is this page for?",
-        multiple: false,
-        choices: [
-          { label: "(mock) The team", description: "Stand-in first choice." },
-          { label: "(mock) A customer", description: "Stand-in second choice." },
-        ],
-      },
-      { id: "q2", question: "(mock) Anything it must include?", multiple: false, choices: [] },
-    ];
     turn.pendingQuestion = question_id;
-    e("question_request", { question_id, questions, why: "(mock) Stand-in questions; no model decided to ask them." });
+    e("question_request", { question_id, kind: "questions", title: "", summary: "", references: [], why: "", ...fields });
     const answers = await new Promise((resolve, reject) => {
       if (turn.stopped) return reject(new Stopped());
-      project.questionsWaiting.set(question_id, { questions, resolve });
+      project.questionsWaiting.set(question_id, { questions: fields.questions, resolve });
       turn.cancel = () => {
         project.questionsWaiting.delete(question_id);
         reject(new Stopped());
@@ -1110,9 +1099,49 @@ async function runTurn(project, turnId, text, selection, attachments = []) {
     turn.cancel = null;
     turn.pendingQuestion = null;
     e("question_resolved", { question_id, by: "user", skipped: answers === null, answers: answers ?? [] });
-    if (answers === null) return void (await say("You skipped the questions, so I decided myself. (Mock.)"));
-    const given = answers.filter((a) => a.chosen.length || a.text).map((a) => [...a.chosen, a.text].filter(Boolean).join(" · "));
-    await say(`Thanks. I will work from: ${given.join("; ")}. (Mock: the answers change nothing here.)`);
+    return answers;
+  };
+  const askFirst = async () => {
+    const stop = project.record.turn_options?.involve || 50;
+    const goAhead = (question) => [{ id: "q1", question, multiple: false, choices: [
+      { label: "(mock) Go ahead", description: "" },
+      { label: "(mock) Change something", description: "Say what in your own words." },
+    ] }];
+    const steps = [
+      {
+        why: "(mock) Stand-in questions; no model decided to ask them.",
+        questions: [
+          { id: "q1", question: "(mock) Who is this page for?", multiple: false, choices: [
+            { label: "(mock) The team", description: "Stand-in first choice." },
+            { label: "(mock) A customer", description: "Stand-in second choice." },
+          ] },
+          { id: "q2", question: "(mock) Anything it must include?", multiple: false, choices: [] },
+        ],
+      },
+      ...(stop >= 75 ? [{
+        kind: "plan",
+        why: "(mock) A stand-in plan.",
+        summary: "1. **(mock) Headline**: one line with the total\n2. **(mock) By region**: a bar chart and a table\n3. **(mock) Notes**: what could not be confirmed",
+        references: [
+          { label: "(mock) index.html", path: "index.html", note: "the page as it is" },
+          { label: "(mock) example.org", url: "https://example.org/", note: "a stand-in address" },
+        ],
+        questions: goAhead("(mock) Go ahead with this plan?"),
+      }] : []),
+      ...(stop >= 100 ? [{
+        kind: "checkpoint",
+        title: "(mock) Headline",
+        summary: "(mock) The headline is on the page. Nothing was really made or found.",
+        references: [{ label: "(mock) index.html", path: "index.html", note: "" }],
+        questions: goAhead("(mock) Carry on to the next part?"),
+      }] : []),
+    ];
+    for (const step of steps) {
+      const answers = await card(step);
+      if (answers === null) return void (await say("You told me to go on by myself, so I asked nothing more. (Mock.)"));
+      const given = answers.filter((a) => a.chosen.length || a.text).map((a) => [...a.chosen, a.text].filter(Boolean).join(" · "));
+      await say(`Thanks: ${given.join("; ")}. (Mock: the answers change nothing here.)\n\n`);
+    }
   };
 
   const backend = async () => {
@@ -1130,7 +1159,7 @@ async function runTurn(project, turnId, text, selection, attachments = []) {
     if (attachments.length) {
       await say(`I can see ${attachments.length === 1 ? "the attached file" : `${attachments.length} attached files`}: ${attachments.map((item) => `\`${item}\``).join(", ")}.`);
     }
-    if (project.record.turn_options?.ask || /\bask me\b/i.test(text)) await askFirst();
+    if (project.record.turn_options?.involve || /\bask me\b/i.test(text)) await askFirst();
     if (/\brisky\b/i.test(text)) await risky();
     if (/\bbackend\b/i.test(text)) await backend();
     if (/\brender\b/i.test(text)) {
@@ -2265,7 +2294,8 @@ async function handleApi(req, res, url) {
       }
       if (body.turn_options && typeof body.turn_options === "object") {
         const depth = ["quick", "standard", "deep"].includes(body.turn_options.depth) ? body.turn_options.depth : "standard";
-        project.record.turn_options = { depth, verify: body.turn_options.verify === true, ask: body.turn_options.ask === true };
+        const involve = [0, 25, 50, 75, 100].includes(body.turn_options.involve) ? body.turn_options.involve : 0;
+        project.record.turn_options = { depth, verify: body.turn_options.verify === true, involve };
       }
       if ("instructions" in body) {
         if (body.instructions !== null && typeof body.instructions !== "string") {

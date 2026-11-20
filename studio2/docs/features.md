@@ -19,9 +19,9 @@ is saved as a version you can restore, and a running request can be stopped.
 - **Instructions for one project.** What you always want here, written once in plain words:
   "always use Indian number format", "every report ends with the sources". See
   [Instructions for a project](#instructions-for-a-project) below.
-- **Questions before the work.** Switch on *Ask me first* and the agent asks what it does not
-  know, on a card with choices and a box for your own words, instead of deciding quietly. See
-  [Ask me first](#ask-me-first) below.
+- **How much to involve you.** A slider from *On its own* to *Step by step*: the agent asks first,
+  agrees its plan with you, or checks in after each part with its sources, instead of deciding
+  quietly. See [Involve me](#involve-me) below.
 - **Apps with their own back end.** A project can run its own server; the studio starts it,
   shows its log and serves it on the project's address.
 - **PowerPoint, Word and Excel files.** Real files, rendered so the agent looks at every slide
@@ -170,27 +170,58 @@ closing section, a tone, who the reader is. Each project has a box for them.
 Context tells the agent *where to look*; instructions tell it *how to work*. Something you want
 in every project of a kind is better as a [skill of your own](#making-a-skill-of-your-own).
 
-## Ask me first
+## Involve me
 
-By default the agent decides what it was not told and gets on with it. When you would rather be
-asked, switch on **Ask me first when unsure**: it is in the menu under the depth button
-("Standard") beside the model, and the button shows a small question mark while it is on. It is remembered per
-project.
+By default the agent decides what it was not told and gets on with it. **Involve me** sets how
+much it brings you in instead. It is the last setting in the strip under the message box
+(**Involve**, with its percentage); it opens a slider, and the choice is remembered per project.
 
-- **Before it starts, the agent asks what it does not know** when your answer would change the
-  result: who it is for, what to focus on, how to show it, which period or data. Up to four
-  questions on one card.
-- **Each question has choices, a box for your own words, or both.** The agent's own pick comes
-  first. Tap a choice, type instead, or do both; what you type counts for more than the choice.
-- **Leave a question empty and the agent decides it.** **Skip, decide for me** does that for all
-  of them. Either way its answer ends with what it assumed.
-- **A clear request is not held up.** "Change the title to …" starts straight away. The agent
-  is also told to read your [instructions for the project](#instructions-for-a-project) and its
-  context first, and not to ask what they already answer.
-- **The request waits for you**, as it does on an approval card, and the page says so. It asks
-  twice in one request at most. A request that only verifies or polishes never asks.
+| Stop | Name | What the agent does |
+|---|---|---|
+| 0% | On its own | Never asks. |
+| 25% | Only if stuck | Asks only when it cannot sensibly go on without you. |
+| 50% | Ask first | Asks before it starts when your answer would change the result. |
+| 75% | Agree the plan | Asks first, then shows its plan and waits for your go-ahead before it builds. |
+| 100% | Step by step | Plan first, then a check-in after each part: what it made, what it found, and the sources and files behind it. |
+
+It is five stops and not a hundred on purpose: an agent does not behave differently at 37% than
+at 42%, and you should be able to tell what a setting will do.
+
+- **A stop is the most it may involve you, not a quota.** The agent is told to match the asking
+  to the work. "Change the title to …" gets no card at any setting; a one-page piece gets two or
+  three check-ins; a long report one per section.
+- **Three kinds of card.** *Questions*: up to four, each with choices (the agent's own pick
+  first), a box for your own words, or both; what you type counts for more than a choice. *The
+  plan*: the sections or features it means to build and what it will rely on. *A check-in*: the
+  part it just made, what it found, and its references. A source opens in a new tab; a project
+  file opens in the Files panel. The page itself updates as the agent works, so you can look at
+  the part while the card waits.
+- **You can drop out at any card.** Leave a question empty and the agent decides it. The second
+  button (*Skip, decide for me*, *Go ahead, no more questions*, *Finish it without me*) tells it
+  to finish the request by itself. Either way its answer ends with what it assumed.
+- **The request waits for you**, as it does on an approval card, and the page says so. A stop
+  also caps the cards one request may show (1, 2, 4 and 12). A request that only verifies or
+  polishes never asks.
+- The agent reads your [instructions for the project](#instructions-for-a-project) and its
+  context first, and is told not to ask what they already answer.
 
 Your answers belong to that request. Something you find yourself answering every time belongs
 in the project's instructions.
+
+## The chat panel
+
+On a desktop the chat floats at the bottom right of the page.
+
+- **Make it the size you want.** Drag its left edge to widen it, its top edge to make it taller,
+  or the corner for both. The button in its header jumps to a large size and back; double-click
+  an edge for the usual size. The studio remembers the size in your browser.
+- **The row inside the message box is for things you do:** attach files, add context, the
+  project's instructions, dictate, and *Check this page now* (verify its content, or polish its
+  look).
+- **The strip under the message box is how the next request runs,** each setting named with
+  what it is set to: **Model**, **Depth** (Quick, Standard, Deep), **Verify** (a switch for the
+  content check after each request) and **Involve** (the slider above). Click one to change it.
+- **It is glass.** The panel is translucent and the page shows through it, blurred. The top bar
+  has the same finish. If your system is set to reduce transparency, both are solid.
 
 Add your own skills, connectors and databases on the **Library** page.

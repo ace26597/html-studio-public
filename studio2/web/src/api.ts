@@ -286,7 +286,7 @@ export const api = {
     if (input.model) body.model = input.model;
     if (input.attachments?.length) body.attachments = input.attachments;
     if (input.queue) body.queue = true;
-    if (input.options && (input.options.depth !== "standard" || input.options.verify || input.options.ask))
+    if (input.options && (input.options.depth !== "standard" || input.options.verify || input.options.involve))
       body.options = input.options;
     return request<TurnAccepted>("POST", `/projects/${enc(id)}/turns`, body);
   },

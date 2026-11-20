@@ -699,7 +699,11 @@ const TurnView = memo(function TurnView({
                 <QuestionCard
                   key={item.key}
                   item={item}
-                  actions={{ onAnswer: actions.onAnswer ?? (() => {}), answering: actions.answering ?? {} }}
+                  actions={{
+                    onAnswer: actions.onAnswer ?? (() => {}),
+                    answering: actions.answering ?? {},
+                    onOpenFile: actions.onOpenFile,
+                  }}
                 />
               );
             case "verification":

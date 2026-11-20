@@ -1,10 +1,30 @@
-/** Questions the agent asks before it works (CONTRACT.md, "Questions before the work"): the card's item and its answers. */
+/** The agent's cards (CONTRACT.md, "How much to involve the person"): the scale, the card's item and its answers. */
 
 export const ANSWER_MAX = 2000;
-/** The switch's row in the depth menu: its name says what it does. */
-export const ASK_LABEL = "Ask me first when unsure";
-export const ASK_HINT_ON = "on";
-export const ASK_HINT_OFF = "off";
+
+/** The five stops of "Involve me". `line` is what the menu says under the slider. */
+export const INVOLVE_STOPS: { value: number; name: string; line: string }[] = [
+  { value: 0, name: "On its own", line: "Never asks. It decides what you did not say and gets on with it." },
+  { value: 25, name: "Only if stuck", line: "Works on its own and asks only when it cannot sensibly go on without you." },
+  { value: 50, name: "Ask first", line: "Asks before it starts when your answer would change the result, then builds on its own." },
+  { value: 75, name: "Agree the plan", line: "Asks first, then shows you its plan and waits for your go-ahead before it builds." },
+  { value: 100, name: "Step by step", line: "Plan first, then a check-in after each part: what it made, what it found and its sources." },
+];
+
+/** The stop a value stands for; anything odd reads as the first. */
+export function involveStop(value: unknown): (typeof INVOLVE_STOPS)[number] {
+  return INVOLVE_STOPS.find((stop) => stop.value === value) ?? INVOLVE_STOPS[0];
+}
+
+export type CardKind = "questions" | "plan" | "checkpoint";
+
+/** What a plan or a part rests on: an address, a file in the project, or only words. */
+export interface Reference {
+  label: string;
+  note: string;
+  url?: string;
+  path?: string;
+}
 
 export interface QuestionChoice {
   label: string;
@@ -32,7 +52,13 @@ export interface QuestionItem {
   key: string;
   questionId: string;
   turnId: string;
+  kind: CardKind;
+  /** A check-in's part ("Sales by region"). */
+  title: string;
   why: string;
+  /** The plan, or what was made and found, as Markdown. */
+  summary: string;
+  references: Reference[];
   questions: Question[];
   status: QuestionStatus;
   /** Who closed it: `user`, or `turn_end` when the request ended first. Null while waiting. */
@@ -137,16 +163,54 @@ export function waitingHint(item: QuestionItem, draft: Draft): string {
   return "The agent is waiting for you.";
 }
 
+/** The `references` of a `question_request` event: an address only when it is http(s). */
+export function referencesFrom(raw: unknown): Reference[] {
+  return rows(raw)
+    .map((r) => {
+      const url = text(r.url);
+      const safe = /^https?:\/\//i.test(url) ? url : "";
+      const path = safe ? "" : text(r.path);
+      return { label: text(r.label), note: text(r.note), ...(safe ? { url: safe } : {}), ...(path ? { path } : {}) };
+    })
+    .filter((r) => r.label);
+}
+
+export function cardKind(raw: unknown): CardKind {
+  return raw === "plan" || raw === "checkpoint" ? raw : "questions";
+}
+
+/** A waiting card's heading. */
+export function cardHeading(item: QuestionItem): string {
+  if (item.kind === "plan") return "The plan, before I build";
+  if (item.kind === "checkpoint") return item.title ? `Check-in: ${item.title}` : "Check-in";
+  return item.questions.length === 1 ? "A question for you" : "A few questions for you";
+}
+
+/** The second button: it sends the skip, which ends the asking for the rest of the request. */
+export function skipLabel(item: QuestionItem): string {
+  if (item.kind === "plan") return "Go ahead, no more questions";
+  if (item.kind === "checkpoint") return "Finish it without me";
+  return "Skip, decide for me";
+}
+
+/** What the summary is called on a card that has become a record. */
+export function summaryLabel(item: QuestionItem): string {
+  if (item.kind === "plan") return "The plan";
+  if (item.kind === "checkpoint") return item.title || "The part";
+  return "What the agent said";
+}
+
 /** A resolved card's first line. */
 export function recordHeadline(item: QuestionItem): string {
-  if (item.status === "skipped")
-    return item.by === "turn_end"
-      ? "Not answered: the request ended first"
-      : `You skipped ${item.questions.length === 1 ? "the question" : "the questions"}: the agent decided itself`;
+  if (item.status === "skipped") {
+    if (item.by === "turn_end") return "Not answered: the request ended first";
+    if (item.kind === "plan") return "You told the agent to go ahead by itself";
+    if (item.kind === "checkpoint") return "You told the agent to finish without you";
+    return `You skipped ${item.questions.length === 1 ? "the question" : "the questions"}: the agent decided itself`;
+  }
   const given = item.answers.filter((a) => a.chosen.length > 0 || a.text).length;
-  return item.questions.length === 1
-    ? "You answered"
-    : `You answered ${given} of ${item.questions.length} questions`;
+  const what = item.kind === "plan" ? " on the plan" : item.kind === "checkpoint" ? ` on ${item.title || "this part"}` : "";
+  return item.questions.length === 1 ? `You answered${what}` : `You answered ${given} of ${item.questions.length} questions${what}`;
 }
 
 /** A resolved card's rows: each question with what was answered ("No answer" for one left empty). */

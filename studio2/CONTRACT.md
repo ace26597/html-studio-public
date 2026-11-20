@@ -549,7 +549,7 @@ message); they are committed with the turn's checkpoint instead of their own.
 | `turn_unqueued` | `queued_id`, `reason`, `text` | It was removed without running. `reason`: `cancelled` (the person removed it, or the project is being deleted), `stopped` (Stop cleared it), `restart` (the studio restarted), `not_started` (its turn came but it could not start, for example because no connection is left to send it with). `text` is the message's text, so the thread can say what was not sent and offer it again. The thread says so for every reason except `cancelled`, and offers the text back for `stopped` and `not_started` |
 | `approval_request` | `approval_id`, `tool`, `title`, `detail`, `reason`, `skill?` | The agent wants to do something risky and is waiting. `title` is a short line ("Run a shell command"), `detail` the command or path, `reason` why it needs approval |
 | `approval_resolved` | `approval_id`, `decision`, `by` | `decision`: `allow`, `deny`. `by`: `user`, `turn_end` (the turn ended first: always `deny`) |
-| `question_request` | `question_id`, `questions`, `why` | The agent asks the person something and is waiting ("Questions before the work") |
+| `question_request` | `question_id`, `kind`, `title`, `summary`, `references`, `questions`, `why` | The agent asks the person something, shows its plan or checks in on a part, and is waiting ("How much to involve the person") |
 | `question_resolved` | `question_id`, `by`, `skipped`, `answers` | The person answered or skipped, or the turn ended first |
 | `app_status` | `state`, `exit_code`, `run`, `slow`, `not_answering?` | The project's app changed state, or became `slow` or `not_answering` while `starting`. `turn_id` is the running turn or null |
 
@@ -3202,8 +3202,8 @@ before the request ends (**verify**). Both are remembered per project and sent w
   `polish` together → 400 `invalid_options`.
 - `PATCH /api/projects/{id}` takes `turn_options` (`{depth?, verify?}`, same 400; `check_only` and
   `polish` are properties of one request and are refused here): the project's remembered choice, kept in the
-  project record as `turn_options` (`{depth, verify}`; absent = standard, off). Both take `ask`
-  too ("Questions before the work"), and the project the API returns always has all three keys.
+  project record as `turn_options` (`{depth, verify}`; absent = standard, off). Both take `involve`
+  too ("How much to involve the person"), and the project the API returns always has all three keys.
   A request's own `options` are not saved by sending it; the UI saves the choice when it changes.
 - `turn_started` carries `options` (`{depth, verify}`, always both keys, plus `check_only: true`
   only for a check-only request and `polish: true` only for a polish request). `turn_queued` carries the options of the queued message, and they
@@ -3315,12 +3315,13 @@ way (it can be queued, stopped and undone as a version).
 
 ## UI
 
-The composer's bar has one small control beside the model's: it names the depth ("Standard"),
-with a tick when the content will be verified. It opens a menu with the three steps **Quick /
-Standard / Deep**, each with a few words on what it means (Deep is slower and costs more of the
-model allowance or money), **Verify after each request** to switch the content check on or off,
-**Verify content now**, which sends a request that only verifies (verify on, no new content; it sends
-`options: {depth: "standard", verify: true, check_only: true}`), and **Polish the look now**, which
+The settings are in the strip under the composer ("The chat panel on a desktop", at the end):
+**Depth** names the depth ("Standard") and opens a menu with the three steps **Quick / Standard /
+Deep**, each with a few words on what it means (Deep is slower and costs more of the model
+allowance or money); **Verify** is a switch for the content check after each request. The two
+things done to the page now are a button in the composer's row, *Check this page now*: **Verify
+content**, which sends a request that only verifies (verify on, no new content; it sends
+`options: {depth: "standard", verify: true, check_only: true}`), and **Polish the look**, which
 sends the polish request (`options: {depth: "standard", verify: false, polish: true}`). The chat shows
 a `verification` event as a card: counts first, findings expandable, failed ones first. A
 `verification_recheck` belongs to the turn's last card and is shown at the top of it: when it
@@ -5027,89 +5028,120 @@ has its own; nothing here applies to another project.
   the next request, and that what is asked for in a message still comes first. While a request
   runs it says that the running request keeps the earlier text.
 
-# Questions before the work (Ask me first)
+# How much to involve the person (the scale, and the agent's cards)
 
-A request can pause so the agent asks the person what it does not know, instead of deciding
-quietly. The person switches it on; without the switch nothing changes and nothing is asked.
+A request can pause so the agent asks the person, shows its plan, or checks in on a part it has
+made, instead of deciding quietly. The person sets how much on a scale of five stops; at the
+first stop nothing changes and nothing is asked.
 
-## The switch
+## The scale
 
-- `ask` (boolean) is a third option beside `depth` and `verify` ("How much to do"): accepted in a
-  request's `options` and in `PATCH /api/projects/{id}` `turn_options`, remembered per project,
-  and sent with each request. Anything but a boolean → 400 `invalid_options` (`null` counts as
-  left out, as for `verify`). Left out: off.
-- Cleaned options carry `ask: true` only when it is on (`turn_started`, `turn_queued`, the stored
-  `turn_options`), so a request without it is recorded exactly as before. A `check_only` or
-  `polish` request never asks: `ask` is dropped from it.
+`involve` is a third option beside `depth` and `verify` ("How much to do"): one of `0`, `25`,
+`50`, `75`, `100`. Any other value → 400 `invalid_options` (`null` counts as left out). It is
+accepted in a request's `options` and in `PATCH /api/projects/{id}` `turn_options`, remembered
+per project, and sent with each request. Left out: `0`.
+
+| `involve` | Name | The agent | Cards per request |
+|---|---|---|---|
+| `0` | On its own | never asks; the message is byte for byte what it was | 0 |
+| `25` | Only if stuck | asks only when it cannot sensibly go on: two readings that lead to different results, or something only the person has | 1 |
+| `50` | Ask first | asks before it starts when the answer would change the result | 2 |
+| `75` | Agree the plan | asks first, then puts its plan to the person and waits for the go-ahead before building | 4 |
+| `100` | Step by step | plan first, then a check-in after each part that stands alone, with what it made, what it found and what it rests on | 12 |
+
+- The scale is five stops, not a hundred: a model does not act differently at 37 than at 42,
+  and a stop the person cannot predict is no setting.
+- **The asking is matched to the work.** At every stop a small or specific request (a fix, a
+  wording change, a selected element, a follow-up to answers it already has) gets no card at
+  all. For anything larger the stop is followed, sized to the piece. At `100` the agent builds in
+  parts and never all at once: anything that had a plan gets check-ins, the first after the first
+  part; a one-page piece two or three in all, a long report one per section, small parts grouped.
+  (The first real run at `100` asked, agreed its plan, then built a short report whole: the
+  wording now says that this is the one thing the person asked it not to do.)
+- Cleaned options carry `involve` only when it is above `0` (`turn_started`, `turn_queued`, the
+  stored `turn_options`), so a request without it is recorded exactly as before. A `check_only`
+  or `polish` request never asks: `involve` is dropped from it. `ask: true`, the on/off switch
+  this scale replaced within the day, is read as `involve: 50` and never written.
 - The project the API returns always has `turn_options` with all three keys
-  (`{depth, verify, ask}`; a project that never chose has `standard`, `false`, `false`). The
-  interface shows the switch only when `turn_options.ask` is a boolean, so an interface built
+  (`{depth, verify, involve}`; a project that never chose has `standard`, `false`, `0`). The
+  interface shows the scale only when `turn_options.involve` is a number, so an interface built
   since, on a server started before this existed, hides it (that server would refuse the option).
 
 ## What the agent receives
 
-With `ask` on, the `<studio-effort>` block gains one part (the wording is `effort.ASK`, with the
-rest): before any other work, decide whether something it does not know would change what it
-makes (who the result is for, what it should focus on, how it is laid out or shown, which data
-or period, how long or detailed); look first at the request, the project's instructions, its
-context and the existing page, and never ask what they answer; when something that matters is
-open, call `mcp__studio__ask_person` once with one to four questions, choices where choices make
-sense and its own pick first; when the request is already specific, ask nothing and start; say
-in the closing message what it assumed for anything it decided itself. With `ask` off the block
-has no such part and the message is byte for byte what it was.
+Above `0` the `<studio-effort>` block gains one part, first (the wording is `effort.INVOLVE`,
+with the rest): the stop's own instruction, then how to ask (the tool by its full name, choices
+with its own pick first, never what the request, the project's instructions, its context or the
+page already answer, never permission in general), the rule that matches the asking to the work,
+and that it names in its closing message what it assumed for anything it decided itself.
 
 ## The tool `ask_person`
 
 ```
-{questions: [{question (≤ 300 chars), choices?: [{label (≤ 80), description? (≤ 200)} | string],
-              multiple?: boolean}],
+{kind?: "questions" | "plan" | "checkpoint",
+ title?: string (≤ 80), summary?: Markdown (≤ 1,500 chars),
+ references?: [{label (≤ 80), url? (http or https, ≤ 500), path? (a file in the project), note? (≤ 200)}],
+ questions?: [{question (≤ 300 chars), choices?: [{label (≤ 80), description? (≤ 200)} | string],
+               multiple?: boolean}],
  why?: string (≤ 300)}
 ```
 
-- The tool's schema asks for objects; a plain string for a question or a choice is taken as its
-  text. White space is folded and texts are cut at a word. A question with no text is dropped. Choices
-  with an empty or repeated label (letter case ignored) are dropped; at most 6 are kept; a
-  question left with fewer than 2 has none and is answered in words. `multiple` counts only with
-  choices. At most 4 questions are kept, numbered `q1`…`q4`. `questions` that is not a list, or
-  that leaves no question → the tool answers with an error.
+- **Three kinds of card.** `questions` (the default): things the agent needs to know. `plan`:
+  what it means to build, in `summary` (sections in order with a line each; for an app, the
+  screens or features), before it builds. `checkpoint`: a part it has made, named in `title`,
+  with what it made and found in `summary`. `references` are what the plan or the part rests on:
+  a source's address, or a file in the project. An unknown `kind` is `questions`.
+- **Cleaning.** The tool's schema asks for objects; a plain string for a question or a choice is
+  taken as its text. White space is folded and texts are cut at a word (`summary` keeps its
+  lines). A question with no text is dropped. Choices with an empty or repeated label (letter
+  case ignored) are dropped; at most 6 are kept; a question left with fewer than 2 has none and
+  is answered in words. `multiple` counts only with choices. At most 4 questions are kept,
+  numbered `q1`…`q4`. A reference without a label is dropped; a `url` that is not http(s) is
+  left out of it, and so is a `path` that is not a file inside the project; at most 8 are kept.
+- **A card always has a question.** A `plan` or `checkpoint` with none gets the studio's own:
+  "Go ahead with this plan?" (*Go ahead* / *Change something*) or "Carry on to the next part?"
+  (*Looks good, carry on* / *Change this part*). A `questions` card with none → the tool answers
+  with an error.
 - **It waits for the person**, like an approval: one `question_request` event, then the request
   is paused until the person answers or skips, or the request ends.
 - **When it does not ask** (the tool answers with an error that says what to do instead, and
-  writes no event): `ask` is off for this request ("decide yourself and say what you assumed");
-  no request is running; this request has already asked twice; the person skipped an earlier
-  question in this request.
+  writes no event): `involve` is `0` for this request ("decide yourself and say what you
+  assumed"); no request is running; this request has used the cards its stop allows; the person
+  skipped an earlier card in this request.
 - **What it answers.** After an answer: `{answered: true, answers: [{question, chosen: [label],
-  text}], cut, next}`. A question the person left empty has `chosen: []`, `text: ""` and
-  `unanswered: true`. `cut` is how many questions over the limit were not asked. After a skip:
-  `{answered: false, next}`. `next` tells the agent what follows: what the person typed outranks
-  a choice; an unanswered question, or a skip, means decide and say what was assumed; after a
-  skip, do not ask again in this request.
+  text}], cut, left, next}`. A question the person left empty has `chosen: []`, `text: ""` and
+  `unanswered: true`. `cut` is how many questions over the limit were not asked; `left` is how
+  many more cards this request may show. After a skip: `{answered: false, next}`. `next` tells
+  the agent what follows: what the person typed outranks a choice; an unanswered question, or a
+  skip, means decide and say what was assumed; after a skip, do not ask again in this request.
 - The agent program's own `AskUserQuestion` tool is taken away from the agent (and, should it be
-  called all the same, refused with a line that points to `mcp__studio__ask_person` with `ask`
-  on, or says to decide with it off): there is one card, one path.
+  called all the same, refused with a line that points to `mcp__studio__ask_person` above `0`,
+  or says to decide at `0`): there is one card, one path.
 - The scripted agent (`STUDIO2_FAKE=1`) asks two questions labelled "(fake)" before its work when
-  `ask` is on, unless the message contains "no questions".
+  `involve` is above `0`, unless the message contains "no questions".
 
 ## Events
 
 ```json
-{"type": "question_request", "question_id": "k_1a2b3c4d", "why": "The request does not say who reads it.",
- "questions": [{"id": "q1", "question": "Who is this report for?", "multiple": false,
-                "choices": [{"label": "The board", "description": "Short, figures first."},
-                            {"label": "The sales team", "description": "Detail by region."}]},
-               {"id": "q2", "question": "Which period should it cover?", "multiple": false, "choices": []}]}
+{"type": "question_request", "question_id": "k_1a2b3c4d", "kind": "plan", "title": "",
+ "why": "So the page is built once.",
+ "summary": "1. **Headline**: the total and the leading region\n2. **By region**: a bar chart …",
+ "references": [{"label": "Q3 figures", "path": "data/q3.csv", "note": "the four regions"},
+                {"label": "RBI bulletin", "url": "https://example.org/bulletin", "note": ""}],
+ "questions": [{"id": "q1", "question": "Go ahead with this plan?", "multiple": false,
+                "choices": [{"label": "Go ahead", "description": ""},
+                            {"label": "Change something", "description": "Say what in your own words."}]}]}
 {"type": "question_resolved", "question_id": "k_1a2b3c4d", "by": "user", "skipped": false,
- "answers": [{"id": "q1", "chosen": ["The board"], "text": ""},
-             {"id": "q2", "chosen": [], "text": "July to September 2026"}]}
+ "answers": [{"id": "q1", "chosen": ["Go ahead"], "text": "Keep the chart above the table."}]}
 ```
 
-`by`: `user`, or `turn_end` (the request ended first, or the studio was restarted while the card
-waited: `skipped: true`, `answers: []`). An answer taken in the instant the request ended is
-still recorded as the person's (`by: "user"`). A skip by
-the person is `by: "user"`, `skipped: true`, `answers: []`. `answers` has one entry per question,
-in order. Every `question_request` is followed by exactly one `question_resolved` before the
-turn's `turn_finished`. While a question waits the project's `running_turn` stays set; Stop ends
-the request as at any other point.
+A reference has `label`, `note` and at most one of `url` and `path`. `by`: `user`, or `turn_end`
+(the request ended first, or the studio was restarted while the card waited: `skipped: true`,
+`answers: []`). An answer taken in the instant the request ended is still recorded as the
+person's (`by: "user"`). A skip by the person is `by: "user"`, `skipped: true`, `answers: []`.
+`answers` has one entry per question, in order. Every `question_request` is followed by exactly
+one `question_resolved` before the turn's `turn_finished`. While a card waits the project's
+`running_turn` stays set; Stop ends the request as at any other point.
 
 ## REST
 
@@ -5125,26 +5157,61 @@ the request as at any other point.
 
 ## UI
 
-- **The switch** is in the depth menu ("Standard"), under *Verify after each request*: **Ask me
-  first when unsure**, on or off, like the verify row. The control shows a small question mark
-  when it is on.
-- **The card** appears in the chat where the request paused, like an approval card: the agent's
-  reason (`why`) when it gave one, then each question with its choices (one, or several when
-  `multiple`) and a box for an answer in the person's own words; a question without choices has
-  only the box. **Send answers** is off until one question has an answer; **Skip, decide for
-  me** sends the skip. Once resolved the card becomes a record: each question with what was
-  answered, "No answer" for one left empty, or one line saying the questions were skipped (by the
-  person, or because the request ended first).
-- A waiting question counts as "waiting for you" wherever a waiting approval does (the
-  collapsed chat bar on a phone, the page's title).
+- **The scale** is the last setting in the strip under the composer, **Involve** with its
+  percentage. It opens a slider headed **Involve me** with the five stops, the name of the stop
+  it is on, its percentage and one line saying what the agent will do there. Arrow keys move it
+  a stop.
+- **The card** appears in the chat where the request paused, like an approval card. Its heading
+  follows the kind ("A few questions before I start", "The plan, before I build", "Check-in:
+  <title>"); then the agent's reason (`why`), the `summary` as formatted text, and the
+  references as a list: an address opens in a new tab, a project file opens in the Files panel.
+  Then each question with its choices (one, or several when `multiple`) and a box for an answer
+  in the person's own words; a question without choices has only the box. **Send** is off until
+  one question has an answer. The second button sends the skip and says what that means for the
+  kind: "Skip, decide for me", "Go ahead, no more questions", "Finish it without me". Once
+  resolved the card becomes a record: each question with what was answered, "No answer" for one
+  left empty, or one line saying the person told the agent to go on by itself, or that the
+  request ended first.
+- A card taller than the chat panel is shown from its top. A waiting card counts as "waiting for
+  you" wherever a waiting approval does (the collapsed chat bar on a phone, the page's title).
 
 ## Choices made here
 
-- **Off unless switched on**, per project. Nothing is asked in a project that did not choose it.
+- **`0` unless the person moves it**, per project. Nothing is asked in a project that did not
+  choose it.
 - **The request waits; it does not end.** The answer goes back into the same request, so the
   agent carries on with everything it had read. A studio restart ends a waiting request like any
-  running one.
-- **Twice per request at most**, four questions each, so a request cannot turn into an
-  interview. A skip ends the asking for that request.
+  running one. At `100` a long piece of work waits for the person many times; that is the point
+  of the stop, and the skip button ends it for the rest of the request.
+- **The stop caps the cards** (1, 2, 4, 12), four questions each, so no stop turns a request
+  into an endless interview.
 - **Answers are not kept as instructions.** They belong to the request; what the person always
   wants goes in "Instructions for a project", which the agent is told to read before asking.
+
+# The chat panel on a desktop: its size, and where the options are
+
+Interface only; nothing here changes the API.
+
+- **Size.** The panel floats at the bottom right of the page, `clamp(380px, 32vw, 460px)` wide
+  and as tall as its conversation up to 70% of the window. On a desktop the person drags its
+  left edge (wider), its top edge (taller) or their corner (both); it stays at least 360 by 320
+  and leaves 20 px around itself. A button in the panel's header switches between that size and
+  a large one (680 wide, the full height); a double-click on an edge returns the usual size.
+  The size is kept in the browser (`chat-size`, `chat-large`), for every project, not on the
+  server. A phone or tablet sheet has none of this.
+- **What you do, and how the request runs, are apart.** The composer's own row holds actions:
+  attach files, add context, instructions, dictate, *Check this page now* (verify content, polish
+  the look), then Stop and Send. Under the composer a strip names each setting with what it is
+  set to: **Model**, **Depth**, **Verify** (a switch, one click) and **Involve** (shown only when
+  the server sends `turn_options.involve`). Each opens its own small picker. A setting that is
+  switched on is shown in the accent colour.
+- On a phone the strip wraps to a second line when it must, and it is not shown while the sheet
+  is collapsed to its bar.
+- **Glass.** The chat panel and the top bar are translucent, with what is behind them blurred
+  through (`backdrop-filter`): the panel floats over the page, so the page shows through it. The
+  top bar has the same material but sits above the page, not over it, so nothing passes behind
+  it and it reads as a soft tint; making it see-through would mean floating it over the top of
+  every page, which was not done. Both are opaque enough (80%) that muted text keeps its contrast
+  over a dark page, and both are solid where the browser cannot blur or the person asked the
+  system for less transparency. Seen in a browser without graphics acceleration at double pixel
+  density, the blur stops 1,024 device pixels down a tall panel; with acceleration it does not.

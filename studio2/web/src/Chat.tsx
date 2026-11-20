@@ -1,7 +1,9 @@
 // The floating chat: a round button bottom-right that opens a panel with the
 // thread and the composer. It floats over the page and never pushes it.
 
-import { EffortControl } from "./EffortControl";
+import { DepthPicker, InvolvePicker, OptionButton, PageChecks, VerifyToggle } from "./EffortControl";
+import { CHAT_LARGE, CHAT_MARGIN, formatChatSize, parseChatSize, resized, sizeToggle, type ChatSize, type ResizeEdge } from "./chatSize";
+import { loadString, saveString } from "./storage";
 import type { TurnOptions } from "./effort";
 import { draftHolds, fillDraft, type NextStep } from "./nextSteps";
 import {
@@ -265,17 +267,7 @@ function ModelPicker({
       align="start"
       entries={entries}
       trigger={(props) => (
-        <button
-          type="button"
-          className="model-btn"
-          data-tip="Model for the next message"
-          data-tip-side="top"
-          data-tip-align="start"
-          {...props}
-        >
-          <span>{modelLabel(project, connections)}</span>
-          <Icon name="chevron-down" size={12} strokeWidth={2} />
-        </button>
+        <OptionButton caption="Model" value={modelLabel(project, connections)} tip="Model for the next message" {...props} />
       )}
     />
   );
@@ -384,6 +376,9 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const [showJump, setShowJump] = useState(false);
+  const [size, setSize] = useState<ChatSize | null>(() => parseChatSize(loadString("chat-size")));
+  const [large, setLarge] = useState(() => loadString("chat-large") === "1");
+  const [resizing, setResizing] = useState(false);
   // The sheet's height when open on a phone: half the screen, or all of it.
   const [full, setFull] = useState(false);
   const sheet = useRef<HTMLElement>(null);
@@ -554,6 +549,25 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
 
   const hasFiles = (event: React.DragEvent) => event.dataTransfer.types.includes("Files");
 
+  // ---- the panel's size on a desktop: dragged by an edge, remembered in this browser -----------
+  // Above the collapsed dock's early return below: hooks must run in the same order on every render.
+  const shown = compact || !open ? null : large ? CHAT_LARGE : size;
+  const tall = !!shown && shown.h !== null;
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    if (shown) root.style.setProperty("--chat-w", `min(${shown.w}px, calc(100vw - ${CHAT_MARGIN}px))`);
+    else root.style.removeProperty("--chat-w");
+    if (shown && shown.h !== null) root.style.setProperty("--chat-h", `${shown.h}px`);
+    else root.style.removeProperty("--chat-h");
+  }, [shown]);
+  useEffect(
+    () => () => {
+      document.documentElement.style.removeProperty("--chat-w");
+      document.documentElement.style.removeProperty("--chat-h");
+    },
+    [],
+  );
+
   if (!open && !compact) {
     return (
       <div className="chat-dock">
@@ -599,6 +613,49 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
     "Chat"
   );
 
+  const resetSize = () => {
+    saveString("chat-size", null);
+    saveString("chat-large", null);
+    setSize(null);
+    setLarge(false);
+  };
+  const startResize = (edge: ResizeEdge) => (event: React.PointerEvent<HTMLDivElement>) => {
+    const panel = sheet.current;
+    if (!panel || event.button !== 0) return;
+    event.preventDefault();
+    const rect = panel.getBoundingClientRect();
+    const parent = panel.offsetParent as HTMLElement | null;
+    // The panel's own `right` already holds the open right-hand panel's width.
+    const right = parseFloat(getComputedStyle(panel).right) || CHAT_MARGIN / 2;
+    const room = {
+      w: (parent?.clientWidth ?? window.innerWidth) - CHAT_MARGIN / 2 - right,
+      h: (parent?.clientHeight ?? window.innerHeight) - CHAT_MARGIN,
+    };
+    const start = { x: event.clientX, y: event.clientY, w: rect.width, h: rect.height };
+    // Dragging from the large size starts from what is on the screen.
+    const before: ChatSize | null = large ? { w: Math.round(rect.width), h: Math.round(rect.height) } : size;
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);   // the page preview under the pointer must not take the drag
+    let latest: ChatSize | null = null;       // stays null for a click that never moved: nothing changes
+    const move = (moved: PointerEvent) => {
+      if (Math.abs(moved.clientX - start.x) < 3 && Math.abs(moved.clientY - start.y) < 3 && !latest) return;
+      latest = resized(start, { x: moved.clientX, y: moved.clientY }, edge, room, before);
+      setLarge(false);
+      setSize(latest);
+    };
+    const end = () => {
+      for (const kind of ["pointermove", "pointerup", "pointercancel", "lostpointercapture"] as const)
+        handle.removeEventListener(kind, kind === "pointermove" ? move : end);
+      setResizing(false);
+      if (!latest) return;
+      saveString("chat-large", null);
+      saveString("chat-size", formatChatSize(latest));
+    };
+    setResizing(true);
+    handle.addEventListener("pointermove", move);
+    for (const kind of ["pointerup", "pointercancel", "lostpointercapture"] as const) handle.addEventListener(kind, end);
+  };
+
   const onGrabStart = (event: React.PointerEvent) => {
     drag.current = { y: event.clientY };
   };
@@ -619,7 +676,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
   return (
     <section
       ref={sheet}
-      className={`chat${dropping ? " is-dropping" : ""}${sheetState ? ` sheet is-${sheetState}` : ""}${hidden ? " is-hidden" : ""}`}
+      className={`chat${dropping ? " is-dropping" : ""}${sheetState ? ` sheet is-${sheetState}` : ""}${hidden ? " is-hidden" : ""}${tall ? " is-sized" : ""}${resizing ? " is-resizing" : ""}`}
       hidden={hidden}
       aria-label="Chat"
       onKeyDown={(event) => {
@@ -711,6 +768,17 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
         </span>
         <span className="chat-header-actions">
           <ApprovalsMenu value={project.approvals === "allow" ? "allow" : "ask"} onChange={onSetApprovals} />
+          {open && (
+            <IconButton
+              icon={sizeToggle(large).icon}
+              label={sizeToggle(large).label}
+              tipAlign="end"
+              onClick={() => {
+                saveString("chat-large", large ? null : "1");
+                setLarge(!large);
+              }}
+            />
+          )}
           <IconButton
             icon="chevron-down"
             label="Collapse chat"
@@ -905,11 +973,8 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
               onPhaseChange={setVoicePhase}
             />
           )}
-          {/* While dictating, the model and depth choices step aside so Stop and Send stay on the row. */}
-          {voicePhase === "idle" && <ModelPicker project={project} connections={connections} onPick={onPickModel} />}
-          {voicePhase === "idle" && (
-            <EffortControl options={options} onChange={onOptionsChange} onVerifyPage={onVerifyPage} onPolishPage={onPolishPage} disabled={starting} />
-          )}
+          {/* While dictating, this steps aside so Stop and Send stay on the row. */}
+          {voicePhase === "idle" && <PageChecks onVerifyPage={onVerifyPage} onPolishPage={onPolishPage} disabled={starting} />}
           <span className="composer-spacer" />
           {running && (
             <button
@@ -941,6 +1006,22 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
           )}
         </div>
       </div>
+
+      {/* How the next request runs: each setting named, with what it is set to. */}
+      <div className="chat-options" role="group" aria-label="Settings for your next request">
+        <ModelPicker project={project} connections={connections} onPick={onPickModel} />
+        <DepthPicker options={options} onChange={onOptionsChange} />
+        <VerifyToggle options={options} onChange={onOptionsChange} />
+        <InvolvePicker options={options} onChange={onOptionsChange} />
+      </div>
+
+      {!compact && open && (
+        <>
+          <div className="chat-resize is-left" aria-hidden="true" title="Drag to resize. Double-click for the usual size." onPointerDown={startResize("left")} onDoubleClick={resetSize} />
+          <div className="chat-resize is-top" aria-hidden="true" title="Drag to resize. Double-click for the usual size." onPointerDown={startResize("top")} onDoubleClick={resetSize} />
+          <div className="chat-resize is-corner" aria-hidden="true" title="Drag to resize. Double-click for the usual size." onPointerDown={startResize("corner")} onDoubleClick={resetSize} />
+        </>
+      )}
     </section>
   );
 });
