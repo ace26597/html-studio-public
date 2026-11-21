@@ -231,6 +231,9 @@ export const api = {
   getProject: (id: string) => request<Project>("GET", `/projects/${enc(id)}`),
   getCost: (id: string, signal?: AbortSignal) => request<ProjectCost>("GET", `/projects/${enc(id)}/cost`, undefined, signal),
   recoverCost: (id: string) => request<CostRecovery>("POST", `/projects/${enc(id)}/cost/recover`),
+  /** The person's instructions for every project. Refused on a shared studio; absent on an older server. */
+  everywhereInstructions: (signal?: AbortSignal) => request<{ text: string }>("GET", "/instructions", undefined, signal),
+  saveEverywhereInstructions: (text: string) => request<{ text: string }>("PUT", "/instructions", { text }),
   patchProject: (
     id: string,
     patch: {

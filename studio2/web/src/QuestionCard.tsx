@@ -96,7 +96,10 @@ function QuestionField({
                   onChange={() => (question.multiple || !on) && onChange(toggleChoice(draft, question, choice.label))}
                 />
                 <span className="question-choice-body">
-                  <span className="question-choice-label">{choice.label}</span>
+                  <span className="question-choice-label">
+                    {choice.label}
+                    {choice.pick && <span className="question-choice-pick">Suggested</span>}
+                  </span>
                   {choice.description && <span className="question-choice-note">{choice.description}</span>}
                 </span>
               </label>

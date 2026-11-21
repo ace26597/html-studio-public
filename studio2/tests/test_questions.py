@@ -362,3 +362,33 @@ async def test_a_card_left_waiting_by_a_studio_that_died_is_closed_at_the_next_s
     assert ("question_resolved", "turn_end") in kinds
     assert kinds.index(("question_resolved", "turn_end")) < [k for k, _b in kinds].index("turn_finished")
     assert events.unanswered() == {}
+
+
+# -- after the field test of 24 real requests --------------------------------------------------
+def test_a_choice_is_an_answer_and_at_most_one_is_the_agents_pick():
+    card = questions.clean({"questions": [
+        {"question": "Share the product list?", "choices": ["I'll paste or upload it", "Build an empty template"]},
+        {"question": "Compare against?", "choices": [
+            {"label": "Within the quarter", "pick": True}, {"label": "I will give you targets"},
+            {"label": "I\u2019ll send last year", "pick": True}, {"label": "Region against region", "pick": True},
+            {"label": "Illustrative only"}]},
+        {"question": "Who?", "choices": [{"label": "The board", "pick": "yes"}, {"label": "The team"}]}]})
+    first, second, third = card["questions"]
+    assert first["choices"] == []                                # a promise is no answer; one choice is no choice
+    assert [c["label"] for c in second["choices"]] == ["Within the quarter", "Region against region", "Illustrative only"]
+    assert [c.get("pick") for c in second["choices"]] == [True, None, None]     # the first one marked, no second
+    assert all("pick" not in c for c in third["choices"])                       # only a real true counts
+    answers = questions.check(card["questions"], {"answers": [{"id": "q2", "chosen": ["Region against region"]}]})
+    assert answers[1]["chosen"] == ["Region against region"]
+
+
+def test_the_wording_carries_what_the_field_test_found():
+    for stop in (25, 50, 75, 100):
+        said = effort.block(at(stop))
+        assert "`pick: true`" in said and "Every choice is an answer in itself" in said
+        assert "never ask how deep" in said and "for every project and for this one" in said
+    for stop in (50, 75, 100):
+        said = effort.block(at(stop))
+        assert "do not assume the United States" in said and "one question may be about the look" in said
+    for stop in (75, 100):
+        assert "A short or one-page piece still gets its plan" in effort.block(at(stop))

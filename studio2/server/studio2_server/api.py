@@ -413,6 +413,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except effort.OptionsError as exc:
             raise ApiError(400, "invalid_options", str(exc)) from None
 
+    @app.get("/api/instructions")
+    async def read_instructions():
+        if settings.shared:
+            raise ApiError(403, "not_for_shared", "On a shared studio only its owner writes instructions for every project.")
+        return {"text": studio.everywhere.read()["text"]}
+
+    @app.put("/api/instructions")
+    async def write_instructions(request: Request):
+        if settings.shared:
+            raise ApiError(403, "not_for_shared", "On a shared studio only its owner writes instructions for every project.")
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+        if not isinstance(body, dict) or "text" not in body:
+            raise ApiError(400, "invalid_request", "Send {\"text\": \"...\"}.")
+        try:
+            return {"text": await asyncio.to_thread(studio.everywhere.write, body["text"])}
+        except instructions.InstructionsError as exc:
+            raise ApiError(400, "invalid_request", str(exc)) from None
+
     @app.patch("/api/projects/{project_id}")
     async def patch_project(project_id: str, body: ProjectPatch):
         project = studio.store.get(project_id)

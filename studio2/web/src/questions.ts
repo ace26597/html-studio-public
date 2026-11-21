@@ -29,6 +29,8 @@ export interface Reference {
 export interface QuestionChoice {
   label: string;
   description: string;
+  /** The agent marked this as the choice it would take itself. */
+  pick?: boolean;
 }
 
 export interface Question {
@@ -88,7 +90,7 @@ export function questionsFrom(raw: unknown): Question[] {
       question: text(q.question),
       multiple: q.multiple === true,
       choices: rows(q.choices)
-        .map((c) => ({ label: text(c.label), description: text(c.description) }))
+        .map((c) => ({ label: text(c.label), description: text(c.description), ...(c.pick === true ? { pick: true } : {}) }))
         .filter((c) => c.label),
     }))
     .filter((q) => q.question);

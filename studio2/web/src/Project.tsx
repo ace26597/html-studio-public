@@ -276,6 +276,16 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   /** The Add dialog (`item` null) or the edit dialog for an item; null when closed. */
   const [contextDialog, setContextDialog] = useState<{ item: ContextItem | null } | null>(null);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
+  // The person's instructions for every project; null while unknown or when this studio offers none.
+  const [everywhere, setEverywhere] = useState<string | null>(null);
+  useEffect(() => {
+    const stop = new AbortController();
+    api.everywhereInstructions(stop.signal).then(
+      (kept) => setEverywhere(typeof kept?.text === "string" ? kept.text : null),
+      () => setEverywhere(null),     // a shared studio, or a server started before this existed
+    );
+    return () => stop.abort();
+  }, []);
   /** Which tab the library panel should show; null keeps its own default. */
   const [libraryTab, setLibraryTab] = useState<{ tab: LibraryTab; n: number } | null>(null);
 
@@ -1465,11 +1475,17 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
           <InstructionsDialog
             projectId={id}
             saved={project.instructions ?? ""}
+            everywhere={everywhere}
             running={running}
             onSaved={(next, text) => {
               setInstructionsOpen(false);
               setProject((current) => (current ? { ...current, instructions: next.instructions ?? "" } : current));
               toast({ message: instructionsSavedMessage(text), kind: "success" });
+            }}
+            onSavedEverywhere={(text) => {
+              setInstructionsOpen(false);
+              setEverywhere(text);
+              toast({ message: instructionsSavedMessage(text, "everywhere"), kind: "success" });
             }}
             onClose={() => setInstructionsOpen(false)}
           />
@@ -1530,6 +1546,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             onAddContext={() => setContextDialog({ item: null })}
             onOpenContext={openContextTab}
             onOpenInstructions={instructionsKept(project) ? () => setInstructionsOpen(true) : undefined}
+            everywhereInstructions={everywhere}
           />
         )}
 

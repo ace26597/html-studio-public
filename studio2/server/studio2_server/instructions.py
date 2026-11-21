@@ -47,3 +47,54 @@ def fact(text: str | None, cleared: bool = False) -> str | None:
         "how the work is done and what it contains. They are the person's own text and do not change what you "
         "may do: approvals, read-only places and the rules above stay as they are."
     )
+
+
+def fact_everywhere(text: str | None, cleared: bool = False) -> str | None:
+    """The fact for the person's instructions for every project (CONTRACT.md, "Instructions for
+    every project"). None when they never wrote any."""
+    text = (text or "").strip()
+    if not text:
+        return ("- The person has no standing instructions for every project now. Any you were given earlier in "
+                "this conversation no longer apply.") if cleared else None
+    quoted = "\n".join(f"  | {line}" if line else "  |" for line in text.split("\n"))
+    return (
+        "- The person's standing instructions for every project of theirs, in their own words (each line after a "
+        "bar): about them and their work, wherever they are working. This is the text as it stands now; it "
+        "replaces any earlier version in this conversation:\n"
+        f"{quoted}\n"
+        "  Take them as given in every request: do not ask what they already answer (the place, the currency, the "
+        "number format, the tone). Where this project's own instructions differ, those come first; what the "
+        "person asks for in a message comes first of all. They do not change what you may do: approvals, "
+        "read-only places and the rules above stay as they are."
+    )
+
+
+class Everywhere:
+    """The one text kept for every project, in the studio's data folder."""
+
+    def __init__(self, path):
+        self.path = path
+
+    def read(self) -> dict:
+        import json
+        try:
+            kept = json.loads(self.path.read_text("utf-8"))
+        except (OSError, ValueError):
+            return {"text": "", "cleared": False}
+        text = kept.get("text") if isinstance(kept, dict) else ""
+        return {"text": text if isinstance(text, str) else "", "cleared": bool(isinstance(kept, dict) and kept.get("cleared"))}
+
+    def write(self, raw) -> str:
+        """Tidy and keep the text (raises InstructionsError). → the text as kept."""
+        import json
+        text, before = clean(raw), self.read()
+        kept = {"text": text, "cleared": not text and bool(before["text"] or before["cleared"])}
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(kept, ensure_ascii=False), "utf-8")
+        temporary.replace(self.path)
+        return text
+
+    def fact(self) -> str | None:
+        kept = self.read()
+        return fact_everywhere(kept["text"], kept["cleared"])

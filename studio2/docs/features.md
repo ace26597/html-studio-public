@@ -167,6 +167,12 @@ closing section, a tone, who the reader is. Each project has a box for them.
   empties the box; nothing changes until you press Save.
 - A template saved from the project and an export do not carry them.
 
+**For every project.** The same dialog has a second part, **Every project**, for what is true
+of all your work: where it is, the currency and number format, how you like things written
+("My solar businesses are in Maharashtra, India. Use rupees, with lakh and crore."). The agent
+gets it with every request in every project and does not ask what it already answers. A
+project's own instructions come first where the two differ. A shared studio has no such text.
+
 Context tells the agent *where to look*; instructions tell it *how to work*. Something you want
 in every project of a kind is better as a [skill of your own](#making-a-skill-of-your-own).
 
@@ -191,7 +197,9 @@ at 42%, and you should be able to tell what a setting will do.
   to the work. "Change the title to …" gets no card at any setting; a one-page piece gets two or
   three check-ins; a long report one per section.
 - **Three kinds of card.** *Questions*: up to four, each with choices (the agent's own pick
-  first), a box for your own words, or both; what you type counts for more than a choice. *The
+  first, marked *Suggested*), a box for your own words, or both; what you type counts for more
+  than a choice. Every choice is a real answer: something only you have, such as a price list,
+  is asked as a plain question to type or paste into. *The
   plan*: the sections or features it means to build and what it will rely on. *A check-in*: the
   part it just made, what it found, and its references. A source opens in a new tab; a project
   file opens in the Files panel. The page itself updates as the agent works, so you can look at
@@ -202,8 +210,10 @@ at 42%, and you should be able to tell what a setting will do.
 - **The request waits for you**, as it does on an approval card, and the page says so. A stop
   also caps the cards one request may show (1, 2, 4 and 12). A request that only verifies or
   polishes never asks.
-- The agent reads your [instructions for the project](#instructions-for-a-project) and its
-  context first, and is told not to ask what they already answer.
+- The agent reads your [instructions](#instructions-for-a-project), for every project and for
+  this one, and the project's context first, and is told not to ask what they already answer.
+  It does not ask how deep to go (that is the Depth setting), and it does not assume a country
+  or currency you did not give: it asks.
 
 Your answers belong to that request. Something you find yourself answering every time belongs
 in the project's instructions.

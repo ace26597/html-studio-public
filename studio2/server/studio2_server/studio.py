@@ -66,6 +66,7 @@ class Studio:
         self.looker = Looker(self.sessions)
         self.ships = shipping.Shipper(self)
         self.generator = generate.Generator(settings.data_dir, settings.generate_daily_credits)
+        self.everywhere = instructions.Everywhere(settings.data_dir / "instructions.json")
         self.checks = ModelChecks(self)     # "check this model" (modelcheck.py)
         self.costs = Costs(self)            # what a gateway turn cost, read back (costs.py)
         self.approvers: dict = {}       # project id → the running turn's approval function
@@ -525,9 +526,11 @@ class Studio:
         told = contexts.facts(project.get("context") or [])
         if told:
             lines.append(told)
-        standing = instructions.fact(project.get("instructions"), bool(project.get("instructions_cleared")))
-        if standing:
-            lines.append(standing)
+        # The person's own words: for every project first (never on a shared studio), then this one's.
+        for standing in (None if self.settings.shared else self.everywhere.fact(),
+                         instructions.fact(project.get("instructions"), bool(project.get("instructions_cleared")))):
+            if standing:
+                lines.append(standing)
         if self.looker.reason() is None:
             lines.append(
                 "- You can see the page: look_at_page loads it in a real browser and returns screenshot files "

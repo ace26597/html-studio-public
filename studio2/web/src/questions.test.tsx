@@ -157,6 +157,18 @@ describe("answering on the card", () => {
     expect(failed).toContain('role="alert"');
   });
 
+  it("marks the choice the agent said it would take itself, and only that one", () => {
+    const asked = { ...ASKED, question_id: "k_p", questions: [{ id: "q1", question: "Who is this for?", multiple: false,
+      choices: [{ label: "The board", description: "Short.", pick: true }, { label: "The team", description: "" }, { label: "Both", pick: "yes" }] }] };
+    const picked = waitingQuestions(reduceEvents(initialThread, log(started, asked)))[0];
+    expect(picked.questions[0].choices.map((c) => c.pick)).toEqual([true, undefined, undefined]);
+    const html = renderToStaticMarkup(<QuestionCard item={picked} actions={{ onAnswer: () => {}, answering: {} }} />);
+    expect(html.match(/question-choice-pick/g)?.length).toBe(1);
+    expect(html).toMatch(/The board<span class="question-choice-pick">Suggested<\/span>/);
+    // A card whose agent marked nothing claims nothing.
+    expect(renderToStaticMarkup(<QuestionCard item={waitingItem()} actions={{ onAnswer: () => {}, answering: {} }} />)).not.toContain("Suggested");
+  });
+
   it("reads odd events without failing", () => {
     expect(questionsFrom(null)).toEqual([]);
     expect(questionsFrom([{ question: "Only text" }, { id: "q9", question: "" }, "x"])).toEqual([

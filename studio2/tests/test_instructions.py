@@ -94,3 +94,55 @@ async def test_each_project_has_its_own(client, studio, project):
     assert other["instructions"] == ""
     assert "Only here." not in studio.agent_context(other["id"])
     assert "| Only here." in studio.agent_context(project["id"])
+
+
+# -- for every project (CONTRACT.md, "Instructions for every project") ------------------------
+async def test_one_text_reaches_every_project_before_the_projects_own(client, studio, project):
+    pid = project["id"]
+    assert (await client.get("/api/instructions")).json() == {"text": ""}
+    assert "every project of theirs" not in studio.agent_context(pid, None)        # never written: nothing said
+    saved = await client.put("/api/instructions", json={"text": "  My work is in Maharashtra, India. \r\nUse rupees.  "})
+    assert saved.status_code == 200 and saved.json() == {"text": "My work is in Maharashtra, India.\nUse rupees."}
+    assert (await client.get("/api/instructions")).json()["text"].startswith("My work is in Maharashtra")
+    other = (await client.post("/api/projects", json={"name": "Another"})).json()["id"]
+    for each in (pid, other):                                                      # every project, at once
+        told = studio.agent_context(each, None)
+        assert "standing instructions for every project of theirs" in told and "  | Use rupees." in told
+        assert "do not ask what they already answer" in told and "approvals" in told
+    await client.patch(f"/api/projects/{pid}", json={"instructions": "Here, use dollars."})
+    told = studio.agent_context(pid, None)
+    assert told.index("for every project of theirs") < told.index("standing instructions for this project")
+    assert "this project's own instructions differ, those come first" in told
+    # Cleared: each request says none applies now, so an earlier message's copy is not followed.
+    assert (await client.put("/api/instructions", json={"text": ""})).json() == {"text": ""}
+    assert "no standing instructions for every project now" in studio.agent_context(other, None)
+    assert (studio.settings.data_dir / "instructions.json").is_file()
+
+
+async def test_what_the_every_project_text_refuses(client, studio):
+    for bad in ({"text": 5}, {"text": ["a"]}, {"text": "x" * 4001}, {}, {"words": "x"}):
+        answer = await client.put("/api/instructions", json=bad)
+        assert answer.status_code == 400 and answer.json()["error"]["code"] == "invalid_request", bad
+    assert (await client.put("/api/instructions", json={"text": None})).json() == {"text": ""}
+    # A file someone wrote by hand: read as nothing, never an error.
+    (studio.settings.data_dir / "instructions.json").write_text("not json")
+    assert (await client.get("/api/instructions")).json() == {"text": ""}
+
+
+async def test_a_shared_studio_has_no_every_project_text(client, studio, project, settings):
+    assert (await client.put("/api/instructions", json={"text": "Use rupees."})).status_code == 200
+    settings.shared = True
+    for answer in (await client.get("/api/instructions"), await client.put("/api/instructions", json={"text": "Mine now."})):
+        assert answer.status_code == 403 and answer.json()["error"]["code"] == "not_for_shared"
+    assert "every project of theirs" not in studio.agent_context(project["id"], None)     # the owner's text stays out
+    settings.shared = False
+    assert (await client.get("/api/instructions")).json() == {"text": "Use rupees."}      # and was not changed
+
+
+def test_the_every_project_text_is_kept_and_cleared(tmp_path):
+    from studio2_server.instructions import Everywhere, fact_everywhere
+    kept = Everywhere(tmp_path / "instructions.json")
+    assert kept.read() == {"text": "", "cleared": False} and kept.fact() is None
+    assert kept.write("Use rupees.") == "Use rupees." and "  | Use rupees." in kept.fact()
+    assert kept.write("") == "" and kept.read() == {"text": "", "cleared": True}
+    assert "no longer apply" in kept.fact() and fact_everywhere("", False) is None

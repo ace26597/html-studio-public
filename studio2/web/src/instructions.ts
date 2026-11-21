@@ -7,7 +7,20 @@ import type { MenuEntry } from "./ui";
 /** The server's limit, counted on the tidied text. */
 export const INSTRUCTIONS_MAX = 4000;
 
-export const INSTRUCTIONS_TITLE = "Instructions for this project";
+export const INSTRUCTIONS_TITLE = "Instructions";
+
+/** The two texts the dialog holds: for this project, and for every project of the person's. */
+export type InstructionsPart = "project" | "everywhere";
+export const PART_LABEL: Record<InstructionsPart, string> = { project: "This project", everywhere: "Every project" };
+export const PART_QUESTION: Record<InstructionsPart, string> = {
+  project: "What should the agent always do here? Write it as you would say it.",
+  everywhere: "What holds for all your work? Where it is, the currency, how you like things written.",
+};
+export const EVERYWHERE_EXAMPLES = [
+  "My solar businesses are in Maharashtra, India.",
+  "Use rupees, with lakh and crore.",
+  "Write plainly. I read on a laptop.",
+].join("\n");
 
 export const INSTRUCTIONS_EXAMPLES = [
   "Always use Indian number format (1,20,000) and rupees.",
@@ -71,26 +84,41 @@ export function instructionsEntries(project: Pick<Project, "instructions"> | nul
   return [{ label: "Instructions…", icon: "note", hint: hasInstructions(project) ? "On" : undefined, onSelect }];
 }
 
-/** The button beside "Add context" under the message box. */
-export function instructionsButton(project: Pick<Project, "instructions"> | null): { label: string; tip: string; on: boolean } {
-  const on = hasInstructions(project);
+/** The button beside "Add context" under the message box. `everywhere`: the text for every project, if any. */
+export function instructionsButton(
+  project: Pick<Project, "instructions"> | null,
+  everywhere?: string | null,
+): { label: string; tip: string; on: boolean } {
+  const here = hasInstructions(project);
+  const all = !!everywhere && everywhere.trim() !== "";
+  const on = here || all;
   return {
-    label: on ? "Instructions for this project (on)" : "Instructions for this project",
-    tip: on ? "This project has instructions the agent follows every time" : "Instructions (what you always want in this project)",
+    label: on ? "Instructions (on)" : "Instructions",
+    tip: here && all
+      ? "The agent follows your instructions for every project and for this one"
+      : here
+        ? "This project has instructions the agent follows every time"
+        : all
+          ? "The agent follows your instructions for every project"
+          : "Instructions (what you always want, here or in every project)",
     on,
   };
 }
 
 /** Under the box: when the text applies. */
-export function instructionsNote(running: boolean): string {
-  const always = "The agent is given this with every request in this project, and only in this project.";
+export function instructionsNote(running: boolean, part: InstructionsPart = "project"): string {
+  const always =
+    part === "everywhere"
+      ? "The agent is given this with every request in every project. A project's own instructions come first where they differ."
+      : "The agent is given this with every request in this project, and only in this project.";
   return running
     ? `${always} The request running now keeps the earlier text; a change applies from the next one.`
     : `${always} A change applies from the next request.`;
 }
 
-export function instructionsSavedMessage(text: string): string {
+export function instructionsSavedMessage(text: string, part: InstructionsPart = "project"): string {
+  const which = part === "everywhere" ? "Instructions for every project" : "Instructions";
   return tidyInstructions(text)
-    ? "Instructions saved. The agent follows them from the next request."
-    : "Instructions cleared. The agent is told they no longer apply.";
+    ? `${which} saved. The agent follows them from the next request.`
+    : `${which} cleared. The agent is told they no longer apply.`;
 }

@@ -109,6 +109,8 @@ interface ChatProps {
   onOpenContext?: () => void;
   /** "Instructions" beside "Add context": what the person always wants in this project. */
   onOpenInstructions?: () => void;
+  /** The person's instructions for every project (null: none offered), for the button's mark. */
+  everywhereInstructions?: string | null;
 }
 
 function ApprovalsMenu({ value, onChange }: { value: Approvals; onChange: (value: Approvals) => void }) {
@@ -316,8 +318,9 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
     onAddContext,
     onOpenContext,
     onOpenInstructions,
+    everywhereInstructions,
   } = props;
-  const standing = instructionsButton(project);
+  const standing = instructionsButton(project, everywhereInstructions);
   const toast = useToast();
   // Where the caret was when dictation began, if the box had focus and the draft hasn't changed since.
   const dictationCaret = useRef<{ draft: string; start: number; end: number } | null>(null);

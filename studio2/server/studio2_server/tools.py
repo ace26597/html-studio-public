@@ -716,7 +716,8 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      "the plan in `summary`, before you build) or checkpoint (a part you have made: its name in `title`, what you "
      "made and found in `summary`). `summary` is short Markdown. `references` are what the plan or the part rests "
      "on, each a label with a `url` or the `path` of a file in this project, and a `note`. `questions`: one to "
-     "four; each may have `choices` (two to six, a label and a short description each; your own pick first) and "
+     "four; each may have `choices` (two to six, each a real answer with a label and a short description; your own "
+     "pick first with `pick: true`) and "
      "`multiple` when more than one can apply; they can always type their own answer. A plan or a checkpoint "
      "without a question asks whether to go ahead. `why`: one sentence on what the answers change. They may tell "
      "you to go on by yourself: then decide, and do not ask again. The answer says how many more cards this "
@@ -726,7 +727,7 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
                   "label": S, "url": S, "path": S, "note": S}, "required": ["label"]}},
               "questions": {"type": "array", "items": {"type": "object", "properties": {
                   "question": S, "multiple": B,
-                  "choices": {"type": "array", "items": {"type": "object", "properties": {"label": S, "description": S},
+                  "choices": {"type": "array", "items": {"type": "object", "properties": {"label": S, "description": S, "pick": B},
                                                          "required": ["label"]}}},
                   "required": ["question"]}},
               "why": S}, []), t_ask_person),

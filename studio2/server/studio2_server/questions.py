@@ -6,6 +6,8 @@ part with no waiting in it: what a call may ask, what an answer may say, and wha
 """
 from __future__ import annotations
 
+import re
+
 from . import effort
 
 MAX_QUESTIONS, MAX_CHOICES, MAX_REFERENCES = 4, 6, 8
@@ -49,18 +51,24 @@ def _key(label: str) -> str:
     return " ".join(label.split()).casefold()
 
 
+PROMISE = re.compile(r"^\s*i\s*(?:'|\u2019)?\s*(?:ll|will)\b", re.I)     # "I'll paste it": no answer, a promise of one
+
+
 def _choices(raw) -> list[dict]:
     kept, seen = [], set()
     for item in raw if isinstance(raw, list) else []:
+        pick = False
         if isinstance(item, dict):
-            label = effort._cut(item.get("label"), LABEL_CAP)
+            label = effort._cut(item.get("label"), LABEL_CAP) if isinstance(item.get("label"), (str, int, float)) else ""
             description = effort._cut(item.get("description"), DESCRIPTION_CAP)
+            pick = item.get("pick") is True
         else:
             label, description = effort._cut(item, LABEL_CAP) if isinstance(item, (str, int, float)) else "", ""
-        if not label or _key(label) in seen:
+        if not label or _key(label) in seen or PROMISE.match(label):
             continue
         seen.add(_key(label))
-        kept.append({"label": label, "description": description})
+        kept.append({"label": label, "description": description,
+                     **({"pick": True} if pick and not any(choice.get("pick") for choice in kept) else {})})
     kept = kept[:MAX_CHOICES]
     return kept if len(kept) >= 2 else []      # one choice is no choice: the person answers in words
 

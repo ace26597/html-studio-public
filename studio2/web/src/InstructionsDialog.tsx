@@ -1,17 +1,21 @@
-// Project menu → Instructions…: what the person always wants in this project.
+// Project menu → Instructions…: what the person always wants, in this project or in every project.
 
 import { useId, useRef, useState } from "react";
 import { api, errorMessage } from "./api";
 import { Icon, Spinner } from "./icons";
 import {
   DISCARD_INSTRUCTIONS,
+  EVERYWHERE_EXAMPLES,
   INSTRUCTIONS_EXAMPLES,
   INSTRUCTIONS_TITLE,
+  PART_LABEL,
+  PART_QUESTION,
   instructionsChanged,
   instructionsCount,
   instructionsNote,
   instructionsProblem,
   tidyInstructions,
+  type InstructionsPart,
 } from "./instructions";
 import { Modal } from "./Modal";
 import type { Project } from "./types";
@@ -20,25 +24,49 @@ interface InstructionsDialogProps {
   projectId: string;
   /** What the project has now. */
   saved: string;
+  /** The text for every project, or null when this studio offers none (shared, or an older server). */
+  everywhere: string | null;
   /** A request is running: it keeps the earlier text. */
   running: boolean;
   onSaved: (project: Project, text: string) => void;
+  onSavedEverywhere: (text: string) => void;
   onClose: () => void;
+  /** Which part to open on (tests draw the second one with it). */
+  startWith?: InstructionsPart;
 }
 
-export function InstructionsDialog({ projectId, saved, running, onSaved, onClose }: InstructionsDialogProps) {
-  const [text, setText] = useState(saved);
+export function InstructionsDialog({
+  projectId,
+  saved,
+  everywhere,
+  running,
+  onSaved,
+  onSavedEverywhere,
+  onClose,
+  startWith = "project",
+}: InstructionsDialogProps) {
+  const [part, setPart] = useState<InstructionsPart>(everywhere === null ? "project" : startWith);
+  const kept = part === "everywhere" ? (everywhere ?? "") : saved;
+  const [text, setText] = useState(kept);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const box = useRef<HTMLTextAreaElement>(null);
   const ids = useId();
 
-  const changed = instructionsChanged(saved, text);
+  const changed = instructionsChanged(kept, text);
   const problem = instructionsProblem(text);
   const count = instructionsCount(text);
 
   const close = () => {
     if (!changed || window.confirm(DISCARD_INSTRUCTIONS)) onClose();
+  };
+
+  const show = (next: InstructionsPart) => {
+    if (next === part || saving) return;
+    if (changed && !window.confirm(DISCARD_INSTRUCTIONS)) return;
+    setPart(next);
+    setText(next === "everywhere" ? (everywhere ?? "") : saved);
+    setError(null);
   };
 
   const save = async () => {
@@ -47,7 +75,8 @@ export function InstructionsDialog({ projectId, saved, running, onSaved, onClose
     setSaving(true);
     setError(null);
     try {
-      onSaved(await api.patchProject(projectId, { instructions: next }), next);
+      if (part === "everywhere") onSavedEverywhere((await api.saveEverywhereInstructions(next)).text);
+      else onSaved(await api.patchProject(projectId, { instructions: next }), next);
     } catch (cause) {
       setError(errorMessage(cause));
       setSaving(false);
@@ -63,8 +92,24 @@ export function InstructionsDialog({ projectId, saved, running, onSaved, onClose
           void save();
         }}
       >
+        {everywhere !== null && (
+          <div className="instructions-parts" role="group" aria-label="Which instructions">
+            {(["project", "everywhere"] as const).map((each) => (
+              <button
+                key={each}
+                type="button"
+                className={`instructions-part${each === part ? " is-on" : ""}`}
+                aria-pressed={each === part}
+                onClick={() => show(each)}
+              >
+                {PART_LABEL[each]}
+                {(each === "everywhere" ? (everywhere ?? "") : saved).trim() !== "" && <span className="instructions-part-dot" aria-label="has text" />}
+              </button>
+            ))}
+          </div>
+        )}
         <label className="field" htmlFor={`${ids}-text`}>
-          <span>What should the agent always do here? Write it as you would say it.</span>
+          <span>{PART_QUESTION[part]}</span>
           <textarea
             id={`${ids}-text`}
             ref={box}
@@ -72,7 +117,7 @@ export function InstructionsDialog({ projectId, saved, running, onSaved, onClose
             className="field-textarea instructions-text"
             rows={11}
             value={text}
-            placeholder={INSTRUCTIONS_EXAMPLES}
+            placeholder={part === "everywhere" ? EVERYWHERE_EXAMPLES : INSTRUCTIONS_EXAMPLES}
             aria-invalid={problem ? true : undefined}
             aria-describedby={`${ids}-note`}
             onChange={(event) => {
@@ -83,7 +128,7 @@ export function InstructionsDialog({ projectId, saved, running, onSaved, onClose
         </label>
         <div className="instructions-under">
           <p className="field-hint" id={`${ids}-note`}>
-            {instructionsNote(running)} What you ask for in a message still comes first.
+            {instructionsNote(running, part)} What you ask for in a message still comes first.
           </p>
           <span className={`instructions-count${count.over ? " is-over" : ""}`}>{count.text}</span>
         </div>

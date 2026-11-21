@@ -5028,6 +5028,30 @@ has its own; nothing here applies to another project.
   the next request, and that what is asked for in a message still comes first. While a request
   runs it says that the running request keeps the earlier text.
 
+## Instructions for every project
+
+Some of what a person always wants is about them and not about one project: where their work
+is, the currency and number format, how they like things written. The studio keeps one more text
+for that and gives it to the agent with every request in every project.
+
+- **The text.** The same rules as a project's own: plain text, 4,000 characters at most, tidied
+  the same way. It is kept in the studio's data folder (`instructions.json`), not in a project.
+- **REST.** `GET /api/instructions` → `{text}` (`""` when there is none).
+  `PUT /api/instructions` with `{"text": "<text>"}` → `{text}`; `""` or `null` clears it; not
+  text or too long → 400 `invalid_request`.
+- **What the agent receives.** One more project fact, before the project's own instructions:
+  the text quoted line by line, that it is about the person and their work and holds in every
+  project, that this project's own instructions come first where the two differ and a message's
+  request comes first of all, and that it changes nothing about what the agent may do. It says
+  that the text as given now replaces any earlier version in the conversation, and after it was
+  cleared each request says that none applies now, exactly as for a project's own.
+- **A shared studio** has none: both routes answer 403 `not_for_shared` there (a text that
+  reaches every project is the owner's to write, like a skill), and the fact is never added.
+- **UI.** The Instructions dialog has two parts chosen at its top: **This project** and **Every
+  project**. Each has its own box, count, Save and Clear. The second is shown only when
+  `GET /api/instructions` answers (not on a shared studio, not on a server started before this
+  existed). The button beside *Add context* is marked when either has text.
+
 # How much to involve the person (the scale, and the agent's cards)
 
 A request can pause so the agent asks the person, shows its plan, or checks in on a part it has
@@ -5071,9 +5095,17 @@ per project, and sent with each request. Left out: `0`.
 
 Above `0` the `<studio-effort>` block gains one part, first (the wording is `effort.INVOLVE`,
 with the rest): the stop's own instruction, then how to ask (the tool by its full name, choices
-with its own pick first, never what the request, the project's instructions, its context or the
-page already answer, never permission in general), the rule that matches the asking to the work,
-and that it names in its closing message what it assumed for anything it decided itself.
+with its own pick first and marked, never what the request, the person's instructions, the
+project's context or the page already answer, never permission in general), the rule that
+matches the asking to the work, and that it names in its closing message what it assumed for
+anything it decided itself.
+
+After a field test of 24 real requests (20 November 2026) the wording also says: every choice
+is an answer in itself, and what only the person has is asked without choices; how much to do
+is already set by Depth and is never asked; where the place, currency or units would change the
+result and nothing says which, it asks and does not assume the United States; when a page or
+report has real freedom in how it looks, one question may be about the look; and at `75` and
+`100` a short or one-page piece still gets its plan (only a small edit goes without).
 
 ## The tool `ask_person`
 
@@ -5081,7 +5113,8 @@ and that it names in its closing message what it assumed for anything it decided
 {kind?: "questions" | "plan" | "checkpoint",
  title?: string (≤ 80), summary?: Markdown (≤ 1,500 chars),
  references?: [{label (≤ 80), url? (http or https, ≤ 500), path? (a file in the project), note? (≤ 200)}],
- questions?: [{question (≤ 300 chars), choices?: [{label (≤ 80), description? (≤ 200)} | string],
+ questions?: [{question (≤ 300 chars),
+               choices?: [{label (≤ 80), description? (≤ 200), pick?: boolean} | string],
                multiple?: boolean}],
  why?: string (≤ 300)}
 ```
@@ -5095,7 +5128,11 @@ and that it names in its closing message what it assumed for anything it decided
   taken as its text. White space is folded and texts are cut at a word (`summary` keeps its
   lines). A question with no text is dropped. Choices with an empty or repeated label (letter
   case ignored) are dropped; at most 6 are kept; a question left with fewer than 2 has none and
-  is answered in words. `multiple` counts only with choices. At most 4 questions are kept,
+  is answered in words. `multiple` counts only with choices. `pick: true` marks the choice the
+  agent would take itself; at most one a question is kept (the first), and the card says so
+  beside it. A choice that is no answer but a promise of one (its label starts "I'll" or "I
+  will": "I'll paste it", "I will send the targets") is dropped: what only the person has is
+  asked in words, without choices. At most 4 questions are kept,
   numbered `q1`…`q4`. A reference without a label is dropped; a `url` that is not http(s) is
   left out of it, and so is a `path` that is not a file inside the project; at most 8 are kept.
 - **A card always has a question.** A `plan` or `checkpoint` with none gets the studio's own:
@@ -5161,6 +5198,7 @@ one `question_resolved` before the turn's `turn_finished`. While a card waits th
   percentage. It opens a slider headed **Involve me** with the five stops, the name of the stop
   it is on, its percentage and one line saying what the agent will do there. Arrow keys move it
   a stop.
+- A choice the agent marked as its own pick carries the word *Suggested*.
 - **The card** appears in the chat where the request paused, like an approval card. Its heading
   follows the kind ("A few questions before I start", "The plan, before I build", "Check-in:
   <title>"); then the agent's reason (`why`), the `summary` as formatted text, and the
