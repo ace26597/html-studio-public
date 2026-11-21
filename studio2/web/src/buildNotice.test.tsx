@@ -46,3 +46,14 @@ describe("a server older than its interface says so", () => {
     expect(buildLine(null)).toBe("");
   });
 });
+
+describe("the owner of a shared studio is not a guest in it", () => {
+  it("goes by what the server says about this request", async () => {
+    const { isGuest } = await import("./App");
+    expect(isGuest({ shared: true, owner: true })).toBe(false);
+    expect(isGuest({ shared: true, owner: false })).toBe(true);
+    expect(isGuest({ shared: true })).toBe(true); // a server started before it said: everyone a guest, as before
+    expect(isGuest({ shared: false })).toBe(false);
+    expect(isGuest({})).toBe(false);
+  });
+});

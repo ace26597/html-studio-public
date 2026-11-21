@@ -707,6 +707,8 @@ export interface Health {
   setup?: { needed: boolean };
   /** Step 3m. Shared with other people: the Claude plan is switched off. */
   shared?: boolean;
+  /** Whether this request is the studio owner's (always on a studio that is not shared). Absent on an older server. */
+  owner?: boolean;
   /** The guide and the benchmarks are served by this studio under `/site/`. */
   site?: boolean;
   /** Which code the server runs and whether newer code is on disk. Absent on a server started before it said. */

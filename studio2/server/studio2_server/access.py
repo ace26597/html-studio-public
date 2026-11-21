@@ -269,6 +269,7 @@ class Gate:
         self.keys: dict[str, object] = {}
         self.fetched = self.tried = float("-inf")
         self.accepted: dict[str, float] = {}     # token → the time (wall clock) until which it needs no new check
+        self.emails: dict[str, str] = {}       # an accepted token → the email it carried
         self.lock = asyncio.Lock()
 
     async def _key(self, kid: str):
@@ -291,6 +292,11 @@ class Gate:
                         if stale:
                             self.keys = {}
         return self.keys.get(kid)
+
+    def email(self, headers: dict) -> str:
+        """The email in a token `accepts` has just passed ("" when it carried none)."""
+        token = headers.get(self.header, b"").decode("latin-1").strip()
+        return self.emails.get(token, "") if token in self.accepted else ""
 
     async def accepts(self, headers: dict) -> bool:
         token = headers.get(self.header, b"").decode("latin-1").strip()
@@ -315,11 +321,24 @@ class Gate:
             return False
         if len(self.accepted) >= self.REMEMBER:
             self.accepted.clear()
+            self.emails.clear()
         self.accepted[token] = min(float(claims["exp"]), time.time() + 60)
+        email = claims.get("email")
+        self.emails[token] = email.strip().lower() if isinstance(email, str) and "@" in email else ""
         # Through the server's own logger, so the line is in the studio's log beside the requests.
         logging.getLogger("uvicorn.error").info(
             "The gate signed in %s", claims.get("email") or claims.get("sub") or "someone (no email in the token)")
         return True
+
+
+def is_owner(scope, settings) -> bool:
+    """Whether this request is the studio owner's (CONTRACT.md, "The owner of a shared studio").
+    A studio that is not shared has one person. On a shared one only the gate's signed email
+    decides: through a tunnel every request arrives from this machine, a guest's too."""
+    if not settings.shared:
+        return True
+    email = (scope.get("state") or {}).get("gate_email") or ""
+    return bool(email) and email in (getattr(settings, "owners", ()) or ())
 
 
 def gate_for(settings) -> Gate | None:
@@ -454,6 +473,8 @@ class AccessGuard:
             if is_local(scope) or (self.open_tailnet and is_tailnet_peer(scope)):
                 return await self.app(scope, receive, send)
             if self.gate is not None and await self.gate.accepts(headers):
+                # Who the gate signed in, for what belongs to a shared studio's owner (is_owner).
+                scope.setdefault("state", {})["gate_email"] = self.gate.email(headers)
                 return await self.app(scope, receive, send)
             if not self.key:  # not opened up for other devices at all
                 return await self._plain(scope, send, 403, "This studio only answers on the machine it runs on.")

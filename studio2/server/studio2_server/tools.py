@@ -442,7 +442,8 @@ async def t_save_skill(studio, project_id, args):
     from . import ownskills
     from .library import LibraryError
     try:
-        plan = await asyncio.to_thread(ownskills.plan, studio.lib, _workspace(studio, project_id), args)
+        by_owner = studio.turns.active.get(project_id) in studio.turns.by_owner
+        plan = await asyncio.to_thread(ownskills.plan, studio.lib, _workspace(studio, project_id), args, by_owner)
         if project_id not in studio.approvers:
             raise ToolError("No request is running, so there is nobody to ask. Nothing was saved.")
         allowed = await studio.ask(project_id, "save_skill", plan["title"], plan["detail"], plan["reason"],

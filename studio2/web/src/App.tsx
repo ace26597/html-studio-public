@@ -51,6 +51,15 @@ function ServerDown({ onRetry, checking }: { onRetry: () => void; checking: bool
   );
 }
 
+/**
+ * Someone let into a shared studio who is not its owner: what reaches every project (skills) is
+ * not theirs to change. The owner of a shared studio is told so by the server (`health.owner`); a
+ * server started before it said leaves everyone on a shared studio a guest, as before.
+ */
+export function isGuest(health: { shared?: boolean; owner?: boolean }): boolean {
+  return health.shared === true && health.owner !== true;
+}
+
 /** The studio answered, but not with its health: say what it said instead of "not running". */
 function ServerError({ message, onRetry, checking }: { message: string; onRetry: () => void; checking: boolean }) {
   return (
@@ -139,12 +148,12 @@ export function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         site={health.site === true}
-        shared={health.shared === true}
+        shared={isGuest(health)}
         build={health.build}
       />
     );
   } else if (route.name === "library") {
-    page = <LibraryPage navigate={navigate} theme={theme} onToggleTheme={toggleTheme} shared={health.shared === true} />;
+    page = <LibraryPage navigate={navigate} theme={theme} onToggleTheme={toggleTheme} shared={isGuest(health)} />;
   } else if (route.name === "project") {
     page = (
       <ProjectPage

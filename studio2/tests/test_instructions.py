@@ -129,12 +129,13 @@ async def test_what_the_every_project_text_refuses(client, studio):
     assert (await client.get("/api/instructions")).json() == {"text": ""}
 
 
-async def test_a_shared_studio_has_no_every_project_text(client, studio, project, settings):
+async def test_on_a_shared_studio_the_text_is_refused_to_a_guest_and_still_reaches_every_project(client, studio, project, settings):
     assert (await client.put("/api/instructions", json={"text": "Use rupees."})).status_code == 200
-    settings.shared = True
+    settings.shared = True      # this client comes with no gate sign-in: a guest (the owner's side is in test_owner.py)
     for answer in (await client.get("/api/instructions"), await client.put("/api/instructions", json={"text": "Mine now."})):
         assert answer.status_code == 403 and answer.json()["error"]["code"] == "not_for_shared"
-    assert "every project of theirs" not in studio.agent_context(project["id"], None)     # the owner's text stays out
+    # What the owner wrote holds in every project there, a guest's too.
+    assert "  | Use rupees." in studio.agent_context(project["id"], None)
     settings.shared = False
     assert (await client.get("/api/instructions")).json() == {"text": "Use rupees."}      # and was not changed
 

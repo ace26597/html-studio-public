@@ -242,18 +242,19 @@ def one_file(library: Library, skill_id: str, path: str, raw: bool = False):
     return {**item, "text": text[:SHOWN_CHARS].replace("\r\n", "\n"), "cut": len(text) > SHOWN_CHARS}
 
 
-def copy(library: Library, source_id: str, name: str, allow_scripts: bool = False, replace: bool = False) -> dict:
+def copy(library: Library, source_id: str, name: str, allow_scripts: bool = False, replace: bool = False,
+         owner: bool = False) -> dict:
     """Any skill of the index → one of the person's own under `name`: an export, then an import
     under that name, with the import's rules. The skill it came from is left as it was."""
-    if library.settings.shared:
+    if library.settings.shared and not owner:     # the owner of a shared studio may (access.is_owner)
         raise SkillError(403, "not_for_shared", "On a shared studio only its owner adds skills to the library.")
     if not isinstance(name, str) or not NAME.fullmatch(name):
         raise _invalid("name: use lower-case letters, digits, - and _ (at most 60 characters).")
     _filename, data = export(library, source_id)
-    return import_skill(library, data, name=name, replace=replace, allow_scripts=allow_scripts)
+    return import_skill(library, data, name=name, replace=replace, allow_scripts=allow_scripts, owner=owner)
 
 
-def question(library: Library, skill_id: str, about: str, text) -> tuple[str, str]:
+def question(library: Library, skill_id: str, about: str, text, owner: bool = False) -> tuple[str, str]:
     """→ (the project's name, the request) for asking the agent about a skill. The request names
     the skill's folder on this machine, which the agent may read and the interface never sees."""
     entry, folder = _any(library, skill_id)
@@ -267,7 +268,7 @@ def question(library: Library, skill_id: str, about: str, text) -> tuple[str, st
         ask = (f"Explain the skill “{name}” from my library (use the make-a-skill skill, \"Explaining a skill\"). "
                f"Its folder is {folder}. Read SKILL.md and every other file in it before you write.")
         return f"About the skill: {name}", ask + (f"\n\nWhat I want to know: {text}" if text else "")
-    if library.settings.shared:
+    if library.settings.shared and not owner:     # the owner of a shared studio may (access.is_owner)
         raise SkillError(403, "not_for_shared", "On a shared studio only its owner changes the library's skills.")
     if entry["source"] != "yours":
         raise SkillError(409, "not_yours", "Only a skill of your own can be changed: make your own copy of this "
@@ -502,9 +503,9 @@ def _removals(wanted, existing: list[str], given: set[str], replace: bool) -> li
     return out
 
 
-def plan(library: Library, workspace: Path, args: dict) -> dict:
+def plan(library: Library, workspace: Path, args: dict, owner: bool = False) -> dict:
     """Check everything `save_skill` was given → what to ask the person and what to save."""
-    if library.settings.shared:
+    if library.settings.shared and not owner:     # the owner of a shared studio may (access.is_owner)
         raise SkillError(403, "not_for_shared", "On a shared studio only its owner adds skills to the library.")
     name = check_name(library, str(args.get("name") or "").strip())
     description, body = clean_description(args.get("description")), clean_body(args.get("body"))
@@ -716,9 +717,9 @@ def _renamed(content: bytes, name: str) -> bytes:
 
 
 def import_skill(library: Library, data: bytes, name: str | None = None, dry_run: bool = False,
-                 replace: bool = False, allow_scripts: bool = False) -> dict:
+                 replace: bool = False, allow_scripts: bool = False, owner: bool = False) -> dict:
     """A skill file → its preview (`dry_run`), or the skill as saved in the library."""
-    if library.settings.shared:
+    if library.settings.shared and not owner:     # the owner of a shared studio may (access.is_owner)
         raise SkillError(403, "not_for_shared", "On a shared studio only its owner adds skills to the library.")
     preview, rename = inspect(library, data, name or None)
     if dry_run:

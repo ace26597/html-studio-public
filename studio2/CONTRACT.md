@@ -5045,12 +5045,13 @@ for that and gives it to the agent with every request in every project.
   request comes first of all, and that it changes nothing about what the agent may do. It says
   that the text as given now replaces any earlier version in the conversation, and after it was
   cleared each request says that none applies now, exactly as for a project's own.
-- **A shared studio** has none: both routes answer 403 `not_for_shared` there (a text that
-  reaches every project is the owner's to write, like a skill), and the fact is never added.
+- **A shared studio:** a text that reaches every project is the owner's to write, like a skill.
+  Both routes answer 403 `not_for_shared` to anyone who is not the owner ("The owner of a
+  shared studio", below). What the owner wrote is given to the agent in every project there.
 - **UI.** The Instructions dialog has two parts chosen at its top: **This project** and **Every
   project**. Each has its own box, count, Save and Clear. The second is shown only when
-  `GET /api/instructions` answers (not on a shared studio, not on a server started before this
-  existed). The button beside *Add context* is marked when either has text.
+  `GET /api/instructions` answers (not to a guest of a shared studio, not on a server started
+  before this existed). The button beside *Add context* is marked when either has text.
 
 # How much to involve the person (the scale, and the agent's cards)
 
@@ -5278,3 +5279,30 @@ visible instead of hiding the newer features quietly.
   It can be put away for the browser session; it comes back when the server's start time or the
   newer commit changes. The Home page's foot says which code the server runs and since when.
 - A restart is still a person's act: nothing here restarts a studio.
+
+# The owner of a shared studio
+
+A shared studio is one other people are let into. Some things there belong to the person who
+runs it and not to a guest: what reaches every project (skills in the library, instructions for
+every project). Until now those were refused to everyone who came through the door, the owner
+included, because the studio could not tell them apart.
+
+- **Who the owner is.** `owners` in the config file, or `STUDIO2_OWNERS` (a comma-separated
+  list), holds the owner's email addresses, compared without regard to letter case. A request
+  is the owner's when the gate in front signed it in ("Access from other devices") and the
+  email in that signed token is on the list. Nothing else makes an owner: not the address a
+  request comes from (through a tunnel every request arrives from this machine itself, a
+  guest's too), not the studio's own access key, not a request made on the machine without the
+  gate. Without a gate, or with an empty list, a shared studio has no owner through its door.
+- A studio that is not shared has one person, and everything is theirs, as before.
+- **`GET /api/health` gains `owner`** (boolean): whether this request is the owner's. Always
+  true on a studio that is not shared.
+- **What the owner may do on a shared studio that a guest may not:** read and write the
+  instructions for every project; add, import, copy, change and delete skills in the library,
+  from the Library page and through `save_skill` in a request the owner started (a request
+  keeps who started it, also while it waits in the queue). Everything else stays as it is for
+  everyone on a shared studio: the Claude plan is off, the agent never sees an app signed in,
+  setup and model installs belong to the person at the machine, the library's places are set
+  in the config file.
+- **UI.** Where the interface hid these because the studio is shared, it now hides them only
+  from a guest (`shared` and not `owner`).

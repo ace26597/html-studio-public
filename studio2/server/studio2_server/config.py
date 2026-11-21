@@ -125,6 +125,9 @@ class Settings:
     # Shared with other people (setup's "who uses it", or STUDIO2_SHARED=1): the Claude plan is
     # switched off and every device must sign in with the access key.
     shared: bool = False
+    # The owner of a shared studio, by the email the gate in front signs in (STUDIO2_OWNERS, or
+    # `owners` in the config file). Lower case. CONTRACT.md, "The owner of a shared studio".
+    owners: tuple[str, ...] = ()
     _secrets: object | None = field(default=None, repr=False, compare=False)
 
     def secret_store(self):
@@ -175,6 +178,9 @@ class Settings:
         settings.connector_files = library_places(env.get("STUDIO2_CONNECTOR_FILES"), places.get("connector_files"))
         shared = _flag(env.get("STUDIO2_SHARED"))
         settings.shared = shared if shared is not None else file.get("shared") is True
+        named = env.get("STUDIO2_OWNERS")
+        listed = named.split(",") if named is not None else (file.get("owners") if isinstance(file.get("owners"), list) else [])
+        settings.owners = tuple(sorted({item.strip().lower() for item in listed if isinstance(item, str) and "@" in item}))
         settings.access_key = (env.get("STUDIO2_ACCESS_KEY") or "").strip() or None
         if not settings.access_key and file.get("access_key_secret") and (settings.hosts or settings.shared):
             from .keystore import ACCESS

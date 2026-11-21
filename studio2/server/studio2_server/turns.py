@@ -146,6 +146,8 @@ class TurnRunner:
         self.reports: dict[str, dict] = {}          # turn id → {failed} of its last report_verification
         self.proposed: dict[str, list[dict]] = {}   # turn id → the agent's suggest_next_steps, cleaned
         self.options: dict[str, dict] = {}          # turn id → the cleaned options it runs with
+        self.by_owner: set[str] = set()             # turns the studio's owner started (always, when not shared)
+        self.queued_guests: set[str] = set()        # queued messages a guest of a shared studio sent
         self.asking: dict[str, dict[str, dict]] = {}    # turn id → question id → {future, questions}
         self.asked: dict[str, int] = {}             # turn id → how many times ask_person has asked in it
         self.no_more_asks: set[str] = set()         # turns in which the person skipped the questions
@@ -153,7 +155,7 @@ class TurnRunner:
     def start(self, project: dict, text: str, selection: dict | None,
               connection_id: str | None, model: str | None,
               attachments: list[str] | None = None, queued_id: str | None = None,
-              options: dict | None = None) -> str:
+              options: dict | None = None, owner: bool = True) -> str:
         """Accept a turn. Synchronous on purpose: no await between the check and the claim."""
         studio, pid = self.studio, project["id"]
         if pid in studio.deleting:      # its folder is about to go to the trash
@@ -169,6 +171,8 @@ class TurnRunner:
         model = model or connection["default_model"]
         turn_id = "t_" + secrets.token_hex(4)
         self.active[pid] = turn_id
+        if owner:       # who started it, for what belongs to a shared studio's owner (save_skill)
+            self.by_owner.add(turn_id)
         studio.store.update(pid, running_turn=turn_id, connection=connection["id"], model=model)
         attachments = list(attachments or [])
         options = effort.clean(options)
@@ -183,13 +187,16 @@ class TurnRunner:
 
     # -- queued follow-ups ------------------------------------------------------------------
     def enqueue(self, project: dict, text: str, selection: dict | None, connection_id: str | None,
-                model: str | None, attachments: list[str] | None = None, options: dict | None = None) -> str:
+                model: str | None, attachments: list[str] | None = None, options: dict | None = None,
+                owner: bool = True) -> str:
         pid = project["id"]
         if pid in self.studio.deleting:
             raise ProjectNotFound(pid)
         item = {"queued_id": "q_" + secrets.token_hex(4), "text": text, "selection": selection,
                 "attachments": list(attachments or []), "connection": connection_id, "model": model,
                 "options": effort.clean(options)}
+        if not owner:      # kept beside the message, not in its event: a guest's stays a guest's when it runs
+            self.queued_guests.add(item["queued_id"])
         self.queue.setdefault(pid, []).append(item)
         self.studio.log(pid).append("turn_queued", None, **item)
         return item["queued_id"]
@@ -214,7 +221,9 @@ class TurnRunner:
             item = waiting.pop(0)
             try:
                 self.start(self.studio.store.get(pid), item["text"], item["selection"], item["connection"],
-                           item["model"], item["attachments"], item["queued_id"], item.get("options"))
+                           item["model"], item["attachments"], item["queued_id"], item.get("options"),
+                           owner=item["queued_id"] not in self.queued_guests)
+                self.queued_guests.discard(item["queued_id"])
             except ProjectNotFound:
                 waiting.clear()
             except Exception:  # e.g. its connection was removed meanwhile
@@ -438,7 +447,7 @@ class TurnRunner:
                 self.studio.approvers.pop(pid, None)
             if self.tasks.get(pid) is me:
                 self.tasks.pop(pid, None)
-            for held in (self.cancellable, self.late_stop, self.verified, self.no_more_asks):
+            for held in (self.cancellable, self.late_stop, self.verified, self.no_more_asks, self.by_owner):
                 held.discard(turn_id)
             for held in (self.harness_tasks, self.checked_pages, self.checked_files, self.reports, self.proposed,
                          self.options, self.asked):

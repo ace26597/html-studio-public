@@ -29,7 +29,7 @@ from . import models_api, setup_api
 from .attach import AttachError
 from . import context as contexts
 from . import workspace as ws
-from .access import AccessGuard
+from .access import AccessGuard, is_owner
 from .config import Settings, model_gateway
 from .datasources import DataError, run_query, run_schema, run_test
 from .library import LibraryError, test_server
@@ -324,10 +324,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     models_api.register(app, studio, settings)   # models, "check this model", the studio's own LiteLLM
 
     # -- health and projects ----------------------------------------------------------------
+    def owner(request: Request) -> bool:
+        """Whether the request is the owner's: always on a studio that is not shared; on a shared one,
+        when the gate in front signed in one of the owner's emails."""
+        return is_owner(request.scope, settings)
+
     @app.get("/api/health")
-    async def health():
+    async def health(request: Request):
         return {"ok": True, "version": __version__, "fake": settings.fake,
                 "setup": {"needed": setup_api.first_run(settings)}, "shared": settings.shared,
+                "owner": owner(request),
                 "site": (settings.site_dir / "index.html").is_file(),
                 "build": await asyncio.to_thread(studio.build.view),
                 "transcription": {"available": voice.reason() is None, "reason": voice.reason()},
@@ -415,14 +421,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise ApiError(400, "invalid_options", str(exc)) from None
 
     @app.get("/api/instructions")
-    async def read_instructions():
-        if settings.shared:
+    async def read_instructions(request: Request):
+        if not owner(request):
             raise ApiError(403, "not_for_shared", "On a shared studio only its owner writes instructions for every project.")
         return {"text": studio.everywhere.read()["text"]}
 
     @app.put("/api/instructions")
     async def write_instructions(request: Request):
-        if settings.shared:
+        if not owner(request):
             raise ApiError(403, "not_for_shared", "On a shared studio only its owner writes instructions for every project.")
         try:
             body = await request.json()
@@ -732,14 +738,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/skills", status_code=201)
     async def add_skill(request: Request):
-        if settings.shared:    # a skill reaches the agent in every project: the same rule as import and PUT
+        if not owner(request):    # a skill reaches the agent in every project: the same rule as import and PUT
             raise ApiError(403, "not_for_shared", "On a shared studio only its owner adds skills to the library.")
         return studio.lib.add_skill(await json_object(request))
 
     @app.post("/api/skills/import")
-    async def import_skill(file: UploadFile = File(...), dry_run: str = "", replace: str = "", allow_scripts: str = "",
-                           name: str = ""):
-        if settings.shared:
+    async def import_skill(request: Request, file: UploadFile = File(...), dry_run: str = "", replace: str = "",
+                           allow_scripts: str = "", name: str = ""):
+        if not owner(request):
             raise ApiError(403, "not_for_shared", "On a shared studio only its owner adds skills to the library.")
         chunks, size = [], 0
         while chunk := await file.read(1024 * 1024):
@@ -749,7 +755,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             chunks.append(chunk)
         on = ("1", "true")
         found = await asyncio.to_thread(ownskills.import_skill, studio.lib, b"".join(chunks), name.strip() or None,
-                                        dry_run in on, replace in on, allow_scripts in on)
+                                        dry_run in on, replace in on, allow_scripts in on, owner(request))
         return JSONResponse(found, status_code=200 if dry_run in on else 201)
 
     @app.get("/api/library/skills/export")
@@ -775,15 +781,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def copy_skill(request: Request):
         body = await json_object(request)
         return await asyncio.to_thread(ownskills.copy, studio.lib, str(body.get("from") or ""), body.get("name"),
-                                       body.get("allow_scripts") is True, body.get("replace") is True)
+                                       body.get("allow_scripts") is True, body.get("replace") is True, owner(request))
 
     @app.post("/api/library/skills/ask", status_code=202)
     async def ask_about_skill(request: Request):
         body = await json_object(request)
         title, text = await asyncio.to_thread(ownskills.question, studio.lib, str(body.get("id") or ""),
-                                              str(body.get("about") or ""), body.get("text"))
+                                              str(body.get("about") or ""), body.get("text"), owner(request))
         project = await studio.create_project(_clean_name(title), "blank")
-        turn_id = studio.turns.start(project, text, None, None, None, [], options=checked_options(None))
+        turn_id = studio.turns.start(project, text, None, None, None, [], options=checked_options(None),
+                                     owner=owner(request))
         return {"project_id": project["id"], "turn_id": turn_id}
 
     @app.get("/api/skills/{name}")
@@ -792,13 +799,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.put("/api/skills/{name}")
     async def edit_skill(name: str, request: Request):
-        if settings.shared:
+        if not owner(request):
             raise ApiError(403, "not_for_shared", "On a shared studio only its owner changes the library's skills.")
         return await asyncio.to_thread(ownskills.update, studio.lib, name, await json_object(request))
 
     @app.delete("/api/skills/{name}", status_code=204)
-    async def delete_skill(name: str):
-        if settings.shared:
+    async def delete_skill(name: str, request: Request):
+        if not owner(request):
             raise ApiError(403, "not_for_shared", "On a shared studio only its owner changes the library's skills.")
         studio.lib.delete_skill(name)
         return Response(status_code=204)
@@ -1167,7 +1174,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # -- turns and events -------------------------------------------------------------------
     @app.post("/api/projects/{project_id}/turns", status_code=202)
-    async def start_turn(project_id: str, body: TurnCreate):
+    async def start_turn(project_id: str, body: TurnCreate, request: Request):
         project = studio.store.get(project_id)
         if not body.text.strip():
             raise ApiError(400, "invalid_request", "The message is empty.")
@@ -1191,9 +1198,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         options = checked_options(body.options)
         if body.queue and (project_id in studio.turns.active or project_id in studio.ships.running):
             return {"queued_id": studio.turns.enqueue(project, body.text, selection, body.connection,
-                                                       body.model, attachments, options)}
+                                                       body.model, attachments, options, owner=owner(request))}
         return {"turn_id": studio.turns.start(project, body.text, selection, body.connection, body.model,
-                                              attachments, options=options)}
+                                              attachments, options=options, owner=owner(request))}
 
     # -- what the requests cost --------------------------------------------------------------
     @app.get("/api/projects/{project_id}/cost")

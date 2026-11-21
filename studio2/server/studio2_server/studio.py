@@ -528,8 +528,8 @@ class Studio:
         told = contexts.facts(project.get("context") or [])
         if told:
             lines.append(told)
-        # The person's own words: for every project first (never on a shared studio), then this one's.
-        for standing in (None if self.settings.shared else self.everywhere.fact(),
+        # The person's own words: for every project first (on a shared studio, its owner's), then this one's.
+        for standing in (self.everywhere.fact(),
                          instructions.fact(project.get("instructions"), bool(project.get("instructions_cleared")))):
             if standing:
                 lines.append(standing)
