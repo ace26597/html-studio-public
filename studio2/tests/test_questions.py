@@ -392,3 +392,46 @@ def test_the_wording_carries_what_the_field_test_found():
         assert "do not assume the United States" in said and "one question may be about the look" in said
     for stop in (75, 100):
         assert "A short or one-page piece still gets its plan" in effort.block(at(stop))
+
+
+# -- the plan is not forgotten (CONTRACT.md) ---------------------------------------------------
+async def test_the_first_file_change_without_a_plan_is_held_back_once(studio, project):
+    pid = project["id"]
+
+    def turn(name: str, stop: int) -> str:
+        studio.turns.active[pid], studio.turns.options[name] = name, at(stop) if stop else effort.clean(None)
+        return name
+
+    try:
+        for low in (0, 25, 50):                                     # below 75 nothing is held back
+            assert studio.turns.plan_due(turn(f"t_low{low}", low)) is None
+        held = turn("t_75", 75)
+        said = studio.turns.plan_due(held)
+        assert said and "75 of 100" in said and "kind \"plan\"" in said and "make the same change again" in said
+        assert studio.turns.plan_due(held) is None                  # once: the same change again goes through
+        # A request that showed its plan is never held back.
+        planned = turn("t_100", 100)
+        call = asyncio.create_task(tools.call(studio, pid, "ask_person", {"kind": "plan", "summary": "1. One section"}))
+        await wait_for(lambda: of(studio, pid, "question_request"))
+        assert studio.turns.plan_due(planned) is None
+        card = of(studio, pid, "question_request")[-1]
+        studio.turns.reply(planned, card["question_id"], {"answers": [{"id": "q1", "chosen": ["Go ahead"]}]})
+        await call
+        # A questions card is not a plan: the reminder still comes.
+        asked = turn("t_q", 75)
+        call = asyncio.create_task(tools.call(studio, pid, "ask_person", {"questions": [{"question": "Who?"}]}))
+        await wait_for(lambda: len(of(studio, pid, "question_request")) == 2)
+        studio.turns.reply(asked, of(studio, pid, "question_request")[-1]["question_id"], {"answers": [{"id": "q1", "text": "x"}]})
+        await call
+        assert studio.turns.plan_due(asked)
+        # After the person said to go on alone, nothing is held back.
+        alone = turn("t_alone", 100)
+        studio.turns.no_more_asks.add(alone)
+        assert studio.turns.plan_due(alone) is None
+    finally:
+        studio.turns.active.pop(pid, None)
+        for name in ("t_low0", "t_low25", "t_low50", "t_75", "t_100", "t_q", "t_alone"):
+            for held in (studio.turns.options, studio.turns.asked, studio.turns.asking):
+                held.pop(name, None)
+            for held in (studio.turns.planned, studio.turns.reminded, studio.turns.no_more_asks):
+                held.discard(name)

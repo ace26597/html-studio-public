@@ -741,3 +741,23 @@ async def test_a_key_in_the_environment_stays_readable_while_another_turn_starts
         await turn
     assert os.environ["ANTHROPIC_API_KEY"] == "sk-from-the-shell-0123"
     assert config.environment()["ANTHROPIC_API_KEY"] == "sk-from-the-shell-0123"
+
+
+async def test_a_file_change_is_held_back_once_when_the_plan_is_due(tmp_path):
+    """The write hook asks the turn whether a plan is due (CONTRACT.md, "The plan is not forgotten")."""
+    waiting = ["Held back once, on purpose. Show the plan first."]
+    request = TurnRequest("p_1", "t_1", tmp_path, "hi", None, GATEWAY, "gpt-sol",
+                          plan_due=lambda: waiting.pop() if waiting else None)
+    hook = build_options(request, {}, None).hooks["PreToolUse"][0].hooks[0]
+    inside = {"tool_name": "Write", "tool_input": {"file_path": str(tmp_path / "index.html")}}
+    first = await hook(inside, None, None)
+    assert first["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert first["hookSpecificOutput"]["permissionDecisionReason"].startswith("Held back once")
+    assert await hook(inside, None, None) == {}                         # the same change again goes through
+    # A write outside the project is refused for that reason, and does not use up the reminder.
+    waiting.append("Held back once, on purpose. Show the plan first.")
+    outside = await hook({"tool_name": "Write", "tool_input": {"file_path": "/etc/hosts"}}, None, None)
+    assert "outside the project folder" in outside["hookSpecificOutput"]["permissionDecisionReason"] and waiting
+    # No turn behind it (the cheap helper call, a test): nothing is held back.
+    plain = build_options(TurnRequest("p_1", "t_1", tmp_path, "hi", None, GATEWAY, "gpt-sol"), {}, None)
+    assert await plain.hooks["PreToolUse"][0].hooks[0](inside, None, None) == {}

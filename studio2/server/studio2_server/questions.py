@@ -36,6 +36,14 @@ AFTER_ANSWER = ("Work from these answers. What the person typed in their own wor
                 "repeat the questions or the answers back; carry on with the work.")
 AFTER_SKIP = ("The person told you to go on by yourself. Decide what is open, carry on with the request to its "
               "end, and say in your closing message what you assumed. Do not ask again in this request.")
+PLAN_FIRST = (
+    "Held back once, on purpose. The person set how much to involve them to {stop} of 100: they want to agree "
+    "your plan before you build, and you have shown no plan in this request. A short or one-page piece still "
+    "gets its plan. If this request is more than a small, specific edit, stop now and call "
+    "`mcp__studio__ask_person` with kind \"plan\" (the plan in `summary`, what it rests on in `references`, one "
+    "question on whether to go ahead), then build after they answer. If it really is a small edit, a fix, or a "
+    "follow-up to a plan they already agreed in this conversation, make the same change again: it will go "
+    "through this time.")
 # The agent program has a question tool of its own; in the studio there is one card and one path.
 BUILT_IN = "AskUserQuestion"
 BUILT_IN_ON = ("Ask through the studio instead: call `mcp__studio__ask_person` with {kind?, title?, summary?, "

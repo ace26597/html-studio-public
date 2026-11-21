@@ -301,6 +301,11 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
             return {"hookSpecificOutput": {
                 "hookEventName": "PreToolUse", "permissionDecision": "deny",
                 "permissionDecisionReason": f"{target} is outside the project folder. Stay inside the project."}}
+        # The person asked to agree the plan first and none was shown: held back once (turns.plan_due).
+        reminder = request.plan_due() if request.plan_due else None
+        if reminder:
+            return {"hookSpecificOutput": {
+                "hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": reminder}}
         return {}
 
     async def no_pictures(hook_input, _tool_use_id, _context):

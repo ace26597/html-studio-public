@@ -146,6 +146,8 @@ class TurnRunner:
         self.reports: dict[str, dict] = {}          # turn id → {failed} of its last report_verification
         self.proposed: dict[str, list[dict]] = {}   # turn id → the agent's suggest_next_steps, cleaned
         self.options: dict[str, dict] = {}          # turn id → the cleaned options it runs with
+        self.planned: set[str] = set()              # turns in which a plan card was shown
+        self.reminded: set[str] = set()             # turns whose first file change was held back for a plan
         self.by_owner: set[str] = set()             # turns the studio's owner started (always, when not shared)
         self.queued_guests: set[str] = set()        # queued messages a guest of a shared studio sent
         self.asking: dict[str, dict[str, dict]] = {}    # turn id → question id → {future, questions}
@@ -287,6 +289,8 @@ class TurnRunner:
             raise questions.QuestionsError(questions.TOO_MANY)
         card = questions.clean(args, self.studio.store.workspace(pid))
         asked, cut = card.pop("questions"), card.pop("cut")
+        if card["kind"] == "plan":
+            self.planned.add(turn_id)
         self.asked[turn_id] = self.asked.get(turn_id, 0) + 1
         question_id = "k_" + secrets.token_hex(4)
         future = asyncio.get_running_loop().create_future()
@@ -298,6 +302,18 @@ class TurnRunner:
             events.append("question_resolved", turn_id, question_id=question_id, by="user",
                           skipped=answers is None, answers=answers or [])
         return questions.result(asked, answers, cut, max(0, allowed - self.asked.get(turn_id, 0)))
+
+    def plan_due(self, turn_id: str) -> str | None:
+        """At 75 and above: what to tell the agent instead of making the first file change of a request
+        that has shown no plan card (CONTRACT.md, "The plan is not forgotten"). Once per request;
+        None when the change may go ahead."""
+        stop = (self.options.get(turn_id) or {}).get("involve") or 0
+        if stop < 75 or turn_id in self.planned or turn_id in self.no_more_asks or turn_id in self.reminded:
+            return None
+        if self.asked.get(turn_id, 0) >= effort.INVOLVE_CARDS.get(stop, 0):     # no card left to show it on
+            return None
+        self.reminded.add(turn_id)
+        return questions.PLAN_FIRST.format(stop=stop)
 
     def reply(self, turn_id: str, question_id: str, body) -> bool:
         """The person's answers (or skip). → False when that question is not waiting. Raises
@@ -447,7 +463,8 @@ class TurnRunner:
                 self.studio.approvers.pop(pid, None)
             if self.tasks.get(pid) is me:
                 self.tasks.pop(pid, None)
-            for held in (self.cancellable, self.late_stop, self.verified, self.no_more_asks, self.by_owner):
+            for held in (self.cancellable, self.late_stop, self.verified, self.no_more_asks, self.by_owner,
+                         self.planned, self.reminded):
                 held.discard(turn_id)
             for held in (self.harness_tasks, self.checked_pages, self.checked_files, self.reports, self.proposed,
                          self.options, self.asked):
@@ -536,6 +553,7 @@ class TurnRunner:
                 session_id=project.get("session_id"), connection=connection, model=model,
                 text=text, selection=selection, attachments=attachments,
                 approve=approve, studio_tool=lambda name, args: tools.call(studio, pid, name, args),
+                plan_due=lambda: self.plan_due(turn_id),
                 options=options, **prepared["request"])
             if turn_id not in self.cancellable:  # Stop arrived before the harness started
                 raise asyncio.CancelledError

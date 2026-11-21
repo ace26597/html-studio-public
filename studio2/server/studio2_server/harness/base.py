@@ -41,6 +41,8 @@ class TurnRequest:
     ask_first: set = field(default_factory=set)
     # The studio's own tools called directly (the fake harness uses it; a real harness reaches them over MCP).
     studio_tool: Callable[[str, dict], Awaitable[dict]] | None = None
+    # Asked before the agent's first file change: a reminder to show the plan first, or None (turns.plan_due).
+    plan_due: Callable[[], str | None] | None = None
     # How much to do and whether to verify ({depth, verify}); already in `prompt` as <studio-effort>.
     options: dict = field(default_factory=dict)
     # False for a model that takes text only: the harness then keeps pictures from it (set by the

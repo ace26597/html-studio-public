@@ -5108,6 +5108,23 @@ result and nothing says which, it asks and does not assume the United States; wh
 report has real freedom in how it looks, one question may be about the look; and at `75` and
 `100` a short or one-page piece still gets its plan (only a small edit goes without).
 
+## The plan is not forgotten
+
+At `75` and `100` the plan card rested on the wording alone, and in the field test one model
+skipped it for a short piece. Code cannot tell a small edit from a piece that deserves a plan,
+so it does not wall the agent in; it makes sure the choice is made on purpose:
+
+- The first time in a request that the agent goes to change a file (the agent program's own
+  Write, Edit, MultiEdit or NotebookEdit) before any `plan` card has been shown in that request,
+  the change is refused once, with a reminder: the person asked to agree the plan first; a short
+  or one-page piece still gets its plan; show it now with `ask_person` (`kind: "plan"`) and
+  build after they answer; if this really is a small edit, a fix, or a follow-up to a plan they
+  already agreed in this conversation, make the same change again and it goes through.
+- Once per request. Not when a plan card was shown, not after the person told the agent to go on
+  by itself, not when the request has no cards left, not below `75`.
+- It does not see a file written through the shell, and it does not make a check-in happen at
+  `100`: that still rests on the wording.
+
 ## The tool `ask_person`
 
 ```
