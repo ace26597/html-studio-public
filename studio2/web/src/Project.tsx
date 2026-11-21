@@ -1386,6 +1386,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
           <Preview
             key={project.id}
             previewUrl={project.preview_url}
+            signsInByItself={health.page_sign_in === true}
             title={project.name}
             mode={effectiveMode}
             reloadToken={reloadToken}

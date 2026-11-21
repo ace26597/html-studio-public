@@ -15,6 +15,8 @@ interface Frame {
 }
 
 interface PreviewProps {
+  /** The studio's server answers the page's sign-in trip (`health.page_sign_in`). Without it the notice is as before. */
+  signsInByItself?: boolean;
   previewUrl: string;
   title: string;
   mode: Mode;
@@ -56,6 +58,26 @@ export function hasOwnName(previewUrl: string, shellHost: string = window.locati
   }
 }
 
+/** The tab goes to the page's address by itself only this soon after the project opened… */
+export const HAND_OFF_WINDOW_MS = 4000;
+/** …and not twice within this long from one tab (a trip that did not help is not repeated). */
+export const HAND_OFF_AGAIN_MS = 120_000;
+
+/** The one-pixel picture every page port serves: it arrives only when the gate lets this browser reach that address. */
+export function hereUrl(origin: string, now: number): string {
+  return `${origin}/__studio/here.gif?${now}`;
+}
+
+/** A trip to the page's own address that comes back here: the gate signs the person in there on the way. */
+export function handOffUrl(origin: string, here: string): string {
+  return `${origin}/__studio/back?to=${encodeURIComponent(here)}`;
+}
+
+export function mayHandOff(lastTried: number | null, openedAt: number, now: number): boolean {
+  if (now - openedAt > HAND_OFF_WINDOW_MS) return false;
+  return lastTried === null || !Number.isFinite(lastTried) || now - lastTried > HAND_OFF_AGAIN_MS;
+}
+
 const HINTS: Record<Mode, string | null> = {
   browse: null,
   select: "Click anything on the page to point the agent at it",
@@ -68,7 +90,35 @@ function str(value: unknown, max: number): string {
 }
 
 /** Over the frame of a page with its own name that never loaded: what happened and the two ways on. */
-export function SilentNotice({ previewUrl, onTryAgain }: { previewUrl: string; onTryAgain: () => void }) {
+export function SilentNotice({
+  previewUrl,
+  onTryAgain,
+  backTo,
+}: {
+  previewUrl: string;
+  onTryAgain: () => void;
+  /** Where the studio is now, when its server can bring a visitor back from the page's address. */
+  backTo?: string | null;
+}) {
+  if (backTo) {
+    return (
+      <div className="preview-silent" role="status">
+        <p className="preview-silent-title">This page needs you signed in at its own address</p>
+        <p>
+          It is at <span className="preview-silent-host">{new URL(previewUrl).host}</span>, and the gate keeps a
+          sign-in for each address. One tap goes there, signs you in and comes straight back.
+        </p>
+        <div className="preview-silent-actions">
+          <a className="btn btn-primary" href={handOffUrl(new URL(previewUrl).origin, backTo)}>
+            Sign in to this page
+          </a>
+          <button type="button" className="btn" onClick={onTryAgain}>
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="preview-silent" role="status">
       <p className="preview-silent-title">This page has not loaded here</p>
@@ -91,7 +141,8 @@ export function SilentNotice({ previewUrl, onTryAgain }: { previewUrl: string; o
 
 export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
   {
-    previewUrl,
+    signsInByItself,
+  previewUrl,
     title,
     mode,
     reloadToken,
@@ -250,6 +301,46 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
     return () => window.clearTimeout(timer);
   }, [ownName, attempt]);
 
+  // A page with its own address: is this browser signed in there? If not, and the project has only
+  // just opened, the tab makes the trip itself and comes back (CONTRACT.md, "A page with its own
+  // address signs in by itself"). Only when the server says it answers that trip.
+  useEffect(() => {
+    if (!ownName || !signsInByItself) return;
+    let settled = false;
+    const opened = Date.now();
+    const probe = new Image();
+    probe.onload = () => {
+      settled = true;
+    };
+    probe.onerror = () => {
+      if (settled) return;
+      settled = true;
+      const key = `handoff:${origin}`;
+      let last: number | null = null;
+      try {
+        const kept = window.sessionStorage.getItem(key);
+        last = kept ? Number(kept) : null;
+      } catch {
+        /* no storage: treated as never tried */
+      }
+      if (mayHandOff(last, opened, Date.now())) {
+        try {
+          window.sessionStorage.setItem(key, String(Date.now()));
+        } catch {
+          /* the trip is made all the same */
+        }
+        window.location.assign(handOffUrl(origin, window.location.href));
+      } else {
+        setSilent(true);
+      }
+    };
+    probe.src = hereUrl(origin, opened);
+    return () => {
+      settled = true;
+      probe.onload = probe.onerror = null;
+    };
+  }, [ownName, signsInByItself, origin, attempt]);
+
   // Load the page again in a fresh frame (the person signed in at its address, or asked).
   const tryAgain = useCallback(() => {
     const key = nextKey.current++;
@@ -296,7 +387,9 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
         />
       ))}
       <div className="preview-ring" aria-hidden="true" />
-      {silent && <SilentNotice previewUrl={previewUrl} onTryAgain={tryAgain} />}
+      {silent && (
+        <SilentNotice previewUrl={previewUrl} onTryAgain={tryAgain} backTo={signsInByItself ? window.location.href : null} />
+      )}
       {hint && (
         <div className="preview-hint" role="status">
           {hint}

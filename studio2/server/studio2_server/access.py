@@ -46,6 +46,8 @@ REQUEST_SCHEME: contextvars.ContextVar[str] = contextvars.ContextVar("studio2_re
 REQUEST_MAPPED: contextvars.ContextVar[bool] = contextvars.ContextVar("studio2_request_mapped", default=False)
 # The names project pages have behind such an address ({port: name}; under None a name with {port}).
 REQUEST_PAGES: contextvars.ContextVar[dict | None] = contextvars.ContextVar("studio2_request_pages", default=None)
+# The names this studio answers to, for a page server that sends a visitor back to the studio (preview.py).
+REQUEST_NAMES: contextvars.ContextVar[frozenset] = contextvars.ContextVar("studio2_request_names", default=frozenset())
 
 
 def token_for(key: str) -> str:
@@ -469,6 +471,7 @@ class AccessGuard:
         mapped = self.own_login and asked_port(host, scheme) != self.studio_port
         mapped_marker = REQUEST_MAPPED.set(mapped)
         pages_marker = REQUEST_PAGES.set(self.pages)
+        names_marker = REQUEST_NAMES.set(self.names)
         try:
             if is_local(scope) or (self.open_tailnet and is_tailnet_peer(scope)):
                 return await self.app(scope, receive, send)
@@ -501,6 +504,7 @@ class AccessGuard:
             REQUEST_SCHEME.reset(scheme_marker)
             REQUEST_MAPPED.reset(mapped_marker)
             REQUEST_PAGES.reset(pages_marker)
+            REQUEST_NAMES.reset(names_marker)
 
     async def _plain(self, scope, send, status: int, message: str):
         if scope["type"] == "websocket":

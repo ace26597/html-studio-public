@@ -248,3 +248,8 @@ you, its owner, by the email you signed in with.
   for every project.
 
 Add your own skills, connectors and databases on the **Library** page.
+
+A project's page can have an address of its own behind the gate, and the gate keeps a sign-in
+for each address. The studio signs you in there by itself: when you open such a project the tab
+goes to the page's address and comes straight back, once. If that does not help, a notice over
+the page offers the same trip as one button.

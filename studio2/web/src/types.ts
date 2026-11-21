@@ -711,6 +711,8 @@ export interface Health {
   owner?: boolean;
   /** The guide and the benchmarks are served by this studio under `/site/`. */
   site?: boolean;
+  /** The page server answers the sign-in trip for a page with its own address (an older server does not). */
+  page_sign_in?: boolean;
   /** Which code the server runs and whether newer code is on disk. Absent on a server started before it said. */
   build?: import("./buildNotice").Build | null;
 }

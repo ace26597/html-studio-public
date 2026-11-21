@@ -5341,3 +5341,26 @@ included, because the studio could not tell them apart.
     connection listed, as on any studio.
 - **UI.** Where the interface hid these because the studio is shared, it now hides them only
   from a guest (`shared` and not `owner`).
+
+# A page with its own address signs in by itself
+
+Behind a gate, a project's page can have an address of its own (`STUDIO2_PAGE_HOSTS`), and the
+gate keeps a separate sign-in for each address. A sign-in page does not show inside a frame, so
+the studio's frame stayed empty until the person opened the page once in its own tab. The
+studio now does that trip itself.
+
+- **Every page port answers two paths before anything else**, whatever serves the project:
+  - `GET /__studio/here.gif`: a one-pixel picture, never kept. It reaches the browser only when
+    the browser may reach this address, so it tells the studio's own page whether the gate has
+    signed the person in here.
+  - `GET /__studio/back?to=<address>`: 302 to `to`, when `to` is an http(s) address whose name
+    is one this studio answers to ("Names the studio answers to"). Anything else → 400. It is
+    how a trip to this address returns to the studio.
+- **The interface.** For a page on another host than the studio's, it asks for the picture. If
+  it does not arrive, and this is within a few seconds of opening the project, and no such trip
+  was made from this tab in the last two minutes, the whole tab goes to
+  `<page address>/__studio/back?to=<where it was>`: the gate signs the person in at that address
+  (without asking again when they are signed in at the gate already) and the studio comes back
+  with the page in its frame. Otherwise the notice is shown as before, and its button makes the
+  same trip instead of opening a second tab.
+- Not through a gate (a port on the same host), nothing here applies.

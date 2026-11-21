@@ -334,6 +334,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"ok": True, "version": __version__, "fake": settings.fake,
                 "setup": {"needed": setup_api.first_run(settings)}, "shared": settings.shared,
                 "owner": owner(request),
+                "page_sign_in": True,       # every page port answers /__studio/here.gif and /__studio/back
                 "site": (settings.site_dir / "index.html").is_file(),
                 "build": await asyncio.to_thread(studio.build.view),
                 "transcription": {"available": voice.reason() is None, "reason": voice.reason()},

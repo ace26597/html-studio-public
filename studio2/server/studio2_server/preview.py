@@ -19,6 +19,7 @@ import websockets
 from uvicorn.server import ServerState
 
 from . import session as signin
+from .access import REQUEST_NAMES
 
 
 log = logging.getLogger("studio2")
@@ -81,6 +82,27 @@ DIGESTS = (b"content-md5", b"digest", b"content-digest", b"repr-digest")
 
 DECODE_LIMIT = 8 * 1024 * 1024    # decoded bytes; a small gzip can unpack to gigabytes
 OFF_LOOP = 256 * 1024              # a body this large is decoded and rewritten in a thread
+
+
+HERE_PATH, BACK_PATH = "/__studio/here.gif", "/__studio/back"
+ONE_PIXEL = (b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff!\xf9\x04\x01\x00\x00\x00\x00,"
+             b"\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;")
+
+
+def back_target(query: bytes, names) -> str | None:
+    """`?to=<address>` → the address to send the visitor back to, or None when it is not an http(s)
+    address whose name is one this studio answers to (never a way to send someone elsewhere)."""
+    from urllib.parse import parse_qs, urlsplit
+    try:
+        wanted = (parse_qs(query.decode("latin-1")).get("to") or [""])[0]
+        parts = urlsplit(wanted)
+    except ValueError:
+        return None
+    if parts.scheme not in ("http", "https") or not parts.hostname or len(wanted) > 2000:
+        return None
+    if any(ch in wanted for ch in "\r\n"):
+        return None
+    return wanted if parts.hostname.lower() in {str(name).lower() for name in names or ()} else None
 
 
 class TooLarge(ValueError):
@@ -330,6 +352,17 @@ class PreviewApp:
         if path == "/__studio/bridge.js":
             body = await asyncio.to_thread(BRIDGE_PATH.read_bytes)
             return await self._send(send, scope, 200, body, "text/javascript; charset=utf-8", headers)
+        if path == HERE_PATH:
+            # Reaches a browser only when it may reach this address: the studio's page asks for it to
+            # learn whether the gate has signed the person in here (CONTRACT.md, "A page with its own
+            # address signs in by itself").
+            return await self._send(send, scope, 200, ONE_PIXEL, "image/gif", headers)
+        if path == BACK_PATH:
+            target = back_target(scope.get("query_string", b""), REQUEST_NAMES.get())
+            if target is None:
+                return await self._send(send, scope, 400, b"That is not an address of this studio.",
+                                        "text/plain; charset=utf-8", headers)
+            return await self._send(send, scope, 302, b"", "text/plain; charset=utf-8", {**headers, "location": target})
         if path == signin.REPORT_PATH:
             # Answered here, never passed to the app, and never answered with anything kept.
             return await self._session_report(scope, receive, send, headers)
