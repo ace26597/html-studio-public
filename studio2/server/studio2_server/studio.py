@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 from .effort import DEEP_SKILL
+from .build import Build
 from . import effort
 from . import attach as attaching
 from . import context as contexts
@@ -67,6 +68,7 @@ class Studio:
         self.ships = shipping.Shipper(self)
         self.generator = generate.Generator(settings.data_dir, settings.generate_daily_credits)
         self.everywhere = instructions.Everywhere(settings.data_dir / "instructions.json")
+        self.build = Build()      # the code this process started with (build.py)
         self.checks = ModelChecks(self)     # "check this model" (modelcheck.py)
         self.costs = Costs(self)            # what a gateway turn cost, read back (costs.py)
         self.approvers: dict = {}       # project id → the running turn's approval function

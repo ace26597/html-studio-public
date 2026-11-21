@@ -7,6 +7,7 @@ import { ProjectPage } from "./Project";
 import { useRoute } from "./router";
 import { SetupPage } from "./SetupPage";
 import { SignInAgain } from "./SignInAgain";
+import { BuildBanner } from "./BuildBanner";
 import { goToSignIn, healthFailure, type HealthFailure } from "./signIn";
 import { useTheme } from "./theme";
 import type { Health } from "./types";
@@ -139,6 +140,7 @@ export function App() {
         onToggleTheme={toggleTheme}
         site={health.site === true}
         shared={health.shared === true}
+        build={health.build}
       />
     );
   } else if (route.name === "library") {
@@ -173,6 +175,7 @@ export function App() {
     <ToastProvider>
       <ConfirmProvider>
         {page}
+        <BuildBanner health={health !== null && !("failed" in health) ? health : null} />
         <SignInAgain />
       </ConfirmProvider>
     </ToastProvider>

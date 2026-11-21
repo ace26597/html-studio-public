@@ -1,5 +1,6 @@
 // Home: the list of pages and one prominent way to start a new one.
 
+import { buildLine, type Build } from "./buildNotice";
 import type { Example } from "./examples";
 import { ExamplesSection } from "./ExamplesSection";
 import { useCallback, useEffect, useState } from "react";
@@ -22,6 +23,8 @@ interface HomeProps {
   site?: boolean;
   /** A shared studio: no skills are added there, so the New page dialog does not offer one. */
   shared?: boolean;
+  /** Which code the server runs (`Health.build`), named at the foot of the page. */
+  build?: Build | null;
 }
 
 /**
@@ -178,7 +181,7 @@ function ProjectCard({
   );
 }
 
-export function Home({ navigate, theme, onToggleTheme, site, shared = false }: HomeProps) {
+export function Home({ navigate, theme, onToggleTheme, site, shared = false, build }: HomeProps) {
   const toast = useToast();
   const confirm = useConfirm();
   const [projects, setProjects] = useState<Project[] | null>(null);
@@ -403,6 +406,7 @@ export function Home({ navigate, theme, onToggleTheme, site, shared = false }: H
           </>
         )}
         {projects && <ExamplesSection examples={examples} opening={opening} onOpen={(example) => void openExample(example)} />}
+        {buildLine(build) && <p className="home-build">{buildLine(build)}</p>}
       </main>
       {dialogOpen && (
         <NewProjectDialog

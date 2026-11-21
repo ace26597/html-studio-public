@@ -329,6 +329,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"ok": True, "version": __version__, "fake": settings.fake,
                 "setup": {"needed": setup_api.first_run(settings)}, "shared": settings.shared,
                 "site": (settings.site_dir / "index.html").is_file(),
+                "build": await asyncio.to_thread(studio.build.view),
                 "transcription": {"available": voice.reason() is None, "reason": voice.reason()},
                 "connections": studio.registry.describe_all()}
 

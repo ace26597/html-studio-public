@@ -9552,3 +9552,53 @@ button.file-card-action:hover {
     background: var(--surface);
   }
 }
+
+/* ---- the server is older than this interface ------------------------------------------ */
+.build-banner {
+  position: fixed;
+  z-index: 200;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 10px 8px 10px 13px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.build-banner p {
+  margin: 0;
+  min-width: 0;
+}
+
+.build-banner strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.build-banner-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--warn);
+}
+
+.build-banner-close {
+  flex: none;
+  margin-top: -3px;
+}
+
+.home-build {
+  margin: 28px 0 0;
+  color: var(--text-3);
+  font-size: 12px;
+  text-align: center;
+}

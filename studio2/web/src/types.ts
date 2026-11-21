@@ -709,6 +709,8 @@ export interface Health {
   shared?: boolean;
   /** The guide and the benchmarks are served by this studio under `/site/`. */
   site?: boolean;
+  /** Which code the server runs and whether newer code is on disk. Absent on a server started before it said. */
+  build?: import("./buildNotice").Build | null;
 }
 
 export interface FileEntry {

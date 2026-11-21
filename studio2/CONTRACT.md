@@ -5253,3 +5253,28 @@ Interface only; nothing here changes the API.
   over a dark page, and both are solid where the browser cannot blur or the person asked the
   system for less transparency. Seen in a browser without graphics acceleration at double pixel
   density, the blur stops 1,024 device pixels down a tall panel; with acceleration it does not.
+
+# Which code a studio is running
+
+A studio's interface is files on disk, served as they are: a new build shows at once, on every
+studio that runs from that folder. Its server is a process: it keeps the code it started with
+until it is restarted. So one folder can serve two studios with the same interface and
+different servers, and a studio can show an interface newer than its server. This makes that
+visible instead of hiding the newer features quietly.
+
+- **The stamp.** At start the server notes the code it runs: in a git checkout, the short hash
+  and date of the last commit that changed `studio2/server`; anywhere else, a fingerprint of the
+  server's own source files. It notes when it started.
+- **`GET /api/health` gains `build`:** `{commit (string or null), committed_at (ISO or null),
+  started_at (ISO), stale (boolean), newer (string or null)}`. `stale` is true when the code on
+  disk is no longer the code this process started with: in a git checkout, a later commit has
+  changed `studio2/server` (uncommitted work in progress does not count); elsewhere, the source
+  fingerprint differs. `newer` is that later commit's short hash. The comparison is made on
+  request and kept for ten seconds.
+- **UI.** When `build.stale` is true, or the server sends no `build` at all (it was started
+  before this existed, so it is older than the interface), every page shows one notice: that
+  this studio's server is older than its interface, since when it has been running, that newer
+  features stay hidden until it is restarted, and (on a shared studio) that its owner does that.
+  It can be put away for the browser session; it comes back when the server's start time or the
+  newer commit changes. The Home page's foot says which code the server runs and since when.
+- A restart is still a person's act: nothing here restarts a studio.
