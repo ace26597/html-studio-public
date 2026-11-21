@@ -234,4 +234,17 @@ On a desktop the chat floats at the bottom right of the page.
 - **It is glass.** The panel is translucent and the page shows through it, blurred. The top bar
   has the same finish. If your system is set to reduce transparency, both are solid.
 
+## A studio you share
+
+A studio can be opened to people you choose, behind a gate that signs them in. It then knows
+you, its owner, by the email you signed in with.
+
+- **Projects there are everyone's who is let in.** Whoever opens one sees the same pages, the
+  same conversation and each other's changes.
+- **Your Claude plan stays yours.** Your own requests there may run on it. A guest's never do:
+  in a project you left on the plan, a guest's request runs on another model account, and the
+  chat says so.
+- **What reaches every project is yours to set:** skills in the library and the instructions
+  for every project.
+
 Add your own skills, connectors and databases on the **Library** page.

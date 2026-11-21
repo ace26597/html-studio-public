@@ -62,14 +62,42 @@ class Registry:
         elif home.is_dir() and home.lstat().st_uid == os.geteuid():
             remove_old_folders(str(home))
 
-    def connections(self) -> list[dict]:
-        """Resolved configs (server-internal; may name key variables)."""
-        return load_connections(self.settings)
+    def connections(self, owner: bool = False) -> list[dict]:
+        """Resolved configs (server-internal; may name key variables). `owner`: as the studio's
+        owner may use them (on a shared studio the plan is the owner's alone)."""
+        return load_connections(self.settings, owner)
 
-    def resolve(self, connection_id: str | None) -> dict:
+    def _listed(self, owner: bool) -> list[dict]:
+        # Asked the plain way unless the owner's view is wanted: `connections` is replaced in places
+        # (tests, a studio with a fixed list) by something that takes no argument.
+        # The owner's view differs only on a shared studio.
+        return self.connections(True) if owner and self.settings.shared else self.connections()
+
+    def resolve(self, connection_id: str | None, owner: bool = False) -> dict:
         """The named connection, or the first one when the name is unknown."""
-        connections = self.connections()
+        connections = self._listed(owner)
         return next((c for c in connections if c["id"] == connection_id), connections[0])
 
-    def describe_all(self) -> list[dict]:
-        return [self.harness(c["kind"]).describe(c) for c in self.connections()]
+    def usable(self, connection_id: str | None, owner: bool = False) -> tuple[dict, bool]:
+        """→ (the connection a request runs on, whether that is another one than was asked for).
+        The asked-for one unless this requester may not use it (a guest and the owner's plan):
+        then the first they may use. With nothing else to use, the asked-for one comes back as
+        it is and the request fails with its reason."""
+        asked = self.resolve(connection_id, owner)
+        if not asked.get("unavailable"):
+            return asked, False
+        other = next((c for c in self._listed(owner) if not c.get("unavailable")), None)
+        return (other, True) if other else (asked, False)
+
+    def first(self, owner: bool = False) -> dict:
+        """The connection a new project starts with: the first listed; on a shared studio, for the
+        owner, the plan when it is listed (theirs to use, and not a charge per request)."""
+        connections = self._listed(owner)
+        if owner and self.settings.shared:
+            plan = next((c for c in connections if c["kind"] == "claude-subscription" and not c.get("unavailable")), None)
+            if plan:
+                return plan
+        return connections[0]
+
+    def describe_all(self, owner: bool = False) -> list[dict]:
+        return [self.harness(c["kind"]).describe(c) for c in self._listed(owner)]

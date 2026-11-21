@@ -148,7 +148,7 @@ class TurnRunner:
         self.options: dict[str, dict] = {}          # turn id → the cleaned options it runs with
         self.planned: set[str] = set()              # turns in which a plan card was shown
         self.reminded: set[str] = set()             # turns whose first file change was held back for a plan
-        self.by_owner: set[str] = set()             # turns the studio's owner started (always, when not shared)
+        self.by_owner: set[str] = set()             # turns a request of the studio's owner started
         self.queued_guests: set[str] = set()        # queued messages a guest of a shared studio sent
         self.asking: dict[str, dict[str, dict]] = {}    # turn id → question id → {future, questions}
         self.asked: dict[str, int] = {}             # turn id → how many times ask_person has asked in it
@@ -157,7 +157,7 @@ class TurnRunner:
     def start(self, project: dict, text: str, selection: dict | None,
               connection_id: str | None, model: str | None,
               attachments: list[str] | None = None, queued_id: str | None = None,
-              options: dict | None = None, owner: bool = True) -> str:
+              options: dict | None = None, owner: bool = False) -> str:
         """Accept a turn. Synchronous on purpose: no await between the check and the claim."""
         studio, pid = self.studio, project["id"]
         if pid in studio.deleting:      # its folder is about to go to the trash
@@ -167,20 +167,31 @@ class TurnRunner:
         if pid in studio.ships.running:   # a ship works from the saved version; nothing may change under it
             from .ship import ShipRunning
             raise ShipRunning(pid)
-        connection = studio.registry.resolve(connection_id or project.get("connection"))
-        if not model and connection["id"] == project.get("connection"):
-            model = project.get("model")
-        model = model or connection["default_model"]
+        wanted = connection_id or project.get("connection")
+        connection, other = studio.registry.usable(wanted, owner)
+        if other:       # a guest where the owner left the plan: another connection, for this request only
+            model = connection["default_model"]
+        else:
+            if not model and connection["id"] == project.get("connection"):
+                model = project.get("model")
+            model = model or connection["default_model"]
         turn_id = "t_" + secrets.token_hex(4)
         self.active[pid] = turn_id
         if owner:       # who started it, for what belongs to a shared studio's owner (save_skill)
             self.by_owner.add(turn_id)
-        studio.store.update(pid, running_turn=turn_id, connection=connection["id"], model=model)
+        if other:       # the project's remembered choice stays the project's
+            studio.store.update(pid, running_turn=turn_id)
+        else:
+            studio.store.update(pid, running_turn=turn_id, connection=connection["id"], model=model)
         attachments = list(attachments or [])
         options = effort.clean(options)
         studio.log(pid).append("turn_started", turn_id, text=text, selection=selection,
                                connection=connection["id"], model=model, attachments=attachments,
                                queued_id=queued_id, options=options)
+        if other:
+            studio.log(pid).append("notice", turn_id, level="info",
+                                   message=f"This request ran on {model or connection['label']}: "
+                                           "the Claude plan is this studio's owner's.")
         studio.watch(pid)
         self.cancellable.add(turn_id)
         self.tasks[pid] = asyncio.create_task(
@@ -190,7 +201,7 @@ class TurnRunner:
     # -- queued follow-ups ------------------------------------------------------------------
     def enqueue(self, project: dict, text: str, selection: dict | None, connection_id: str | None,
                 model: str | None, attachments: list[str] | None = None, options: dict | None = None,
-                owner: bool = True) -> str:
+                owner: bool = False) -> str:
         pid = project["id"]
         if pid in self.studio.deleting:
             raise ProjectNotFound(pid)

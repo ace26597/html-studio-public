@@ -160,3 +160,73 @@ def test_a_skill_from_the_chat_is_the_owners_to_save(tmp_path):
         ownskills.plan(Shared(), tmp_path, {"name": "x", "description": "y", "body": "z"})
     assert refused.value.code == "not_for_shared"
     assert access.is_owner(scope(ME), studio_settings(shared=True, owners=(ME,)))     # and the owner's request passes that gate
+
+
+# -- the Claude plan on a shared studio is the owner's alone ----------------------------------
+PLAN = {"id": "subscription", "kind": "claude-subscription"}
+OTHER = {"id": "gateway", "label": "Gateway", "kind": "anthropic-gateway", "base_url": "http://127.0.0.1:4000",
+         "api_key_env": "GATEWAY_KEY", "models": ["gpt-sol"], "default_model": "gpt-sol"}
+
+
+def with_connections(tmp_path, connections, **fields) -> Settings:
+    import json
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps({"connections": connections}))
+    return Settings(data_dir=tmp_path / "data", config_path=config, **fields)
+
+
+def test_the_plan_is_listed_for_everyone_and_usable_by_the_owner_only(tmp_path):
+    from studio2_server.config import GUEST_NO_PLAN, SHARED_NO_PLAN, load_connections
+    reason = lambda settings, owner: {c["id"]: c.get("unavailable") for c in load_connections(settings, owner)}  # noqa: E731
+    mine = with_connections(tmp_path, [PLAN, OTHER], shared=True, owners=(ME,))
+    assert reason(mine, True) == {"subscription": None, "gateway": None}
+    assert reason(mine, False) == {"subscription": GUEST_NO_PLAN, "gateway": None}
+    # A shared studio that names no owner: off for every request, the owner flag included.
+    nobody = with_connections(tmp_path, [PLAN, OTHER], shared=True)
+    assert reason(nobody, True) == reason(nobody, False) == {"subscription": SHARED_NO_PLAN, "gateway": None}
+    # A studio that is not shared: the plan as before, whoever asks.
+    own = with_connections(tmp_path, [PLAN, OTHER])
+    assert reason(own, False) == {"subscription": None, "gateway": None}
+
+
+def test_a_guest_runs_on_what_a_guest_may_use(tmp_path):
+    from studio2_server.harness import Registry
+    registry = Registry(with_connections(tmp_path, [PLAN, OTHER], shared=True, owners=(ME,)))
+    assert [(c["id"], other) for c, other in (registry.usable("subscription", True),)] == [("subscription", False)]
+    assert [(c["id"], other) for c, other in (registry.usable("subscription", False),)] == [("gateway", True)]
+    assert [(c["id"], other) for c, other in (registry.usable("gateway", False),)] == [("gateway", False)]
+    assert [(c["id"], other) for c, other in (registry.usable(None, False),)] == [("gateway", True)]     # the first is the plan
+    # Nothing else to run on: the asked-for one comes back with its reason, and the request fails with it.
+    only = Registry(with_connections(tmp_path, [PLAN], shared=True, owners=(ME,)))
+    connection, other = only.usable("subscription", False)
+    assert connection["id"] == "subscription" and other is False and "owner" in connection["unavailable"]
+
+
+async def test_a_guests_request_does_not_change_what_the_project_remembers(shared, studio, project, monkeypatch):
+    pid = project["id"]
+    remembered = (studio.store.get(pid).get("connection"), studio.store.get(pid).get("model"))
+    fake = studio.registry.connections()[0]
+    # As if the project were left on the owner's plan: a guest's request is given another connection.
+    monkeypatch.setattr(studio.registry, "usable",
+                        lambda wanted, owner=False: (fake, not owner))
+    turn = (await shared["guest"].post(f"/api/projects/{pid}/turns", json={"text": "hello"})).json()["turn_id"]
+    await studio.turns.wait(pid)
+    events = [e for e in studio.log(pid).read() if e["turn_id"] == turn]
+    said = [e["message"] for e in events if e["type"] == "notice"]
+    assert any("the Claude plan is this studio's owner's" in line for line in said)
+    assert (studio.store.get(pid).get("connection"), studio.store.get(pid).get("model")) == remembered
+    # The owner's own request: no notice, and the choice is remembered as always.
+    turn = (await shared["owner"].post(f"/api/projects/{pid}/turns", json={"text": "hello again"})).json()["turn_id"]
+    await studio.turns.wait(pid)
+    assert not [e for e in studio.log(pid).read() if e["turn_id"] == turn and e["type"] == "notice"
+                and "owner's" in e["message"]]
+    assert studio.store.get(pid).get("connection") == fake["id"]
+
+
+def test_a_project_the_owner_makes_on_a_shared_studio_starts_on_the_plan(tmp_path):
+    from studio2_server.harness import Registry
+    shared_studio = Registry(with_connections(tmp_path, [OTHER, PLAN], shared=True, owners=(ME,)))
+    assert shared_studio.first(owner=True)["id"] == "subscription"
+    assert shared_studio.first(owner=False)["id"] == "gateway"            # a guest's: the first listed
+    assert Registry(with_connections(tmp_path, [OTHER, PLAN])).first(owner=True)["id"] == "gateway"     # not shared: as before
+    assert Registry(with_connections(tmp_path, [OTHER], shared=True, owners=(ME,))).first(owner=True)["id"] == "gateway"

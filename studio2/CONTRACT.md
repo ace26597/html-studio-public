@@ -5317,9 +5317,27 @@ included, because the studio could not tell them apart.
 - **What the owner may do on a shared studio that a guest may not:** read and write the
   instructions for every project; add, import, copy, change and delete skills in the library,
   from the Library page and through `save_skill` in a request the owner started (a request
-  keeps who started it, also while it waits in the queue). Everything else stays as it is for
-  everyone on a shared studio: the Claude plan is off, the agent never sees an app signed in,
-  setup and model installs belong to the person at the machine, the library's places are set
-  in the config file.
+  keeps who started it, also while it waits in the queue); **and run requests on the Claude
+  plan** (below). Everything else stays as it is for everyone on a shared studio: the agent
+  never sees an app signed in, setup and model installs belong to the person at the machine,
+  the library's places are set in the config file.
+- **The Claude plan on a shared studio is the owner's alone.** A plan may not be offered to the
+  people a tool is shared with, so on a shared studio it stays off for every request that is
+  not the owner's: a guest's, one made on the machine without the gate, any request when no
+  owner is named. For the owner's own requests it is a connection like any other.
+  - `GET /api/health` lists connections as this request may use them: to a guest the plan is
+    there, not available, with the reason "The Claude plan is this studio's owner's. Use
+    another model account."
+  - A project's remembered connection and model are the project's, shared by everyone in it.
+    When a request cannot use the remembered or asked-for connection (a guest in a project the
+    owner left on the plan), it runs on the first connection that requester may use, with that
+    connection's default model, for that request only: the project's remembered choice is not
+    changed, and a `notice` (`info`) on the request says which model it ran on and why. A
+    studio with no other connection fails the request with the reason instead.
+  - A request keeps who started it, so a guest's message queued behind the owner's request
+    runs as a guest's.
+  - A project the owner creates on a shared studio starts on the plan when the plan is listed
+    (theirs to use, and not a charge for each request); anyone else's starts on the first
+    connection listed, as on any studio.
 - **UI.** Where the interface hid these because the studio is shared, it now hides them only
   from a guest (`shared` and not `owner`).

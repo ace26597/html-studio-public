@@ -870,12 +870,13 @@ class Studio:
         return project
 
     # -- projects ---------------------------------------------------------------------------
-    async def create_project(self, name: str, template: str = "blank", example: str | None = None) -> dict:
+    async def create_project(self, name: str, template: str = "blank", example: str | None = None,
+                             owner: bool = False) -> dict:
         if example:    # a copy of an example that comes with the studio: its files as they are
             shipped = self.examples.get(example)
             if shipped is None:
                 raise KeyError(example)
-            project = self.store.create(name, self.registry.connections()[0]["id"], "blank", from_example=example)
+            project = self.store.create(name, self.registry.first(owner)["id"], "blank", from_example=example)
             pid = project["id"]
             first = await asyncio.to_thread(ws.init_workspace, self.store.workspace(pid), name,
                                             self.examples.files(example), f"From the example “{shipped['title']}”",
@@ -885,7 +886,7 @@ class Studio:
         known = {item["id"]: item for item in self.templates()}
         if template != "blank" and template not in known:
             raise KeyError(template)
-        project = self.store.create(name, self.registry.connections()[0]["id"], template)
+        project = self.store.create(name, self.registry.first(owner)["id"], template)
         pid = project["id"]
         chosen = known.get(template) or {}
         pattern = chosen.get("source") == "yours" and chosen.get("mode") == "pattern"

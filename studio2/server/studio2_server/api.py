@@ -337,7 +337,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "site": (settings.site_dir / "index.html").is_file(),
                 "build": await asyncio.to_thread(studio.build.view),
                 "transcription": {"available": voice.reason() is None, "reason": voice.reason()},
-                "connections": studio.registry.describe_all()}
+                "connections": studio.registry.describe_all(owner(request))}
 
     @app.get("/api/projects")
     async def list_projects():
@@ -360,7 +360,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return FileResponse(image, media_type="image/jpeg", headers={"cache-control": "no-cache"})
 
     @app.post("/api/projects", status_code=201)
-    async def create_project(body: ProjectCreate | None = None):
+    async def create_project(request: Request, body: ProjectCreate | None = None):
         if body and body.example:
             if body.template:
                 raise ApiError(400, "invalid_request", "Give an example or a template, not both.")
@@ -368,10 +368,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if example is None:
                 raise ApiError(400, "unknown_example", "There is no such example.")
             name = _clean_name(body.name) if (body.name or "").strip() else example["title"]
-            return studio.view(await studio.create_project(name, example=example["id"]))
+            return studio.view(await studio.create_project(name, example=example["id"], owner=owner(request)))
         try:
             project = await studio.create_project(_clean_name(body.name if body else None),
-                                                  (body.template if body else None) or "blank")
+                                                  (body.template if body else None) or "blank", owner=owner(request))
         except KeyError:
             raise ApiError(400, "unknown_template", "There is no such template.") from None
         return studio.view(project)
@@ -788,7 +788,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         body = await json_object(request)
         title, text = await asyncio.to_thread(ownskills.question, studio.lib, str(body.get("id") or ""),
                                               str(body.get("about") or ""), body.get("text"), owner(request))
-        project = await studio.create_project(_clean_name(title), "blank")
+        project = await studio.create_project(_clean_name(title), "blank", owner=owner(request))
         turn_id = studio.turns.start(project, text, None, None, None, [], options=checked_options(None),
                                      owner=owner(request))
         return {"project_id": project["id"], "turn_id": turn_id}

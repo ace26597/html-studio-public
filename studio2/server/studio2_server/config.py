@@ -42,6 +42,8 @@ OTHER_MODELS_LIMITS = [
 DEFAULT_PORT = 8200
 SHARED_NO_PLAN = ("The Claude plan is switched off because this studio is shared with other people. "
                   "Use an API key or a cloud account instead.")
+# A shared studio that names its owner: the plan is that one person's (CONTRACT.md, "The owner of a shared studio").
+GUEST_NO_PLAN = "The Claude plan is this studio's owner's. Use another model account."
 
 
 def now_iso() -> str:
@@ -332,8 +334,9 @@ def model_gateway(settings: Settings) -> dict | None:
     return None
 
 
-def load_connections(settings: Settings) -> list[dict]:
-    """Resolved connection configs. Read on every call so config edits need no restart."""
+def load_connections(settings: Settings, owner: bool = False) -> list[dict]:
+    """Resolved connection configs. Read on every call so config edits need no restart.
+    `owner`: the request is the owner's own, which on a shared studio is what the plan needs."""
     if settings.fake:
         return [_normalise(FAKE_CONNECTION)]
     raw = DEFAULT_CONNECTIONS
@@ -345,9 +348,11 @@ def load_connections(settings: Settings) -> list[dict]:
             raw = DEFAULT_CONNECTIONS
     connections = [c for c in (_normalise(item) for item in raw) if c and c["kind"] != "fake"]
     connections = connections or [_normalise(DEFAULT_CONNECTIONS[0])]
-    if settings.shared:
+    if settings.shared and not (owner and settings.owners):
         # Anthropic does not allow a tool to offer plan sign-in to its users, so the plan is for
-        # single-owner use only. Listed, with the reason, and never run.
-        connections = [{**c, "unavailable": SHARED_NO_PLAN} if c["kind"] == "claude-subscription" else c
+        # single-owner use only: on a shared studio, the owner's own requests and nobody else's.
+        # Listed for the others, with the reason, and never run.
+        why = GUEST_NO_PLAN if settings.owners else SHARED_NO_PLAN
+        connections = [{**c, "unavailable": why} if c["kind"] == "claude-subscription" else c
                        for c in connections]
     return connections
