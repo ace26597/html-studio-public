@@ -148,7 +148,8 @@ Where it runs and who may open it:
 | `STUDIO2_GATE_KEYS`, `STUDIO2_GATE_AUDIENCE` | none | A gate in front that signs people in (an identity-aware proxy): the `https://` address of its public signing keys and the audience its tokens name. A request whose token verifies needs no access key. Both or neither |
 | `STUDIO2_GATE_HEADER`, `STUDIO2_GATE_ISSUER` | `Cf-Access-Jwt-Assertion`; the scheme and host of the keys address | The header that carries the gate's token, and who must have issued it |
 | `STUDIO2_OPEN_TAILNET` | off | `1`: devices on your Tailscale network need no key. Every address in `STUDIO2_HOSTS` must then be a Tailscale address; refused in a shared studio |
-| `STUDIO2_SHARED` | off | `1`: shared with other people. The Claude plan is switched off and an access key is compulsory |
+| `STUDIO2_SHARED` | off | `1`: shared with other people. An access key is compulsory, and the Claude plan is switched off for everyone except the owners named below |
+| `STUDIO2_OWNERS` | none | Email addresses of the studio's owners, comma separated (or `owners` in the config file). In a shared studio behind a gate, a request the gate signed in with one of them is the owner's: it may run on the Claude plan, write the instructions for every project and manage skills. Everyone else is a guest. Without a gate nobody is the owner of a shared studio |
 | `STUDIO2_TLS_CERT`, `STUDIO2_TLS_KEY` | none | A certificate and its key. The extra addresses then answer over HTTPS only, by the name on the certificate; loopback stays plain HTTP |
 | `STUDIO2_SECRETS` | `auto` | Where keys are kept: `keychain`, `file` or `memory`. `auto` is the keychain, or the owner-only file where there is none; the scripted agent uses `memory` |
 | `STUDIO_NO_OPEN` | off | `1`: `studio start` does not open the browser |

@@ -78,7 +78,8 @@ answer them on the screen the studio shows when nothing is configured yet (later
    on this computer through the assistant. Other devices sign in once with the access key that
    setup makes; `studio access-key` prints it again.
 3. **Who uses it.** Just you, or shared with other people. Shared switches the Claude plan off
-   and makes every device sign in with an access key.
+   and makes every device sign in with an access key. (Behind a gate that signs people in, the
+   owners you name in `STUDIO2_OWNERS` keep the plan for their own requests.)
 
 Setup writes `~/.config/studio2/config.json`. When that file already exists, setup shows what
 would change first: in the terminal it then asks, and a command with flags writes only with

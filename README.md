@@ -180,7 +180,8 @@ On first run, `studio setup` asks three things (also asked on screen if you skip
 1. **Which model account** (see below).
 2. **Where it runs:** this computer only (the default), or also a private network address,
    port 8200 unless you change it.
-3. **Who uses it:** just you, or shared. Shared switches the Claude plan off.
+3. **Who uses it:** just you, or shared. Shared switches the Claude plan off for the people you
+   share with.
 
 Then `studio start` prints the address, normally `http://127.0.0.1:8200/`, and opens the browser.
 Press **New page** and type what you want. When something does not work, run `studio doctor`.

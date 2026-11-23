@@ -17,9 +17,12 @@ Anthropic's agent program (the one inside Claude Code), driven as a library.
 
 **The Claude plan is for single-owner use only.** Anthropic does not allow a tool to offer
 plan sign-in to its users. So the plan is offered when you alone use the studio, on this
-computer or on your own private network. A studio set up as shared refuses the plan and needs
-a key or a cloud account. If setup finds no Claude sign-in on the computer, `studio login`
-starts one.
+computer or on your own private network. A studio set up as shared refuses the plan to the
+people you share it with, who need a key or a cloud account. The one exception is you: behind
+a gate that signs people in, requests signed in with an address you named as an owner
+(`STUDIO2_OWNERS`) may still run on your plan, and nobody else's ever do. A guest working in a
+project you left on the plan runs on another account for that request, and the chat says so.
+If setup finds no Claude sign-in on the computer, `studio login` starts one.
 
 **Where a key goes.** A key you type in setup is stored in the system keychain, or in
 `~/.config/studio2/secrets.json` (readable by you only) on a machine without a keychain. It is
@@ -135,7 +138,7 @@ What it showed:
   4-cent run to a 2-dollar one. The studio's own instructions and tools carry most of the result;
   what differs between models is time, cost and how far they push the design.
 - **Claude Sonnet 5.5 through OpenRouter was the fastest and among the cheapest of the strong
-  ones**, which makes it the natural default for a shared studio, where the Claude plan is off.
+  ones**, which makes it the natural default for a shared studio, where the Claude plan is off for guests.
 - **The cheap models were enough for this kind of job:** Claude Haiku 5.5, GLM 5.3 Flash and
   DeepSeek V4.1 Flash each built a correct page for under a dime.
 - **Text-only models worked** (DeepSeek V4 Pro 0813, GLM 5.3) once the studio kept pictures from

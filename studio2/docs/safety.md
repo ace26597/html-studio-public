@@ -35,7 +35,8 @@ runs as you too.
   identity-aware proxy) can stand in front of a tunnel to the studio. Give the studio that
   service's public keys and audience (`STUDIO2_GATE_KEYS`, `STUDIO2_GATE_AUDIENCE`) and it checks
   the signed token on every request itself; a request without a good one still needs the access
-  key. Run it in shared mode, so nobody's Claude plan is used for other people. This narrows who
+  key. Run it in shared mode, so nobody's Claude plan is used for other people: only requests
+  the gate signed in as an owner you named (`STUDIO2_OWNERS`) may run on the plan. This narrows who
   can open the studio. It does not change what they can do once inside: everyone let in can run
   commands on that machine, so the next point still holds.
 - **One trusted person per machine,** until accounts and a container per project exist. The
