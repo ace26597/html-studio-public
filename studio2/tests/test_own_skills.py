@@ -207,7 +207,7 @@ async def test_the_tool_is_listed_and_the_agent_is_told(client, studio, project)
     assert any(tool["name"] == "save_skill" for tool in tools_listed) and len(tools.TOOLS) == 27
     from studio2_server.harness.claude import _studio_tool
     assert _studio_tool("save_skill", {"name": "x"}.get) == ("other", "Save the skill “x”")
-    assert "save_skill" in studio.agent_context(project["id"])
+    assert "save_skill" in (studio.settings.library_dir / "system-prompt.md").read_text()     # said once, in the system prompt
 
 
 # -- REST -------------------------------------------------------------------------------------

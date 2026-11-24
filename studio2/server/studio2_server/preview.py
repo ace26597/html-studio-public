@@ -25,6 +25,21 @@ from .access import REQUEST_NAMES
 log = logging.getLogger("studio2")
 BRIDGE_PATH = Path(__file__).parent / "static" / "bridge.js"
 BRIDGE_TAG = b'<script src="/__studio/bridge.js"></script>'
+_BRIDGE: bytes | None = None
+
+
+def bridge_bytes() -> bytes:
+    """The page helper, read once for the life of the server.
+
+    It used to be read from disk for every request, so an edit to the file, even a half-saved
+    one, reached every open page of every studio running from the folder at once. Now it changes
+    with a restart, like the rest of the server's code (and `health.build` says when it is older
+    than the file on disk).
+    """
+    global _BRIDGE
+    if _BRIDGE is None:
+        _BRIDGE = BRIDGE_PATH.read_bytes()
+    return _BRIDGE
 TYPES = {".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".json": "application/json",
          ".csv": "text/csv", ".md": "text/markdown", ".svg": "image/svg+xml", ".wasm": "application/wasm",
          ".html": "text/html", ".htm": "text/html", ".txt": "text/plain", ".py": "text/plain",
@@ -350,8 +365,7 @@ class PreviewApp:
         headers = {"cache-control": "no-store", "x-content-type-options": "nosniff"}
         path = scope["path"]
         if path == "/__studio/bridge.js":
-            body = await asyncio.to_thread(BRIDGE_PATH.read_bytes)
-            return await self._send(send, scope, 200, body, "text/javascript; charset=utf-8", headers)
+            return await self._send(send, scope, 200, bridge_bytes(), "text/javascript; charset=utf-8", headers)
         if path == HERE_PATH:
             # Reaches a browser only when it may reach this address: the studio's page asks for it to
             # learn whether the gate has signed the person in here (CONTRACT.md, "A page with its own

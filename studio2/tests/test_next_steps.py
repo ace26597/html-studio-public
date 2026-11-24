@@ -192,15 +192,16 @@ async def test_nothing_is_left_behind_after_a_request(client, studio, project):
 
 
 def test_the_agent_is_told_how_to_suggest(studio, project):
-    """With every message, in the project facts: the agent program loads studio tools on demand, so
-    a rule kept only in the tool's description is never read (two real requests showed it)."""
-    context = studio.agent_context(project["id"])
-    assert nextsteps.AGENT_RULE in context and "mcp__studio__suggest_next_steps" in nextsteps.AGENT_RULE
-    for phrase in ("one to three", "no check of the page's content", "no general polish", "closing message",
-                   "only fills their chat box"):
-        assert phrase in nextsteps.AGENT_RULE, phrase
+    """When to call is in the system prompt: the agent program loads studio tools on demand, so a rule
+    kept only in the tool's description is never read before the call (two real requests showed it).
+    What to offer is said once, in the description, which the agent reads when it loads the tool."""
+    told = (studio.settings.library_dir / "system-prompt.md").read_text()
+    assert "mcp__studio__suggest_next_steps" in told and "last tool call" in told
+    assert not hasattr(nextsteps, "AGENT_RULE")
     description = next(d for name, d, _schema, _handler in tools.TOOLS if name == "suggest_next_steps")
-    assert "at most three" in description and "closing message" in description
+    for phrase in ("at most three", "no check of the page's content", "no general polish", "closing message",
+                   "only puts the text in their chat box"):
+        assert phrase in description, phrase
 
 
 # ---- the studio's own look at the page after a request that changed it ------------------------------
@@ -242,5 +243,5 @@ async def test_a_look_that_fails_or_cannot_be_taken_changes_nothing(client, stud
     assert events[-1]["status"] == "completed" and [s["id"] for s in steps_of(events)] == ["check"]
     del studio.turns._problems                                  # the real one: skipped on the scripted agent
     assert await studio.turns._problems(project["id"]) is None
-    assert "opens the page once itself" in studio.agent_context(project["id"])
+    assert "opens the page once itself" in (studio.settings.library_dir / "system-prompt.md").read_text()
     assert nextsteps.studio_steps({**FACTS, "page_errors": 1, "still_wrong": 3})[0]["id"] == "errors"

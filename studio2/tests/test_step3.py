@@ -390,7 +390,10 @@ def test_every_skill_the_agent_is_told_about_exists():
 
     from studio2_server.studio import Studio
 
-    source = " ".join(re.findall(r'"([^"]*)"', inspect.getsource(Studio.agent_context)))
+    # What the agent is told about skills: the system prompt, this studio's part of it, and the project facts.
+    told = (Path(__file__).resolve().parents[1] / "library" / "system-prompt.md").read_text()
+    source = told + " " + " ".join(re.findall(r'"([^"]*)"', inspect.getsource(Studio.system_context)
+                                              + inspect.getsource(Studio.project_facts)))
     named = set()
     for run in re.finditer(r"((?:`[a-z0-9-]+`(?:, | and | )?)+)\s*skills?\b", source):
         named.update(re.findall(r"`([a-z0-9-]+)`", run.group(1)))
@@ -398,3 +401,78 @@ def test_every_skill_the_agent_is_told_about_exists():
     skills = Path(__file__).resolve().parents[1] / "library" / "skills"
     missing = sorted(name for name in named if not (skills / name / "SKILL.md").is_file())
     assert not missing, f"agent_context names skills that do not exist: {missing}"
+
+
+# -- each studio tool only where it can work (CONTRACT.md, "What the agent is told once") ----------
+def test_tools_are_registered_only_where_they_can_work(studio, project, monkeypatch):
+    from studio2_server import convert, diagram, generate, media, office, tools
+    pid = project["id"]
+    for module, name in ((office, "reason"), (convert, "reason"), (generate, "reason")):
+        monkeypatch.setattr(module, name, lambda: None)
+    monkeypatch.setattr(media, "video_reason", lambda _looker: None)
+    monkeypatch.setattr(diagram, "reason", lambda _looker: None)
+    monkeypatch.setattr(studio.looker, "reason", lambda: None)
+    names = lambda: {name for name, *_rest in tools.registered(studio, pid)}      # noqa: E731
+    every = {name for name, *_rest in tools.TOOLS}
+    plain = names()
+    assert every - plain == {"propose_ship_recipe", "make_live", "database_schema", "query_database"}
+    studio.store.update(pid, attach={"path": "/somewhere/app", "mode": "copy"})      # an attached app ships
+    assert {"propose_ship_recipe", "make_live"} <= names()
+    monkeypatch.setattr(studio, "attached_sources", lambda _pid: [{"name": "sales"}])
+    assert names() == every
+    # Without a browser the looking and rendering tools go, and the system prompt names them once.
+    monkeypatch.setattr(studio.looker, "reason", lambda: "No browser here.")
+    monkeypatch.setattr(media, "video_reason", lambda _looker: "No browser here.")
+    monkeypatch.setattr(diagram, "reason", lambda _looker: "No browser here.")
+    monkeypatch.setattr(generate, "reason", lambda: "No generation key.")
+    gone = every - names()
+    assert gone == {"look_at_page", "render_image", "render_video", "render_diagram", "generate_media",
+                    "generation_models"}
+    monkeypatch.setattr(studio.settings, "fake", False)
+    told = studio.system_context()
+    assert "does not have: look_at_page, render_image, render_video, render_diagram (No browser here)" in told
+    assert "generate_media, generation_models (No generation key)" in told and "skip that step" in told
+    assert "You can see the page" not in told
+
+
+def test_each_helper_has_the_tools_its_job_needs_and_no_more():
+    """library/agents/*.md: the agent program gives a helper only the tools its `tools:` line names
+    (tried on CLI 2.1.327: a helper with Read, Glob and one connector tool had no Bash and no Write)."""
+    from pathlib import Path
+    from studio2_server import tools
+    folder = Path(__file__).resolve().parents[1] / "library" / "agents"
+    studio_tools = {name for name, *_rest in tools.TOOLS}
+    lists = {}
+    for path in sorted(folder.glob("*.md")):
+        head = path.read_text().split("\n---\n", 1)[0]
+        fields = dict(line.split(": ", 1) for line in head.splitlines()[1:] if ": " in line)
+        assert "goal of the whole request" in fields["description"], path.name
+        if fields["name"] == "researcher":
+            # The researcher has no list of its own: a list would shut out the search connector the person
+            # attached (a connector's tools are named after it). It is refused what is the lead's instead.
+            assert "tools" not in fields
+            refused = {t.strip() for t in fields["disallowedTools"].split(",")}
+            for tool in refused:
+                if tool.startswith("mcp__studio__"):
+                    assert tool[len("mcp__studio__"):] in studio_tools, tool
+            continue
+        lists[fields["name"]] = {t.strip() for t in fields["tools"].split(",")}
+        for tool in lists[fields["name"]]:
+            if tool.startswith("mcp__studio__"):
+                assert tool[len("mcp__studio__"):] in studio_tools, tool
+    never = {"mcp__studio__ask_person", "mcp__studio__make_live", "mcp__studio__report_verification",
+             "mcp__studio__propose_ship_recipe", "mcp__studio__save_skill", "mcp__studio__suggest_next_steps"}
+    assert set(lists) == {"checker", "section-writer", "slide-reviewer"}
+    assert never - {"mcp__studio__propose_ship_recipe"} <= refused | {"mcp__studio__propose_ship_recipe"} and never <= refused
+    assert {"Bash", "Edit"} <= refused
+    for name, listed in lists.items():
+        assert not listed & never, name
+        assert "Write" in listed, name            # each writes its own output file
+    assert lists["checker"] == {"Read", "Grep", "Glob", "Write", "mcp__studio__check_page", "mcp__studio__check_file",
+                                "mcp__studio__read_source", "mcp__studio__fetch_source", "mcp__studio__query_files",
+                                "mcp__studio__database_schema", "mcp__studio__query_database",
+                                "mcp__studio__look_at_page"}
+    assert "Bash" not in lists["checker"] | lists["slide-reviewer"]
+    assert "Edit" not in lists["checker"] | lists["slide-reviewer"]
+    assert "Bash" in lists["section-writer"]      # it builds its own section with node to see that it runs
+    assert "mcp__studio__render_document" in lists["slide-reviewer"]

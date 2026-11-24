@@ -12,7 +12,7 @@ Four stages. Keep the person informed: put a skeleton page up first and fill it 
 - Do two or three quick searches to learn the vocabulary and who the primary sources are.
 - Split the work into 3–6 independent threads that each answer a distinct question, for
   example: financials from filings; products and pricing; each main competitor; market size
-  and regulation; customer and installer sentiment.
+  and regulation; customer and partner sentiment.
 - Write the plan to `research/plan.md` and save `index.html` with the title, the planned
   sections and "researching…" placeholders.
 

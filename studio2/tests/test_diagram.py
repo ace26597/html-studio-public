@@ -264,7 +264,7 @@ async def test_the_agent_is_told_and_the_call_is_named(studio, project):
     assert _studio_tool("render_diagram", {"name": "order-flow"}.get) == ("execute", "Draw the diagram “order-flow”")
     assert _studio_tool("convert_document", {"path": "files/r.md", "to": ".docx"}.get) == (
         "execute", "Convert files/r.md to DOCX")
-    told = studio.agent_context(project["id"])
+    told = (studio.settings.library_dir / "system-prompt.md").read_text()      # said once, in the system prompt
     assert "render_diagram" in told and "convert_document" in told and "`diagrams` skill" in told
     listed = {tool["name"]: tool for tool in tools.describe(studio)}
     assert listed["render_diagram"]["available"] is (diagram.reason(studio.looker) is None)

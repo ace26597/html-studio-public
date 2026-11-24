@@ -302,5 +302,5 @@ async def test_the_routes(client, site, project):
 
 
 def test_the_agent_is_told_where_export_is(studio, project):
-    context = studio.agent_context(project["id"])
+    context = " ".join((studio.settings.library_dir / "system-prompt.md").read_text().split())   # said once
     assert "Export in the page's menu" in context and "one HTML file" in context

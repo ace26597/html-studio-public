@@ -1007,7 +1007,7 @@ def _path_reason(command: str, workspace: Path, in_place: bool = False,
                  ctx: tuple[str, int] = ("", 0)) -> str | None:
     def own(target: str, here: Path | None = None) -> str | None:
         if _studio_place(target, workspace, here, places):
-            return f"It changes {target}: {STUDIO_OWN}."
+            return Guarded(f"It changes {target}: {STUDIO_OWN}.")
         return None
 
     for target, readable in _each_path(_redirect_targets(command), ctx):
@@ -1047,7 +1047,7 @@ def _path_reason(command: str, workspace: Path, in_place: bool = False,
         if not words:
             continue
         if sub := _studio_cli(words):
-            return f"It runs the studio's own `{sub}`: {STUDIO_OWN}."
+            return Guarded(f"It runs the studio's own `{sub}`: {STUDIO_OWN}.")
         name = Path(words[0]).name
         if name in ("cd", "pushd"):
             if name == "pushd":
@@ -1908,14 +1908,24 @@ CANNOT_READ = "The studio could not read this command, so it asks before running
 
 
 def risky_command(command: str, workspace: Path, in_place: bool | None = None,
-                  studio_places=(), _depth: int = 0, _outer: str = "") -> str | None:
+                  studio_places=(), _depth: int = 0, _outer: str = "", reach: "Reach | None" = None) -> str | None:
     """→ a one-sentence reason when the command needs the user's approval, else None.
     A fault in the reading itself is a reason to ask: it must never let a line through, and
-    never end the request."""
+    never end the request. `reach`: what this project's agent may not reach (reach_for); a
+    reason found there is a Guarded one, and it is looked for first, since it is the stronger."""
     try:
-        return _risky(command, workspace, in_place, studio_places, _depth, _outer)
+        if reach is not None and not _depth:
+            _LINES.clear()
+            _linked.cache_clear()       # links are read again for each new line
+            try:
+                if reason := _reach(command, workspace, reach):
+                    return reason
+            except Exception:       # this reading too must never let a line through
+                return Guarded(CANNOT_READ)
+        reason = _risky(command, workspace, in_place, studio_places, _depth, _outer)
+        return Guarded(reason) if reach is not None and reason == TOO_DEEP else reason
     except RecursionError:
-        return TOO_DEEP
+        return Guarded(TOO_DEEP) if reach is not None else TOO_DEEP
     except Exception:
         return CANNOT_READ
 
@@ -1977,3 +1987,437 @@ def _judge(text: str, program: str, workspace: Path, in_place: bool, studio_plac
         if reason := risky_command(inner, workspace, in_place, studio_places, _depth + 1, ctx[0]):
             return reason
     return None
+
+
+# -- What an agent's shell may not reach (CONTRACT.md, "What an agent's shell may not reach") -----
+#
+# Read on the command's text like every rule above: it stops a misled or mistaken agent and makes
+# it ask; a program that sets out to hide what it reaches gets past it. Real isolation is a
+# separate user or a container per project.
+
+class Guarded(str):
+    """A reason the person must decide even in a project set to allow everything. A shared
+    studio refuses it outright for a request that is not its owner's (harness/claude.py)."""
+
+
+# Places in the home folder that hold keys, passwords and sign-ins (CONTRACT.md, item 1).
+PRIVATE_HOME = (".secrets", ".ssh", ".aws", ".gnupg", ".config/gh", ".netrc", ".git-credentials", ".npmrc",
+                ".pypirc", ".docker/config.json", ".kube", ".config/gcloud", ".azure", ".claude", ".codex",
+                "Library/Keychains", "Library/Cookies", "Library/Safari", "Library/Containers/com.apple.Safari",
+                "Library/Application Support/Google/Chrome", "Library/Application Support/Google/Chrome Beta",
+                "Library/Application Support/Google/Chrome Canary", "Library/Application Support/Chromium",
+                "Library/Application Support/BraveSoftware", "Library/Application Support/Microsoft Edge",
+                "Library/Application Support/Arc", "Library/Application Support/com.operasoftware.Opera",
+                "Library/Application Support/Vivaldi", "Library/Application Support/Firefox",
+                ".mozilla", ".config/google-chrome", ".config/chromium", ".config/BraveSoftware")
+# Inside them, what the studio hands the agent itself: skills, plugins, agents and commands.
+OPEN_HOME = (".claude/skills", ".claude/plugins", ".claude/agents", ".claude/commands", ".codex/skills")
+# Code that builds a path from the home folder, and the names that then lead into a place above.
+HOME_CODE = re.compile(r"expanduser|Path\.home\s*\(|homedir\s*\(|\bgetenv\s*\(\s*['\"]HOME|"
+                       r"environ(?:\.get)?\s*[\[(]\s*['\"]HOME|process\.env\.HOME|ENV\s*\[\s*['\"]HOME")
+# `'.claude' / 'skills'`, `'.claude', 'plugins'`: the next quoted part of a path built in code.
+OPEN_NEXT = r"['\"]\s*(?:[,/+]|\)\s*/)\s*['\"]"
+PRIVATE_NAME = re.compile(r"(?:^|[\s'\"/,(])(\.secrets|\.ssh|\.aws|\.gnupg|\.netrc|\.git-credentials|\.npmrc|\.pypirc|"
+                          r"\.kube|\.azure|\.claude(?!/(?:skills|plugins|agents|commands)\b)(?!" + OPEN_NEXT + r"(?:skills|plugins|agents|commands)['\"/])"
+                          r"(?:\.json)?|\.codex(?!/skills\b)(?!" + OPEN_NEXT + r"skills['\"/])|Keychains|Cookies)(?=['\"/\s,)]|$)")
+# A path inside other text (code given on the command line, a here-document): from `~`, `$HOME`, `/`
+# or a `..` that climbs out.
+PATHISH = re.compile(r"(?:(?<![\w.:-])~[\w.-]*|\$\{?HOME\}?|(?<![\w.~$-])/(?=[\w.~$ -])|(?<![\w.~$/-])\.\.(?=/))"
+                     r"[^\s'\"`;|&<>(){},\\]*")
+# Programs that read whole folders, and those that do with a flag (CONTRACT.md, item 1).
+WHOLE_READERS = {"tar", "gtar", "bsdtar", "zip", "7z", "7za", "rsync", "scp", "ditto", "find", "rg", "ag", "ack",
+                 "fd", "cpio", "rclone", "pax"}
+# Of those, the ones that copy everything out of a folder: only these are caught for a folder that
+# merely holds a studio's data folder (`rg x ~/dev` searches, `tar czf x ~/dev` takes it all).
+COPIERS = {"tar", "gtar", "bsdtar", "zip", "7z", "7za", "rsync", "scp", "ditto", "cpio", "rclone", "pax", "cp"}
+READ, COPY = "read", "copy"     # how a command reads a folder it names: all of it, or all of it copied out
+RECURSIVE_FLAG = {"cp": re.compile(r"-[a-zA-Z]*[rRa][a-zA-Z]*|--recursive|--archive"),
+                  "grep": re.compile(r"-[a-zA-Z]*[rR][a-zA-Z]*|--recursive|--dereference-recursive|-d\s*recurse"),
+                  "egrep": re.compile(r"-[a-zA-Z]*[rR][a-zA-Z]*|--recursive"),
+                  "fgrep": re.compile(r"-[a-zA-Z]*[rR][a-zA-Z]*|--recursive")}
+KEYCHAIN = re.compile(SEP + DIRS + r"security(?:\s+-\S+)*\s+\S*(?:password|keychain|identit|certificate|export|"
+                      r"import|-key|key-|authorizationdb|smartcard|cms)", re.I)
+LOOPBACK_HOSTS = (r"localhost", r"[\w-]+\.localhost", r"127(?:\.\d{1,3}){1,3}", r"0\.0\.0\.0",
+                  r"\[?::1\]?", r"\[?::ffff:127(?:\.\d{1,3}){3}\]?", r"\[?(?:0{1,4}:){7}0{0,3}1\]?",
+                  r"0x7f[0-9a-f]{0,6}", r"2130706433")
+# `http :8200/api` (httpie) and `http://:8200/`: no host is this computer. Only with a path or a
+# scheme, so `lsof -i :8200` (which only reads) is not one.
+BARE_PORT = re.compile(r"(?<![\w.:/\]\[-])(?:https?://:(?P<port>\d{2,5})(?!\d)|:(?P<path_port>\d{2,5})(?=/))")
+
+PRIVATE_SAYS = "where this computer keeps keys, passwords or sign-ins"
+STUDIO_SAYS = "the studio's own records (another project's files, or a studio's settings), not this project's"
+
+
+def _session_folder(workspace: Path) -> str:
+    """The agent program's folder for a project's sessions under ~/.claude/projects: the folder's
+    path with every character that is not a letter or a digit made a `-`."""
+    return re.sub(r"[^A-Za-z0-9]", "-", str(workspace))
+
+
+def _forms(path: Path) -> set[Path]:
+    """A path as written (with `..` worked out) and as it really is (links followed)."""
+    found = {Path(os.path.normpath(str(path)))}
+    try:
+        found.add(path.resolve())
+    except (OSError, RuntimeError):
+        pass
+    return found
+
+
+def _inside(path: Path, place: Path) -> bool:
+    return path.is_relative_to(place)
+
+
+@functools.lru_cache(maxsize=1)
+def _machine_names() -> tuple[str, ...]:
+    import socket
+    try:
+        name = socket.gethostname()
+    except OSError:
+        return ()
+    short = name.split(".")[0]
+    return tuple(sorted({n for n in (name, short, f"{short}.local") if n}))
+
+
+class Reach:
+    """What the agent of one project may not reach, and what of it stays the project's own
+    (CONTRACT.md, "What an agent's shell may not reach"). Paths are kept as written and as they
+    really are, so a link does not change the answer."""
+
+    def __init__(self, home: Path, private=(), open_places=(), studio=(), own=(), ports=(), own_ports=(),
+                 hosts=(), own_api=()):
+        # (port, path): the parts of its own studio's API a project's agent is told to use (OWN_API).
+        self.own_api = tuple((int(port), str(path)) for port, path in own_api)
+        def both(paths) -> tuple[Path, ...]:
+            return tuple(sorted({form for p in paths for form in _forms(Path(p))}))
+        self.home = Path(home)
+        self.private, self.open, self.studio, self.own = both(private), both(open_places), both(studio), both(own)
+        self.ports, self.own_ports = frozenset(int(p) for p in ports), frozenset(int(p) for p in own_ports if p)
+        names = [re.escape(h.strip("[]")) for h in hosts if h] + [re.escape(n) for n in _machine_names()]
+        alternatives = "|".join(sorted(set(LOOPBACK_HOSTS) | set(names), key=len, reverse=True))
+        # Bounded repeats: a long run of text with no space (minified code) must not be walked again
+        # from every character.
+        # A host and its port always with `:` between (`0` only after a scheme: `s[0:8400]` is not one),
+        # and two written forms: `/dev/tcp/<host>/<port>` and a quoted host before a port in code.
+        user = r"(?:[^@/\s'\";]{1,64}@)?"
+        self.address = re.compile(
+            rf"(?<![\w.-])(?:(?:[a-z][\w+.-]{{0,15}}://){user}\[?(?:{alternatives}|0)\]?|{user}\[?(?:{alternatives})\]?)"
+            rf":(?P<port>\d{{1,5}})(?!\d)|/dev/(?:tcp|udp)/\[?(?:{alternatives})\]?/(?P<tcp_port>\d{{1,5}})(?!\d)|"
+            rf"['\"]\[?(?:{alternatives})\]?['\"]\s*,\s*(?P<code_port>\d{{1,5}})(?!\d)", re.I)
+
+    def kind(self, path: Path) -> str | None:
+        """"private" or "studio" when `path` is in one of those places and not the project's own."""
+        if any(_inside(path, place) for place in self.open):
+            return None
+        if any(_inside(path, place) for place in self.private) or (
+                path.parent == self.home and path.name.startswith(".claude.json")):
+            return "private"
+        if any(_inside(path, place) for place in self.studio) and not any(_inside(path, o) for o in self.own):
+            return "studio"
+        return None
+
+
+def reach_for(workspace: Path, project_dir: Path, page_port: int | None, studios: list[dict],
+              home: Path | None = None, more_private=()) -> Reach:
+    """The Reach of one project. `studios`: every studio on this computer as config.studio_record
+    writes it ({port, port_range, data_dir, config_dir, hosts, names}), this one included."""
+    home = Path(home or Path.home())
+    workspace = Path(workspace)
+    private = [home / p for p in PRIVATE_HOME] + [Path(p).expanduser() for p in more_private]
+    open_places = [home / p for p in OPEN_HOME] + [home / ".claude" / "projects" / _session_folder(w)
+                                                   for w in {workspace, workspace.resolve()}]
+    studio, ports, hosts, shared_library, own_api = [], set(), [], [], []
+    for record in studios:
+        # The studio this project belongs to: its own API paths (OWN_API) stay the agent's to call.
+        try:
+            if record.get("data_dir") and _inside(Path(project_dir).resolve(), Path(record["data_dir"]).resolve()):
+                own_api += [(int(record["port"]), f"/api/projects/{Path(project_dir).name}/{part}") for part in OWN_API]
+        except (TypeError, ValueError, KeyError, OSError):
+            pass
+        studio += [Path(record[key]) for key in ("data_dir", "config_dir", "config_file", "records")
+                   if isinstance(record.get(key), str) and record[key]]
+        # A studio hands its own skills and templates to every project's agent to read: they are in
+        # its data folder, but they are not another project's work.
+        if record.get("data_dir"):
+            shared_library += [Path(record["data_dir"]) / "skills", Path(record["data_dir"]) / "templates"]
+        try:
+            low, high = (int(n) for n in record.get("port_range") or ())
+            ports |= {int(record["port"])} | set(range(low, high + 1)) | set(range(low + 100, high + 101))
+        except (TypeError, ValueError, KeyError):
+            pass
+        hosts += [h for key in ("hosts", "names") if isinstance(record.get(key), list)
+                  for h in record[key] if isinstance(h, str)]
+    own_ports = (page_port, page_port + 100) if isinstance(page_port, int) else ()
+    return Reach(home, private, open_places, studio, (workspace, project_dir, *shared_library), ports, own_ports, hosts,
+                 own_api)
+
+
+def _locate(token: str, workspace: Path, here: Path | None, home: Path) -> Path | None:
+    """Where `token` leads (`..` not yet worked out), or None when that cannot be read from the text."""
+    for prefix in ("~", "$HOME", "${HOME}"):
+        if token == prefix or token.startswith(prefix + "/"):
+            return home / token[len(prefix):].lstrip("/")
+    if token.startswith("~"):
+        expanded = os.path.expanduser(token)
+        return Path(expanded) if expanded != token else None
+    for prefix in ("$PWD", "${PWD}"):
+        if token == prefix or token.startswith(prefix + "/"):
+            if here in (SCRATCH, UNKNOWN):
+                return None
+            return Path(here or workspace) / token[len(prefix):].lstrip("/")
+    if "$" in token or "`" in token:
+        return None
+    if token.startswith("/"):
+        return Path(token)
+    if here in (SCRATCH, UNKNOWN):
+        return None
+    return Path(here or workspace) / token
+
+
+def _someone_elses(path: Path, home: Path) -> Path | None:
+    """`/Users/<another>/x` → the same place in this home folder (`~/x`): another person's keys are
+    as private as one's own. None for any other path."""
+    parts = Path(os.path.normpath(str(path))).parts
+    if len(parts) > 3 and parts[1] in ("Users", "home") and Path(*parts[:3]) != home:
+        return home.joinpath(*parts[3:])
+    return None
+
+
+def _part_matches(pattern: str, name: str) -> bool:
+    """One part of a path pattern against one name, as the shell matches: a name that starts with
+    `.` only by a pattern that does too."""
+    if name.startswith(".") and not pattern.startswith("."):
+        return False
+    return fnmatch.fnmatchcase(name, pattern)
+
+
+def _pattern_kind(pattern: Path, reach: Reach, whole: bool) -> tuple[str, Path] | None:
+    parts = pattern.parts
+    for kind, places, exempt in (("private", reach.private, reach.open), ("studio", reach.studio, reach.own)):
+        for place in places:
+            wanted = place.parts
+            if not all(_part_matches(p, n) for p, n in zip(parts, wanted)):
+                continue
+            if len(parts) >= len(wanted):
+                if any(len(parts) >= len(e.parts) and parts[:len(e.parts)] == e.parts for e in exempt):
+                    continue
+                return kind, place
+            if whole == COPY or (whole and kind == "private"):
+                return kind + "-holds", place
+    return None
+
+
+MAX_PATH_CHARS = 4096      # longer is data (a base64 argument), not a path
+
+
+@functools.lru_cache(maxsize=4096)
+def _linked(workspace: Path, first: str) -> bool:
+    """Is `first`, a name at the top of the project, a link (it may lead out of the project)?"""
+    try:
+        return bool(first) and os.path.islink(os.path.join(workspace, first))
+    except (OSError, ValueError):
+        return True
+
+
+def _token_reason(token: str, workspace: Path, here: Path | None, reach: Reach, whole: bool) -> str | None:
+    token = token.strip("'\"")
+    if not token or token.startswith("-") or "://" in token or len(token) > MAX_PATH_CHARS:
+        return None
+    if here is None and not token.startswith(("/", "~", "$")) and ".." not in token \
+            and not _linked(workspace, token.split("/", 1)[0]):
+        return None             # in the project folder, and not through a link out of it (the common case: fast)
+    path = _locate(token, workspace, here, reach.home)
+    if path is None:
+        if token.startswith("$") and PRIVATE_NAME.search(token):     # `$D/.ssh/id_rsa`
+            return Guarded(f"It reads {token}, {PRIVATE_SAYS}.")
+        return None
+    found: tuple[str, Path] | None = None
+    if any(c in str(path) for c in "*?["):
+        found = _pattern_kind(Path(os.path.normpath(str(path))), reach, whole)
+    else:
+        forms = _forms(path)
+        if (elsewhere := _someone_elses(path, reach.home)) is not None and reach.kind(elsewhere) == "private":
+            forms.add(elsewhere)
+        kind = next((k for k in map(reach.kind, forms) if k), None)
+        if kind:
+            found = kind, path
+        elif whole and not any(_inside(f, w) for f in forms for w in _forms(workspace)):
+            for kind, places in (("private", reach.private), ("studio", reach.studio if whole == COPY else ())):
+                held = next((p for p in places for f in forms if _inside(p, f) and reach.kind(p)), None)
+                if held is not None:
+                    found = kind + "-holds", held
+                    break
+    if found is None:
+        return None
+    kind, place = found
+    if kind == "private":
+        return Guarded(f"It reads {token}, {PRIVATE_SAYS}.")
+    if kind == "studio":
+        return Guarded(f"It reaches {token}, {STUDIO_SAYS}.")
+    says = PRIVATE_SAYS if kind == "private-holds" else STUDIO_SAYS
+    return Guarded(f"It reads everything in {token}, which holds {place}, {says}.")
+
+
+REMOTE = re.compile(r"(?:[\w.+-]+@)?[A-Za-z0-9][\w.-]*:(?!//).*", re.S)
+
+
+def _tokens(word: str) -> list[str]:
+    """The paths one word can name: itself without a redirection (`<file`), and what follows each
+    `=`, `,` or `:` and a leading `@` (`--file=…`, `-F f=@…`)."""
+    word = re.sub(r"^\d*(?:<>|<<<|[<>]+)[&|]?", "", word)
+    if REMOTE.fullmatch(word):
+        return [word]           # `me@host:~/www` is a path on another machine (scp, rsync)
+    found = [word, *re.split(r"[=,:]", word)[1:]]
+    found += [t[1:] for t in found if t.startswith("@")]
+    return [t for t in found if t]
+
+
+# What the studio itself tells a project's agent to call on the studio's port, for its own project
+# only: its app (state, restart, how it runs, its output), the databases attached to it and its
+# model route (those two also need the app's token). Nothing else there is the agent's: not the
+# project's settings, not its approval cards, not another project.
+OWN_API = ("app", "data", "model")
+
+
+def _own_api(after: str, port: int, reach: Reach) -> bool:
+    """True when the text after `host:port` is one of this project's own paths on its studio."""
+    for own_port, path in reach.own_api:
+        # The path ends there or goes on below it: `/app`, `/app/restart`, `/app?x=1`, `/app;` and `/app'`
+        # are the project's; `/application` and `/data-sources` are not.
+        if port == own_port and after.startswith(path) and not re.match(r"[\w.~%-]", after[len(path):len(path) + 1]):
+            return ".." not in (re.split(r"[\s;|&<>()'\"`]", after, maxsplit=1)[0])
+    return False
+
+
+def _address_reason(text: str, reach: Reach) -> str | None:
+    """A studio's port, or another project's, on an address of this computer (CONTRACT.md, item 2)."""
+    if not reach.ports:
+        return None
+    for match in itertools.chain(reach.address.finditer(text), BARE_PORT.finditer(text)):
+        groups = match.groupdict()
+        port = int(next(groups[k] for k in ("port", "path_port", "tcp_port", "code_port") if groups.get(k)))
+        if port in reach.ports and port not in reach.own_ports:
+            if _own_api(text[match.end():match.end() + 300], port, reach):
+                continue
+            own = sorted(reach.own_ports)
+            mine = f"its own are {own[0]} and {own[1]}" if len(own) == 2 else "it has no page port"
+            return Guarded(f"It talks to port {port} on this computer, which belongs to a studio or to another "
+                           f"project, not to this project ({mine}).")
+    return None
+
+
+def _text_reason(chunk: str, workspace: Path, reach: Reach) -> str | None:
+    """The rules that read any text, code included: addresses, the keychain, paths from `~`, `$HOME`
+    or `/`, and a home-folder path built in code."""
+    if not chunk:
+        return None
+    if reason := _address_reason(chunk, reach):
+        return reason
+    if KEYCHAIN.search(chunk):
+        return Guarded("It reads or changes the keys, passwords or sign-ins in this computer's keychain.")
+    for match in PATHISH.finditer(chunk):
+        if reason := _token_reason(match.group(0), workspace, None, reach, False):
+            return reason
+    if HOME_CODE.search(chunk) and (name := PRIVATE_NAME.search(chunk)):
+        return Guarded(f"It builds a path to ~/{name.group(1).lstrip('/')}, {PRIVATE_SAYS}.")
+    return None
+
+
+SERVE_VALUE = {"-l", "--listen", "-p", "--port", "-c", "--config"}
+
+
+def _served(words: list[str]) -> list[str]:
+    """The folder a command serves over the network: `python -m http.server -d DIR` (the current
+    folder without one), `serve DIR` (also through `npx`, `bunx`, `pnpm dlx`), `php -S … -t DIR`."""
+    if not words:
+        return []
+    if "http.server" in words and "-m" in words:
+        for k, word in enumerate(words):
+            if word in ("-d", "--directory") and k + 1 < len(words):
+                return [words[k + 1]]
+            if word.startswith("--directory="):
+                return [word.split("=", 1)[1]]
+        return ["."]
+    names = [Path(w).name for w in words]
+    if Path(words[0]).name.startswith("php") and "-S" in words:
+        k = words.index("-t") if "-t" in words else -1
+        return [words[k + 1]] if 0 <= k < len(words) - 1 else ["."]
+    if "serve" in names[:3] and (names[0] == "serve" or names[0] in RUNNERS):
+        rest, k = words[names.index("serve") + 1:], 0
+        while k < len(rest):
+            if rest[k] in SERVE_VALUE:
+                k += 2
+                continue
+            if not rest[k].startswith("-"):
+                return [rest[k]]
+            k += 1
+        return ["."]
+    return []
+
+
+def _reach_line(text: str, workspace: Path, reach: Reach, ctx: tuple[str, int]) -> str | None:
+    """One reading of a line: every word of every part, from where the part runs, and what each
+    part hands on to run."""
+    if reason := _text_reason(text, workspace, reach):
+        return reason
+    here: Path | None = None
+    stack: list[Path | None] = []
+    pieces = _pieces(text)
+    for index, (part, sep) in enumerate(pieces):
+        try:
+            words = _shell_words(part)
+        except ValueError:
+            words = part.split()
+        programs = [w for w in words if not re.fullmatch(r"\w+=\S*", w)]
+        name = Path(programs[0]).name if programs else ""
+        flag = RECURSIVE_FLAG.get(name)
+        recursive = bool(flag and any(flag.fullmatch(w) for w in words[1:]))
+        whole = (COPY if name in COPIERS and (name != "cp" or recursive) else
+                 READ if name in WHOLE_READERS or recursive else "")
+        for word in words:
+            for token in _tokens(word):
+                if reason := _token_reason(token, workspace, here, reach, whole):
+                    return reason
+        for served in _served(programs):        # a folder handed out over the network, all of it
+            if reason := _token_reason(served, workspace, here, reach, READ):
+                return reason
+        if name in ("cd", "pushd"):
+            if name == "pushd":
+                stack.append(here)
+            args = [w for w in programs[1:] if not w.startswith("-")]
+            forms = _path_forms(args[0], ctx) if args else ["~"]
+            here = UNKNOWN if forms is None or len(forms) != 1 else _move(here, forms[0], workspace)
+        elif name == "popd":
+            here = stack.pop() if stack else here
+        prefix = "" if here is None else f"cd {'/tmp' if here is SCRATCH else shlex.quote(str(here))} && "
+        for inner in _nested(part, pieces[index - 1][0:1] + (sep,) if index else None, ctx):
+            if isinstance(inner, str) and not isinstance(inner, _Reason) and inner.strip():
+                if reason := _reach(prefix + inner, workspace, reach, ctx[1] + 1, ctx[0]):
+                    return reason
+    return None
+
+
+def _reach(command: str, workspace: Path, reach: Reach, depth: int = 0, outer: str = "") -> str | None:
+    """A Guarded reason when the command reaches what `reach` keeps from the agent, else None."""
+    if depth > MAX_DEPTH:
+        return Guarded(TOO_DEEP)    # unread is not allowed: it asks, also where everything is allowed
+    text, program = _split(command or "")
+    text = _ansi_c(text)
+    if reason := _text_reason(program, workspace, reach):
+        return reason
+    ctx = (outer + "\n" + text, depth)
+    for each in _expand(text, _line_for(outer, text)):
+        if reason := _reach_line(each, workspace, reach, ctx):
+            return reason
+    return None
+
+
+def reach_reason(path_or_url: str, reach: Reach, workspace: Path, whole: bool = False) -> str | None:
+    """For the agent's own tools (harness/claude.py): a path a Read, Glob or Grep names, or an
+    address a tool is given. `whole`: the tool reads the folder through (Glob, Grep)."""
+    text = str(path_or_url or "").strip()
+    if not text:
+        return None
+    if "://" in text or reach.address.search(text):
+        return _address_reason(text, reach)
+    return _token_reason(text, workspace, None, reach, whole)

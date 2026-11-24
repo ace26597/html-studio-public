@@ -18,7 +18,7 @@ shows, and a side panel or strip for the details of whatever is selected.
 | Many points (tens of thousands) | `<canvas>` with a quadtree for picking, or deck.gl |
 | A process to step through | a sticky graphic and steps (see `page-animation`), plus Previous and Next buttons |
 
-D3 modules: `https://cdn.jsdelivr.net/npm/d3@7/+esm` (or the single module you need).
+D3 modules: `https://cdn.jsdelivr.net/npm/d3@7.9.2/+esm` (or the single module you need).
 
 ## What every one needs
 - **Move:** drag to pan, wheel and pinch to zoom, double-click to zoom in. Buttons for +, − and

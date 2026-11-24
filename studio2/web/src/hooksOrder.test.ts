@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import chat from "./Chat.tsx?raw";
 import questionCard from "./QuestionCard.tsx?raw";
+import libraryView from "./LibraryView.tsx?raw";
+import templatesManager from "./TemplatesManager.tsx?raw";
 
 /**
  * The tests here draw a component once (`renderToStaticMarkup`), so a hook placed after an early
@@ -12,6 +14,8 @@ import questionCard from "./QuestionCard.tsx?raw";
 const GUARDED: { file: string; source: string; after: string }[] = [
   { file: "Chat.tsx", source: chat, after: "if (!open) {" },
   { file: "QuestionCard.tsx", source: questionCard, after: 'if (item.status !== "waiting") return' },
+  { file: "LibraryView.tsx", source: libraryView, after: "if (error && !library) {" },
+  { file: "TemplatesManager.tsx", source: templatesManager, after: "if (searching && !(shown" },
 ];
 const HOOK = /\buse(?:State|Effect|LayoutEffect|Memo|Callback|Ref|Id|Reducer|Context|ImperativeHandle|Toast)\s*[(<]/;
 

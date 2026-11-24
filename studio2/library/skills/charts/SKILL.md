@@ -19,7 +19,7 @@ More than six series: show the top five and "other", or use small multiples.
 
 ## Build
 - Apache ECharts from a CDN is the default for anything interactive:
-  `<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>`.
+  `<script src="https://cdn.jsdelivr.net/npm/echarts@5.6.0/dist/echarts.min.js"></script>`.
   A simple static chart can be inline SVG.
 - Give the container an explicit height (320–420px) and call `chart.resize()` on window resize.
 - Title states the finding ("Gross margin fell four points in two years"); a subtitle gives

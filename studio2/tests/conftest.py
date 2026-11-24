@@ -21,8 +21,10 @@ PORT_RANGE = tuple(int(p) for p in os.environ["STUDIO2_PORT_RANGE"].split("-")) 
 
 
 @pytest.fixture(autouse=True)
-def _fake_delay(monkeypatch):
+def _fake_delay(monkeypatch, tmp_path_factory):
     monkeypatch.setenv("STUDIO2_FAKE_DELAY", "0")
+    # The studios running on this computer are not the suite's (config.studios_dir).
+    monkeypatch.setenv("STUDIO2_STUDIOS_DIR", str(tmp_path_factory.mktemp("studios")))
 
 
 @pytest.fixture

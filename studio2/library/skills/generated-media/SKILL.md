@@ -27,16 +27,17 @@ one, so every call interrupts them. Treat it as something you order, not somethi
    distance, mood, colours that match the page, what must be left empty for text. One
    paragraph, concrete nouns, no lists of adjectives.
 2. Ask for the shape you will use: `aspect_ratio` "16:9", "9:16", "1:1", "4:5".
-3. Start cheap: `quality: "medium"`, `resolution: "1k"` for a picture is about 1 credit;
-   the default (high, 2k) is about 6.5. A five-second clip runs from about 4 credits (fast,
-   480p) to 60 (1080p). The price the person sees is the service's own quote for your request.
+3. Start cheap: `quality: "medium"`, `resolution: "1k"` for a picture costs a small part of the
+   default (high, 2k), and a short clip at the fast, 480p setting a small part of one at 1080p.
+   Prices change, so none are written here: the price the person sees on the approval card is
+   the service's own quote for your request.
 4. One at a time. Look at the result (Read the file) before ordering the next.
 5. If the person says no, do not ask again for the same thing. If a generation fails, do not
    switch models to get round it; report what the service said.
 
 ```
 generate_media  kind: "image"  out: "media/hero.png"  aspect_ratio: "16:9"  quality: "medium"  resolution: "1k"
-                prompt: "Wide photograph of a tiled rooftop with a neat array of dark solar panels at golden hour,
+                prompt: "Wide photograph of a tiled rooftop terrace with rows of potted herbs at golden hour,
                          low sun from the left, clear sky filling the upper third, no people, no text"
 ```
 `generation_models` (free) lists the models for a kind and, with `model`, what one accepts:

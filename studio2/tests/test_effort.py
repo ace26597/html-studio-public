@@ -270,3 +270,14 @@ async def test_the_studio_rechecks_the_page_after_a_verification(client, studio,
     # No verification reported: no re-check.
     events = await run_turn(client, studio, pid, "Make a page, skip the report", options={"verify": True})
     assert not [e for e in events if e["type"] == "verification_recheck"]
+
+
+def test_the_effort_wording_never_contradicts_itself():
+    """Quick with Verify: the checker is the one sub-agent; Deep with Verify: it is ordered once."""
+    quick_verify = effort.block(effort.clean({"depth": "quick", "verify": True}))
+    assert "start no sub-agents (except the checker when verification" in quick_verify
+    assert "Start the checker sub-agent" in quick_verify
+    deep_verify = effort.block(effort.clean({"depth": "deep", "verify": True}))
+    assert deep_verify.count("checker sub-agent") == 1
+    deep = effort.block(effort.clean({"depth": "deep"}))
+    assert "have the work checked independently (the checker sub-agent)" in deep

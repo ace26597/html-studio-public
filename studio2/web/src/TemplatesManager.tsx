@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useReducer, useRef, useState } from "rea
 import { ApiError, api, errorMessage } from "./api";
 import { formatBytes } from "./format";
 import { Icon, Spinner } from "./icons";
+import { matchesQuery } from "./library";
 import { Modal } from "./Modal";
 import {
   groupTemplates,
@@ -88,7 +89,7 @@ function EditTemplateDialog({
   );
 }
 
-export function TemplatesManager() {
+export function TemplatesManager({ query = "", heading }: { query?: string; heading?: string } = {}) {
   const toast = useToast();
   const confirm = useConfirm();
   const [templates, setTemplates] = useState<Template[] | null>(null);
@@ -110,6 +111,8 @@ export function TemplatesManager() {
     return () => controller.abort();
   }, [attempt]);
   const refresh = useCallback(() => setAttempt((n) => n + 1), []);
+  // The Library's search reaches your templates too.
+  const shown = templates && query.trim() ? templates.filter((t) => matchesQuery([t.label, t.description, templateKindLabel(t)], query)) : templates;
 
   // The import flow: upload; when the server asks (the template has code), ask the person, then upload confirmed.
   const runImport = async (file: File, confirmed: boolean): Promise<void> => {
@@ -157,7 +160,11 @@ export function TemplatesManager() {
     }
   };
 
-  return (
+  const searching = query.trim() !== "";
+  // While the Library is searched, say nothing unless one of your templates matches.
+  if (searching && !(shown && shown.length > 0)) return null;
+
+  const body = (
     <div className="ds">
       <div className="ds-head">
         <p className="ds-lede">
@@ -202,9 +209,9 @@ export function TemplatesManager() {
         </div>
       )}
       {templates && templates.length === 0 && <p className="lib-empty">You have no templates yet.</p>}
-      {templates && templates.length > 0 && (
+      {shown && shown.length > 0 && (
         <ul className="ds-list">
-          {templates.map((template) => {
+          {shown.map((template) => {
             const preview = templatePreviewSrc(template);
             const origin = templateOrigin(template);
             return (
@@ -263,5 +270,12 @@ export function TemplatesManager() {
         />
       )}
     </div>
+  );
+  if (!heading) return body;
+  return (
+    <section className="lib-section" aria-label={heading}>
+      <h3 className="lib-title">{heading}</h3>
+      {body}
+    </section>
   );
 }

@@ -135,7 +135,9 @@ async def test_agent_is_told_about_user_changes(client, studio, project):
     studio.registry._harnesses["fake"] = Recorder()
     events = await run_turn(client, studio, pid, "first")
     assert "<studio-user-changes>" not in seen[0].prompt and seen[0].prompt.startswith("first\n\n<studio-project>")
-    assert "look_at_page" in seen[0].prompt or "cannot see the rendered page" in seen[0].prompt
+    # What this studio can do is in the system prompt's own part, not in the message.
+    assert "look_at_page" in seen[0].context or "cannot see the rendered page" in seen[0].context
+    assert "look_at_page loads it" not in seen[0].prompt and seen[0].context == studio.system_context()
     assert seen[0].session_id is None and seen[0].workspace == studio.store.workspace(pid)
     assert "session" not in [e["type"] for e in events]                  # internal, never logged
     assert events[-1]["session_id"] == "sess-1"
@@ -459,3 +461,90 @@ async def test_nothing_starts_by_itself_for_a_project_being_deleted(studio, proj
         studio.deleting.discard(pid)
     await studio.sync_app(pid, restart=True)
     assert synced == [True]
+
+
+# -- the standing project facts go once per conversation (CONTRACT.md, "What the agent is told once") --
+async def test_the_standing_facts_are_sent_once_then_said_to_be_unchanged(client, studio, project):
+    pid = project["id"]
+    seen, sessions, compact = [], ["sess-a"], []
+
+    class Recorder:
+        kind = "fake"
+
+        async def run(self, request, emit):
+            seen.append(request)
+            emit({"type": "session", "session_id": sessions[-1]})
+            if compact:
+                emit({"type": "session", "session_id": sessions[-1], "compacted": True})
+                compact.clear()
+            return TurnResult("completed", session_id=sessions[-1])
+
+    studio.registry._harnesses["fake"] = Recorder()
+    full_line = "The person sees this project at"
+    await run_turn(client, studio, pid, "first")
+    assert full_line in seen[-1].prompt and seen[-1].fresh_prompt is None       # a new conversation: in full
+    assert studio.store.get(pid)["facts_sent"]["session_id"] == "sess-a"
+    await run_turn(client, studio, pid, "second")
+    second = seen[-1]
+    assert full_line not in second.prompt and studio.FACTS_SAME in second.prompt
+    assert "This request:" in second.prompt                                    # what was picked still goes
+    assert full_line in second.fresh_prompt         # what a harness sends if it has to start over
+    assert len(second.prompt) < len(seen[0].prompt)
+    # A standing fact changed: in full again, once.
+    studio.store.update(pid, instructions="Use rupees.")
+    await run_turn(client, studio, pid, "third")
+    assert full_line in seen[-1].prompt and "Use rupees." in seen[-1].prompt
+    await run_turn(client, studio, pid, "fourth")
+    assert full_line not in seen[-1].prompt
+    # A new conversation (the agent program answered with another session): in full on the next message.
+    sessions.append("sess-b")
+    await run_turn(client, studio, pid, "fifth")
+    assert full_line not in seen[-1].prompt          # this message itself went before the new session was known
+    await run_turn(client, studio, pid, "sixth")
+    assert full_line in seen[-1].prompt
+    # The person starts over: no session, so in full.
+    await run_turn(client, studio, pid, "seventh")
+    studio.store.update(pid, session_id=None)
+    await run_turn(client, studio, pid, "eighth")
+    assert full_line in seen[-1].prompt
+    # The conversation was compacted: the earlier full block may be gone, so it goes again.
+    await run_turn(client, studio, pid, "ninth")
+    assert full_line not in seen[-1].prompt
+    compact.append(True)
+    await run_turn(client, studio, pid, "tenth")
+    assert studio.store.get(pid)["facts_sent"] is None
+    await run_turn(client, studio, pid, "eleventh")
+    assert full_line in seen[-1].prompt
+
+
+async def test_a_failed_turn_does_not_count_as_having_told_the_agent(client, studio, project):
+    pid = project["id"]
+    seen, outcome = [], ["completed"]
+
+    class Recorder:
+        kind = "fake"
+
+        async def run(self, request, emit):
+            seen.append(request)
+            return TurnResult(outcome[-1], session_id="sess-z", error="boom" if outcome[-1] == "failed" else None)
+
+    studio.registry._harnesses["fake"] = Recorder()
+    await run_turn(client, studio, pid, "first")
+    studio.store.update(pid, instructions="Something new.")
+    outcome.append("failed")
+    await run_turn(client, studio, pid, "second")             # sent in full, but the request failed
+    outcome.append("completed")
+    await run_turn(client, studio, pid, "third")
+    assert "Something new." in seen[-1].prompt and studio.FACTS_SAME not in seen[-1].prompt
+    # A fact that changed for a request that failed, then changed back: the facts recorded before the
+    # failure are not trusted, so the next message carries them in full again.
+    await run_turn(client, studio, pid, "fourth")
+    assert studio.FACTS_SAME in seen[-1].prompt               # nothing changed since "third"
+    studio.store.update(pid, instructions="Changed for one request.")
+    outcome.append("failed")
+    await run_turn(client, studio, pid, "fifth")
+    assert studio.store.get(pid)["facts_sent"] is None
+    studio.store.update(pid, instructions="Something new.")   # back to what "third" was told
+    outcome.append("completed")
+    await run_turn(client, studio, pid, "sixth")
+    assert "Something new." in seen[-1].prompt and studio.FACTS_SAME not in seen[-1].prompt

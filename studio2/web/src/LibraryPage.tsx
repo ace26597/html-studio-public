@@ -1,9 +1,9 @@
-// /library: what this studio can do, and the person's data sources.
+// /library: the skills, connectors and templates the agent can use; everything else in one closed section.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DataSourcesManager, kindsOrKnown } from "./DataSources";
 import { LibraryIndexView } from "./LibraryIndexView";
-import { LibraryView, useLibrary } from "./LibraryView";
+import { LibraryView, scrollSoon, useLibrary, type MoreBlock } from "./LibraryView";
 import { LibraryPlacesBlock } from "./LibraryPlacesBlock";
 import { ModelsView } from "./ModelsView";
 import { ServiceKeys } from "./ServiceKeysBlock";
@@ -12,8 +12,14 @@ import type { Navigate } from "./router";
 import type { Theme } from "./theme";
 import { IconButton } from "./ui";
 
-/** The Models block above lists the connections with their checks, so the list below leaves them out. */
+/** The Models block lists the connections with their checks, so the list leaves them out. */
 const SHOWN_ABOVE = ["connections"] as const;
+
+/** Links that land on something under "Everything else" open it for that visit. */
+const MORE_HASHES = ["#models", "#places", "#service-keys", "#data-sources", "#everything"];
+
+const MORE_LINE =
+  "Models, keys and data sources, the studio’s own tools and helper agents, and every skill and connector found on this computer.";
 
 interface LibraryPageProps {
   navigate: Navigate;
@@ -25,20 +31,19 @@ interface LibraryPageProps {
 
 /** `/library#new-skill` (the New page dialog's "A skill") opens New skill at "Describe it". */
 export const NEW_SKILL_HASH = "#new-skill";
-/** `/library#new-connector` (the New page dialog's "A connector") opens Add an MCP server at "Describe what you need". */
+/** `/library#new-connector` (the New page dialog's "A connector") opens Add a connector at "Describe what you need". */
 export const NEW_CONNECTOR_HASH = "#new-connector";
 
 export function LibraryPage({ navigate, theme, onToggleTheme, shared = false }: LibraryPageProps) {
   const state = useLibrary();
-  const [startNewSkill] = useState(() => typeof window !== "undefined" && window.location.hash === NEW_SKILL_HASH);
-  const [startNewConnector] = useState(() => typeof window !== "undefined" && window.location.hash === NEW_CONNECTOR_HASH);
+  const [hash] = useState(() => (typeof window !== "undefined" ? window.location.hash : ""));
+  const startNewSkill = hash === NEW_SKILL_HASH;
+  const startNewConnector = hash === NEW_CONNECTOR_HASH;
+  const loaded = state.library !== null;
+  const kinds = state.library?.data_kinds;
 
   useEffect(() => {
     document.title = "Library · Studio";
-    // `/library#data-sources` (the Home "Data sources" entry) lands on that section.
-    if (window.location.hash === "#data-sources") {
-      document.getElementById("data-sources")?.scrollIntoView({ block: "start" });
-    }
     // Opened once: a reload or Back does not open the dialog again.
     if (window.location.hash === NEW_SKILL_HASH || window.location.hash === NEW_CONNECTOR_HASH) {
       window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
@@ -47,6 +52,44 @@ export function LibraryPage({ navigate, theme, onToggleTheme, shared = false }: 
       document.title = "Studio";
     };
   }, []);
+
+  // `/library#data-sources` (the Home "Data sources" entry) and the other section links land on
+  // their section once the library is drawn (they are under "Everything else", opened for them).
+  useEffect(() => {
+    if (!loaded || !hash || hash === NEW_SKILL_HASH || hash === NEW_CONNECTOR_HASH) return;
+    const timers = scrollSoon(hash.slice(1));
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [loaded, hash]);
+
+  const moreBlocks = useMemo<MoreBlock[]>(
+    () => [
+      {
+        id: "models",
+        title: "Models",
+        words: "model connection subscription gateway check",
+        render: () => <ModelsView />,
+      },
+      {
+        id: "places",
+        title: "Where the studio looks",
+        words: "folders files skills connectors settings",
+        render: () => <LibraryPlacesBlock onChanged={() => window.location.reload()} />,
+      },
+      {
+        id: "service-keys",
+        title: "Keys for other services",
+        words: "key api token search",
+        render: () => <ServiceKeys />,
+      },
+      {
+        id: "data-sources",
+        title: "Data sources",
+        words: "database databases connect postgres mysql",
+        render: () => <DataSourcesManager kinds={kindsOrKnown(kinds)} />,
+      },
+    ],
+    [kinds],
+  );
 
   return (
     <div className="home library-page">
@@ -70,53 +113,31 @@ export function LibraryPage({ navigate, theme, onToggleTheme, shared = false }: 
         <div className="home-head">
           <div>
             <h1>Library</h1>
-            <p className="home-count">What this studio can do, and the databases you have connected.</p>
+            <p className="home-count">The skills, connectors and templates the agent can use when it builds your pages.</p>
           </div>
         </div>
-        <section id="models" className="library-block" aria-labelledby="models-title">
-          <h2 id="models-title">Models</h2>
-          <ModelsView />
-        </section>
-        <section id="places" className="library-block" aria-labelledby="places-title">
-          <h2 id="places-title">Where the studio looks</h2>
-          <LibraryPlacesBlock onChanged={() => window.location.reload()} />
-        </section>
-        <section id="service-keys" className="library-block" aria-labelledby="service-keys-title">
-          <h2 id="service-keys-title">Keys for other services</h2>
-          <ServiceKeys />
-        </section>
-        <section id="data-sources" className="library-block" aria-labelledby="data-sources-title">
-          <h2 id="data-sources-title">Data sources</h2>
-          <DataSourcesManager kinds={kindsOrKnown(state.library?.data_kinds)} />
-        </section>
-        <section id="templates" className="library-block" aria-labelledby="templates-title">
-          <h2 id="templates-title">Your templates</h2>
-          <TemplatesManager />
-        </section>
-        <section className="library-block" aria-labelledby="capabilities-title">
-          <h2 id="capabilities-title">What the agent can use</h2>
-          <LibraryView
-            state={state}
-            omit={SHOWN_ABOVE}
-            shared={shared}
-            startNewSkill={startNewSkill}
-            startNewConnector={startNewConnector}
-            onOpenProject={(id) => navigate(`/p/${id}`)}
-          />
-        </section>
-        <section id="everything" className="library-block" aria-labelledby="everything-title">
-          <h2 id="everything-title">Everything on this computer</h2>
-          <p className="lib-intro lix-lede">
-            Before each request the studio picks what fits from these. Say <strong>Always</strong> or{" "}
-            <strong>Never</strong> to decide for every project; a project can still decide for itself.
-          </p>
-          <LibraryIndexView
-            initialIndex={state.library?.index ?? null}
-            shared={shared}
-            onOpenProject={(id) => navigate(`/p/${id}`)}
-            onChanged={state.reload}
-          />
-        </section>
+        <LibraryView
+          state={state}
+          omit={SHOWN_ABOVE}
+          shared={shared}
+          startNewSkill={startNewSkill}
+          startNewConnector={startNewConnector}
+          onOpenProject={(id) => navigate(`/p/${id}`)}
+          yourTemplates={(query, heading) => <TemplatesManager query={query} heading={heading} />}
+          moreBlocks={moreBlocks}
+          moreLine={MORE_LINE}
+          openMore={MORE_HASHES.includes(hash)}
+          indexBlock={({ query, preferKind }) => (
+            <LibraryIndexView
+              initialIndex={state.library?.index ?? null}
+              shared={shared}
+              search={query}
+              preferKind={preferKind}
+              onOpenProject={(id) => navigate(`/p/${id}`)}
+              onChanged={state.reload}
+            />
+          )}
+        />
       </main>
     </div>
   );

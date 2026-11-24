@@ -427,3 +427,18 @@ def test_appends_from_threads_never_share_a_line(tmp_path):
         thread.join()
     lines = (tmp_path / "events.jsonl").read_text("utf-8").splitlines()
     assert len(lines) == 200 and sorted(json.loads(line)["seq"] for line in lines) == list(range(1, 201))
+
+
+def test_the_page_helper_is_read_once_and_changes_with_a_restart(tmp_path, monkeypatch):
+    """An edit to bridge.js, even a half-saved one, must not reach pages of a running studio."""
+    from studio2_server import preview
+
+    helper = tmp_path / "bridge.js"
+    helper.write_text("// first")
+    monkeypatch.setattr(preview, "BRIDGE_PATH", helper)
+    monkeypatch.setattr(preview, "_BRIDGE", None)
+    assert preview.bridge_bytes() == b"// first"
+    helper.write_text("// half-saved (")
+    assert preview.bridge_bytes() == b"// first"          # the running server keeps what it started with
+    monkeypatch.setattr(preview, "_BRIDGE", None)         # a restart
+    assert preview.bridge_bytes() == b"// half-saved ("

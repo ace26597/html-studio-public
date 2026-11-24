@@ -10,7 +10,7 @@ Emit = Callable[[dict], None]
 Approve = Callable[[str, str, str, str], Awaitable[bool]]  # (tool, title, detail, reason) → allowed
 
 
-async def allow_everything(_tool: str, _title: str, _detail: str, _reason: str) -> bool:
+async def allow_everything(_tool: str, _title: str, _detail: str, _reason: str, **_more) -> bool:
     return True
 
 
@@ -32,7 +32,10 @@ class TurnRequest:
     text: str = ""
     selection: dict | None = None
     attachments: list[str] = field(default_factory=list)
-    context: str = ""           # extra system-prompt text; unused today (project facts ride in the message)
+    context: str = ""           # system-prompt text after library/system-prompt.md: this studio's configuration
+    # The prompt with the standing project facts in full, when `prompt` only says they are unchanged:
+    # what a harness sends instead if it has to start a new conversation (the resume failed).
+    fresh_prompt: str | None = None
     approve: Approve = allow_everything
     plugin_dir: Path | None = None   # the project's own library plugin (enabled skills + agents)
     mcp_servers: dict = field(default_factory=dict)  # name → MCP server config, "studio" included
@@ -51,6 +54,10 @@ class TurnRequest:
     # Filled by the harness while it works, for a turn that ends without a result: `heard` is a
     # function giving what the assistant's messages have used so far, by model (costs.turn_models).
     progress: dict = field(default_factory=dict)
+    # What the agent may not reach (risk.Reach; CONTRACT.md, "What an agent's shell may not reach"),
+    # and whether this request is a guest's in a shared studio (then such a command is refused).
+    reach: object | None = None
+    guest: bool = False
 
 
 @dataclass

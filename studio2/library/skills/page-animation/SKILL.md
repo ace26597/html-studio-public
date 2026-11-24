@@ -15,7 +15,7 @@ is none, leave it out.
 | Hover, press, open and close, theme change | CSS `transition` on `transform`, `opacity`, colour |
 | An entrance, a loop, a drawn line | CSS `@keyframes` |
 | Reveal as it scrolls into view | `IntersectionObserver` adding a class once; or `animation-timeline: view()` inside `@supports (animation-timeline: view())` with the observer as the fallback |
-| Progress tied to scroll position, a pinned section that changes as you scroll | GSAP with ScrollTrigger (`https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js` and `…/dist/ScrollTrigger.min.js`) |
+| Progress tied to scroll position, a pinned section that changes as you scroll | GSAP with ScrollTrigger (`https://cdn.jsdelivr.net/npm/gsap@3.15.1/dist/gsap.min.js` and `…/dist/ScrollTrigger.min.js`) |
 | A sequence of many parts, timed against each other | a GSAP timeline, or the Web Animations API (`el.animate(…)`) |
 | Numbers counting up, a chart drawing itself | `requestAnimationFrame` from a start time, eased; a chart library's own animation |
 | Thousands of moving things | one `<canvas>`, not thousands of elements |

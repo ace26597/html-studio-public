@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "release": "../tools/release-ui.sh",
+    "release:check": "../tools/release-ui.sh --check",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "preview": "vite preview",

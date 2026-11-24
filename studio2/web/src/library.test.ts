@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  blockMatches,
   checkPageLine,
+  countElsewhere,
   countRows,
+  countWords,
+  elsewhereCounts,
+  firstKindFound,
+  MAIN_SECTIONS,
+  moreMatchCount,
+  splitSections,
+  splitServers,
   enabledMcpCount,
   filterSections,
   groupMcp,
@@ -15,7 +24,7 @@ import {
   setEnabled,
   skillName,
 } from "./library";
-import type { Library, McpServer, ProjectLibrary } from "./types";
+import type { Library, LibraryIndex, McpServer, ProjectLibrary } from "./types";
 
 // Shapes for the rules under test only; not product data.
 const server = (id: string, source: string, extra: Partial<McpServer> = {}): McpServer => ({
@@ -74,8 +83,8 @@ describe("librarySections", () => {
   it("groups skills by source with plain titles, in order", () => {
     const ids = librarySections(base).map((s) => s.id).filter((id) => id.startsWith("skills-"));
     expect(ids).toEqual(["skills-studio", "skills-yours", "skills-machine", "skills-built-in"]);
-    expect(section(base, "skills-yours").title).toBe("Your skills");
-    expect(section(base, "skills-machine").title).toBe("On this machine");
+    expect(section(base, "skills-yours").title).toBe("Your own");
+    expect(section(base, "skills-machine").title).toBe("On this computer");
     expect(section(base, "skills-machine").intro).toContain("Picked for a request when they fit");
     expect(section(base, "skills-built-in").title).toBe("Built into the assistant");
   });
@@ -126,8 +135,8 @@ describe("skills and servers", () => {
     const skills = groupSkills([...base.skills, { id: "x:y", label: "Odd", description: "", source: "odd" }]);
     expect(skills.map((g) => g.source)).toEqual(["studio", "yours", "machine", "built-in", "other"]);
     expect(groupMcp(base.mcp_servers).map((g) => [g.title, g.items.length])).toEqual([
-      ["Your servers", 1],
-      ["On this machine", 1],
+      ["Your own", 1],
+      ["On this computer", 1],
       ["Suggested", 1],
     ]);
   });
@@ -193,5 +202,81 @@ describe("checkPageLine", () => {
     expect(checkPageLine("not json")).toBeNull();
     expect(checkPageLine(JSON.stringify({ summary: { verified: "31" } }))).toBeNull();
     expect(checkPageLine(JSON.stringify([1, 2]))).toBeNull();
+  });
+});
+
+describe("what the Library opens on, and Everything else", () => {
+  it("opens on the studio's and your own skills, then templates; the rest is under Everything else", () => {
+    const { main, more } = splitSections(librarySections(base));
+    expect(main.map((s) => s.id)).toEqual(["skills-studio", "skills-yours", "templates"]);
+    expect(more.map((s) => s.id)).toEqual([
+      "connections",
+      "tools",
+      "studio-tools",
+      "skills-machine",
+      "skills-built-in",
+      "agents",
+      "data-kinds",
+    ]);
+    // Nothing is lost in the split.
+    expect(main.length + more.length).toBe(librarySections(base).length);
+    expect(MAIN_SECTIONS).toEqual(["skills-studio", "skills-yours", "templates"]);
+  });
+
+  it("keeps your own and the suggested connectors up front; the ones found on this computer go under Everything else", () => {
+    const servers = [...base.mcp_servers, server("p1", "plugin"), server("a1", "app"), server("o1", "odd")];
+    const { main, more } = splitServers(servers);
+    expect(main.map((s) => s.id)).toEqual(["y1", "s1", "a1"]);
+    expect(more.map((s) => s.id)).toEqual(["m1", "p1", "o1"]);
+  });
+
+  it("counts what the index found outside what is shown up front", () => {
+    expect(countElsewhere("skills", { studio: 24, yours: 2, machine: 43, plugin: 441 })).toBe(484);
+    expect(countElsewhere("connectors", { yours: 1, suggested: 9, machine: 4, plugin: 17 })).toBe(21);
+    expect(countElsewhere("agents", { studio: 4, plugin: 57 })).toBe(61);
+    expect(countElsewhere("skills", undefined)).toBe(0);
+    const index = {
+      skills: 0,
+      agents: 0,
+      connectors: 0,
+      by_source: { skills: { studio: 1, machine: 3 }, agents: { studio: 2 }, connectors: { suggested: 5, plugin: 1 } },
+    } as unknown as LibraryIndex;
+    expect(elsewhereCounts(index)).toEqual({ skills: 3, connectors: 1, agents: 2 });
+    expect(elsewhereCounts(null)).toEqual({ skills: 0, connectors: 0, agents: 0 });
+  });
+
+  it("finds blocks by title or words, only while searching", () => {
+    const keys = { title: "Keys for other services", words: "api token search" };
+    expect(blockMatches(keys, "token")).toBe(true);
+    expect(blockMatches(keys, "keys services")).toBe(true);
+    expect(blockMatches(keys, "postgres")).toBe(false);
+    expect(blockMatches(keys, "  ")).toBe(false);
+  });
+
+  it("counts what a search finds in the closed part, so it can be shown", () => {
+    const { more } = splitSections(librarySections(base));
+    const blocks = [{ title: "Data sources", words: "database postgres" }];
+    // "researcher" is a helper agent: only under Everything else.
+    expect(moreMatchCount({ sections: more, servers: 0, blocks, query: "researcher" })).toBe(1);
+    // "postgres" is a database type row and the Data sources block.
+    expect(moreMatchCount({ sections: more, servers: 0, blocks, query: "postgres" })).toBe(2);
+    // What the index of this computer found, and matching connectors, count too.
+    expect(moreMatchCount({ sections: more, servers: 2, blocks, query: "pdf", index: { skills: 5, connectors: 0, agents: 1 } })).toBe(8);
+    expect(moreMatchCount({ sections: more, servers: 0, blocks, query: "nothing-like-this" })).toBe(0);
+    // No search, nothing to show.
+    expect(moreMatchCount({ sections: more, servers: 3, blocks, query: "" })).toBe(0);
+  });
+
+  it("opens the index list on the first kind a search found", () => {
+    expect(firstKindFound({ skills: 0, connectors: 2, agents: 1 })).toBe("connectors");
+    expect(firstKindFound({ skills: 0, connectors: 0, agents: 0 })).toBeNull();
+    expect(firstKindFound(null)).toBeNull();
+  });
+
+  it("says counts in words", () => {
+    expect(countWords(1, "skills")).toBe("1 skill");
+    expect(countWords(484, "skills")).toBe("484 skills");
+    expect(countWords(2, "agents")).toBe("2 helper agents");
+    expect(countWords(1200, "connectors")).toBe("1,200 connectors");
   });
 });

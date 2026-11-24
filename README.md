@@ -149,6 +149,7 @@ Click a picture for the full-size video, or watch
 The five-year cost of an electric car against a petrol car took 25 minutes 38 seconds: six
 researchers in parallel, 126 sources saved, 58 cited. The check reported 387 items, 373 matched,
 13 fixed, 1 not checkable; one reported fix (a missing source entry) was not on the final page.
+The copy of that page kept in the library's examples records its own check: 381 items, 372 matched.
 
 **A live-data app from one request** (17 November):
 [the run as a video](studio2/docs/demo/demo-glp1.mp4) (78 seconds, [GIF](studio2/docs/demo/demo-glp1.gif)).

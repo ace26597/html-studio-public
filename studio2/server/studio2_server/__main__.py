@@ -11,7 +11,7 @@ import uvicorn
 
 from .access import check_gate, check_settings
 from .api import create_app
-from .config import Settings
+from .config import Settings, record_studio
 
 
 def serve(settings: Settings) -> None:
@@ -37,6 +37,7 @@ def serve(settings: Settings) -> None:
     for host in settings.hosts if settings.tls else ():   # bound and served with the certificate at startup (api.py)
         print(f"Also on https://{host}:{settings.port}/ by the name on the certificate ({access})", flush=True)
     app = create_app(settings)
+    record_studio(settings)     # so the other studios on this computer keep their agents off this one
     # Besides addresses and localhost, only these names are answered (DNS rebinding; access.known_names).
     print(f"Answers to the names: {', '.join(sorted(app.state.studio.names)) or 'none'}"
           " (add more with STUDIO2_NAMES)", flush=True)

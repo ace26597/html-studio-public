@@ -1,4 +1,4 @@
-// Step 3o: "Everything on this computer" on the Library page. A paged view of
+// Step 3o: "Found on this computer" (under "Everything else") on the Library page. A paged view of
 // `GET /api/library/items`: never more rows in the page than were fetched.
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -65,8 +65,14 @@ export function LibraryIndexView({
   shared = false,
   onOpenProject,
   onChanged,
+  search,
+  preferKind = null,
 }: {
   initialIndex?: LibraryIndex | null;
+  /** The Library's own search: when it changes, this list searches for it too. */
+  search?: string;
+  /** While searching, list this kind first (the first kind the search found something for). */
+  preferKind?: LibraryItemKind | null;
   /** A shared studio: a skill opened here can be read, explained and exported, not changed. */
   shared?: boolean;
   /** Go to a project (Explain this skill, Ask for a change). */
@@ -94,6 +100,20 @@ export function LibraryIndexView({
   const ticket = useRef(0);
   const searchId = useId();
   const stateId = useId();
+
+  // The page's search box drives this one; the person can still type here afterwards.
+  const kindNow = useRef(kind);
+  kindNow.current = kind;
+  useEffect(() => {
+    if (search === undefined) return;
+    setQuery(search);
+    if (search.trim() && preferKind && preferKind !== kindNow.current) {
+      setKind(preferKind);
+      setSource("");
+      setState("");
+      setCounts({});
+    }
+  }, [search, preferKind]);
 
   const load = useCallback(
     (offset: number, signal?: AbortSignal) => {

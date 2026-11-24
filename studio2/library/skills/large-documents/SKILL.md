@@ -76,8 +76,8 @@ it in your reply." Each returns only the module's path, its slide count and the 
 the content stays in the files. Never paste a helper's content back through yourself.
 
 **At most four at once**, then the next four as they finish. Helpers run inside the agent program
-that started them and the request ends only when all have reported, so memory is not the limit on
-a 16 GB computer; the account's rate of model requests and your own reading of their replies are.
+that started them and the request ends only when all have reported, so memory is not the
+limit; the account's rate of model requests and your own reading of their replies are.
 Helpers never render: the studio draws one file at a time, so the lead renders once.
 
 Missing facts: find their sources, add them to the ledger, and send the module back to its writer

@@ -37,7 +37,7 @@ from claude_agent_sdk.types import ServerToolUseBlock
 from .. import costs
 from .. import gateway as managed
 from ..config import STUDIO2_ROOT, TRANSLATED_KINDS, connection_key, environment, outside_python, without
-from ..risk import risky_command
+from ..risk import Guarded, reach_reason, risky_command
 from .. import workspace as ws
 from .. import prices
 from .. import questions
@@ -46,6 +46,22 @@ from .base import Emit, TurnRequest, TurnResult, empty_usage, public_connection
 LIBRARY_DIR = STUDIO2_ROOT / "library"
 SCRUBBED = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL")
 WRITE_TOOLS = "Write|Edit|MultiEdit|NotebookEdit"
+READ_TOOLS = frozenset({"Read", "Glob", "Grep", "NotebookRead"})
+DO_NOT_REACH = "Do not try to reach it another way; tell the person what you needed it for."
+GUEST_REFUSED = ("This studio is shared, so only its owner can allow this. Do not try another way to reach it; "
+                 "tell the person what you needed it for.")
+ADDRESS_KEYS = frozenset({"url", "uri", "href", "endpoint"})
+
+
+def _addresses(tool_input: dict, depth: int = 0) -> list[str]:
+    """The addresses a tool is given: values under `url`, `uri`, `href` or `endpoint`, two levels deep."""
+    found = []
+    for key, value in tool_input.items():
+        if isinstance(value, str) and str(key).lower() in ADDRESS_KEYS:
+            found.append(value)
+        elif isinstance(value, dict) and depth < 2:
+            found += _addresses(value, depth + 1)
+    return found
 # What the agent program sends to the model as a picture when its Read tool opens it.
 PICTURE_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".avif", ".ico")
 NO_PICTURES = ("This model takes text only, so a picture cannot be shown to it and {name} was not opened. Judge the "
@@ -318,9 +334,36 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
                 "permissionDecisionReason": NO_PICTURES.format(name=Path(target).name)}}
         return {}
 
+    def refuse(reason: str) -> dict:
+        return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                       "permissionDecisionReason": f"{reason} {DO_NOT_REACH}"}}
+
+    async def no_reaching(hook_input, _tool_use_id, _context):
+        """CONTRACT.md, "What an agent's shell may not reach": the agent's own tools. A read of a
+        place that holds keys or another project's records, and an address of a studio or another
+        project, are refused before they run (the shell is judged in can_use_tool)."""
+        reach = request.reach
+        name, tool_input = hook_input.get("tool_name") or "", hook_input.get("tool_input") or {}
+        if reach is None or name == "Bash" or not isinstance(tool_input, dict):
+            return {}
+        if name in READ_TOOLS:
+            whole = name in ("Glob", "Grep")
+            for key in ("file_path", "notebook_path", "path"):
+                if tool_input.get(key) and (reason := reach_reason(str(tool_input[key]), reach, workspace, whole)):
+                    return refuse(reason)
+            pattern = str(tool_input.get("pattern") or "") if name == "Glob" else ""
+            if pattern.startswith(("/", "~")) and (reason := reach_reason(pattern, reach, workspace, whole)):
+                return refuse(reason)
+        for value in _addresses(tool_input):
+            if reason := reach_reason(value, reach, workspace):
+                return refuse(reason)
+        return {}
+
     guards = [HookMatcher(matcher=WRITE_TOOLS, hooks=[pre_tool_use], on_failure="block")]
     if not request.pictures:
         guards.append(HookMatcher(matcher="Read", hooks=[no_pictures], on_failure="block"))
+    if request.reach is not None:
+        guards.append(HookMatcher(matcher=None, hooks=[no_reaching], on_failure="block"))
 
     async def can_use_tool(tool_name, tool_input, _context):
         if tool_name in WRITE_TOOLS.split("|") and outside_workspace(workspace, tool_input):
@@ -334,8 +377,14 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
             # Off the event loop: reading a very long line must not hold up every other request.
             reason = await asyncio.to_thread(risky_command, command, workspace,
                                              in_place=ws.history_dir(workspace) is not None,
-                                             studio_places=studio_places)
-            if reason and not await request.approve("Bash", "Run a shell command", command, reason):
+                                             studio_places=studio_places, reach=request.reach)
+            # What an agent may not reach asks even where everything is allowed, and a shared
+            # studio refuses it for a guest (CONTRACT.md, "What an agent's shell may not reach").
+            guarded = isinstance(reason, Guarded)
+            if guarded and request.guest:
+                return PermissionResultDeny(message=f"{reason} {GUEST_REFUSED}")
+            if reason and not await request.approve("Bash", "Run a shell command", command, reason,
+                                                     **({"always": True, "guarded": True} if guarded else {})):
                 return PermissionResultDeny(message=(
                     "The user did not allow this command. Do not try to reach the same result another "
                     "way; carry on without it, or explain what you needed it for."))
@@ -385,7 +434,13 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
         # Every other connector is in `mcp_file` (the agent program reads both --mcp-config values).
         mcp_servers={name: config for name, config in servers.items() if name not in _external(servers)},
         extra_args={"mcp-config": str(mcp_file)} if mcp_file else {},
-        system_prompt={"type": "preset", "preset": "claude_code", "append": append},
+        # snapshot False: the appended text is sent again on every request, a resumed conversation too.
+        # By default the agent program keeps the system prompt a session started with: tried on CLI
+        # 2.1.327 / SDK 0.2.180 (24 November 2026), a resumed session answered with the marker word of
+        # its first system prompt, not the new one; with snapshot False it answered with the new one,
+        # and the cached start of the conversation was still read (CONTRACT.md, "What the agent is told
+        # once, and what with each message").
+        system_prompt={"type": "preset", "preset": "claude_code", "append": append, "snapshot": False},
         # Thinking text is omitted by default on current Claude models; ask for the summary so
         # the activity feed can show it. Gateways opt in with "thinking": true (not every
         # routed model accepts the parameter).
@@ -566,6 +621,9 @@ class EventMapper:
             if message.rate_limit_info.status == "rejected":
                 events.append({"type": "notice", "level": "warning",
                                "message": "The Claude usage limit for this account has been reached."})
+        elif isinstance(message, SystemMessage) and message.subtype == "compact_boundary":
+            # Internal: the conversation was summarised, so the project facts sent earlier may be gone.
+            events.append({"type": "session", "session_id": self.session_id, "compacted": True})
         elif isinstance(message, SystemMessage) and message.subtype == "init":
             self.session_id = message.data.get("session_id") or self.session_id
             # Internal event (never logged): lets the turn runner keep the session after a Stop.
@@ -998,7 +1056,9 @@ class ClaudeHarness:
             if "No conversation found" in (result.error or ""):
                 emit({"type": "notice", "level": "warning",
                       "message": "The earlier conversation could not be resumed, so a new one was started."})
-            result, _ = await self._attempt(request, emit, env, scrub, None)
+            # A new conversation has not had the standing project facts: send them in full.
+            fresh = dataclasses.replace(request, prompt=request.fresh_prompt) if request.fresh_prompt else request
+            result, _ = await self._attempt(fresh, emit, env, scrub, None)
         if kind == "litellm" and self.sidecar is not None:
             rates = (prices.shipped(self.sidecar.settings.library_dir),)
             spent = await asyncio.to_thread(self.sidecar.spend, request.turn_id, rates)

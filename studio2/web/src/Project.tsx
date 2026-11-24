@@ -132,6 +132,9 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   // sends that message, so it is held to what a person does: one at a time, and not the moment
   // the last one was closed.
   const [largePicture, setLargePicture] = useState<LargePicture | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+  // "Show what changed on the page": only when the page's helper can say (CONTRACT.md).
+  const [canShowChanges, setCanShowChanges] = useState(false);
   const largeClosedAt = useRef(0);
   const openLarge = useCallback((picture: LargePicture) => {
     if (Date.now() - largeClosedAt.current < 600) return;
@@ -458,6 +461,13 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
     setReloadWaiting(false);
     setReloadToken((token) => token + 1);
   }, [holdReload, reloadWaiting]);
+  // What changed on the page, when asked. A request beginning is the moment the page notes what it says.
+  const showChanges = useCallback(() => preview.current?.send({ type: "show-changes" }), []);
+  const runningTurn = thread.runningTurnId;
+  useEffect(() => {
+    if (runningTurn) preview.current?.send({ type: "changes-base" });
+  }, [runningTurn]);
+
   const clearDrawing = useCallback(() => {
     preview.current?.send({ type: "draw-clear" });
     dispatchDraw({ type: "forget" });
@@ -526,13 +536,15 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
         }
         if (plan) dropAttachments(new Set(plan.ids));
         if (drawingPath) clearDrawing();
+        setSendError(null);
         return true;
       } catch (error) {
         if (fromComposer) {
           setDraft(typed);
           setSelection(withSelection);
-        }
-        toast({ message: errorMessage(error), kind: "error" });
+          // The message is back in the box: say why beside it, and keep saying it.
+          setSendError(errorMessage(error));
+        } else toast({ message: errorMessage(error), kind: "error" });
         return false;
       } finally {
         setStarting(false);
@@ -704,6 +716,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
 
   const pickModel = useCallback(
     (connection: string, model: string | null) => {
+      setSendError(null);
       api
         .patchProject(id, { connection, model })
         .then(setProject, (error) => toast({ message: errorMessage(error), kind: "error" }));
@@ -1401,6 +1414,17 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
               autoReload.current = value;
             }}
             onEnlarge={openLarge}
+            onCanShowChanges={setCanShowChanges}
+            onChanges={(count) =>
+              toast({
+                message:
+                  count === null
+                    ? "This tab has no note of the page from before the request, so it cannot tell what changed."
+                    : count === 0
+                      ? "Nothing on this page reads differently. The change may be on another page, or something was removed."
+                      : `${count} ${count === 1 ? "place" : "places"} on this page changed: outlined for a few seconds.`,
+              })
+            }
             ref={preview}
             drawTool={draw.tool}
             drawColor={draw.color}
@@ -1536,6 +1560,8 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             onAddFiles={addAttachments}
             onRemoveAttachment={removeAttachment}
             onAddPasted={addPasted}
+            sendError={sendError}
+            onShowChanges={canShowChanges ? showChanges : undefined}
             onKeepPasted={keepPasted}
             onDecide={decide}
             decisions={decisions}

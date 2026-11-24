@@ -1223,8 +1223,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return Response(status_code=204)
 
     @app.post("/api/projects/{project_id}/turns/{turn_id}/approvals/{approval_id}", status_code=204)
-    async def answer_approval(project_id: str, turn_id: str, approval_id: str, body: Decision):
+    async def answer_approval(project_id: str, turn_id: str, approval_id: str, body: Decision, request: Request):
         studio.store.get(project_id)
+        # What an agent may not reach (CONTRACT.md): on a shared studio only its owner may allow it.
+        if body.decision == "allow" and settings.shared and studio.turns.is_guarded(approval_id) and not owner(request):
+            raise ApiError(403, "owner_only", "Only this studio's owner can allow this.")
         if studio.turns.active.get(project_id) != turn_id or not studio.turns.answer(turn_id, approval_id, body.decision):
             raise ApiError(404, "unknown_approval", "That request is no longer waiting for an answer.")
         return Response(status_code=204)

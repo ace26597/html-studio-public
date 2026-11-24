@@ -376,7 +376,7 @@ async def test_an_app_that_never_listens_is_said_plainly_to_be_running_but_not_a
                 page = await web.get(project["preview_url"], headers={"accept": "text/html"})
             assert "running but not answering" in page.text and "$PORT" in page.text
             # What the agent is told: wait on slow only briefly, then read the output and check the port.
-            context = studio.agent_context(pid)
+            context = " ".join((studio.agent_context(pid) + (studio.settings.library_dir / "system-prompt.md").read_text()).split())
             assert "not answering on its port" in context and "minute or two" in context and "$PORT" in context
             assert "keep waiting" not in context
             stopped = (await client.post(f"/api/projects/{pid}/app/stop")).json()

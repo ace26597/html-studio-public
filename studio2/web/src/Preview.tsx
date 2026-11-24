@@ -28,6 +28,10 @@ interface PreviewProps {
   onAutoReload?: (autoReload: boolean) => void;
   /** The person pressed "Enlarge" on a picture in the page (the bridge's `enlarge`, already checked). */
   onEnlarge?: (picture: LargePicture) => void;
+  /** The visible page's helper can show what changed (`ready.changes`); false for an older helper. */
+  onCanShowChanges?: (can: boolean) => void;
+  /** The answer to `show-changes`: how many places read differently, or null when the page has no note to compare with. */
+  onChanges?: (count: number | null) => void;
   /** Draw mode's tool and colour, sent with `draw` on change and after every `ready`. */
   drawTool?: DrawTool;
   drawColor?: string;
@@ -150,6 +154,8 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
     onTextEdit,
     onAutoReload,
     onEnlarge,
+    onCanShowChanges,
+    onChanges,
     drawTool = "pen",
     drawColor = "#ef4444",
     onDrawing,
@@ -167,13 +173,15 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
   const nextKey = useRef(2);
   const pathRef = useRef(new URL(previewUrl).pathname || "/");
   const modeRef = useRef(mode);
-  const handlers = useRef({ onSelect, onTextEdit, onAutoReload, onEnlarge, onDrawing, onPageLoad });
+  const handlers = useRef({ onSelect, onTextEdit, onAutoReload, onEnlarge, onCanShowChanges, onChanges, onDrawing, onPageLoad });
   useEffect(() => {
-    handlers.current = { onSelect, onTextEdit, onAutoReload, onEnlarge, onDrawing, onPageLoad };
+    handlers.current = { onSelect, onTextEdit, onAutoReload, onEnlarge, onCanShowChanges, onChanges, onDrawing, onPageLoad };
   });
   const drawRef = useRef({ tool: drawTool, color: drawColor });
   // What each frame's bridge said in `ready`; a frame that never said counts as true.
   const autoReloads = useRef(new Map<number, boolean>());
+  // Whether each frame's helper can show what changed (`ready.changes`).
+  const canChanges = useRef(new Map<number, boolean>());
   // A page with its own name that never says `ready`: nothing of the studio's loaded in the frame.
   const ownName = useMemo(() => hasOwnName(previewUrl), [previewUrl]);
   const heard = useRef(false);
@@ -195,6 +203,7 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
     // A fresh page: whatever was drawn on the old one is gone.
     handlers.current.onPageLoad?.();
     handlers.current.onAutoReload?.(autoReloads.current.get(key) ?? true);
+    handlers.current.onCanShowChanges?.(canChanges.current.get(key) ?? false);
     setFrames((list) => list.filter((frame) => frame.key === key));
   }, []);
 
@@ -225,6 +234,8 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
         if (key === pendingRef.current) promote(key);
         else if (key === activeRef.current) handlers.current.onPageLoad?.();
         if (key === activeRef.current) pathRef.current = str(data.path, 2000) || "/";
+        canChanges.current.set(key, data.changes === true);
+        if (key === activeRef.current) handlers.current.onCanShowChanges?.(data.changes === true);
         return;
       }
       // Only the visible frame may drive the shell.
@@ -232,6 +243,8 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
       if (data.type === "enlarge") {
         const picture = readEnlarge(data);
         if (picture) handlers.current.onEnlarge?.(picture);
+      } else if (data.type === "changes") {
+        handlers.current.onChanges?.(typeof data.count === "number" && data.count >= 0 ? Math.floor(data.count) : null);
       } else if (data.type === "drawing") {
         const count = typeof data.count === "number" ? data.count : 0;
         const drawing = data.drawing && typeof data.drawing === "object" ? (data.drawing as Drawing) : null;

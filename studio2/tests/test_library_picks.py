@@ -180,7 +180,9 @@ async def test_a_request_gets_a_picked_set_with_reasons_and_pins_and_nevers_hold
 
     # The agent is told how this works and what it was given.
     context = studio.agent_context(pid, picked)
-    assert "2026 skills" in context and "search_library" in context and "trial-finder" in context
+    assert "2026 skills" in context and "trial-finder" in context
+    told = (studio.settings.library_dir / "system-prompt.md").read_text()      # how it works: said once
+    assert "call search_library once" in told and "Reach for more" not in told + context
 
     # A slow or failing choosing call: the word search alone decides, and says so.
     async def slow(*_a):

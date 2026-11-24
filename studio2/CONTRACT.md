@@ -776,10 +776,12 @@ instructions only, never sample figures presented as data.
 
 ## Harness interface additions
 
-`TurnRequest` gains `attachments: list[str]`, `context: str` (extra system-prompt text; unused
-today, because the project facts — project URL, app state, log file, how to restart the app —
-are sent inside every message as a `<studio-project>` block, so a resumed conversation never
-holds stale ones) and
+`TurnRequest` gains `attachments: list[str]`, `context: str` (system-prompt text after
+`library/system-prompt.md`: what this studio's configuration allows, the same for every request;
+the project facts — project URL, app state, log file, how to restart the app — go in the message
+as a `<studio-project>` block; see "What the agent is told once, and what with each message"),
+`fresh_prompt: str | None` (the message with those facts in full, sent instead when a resume fails
+and a new conversation starts) and
 `approve: async (tool, title, detail, reason) -> bool`, which emits the two approval
 events and waits for the answer. The fake harness asks for approval when the message
 contains "risky", and writes a small `studio.json` app when it contains "backend".
@@ -2869,8 +2871,9 @@ search; null when nothing had to be chosen.
 `ms` is the picking itself, `total_ms` includes copying the skill folders.
 
 The project facts sent with every message say how many skills and connectors the library
-holds, which were picked for this request, that the pick can be wrong, and that the agent
-should search and switch on what is missing.
+holds and which were picked for this request; the system prompt says once that the pick can be
+incomplete and that the agent searches the library once when the task needs a format, a method or
+a service no loaded skill covers.
 
 ## During a request: three studio tools
 
@@ -3389,10 +3392,13 @@ earlier one (letter case ignored). At most 3 are kept. A second call in the same
 the first. `steps` that is not a list → the tool answers with an error. The tool writes no event;
 it answers `{kept, cut}`.
 
-The wording for the agent is one bullet in the project facts sent with every message
-(`nextsteps.AGENT_RULE`; the agent program loads studio tools on demand, so a rule kept only in the
-tool's description is never read): requests it could carry out itself in this project, nothing already done, no questions, no check of the page (the studio offers that),
-none at all when nothing sensible follows, and no repeat of them in the closing message.
+When to call it is one line of the system prompt (the agent program loads studio tools on demand,
+so a rule kept only in the tool's description is not read before the call): once, as the last tool
+call of a request that made or changed the page. What to offer is said once, in the tool's
+description, which the agent reads when it loads the tool: requests it could carry out itself in
+this project, nothing already done, no questions, no check of the page's content and no general
+polish (the studio offers those), none at all when nothing sensible follows, and no repeat of them
+in the closing message.
 
 ## The studio's part
 
@@ -3610,7 +3616,7 @@ repository; **Everything** still works).
 
 **Export…** in the page's menu (in place of "Download as zip") opens a dialog with the three ways,
 each with its size, what is and is not inside, and a download button; a way that is not available
-is shown with its reason. The project facts tell the agent that the person exports from there.
+is shown with its reason. The system prompt tells the agent that the person exports from there.
 
 # Keys for other services
 
@@ -4698,11 +4704,12 @@ folder or file that is not there or cannot be read now; an address that did not 
 seconds (addresses are asked together, not one after another).
 
 `Project` gains `context: [ContextItem]` (without `state`). A change made while a request runs
-reaches the agent with the next message, since the project's facts are sent with every message.
+reaches the agent with the next message: the project's standing facts are sent again whenever they
+change.
 
 ## What the agent is told
 
-When the project has context items, its facts for every message name each one: kind, label, full
+When the project has context items, its standing facts name each one: kind, label, full
 path or address, what was found when it was added (the kind of app, the git branch, about how many
 files), the person's note in quotes, and, read at that moment, whether it is there now and the
 names at the top of a folder (the same list as `top`, at most 40). With them, the rules:
@@ -5003,7 +5010,7 @@ has its own; nothing here applies to another project.
   that the text given now replaces any earlier one. After the person clears them, each request
   says once that the project has none now and that earlier ones no longer apply (the record
   keeps `instructions_cleared` for that; it is not in the API's project).
-- **What the agent receives.** One of the project facts it gets with every request (beside the
+- **What the agent receives.** One of the standing project facts (sent again whenever they change; beside the
   attached databases and the context items): that these are the person's standing instructions
   for this project, the text as they wrote it, and three rules. It follows them in every
   request; what the person asks for in a request comes first where the two disagree, and the
@@ -5454,3 +5461,216 @@ same card, not the text.
   the person's own file and goes with them.
 - Shorter text is pasted as before. Nothing here needs the server: it is the upload and the
   `attachments` that exist already.
+
+# Show what changed, when asked
+
+After a request the page may read differently in a place the person is not looking at. Nothing
+moves by itself: under the newest answer there is "Show what changed on the page", and pressing
+it outlines the places that changed for a few seconds and scrolls to the first.
+
+- **The bridge says it can** with `changes: true` in `ready`. The shell offers the link only then.
+- shell → frame `changes-base` (no fields), sent when a request begins. The bridge notes what the
+  page says: one line for each element that has words of its own (its tag and its text, 300
+  characters at most) and for each image (its address), 4,000 at most, kept in the tab's session
+  storage under the page's path. It is never sent anywhere and is left out of the sign-in report.
+- shell → frame `show-changes` (no fields). The bridge compares the page as it is now with that
+  note. A piece whose line is not in the note is a changed place; one inside another counts once.
+  It answers frame → shell `changes` with `count` (a number, or `null` when the tab holds no note:
+  a new tab, or a page too long to note), outlines up to 40 places for seven seconds and scrolls
+  the first into view.
+- **What it cannot show:** text that was only removed leaves nothing to outline, a change on
+  another page is not on this one, and a page drawn by scripts after it loads may differ in ways
+  the request did not cause. The shell says so when the count is 0.
+
+# What an agent's shell may not reach
+
+Two studios can run on one computer as the same user (the owner's own, and a shared copy). The
+agent's shell runs as that user too, and the studio trusts requests that come from this computer
+itself, so without these rules an agent could read the computer's keys, call a studio's own API on
+loopback (answer its own approval card, set a project to allow everything, read another project), or
+read another project's files. The threat is an agent that is misled by something it read (a web
+page, a file) or simply mistaken, in a household where every person is trusted; not a skilled
+attacker. **These rules read the command's text. A determined program can get past them** (a script
+file it wrote first, a path it builds from pieces, a name decoded at run time). Real isolation is a
+separate user or a container per project (Step 4), or the operating system's sandbox described at
+the end of this section.
+
+## What is caught
+
+A shell command (also inside `bash -c`, `eval`, a pipe into a shell, `python -c`, `node -e`, a
+here-document handed to another language, and after a `cd` on the same line) is caught when it:
+
+1. **reads, lists, copies, archives or uploads from a place that holds keys or sign-ins:**
+   `~/.secrets`, `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config/gh`, `~/.netrc`, `~/.git-credentials`,
+   `~/.npmrc`, `~/.pypirc`, `~/.docker/config.json`, `~/.kube`, `~/.config/gcloud`, `~/.azure`,
+   `~/.claude.json`, `~/.claude/` and `~/.codex/` (except their `skills/`, `plugins/`, `agents/` and
+   `commands/` folders, and the agent program's own folder for this project's sessions under
+   `~/.claude/projects/`, where it keeps long tool output for the agent to read back),
+   `~/Library/Keychains`, `~/Library/Cookies`, and the profile folders of Chrome, Chromium, Brave,
+   Edge, Arc, Opera, Vivaldi, Firefox and Safari. `STUDIO2_AGENT_PRIVATE` adds more places (paths
+   joined by `:`). Any path counts, however it is written: `~`, `$HOME`, `${HOME}`, the full path, a
+   relative path that climbs out with `..`, a pattern (`~/.ss*`), a path after `=` or `@`
+   (`--file=…`, `-F f=@…`), a path inside code (`open('/Users/…/.ssh/id_rsa')`, `open('../../<other id>/events.jsonl')`; another
+   person's home folder counts like one's own), and code that builds
+   one from the home folder and one of these names (`Path.home() / '.ssh'`). A command that reads a
+   whole folder (`tar`, `zip`, `rsync`, `scp`, `ditto`, `find`, `rg`, `ag`, `ack`, `fd`, `cp` with
+   `-r`/`-R`/`-a`, `grep` with `-r`/`-R`) is also caught when the folder holds one of these places (`tar czf
+   home.tgz ~`), and so is serving such a folder (`python3 -m http.server -d DIR`, `--directory`, the
+   current folder without one; `serve DIR`, also through `npx`; `php -S … -t DIR`). A word written
+   `[user@]host:path` is a path on another machine (`scp x me@vps:~`), not read as one here. Listing names only (`ls ~`, `ls -la ~`, `du`, `tree`) is not. The `security` command's subcommands that read or change passwords, keys and
+   keychains (`find-generic-password`, `find-internet-password`, `dump-keychain`, `export`,
+   `unlock-keychain`, …) are caught.
+2. **talks to a studio or to another project on this computer:** any address on `localhost` (and
+   `*.localhost`), `127.x.x.x`, `0.0.0.0`, `::1` or this computer's own names and the addresses a
+   studio listens on, whose port is a studio's own port, one of its project page ports or one of its
+   back-end ports, in a URL (`http://127.0.0.1:<port>/…`), as `host:port` (always with the `:`; the
+   host `0` only after a scheme, `http://0:<port>`, so `s[0:8400]` is not one), in
+   `/dev/tcp/<host>/<port>`, or as a quoted host followed by a port in code (`('127.0.0.1', <port>)`). **The project's
+   own page port and its own back end (page port + 100) are not caught**: agents test their pages and
+   apps with `curl`. Other ports (a dev server the agent starts on 5173, a database) are not caught.
+   The ports come from each studio's settings (`port`, `port_range`, back ends at +100), not from fixed
+   numbers: every studio records its port, port range, data folder, config folder and listening
+   addresses in a file of its own under `~/.local/state/studio2/studios/` (`STUDIO2_STUDIOS_DIR` moves
+   it) when it starts, so each knows the others. A studio that has not started since this rule
+   existed is not known to the others until it does.
+   **The project's own routes on its studio stay callable**, because the studio itself tells the
+   agent to use them: `/api/projects/<its own id>/app` and below (the app's state, restart, how it
+   runs, its output), `/data/…` (the databases attached to it) and `/model/…` (its model route).
+   Everything else on a studio's port is caught, in its own project too: the project's settings, its
+   approval cards, attaching a database, another project, the other studio.
+3. **reads or writes inside a studio's data folder or config folder outside the project's own
+   folder**, for any studio recorded there: another project's workspace, `events.jsonl`,
+   `project.json`, anything under another project id, the studio's run folder (connector settings),
+   and the records under `~/.local/state/studio2/studios/`. The project's own folder is its workspace
+   and `projects/<its id>/` (its library, its events). A write anywhere in the data folder outside the
+   workspace (its own `project.json` included) is caught too. A studio's own `skills/` and
+   `templates/` folders in its data folder are open to every project. A command that only searches a
+   folder that holds a data folder (`find ~/dev …`, `rg x ~/dev`, `Grep` over `~/dev`) is not caught;
+   one that copies all of it out (`tar`, `zip`, `cp -r`, `rsync`, `ditto`, `cpio`, `pax`, `rclone`,
+   `scp`) is. A studio's config file is recorded as a file; its folder only when that folder is not the
+   home folder or one above it. A record with a field of the wrong type is skipped, and the record of a
+   studio that stopped (no process, nothing answering on its port) is removed.
+
+Writing, moving or deleting in the studio's own settings (Approvals: `~/.config/studio2/`,
+`~/.claude/`, the data folder, the studio's command line when it changes something) is now caught
+the same way.
+
+## What "caught" means
+
+- In a studio that is not shared, and for the owner of a shared one: the approval card, **also in a
+  project whose approvals are set to allow everything** (`always`, as for spending money). The reason
+  names the place or the address. If the person does not allow it, the agent is told not to reach the
+  same thing another way.
+- A line wrapped in commands more deeply than the rules read counts as one of these (it asks, also
+  with "allow everything").
+- The card carries `guarded: true` (`approval_request`). On a shared studio only the owner may answer
+  such a card with "allow": anyone else gets 403 `owner_only`, "Only this studio's owner can allow
+  this." ("deny" is open to everyone).
+- In a shared studio, for a request that is not the owner's: refused, with no card. The agent is told
+  `<reason> This studio is shared, so only its owner can allow this. Do not try another way to reach
+  it; tell the person what you needed it for.`
+
+## The agent's own tools
+
+- `Read`, `Glob`, `Grep` and `NotebookRead`: a `file_path` or `path` (and a `pattern` that starts with
+  `/` or `~`) into the places in 1 or 3 is refused before it runs, and so is a `Glob` or `Grep` over a
+  folder that holds one. Same hook and same kind of refusal as a write outside the project; the
+  reason is the one above. `Write`, `Edit`, `MultiEdit` and `NotebookEdit` already cannot leave the
+  project folder.
+- Any tool (other than `Bash`, which is judged as above) whose input has a `url`, `uri`, `href` or
+  `endpoint` naming an address in 2 is refused before it runs: `WebFetch`, a browser connector's
+  `navigate`, the studio's `look_at_page`.
+
+## Not caught (honestly)
+
+A program the agent wrote to a file and then runs (`python steal.py`); a path or address assembled
+at run time (`cat $(echo fi5zc2g= | base64 -d)`, `chr()` sums, string joins without a home accessor);
+a variable the line does not set (`cat "$D/id_rsa"`); a link out of the project that is not at its top
+(`src/k` → `~/.ssh`; a link named at the top is followed, and making one names the place, so asks);
+another address of this computer that is not one
+a studio listens on or names, and other spellings of loopback (decimal or octal numbers such as
+`017700000001`, names that resolve to it through wildcard DNS); connector (MCP) tools that take a file
+path (only their `url`-like fields are read); a host and port written apart without a `:`
+(`nc localhost 8200` asks as `nc` always does, but not as one of these); a model gateway's own port (the agent already holds its key); and an
+agent that set out to hide what it does. These rules make an honest mistake, or an agent following
+an instruction it should not, stop and ask; they do not contain an agent.
+
+## The operating system's sandbox: tried, not switched on
+
+The agent program's own sandbox for its shell (`ClaudeAgentOptions.sandbox`, macOS Seatbelt; SDK
+0.2.180, agent program 2.1.321) was tried on this Mac with a stand-in model endpoint on loopback, which
+is how gateway models are reached, so it applies to them as much as to the Claude plan. It confines
+files well: reads of a denied folder (and of another project's `events.jsonl` in a denied data folder)
+fail with "Operation not permitted" from `cat`, `bash -c`, Python and Node, also when the agent asks to
+run outside the sandbox, while a narrower `allowRead` keeps the project's own folder readable; writes
+outside the project and `$TMPDIR` fail. It is not switched on because it does not work cleanly here:
+- **Loopback cannot be limited per port for ordinary connections.** Direct connections to any loopback
+  port fail, the project's own included (`curl http://127.0.0.1:<own port>/` fails); only connections
+  through the sandbox's proxy can be allowed per port. `allowLocalBinding`, which a back end started
+  from the shell needs to listen at all, opens every loopback port again, the studios' included.
+- `git init` and `git config` fail (writes to `.git/hooks` and `.git/config` are refused); `uv` needs
+  a system service and its cache allowed; `npm` needs `~/.npm` allowed.
+- `autoAllowBashIfSandboxed` must be false, or shell commands no longer reach the approval rules above.
+- The `Read` tool is not covered by the sandbox; it needs its own deny rules in the settings.
+
+So the rules above stay the guard, and the real fix stays a separate user or a container per project.
+
+# What the agent is told once, and what with each message
+
+Everything the agent is told that does not change between requests is said once, in the system
+prompt; only what can change rides in each message. This replaces "sent with every message" for the
+project facts wherever an earlier section says so.
+
+- **The system prompt** is `library/system-prompt.md` (the page, the back end and its rules, data and
+  sources, the studio's tools, skills and helpers, long work, limits, working with the person) plus
+  `TurnRequest.context`, the part that depends on this studio's configuration and on no project or
+  request (`Studio.system_context`: whether it can see pages, render Office files and video, generate
+  media, give apps a model address, and the studio tools it does not have, with the reason, so a
+  skill that names one is skipped and said instead of followed blindly). The harness passes the
+  system prompt with `snapshot: false`, so it is sent again on every request, a resumed
+  conversation included. Tried on CLI 2.1.327 with SDK 0.2.180 (24 November 2026): without it a
+  resumed session answered with the marker word of the system prompt it started with; with it, the
+  new one; the cached start of the conversation was still read after a commit in the project.
+  The text must stay the same from one request to the next, or that cache is written again.
+- **Precedence.** A `<studio-effort>` block and the person's involve setting override the defaults in
+  the system prompt, including when to ask and how long the closing reply is (said once there).
+- **The `<studio-project>` block** has two parts (`Studio.project_facts`). The standing facts (the
+  project's address, how to restart and test its app and where its output is, an example's missing
+  sources, the template in use, attached databases, context items, standing instructions, the
+  sign-in sentence) go in full in the first message of a
+  conversation and again only when they differ from what this conversation was last sent;
+  otherwise one line says they are unchanged and the latest full block still holds. The facts about
+  this request (what was picked from the library, a search connector to prefer, the app's state) go
+  with every message: they are a few lines and change with nearly every request. So do the lines
+  about an attached app (edited in place or a safe copy, what must never be touched, its ship
+  recipe): they keep the person's own folder safe, a long request can be compacted, and a summary
+  must never be all that is left of them.
+- **What was sent** is kept in the project record as `facts_sent: {session_id, digest}` (a hash of
+  the standing facts), written when a request completes, so a restart of the studio does not
+  break it. The standing facts go in full when the project has no session, when the session is
+  another one than `facts_sent` names, when the digest differs, after a request that did not
+  complete, after the agent program reported a compaction (`compact_boundary`: `facts_sent` is
+  cleared), and when a short-line message ended in another session. When a resume fails and the
+  harness starts a new conversation it sends `fresh_prompt`, the same message with the facts in full.
+- **Studio tools** are registered only where they work (`tools.registered`): `propose_ship_recipe`
+  and `make_live` with an attached app, `database_schema` and `query_database` with an attached
+  database, `look_at_page` and `render_image` with a browser, `render_video`, `render_document`,
+  `render_diagram`, `convert_document`, `generate_media` and `generation_models` when their own
+  check passes. The library page's list of studio tools (`tools.describe`) is unchanged.
+- **Tool descriptions** say when to use the tool, the arguments that matter and what comes back;
+  what is needed only after a call (limits passed, what to do after a skipped card) is in the
+  tool's answer. A rule about calling a tool is said once: what to offer in `suggest_next_steps`
+  and how to fill an `ask_person` card are in their descriptions; when to call them is in the
+  system prompt and in the involve wording of `<studio-effort>`.
+- **Helpers** (`library/agents/*.md`) each have a `tools:` line (the researcher a `disallowedTools:` line instead), which the agent program honours
+  (tried on CLI 2.1.327: a helper given Read, Glob and one connector tool had no Bash and no Write,
+  and its connector tool was there without loading). checker: Read, Grep, Glob, Write (for
+  `research/review.md` only; the list cannot name a path), check_page, check_file, read_source,
+  fetch_source, query_files, database_schema, query_database, look_at_page. researcher: everything
+  the lead has except Bash, Edit and the tools that speak for the lead (ask_person, make_live,
+  report_verification, propose_ship_recipe, save_skill, save_template, suggest_next_steps,
+  generate_media); it has no list of its own because a list shuts out the tools of a search
+  connector the person attached, which are named after the connector. section-writer: Read, Grep, Glob, Write, Edit, Bash (it runs
+  its section's build). slide-reviewer: Read, Glob, Write, render_document. None has ask_person,
+  make_live, report_verification or suggest_next_steps. Each brief starts with one sentence on the
+  goal of the whole request.

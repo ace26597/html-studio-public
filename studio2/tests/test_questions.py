@@ -385,13 +385,16 @@ def test_a_choice_is_an_answer_and_at_most_one_is_the_agents_pick():
 def test_the_wording_carries_what_the_field_test_found():
     for stop in (25, 50, 75, 100):
         said = effort.block(at(stop))
-        assert "`pick: true`" in said and "Every choice is an answer in itself" in said
-        assert "never ask how deep" in said and "for every project and for this one" in said
+        assert "mcp__studio__ask_person" in said and "never ask how deep" in said and "for every project and for this one" in said
     for stop in (50, 75, 100):
         said = effort.block(at(stop))
         assert "do not assume the United States" in said and "one question may be about the look" in said
     for stop in (75, 100):
         assert "A short or one-page piece still gets its plan" in effort.block(at(stop))
+    # How to fill the card is said once, in the tool's description (read when the agent loads the tool).
+    described = next(d for name, d, _s, _h in tools.TOOLS if name == "ask_person")
+    assert "`pick: true`" in described and "only promises an answer" in described and "\"Other\"" in described
+    assert "pick: true" not in effort.INVOLVE_HOW and "choices" not in effort.INVOLVE_HOW
 
 
 # -- the plan is not forgotten (CONTRACT.md) ---------------------------------------------------

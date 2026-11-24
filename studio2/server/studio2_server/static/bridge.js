@@ -16,7 +16,7 @@
     try {
       for (var i = 0; i < store.length; i++) {
         var key = store.key(i);
-        if (key === null || key.indexOf("studio-scroll:") === 0) continue;
+        if (key === null || key.indexOf("studio-scroll:") === 0 || key.indexOf("studio-base:") === 0) continue;
         out.push([key, String(store.getItem(key))]);
       }
     } catch (e) {}
@@ -84,7 +84,7 @@
   }
 
   function isOwn(el) {
-    return el === overlay || el === style || isDrawn(el) || isChip(el);
+    return el === overlay || el === style || isDrawn(el) || isChip(el) || isMark(el);
   }
 
   function isUnique(selector) {
@@ -1021,6 +1021,84 @@
     done(text ? new Blob([text], { type: "image/svg+xml" }) : null, null, box.width, box.height);
   }
 
+  // ---- what changed on the page (CONTRACT.md, "Show what changed, when asked") -------------
+  // When a request begins the shell asks for a note of what the page says (`changes-base`). Later,
+  // only when the person asks (`show-changes`), the pieces that read differently are outlined
+  // for a few seconds and the first is scrolled to. Nothing moves by itself.
+  var CHANGE_KEY = "studio-base:" + location.pathname;
+  var marks = { layer: null, timer: null };
+
+  function isMark(el) {
+    return !!(marks.layer && el && (el === marks.layer || marks.layer.contains(el)));
+  }
+
+  // The page as a list of pieces: each element with words of its own, and each image.
+  function pieces() {
+    var out = [];
+    if (!document.body) return out;
+    var all = document.body.querySelectorAll("*");
+    for (var i = 0; i < all.length && out.length < 4000; i++) {
+      var el = all[i], tag = el.localName, key = null;
+      if (tag === "script" || tag === "style" || tag === "noscript" || tag === "svg" || tag === "canvas") continue;
+      if (isOwn(el) || el.ownerSVGElement) continue;
+      if (tag === "img") key = "img|" + (el.getAttribute("src") || "");
+      else if (hasOwnText(el)) key = tag + "|" + clip(String(el.textContent).replace(/\s+/g, " ").trim(), 300);
+      if (key) out.push({ el: el, key: key });
+    }
+    return out;
+  }
+
+  function saveBase() {
+    try {
+      sessionStorage.setItem(CHANGE_KEY, JSON.stringify(pieces().map(function (piece) { return piece.key; })));
+    } catch (e) {}                      // a page too long to note: asking later says so
+  }
+
+  function clearMarks() {
+    if (marks.timer) { clearTimeout(marks.timer); marks.timer = null; }
+    if (marks.layer) { marks.layer.remove(); marks.layer = null; }
+  }
+
+  function showChanges() {
+    clearMarks();
+    var base = null;
+    try { base = JSON.parse(sessionStorage.getItem(CHANGE_KEY) || "null"); } catch (e) {}
+    if (!base || !base.length) { post("changes", { count: null }); return; }
+    var left = {}, changed = [], i;
+    for (i = 0; i < base.length; i++) left[base[i]] = (left[base[i]] || 0) + 1;
+    var now = pieces();
+    for (i = 0; i < now.length; i++) {
+      if (left[now[i].key] > 0) left[now[i].key]--; else changed.push(now[i].el);
+    }
+    // A changed sentence inside a changed paragraph is one place, not two.
+    var places = changed.filter(function (el) {
+      for (var j = 0; j < changed.length; j++) if (changed[j] !== el && changed[j].contains(el)) return false;
+      return true;
+    });
+    post("changes", { count: places.length });
+    if (!places.length) return;
+    var layer = document.createElement("div");
+    layer.setAttribute("data-studio-bridge", "changes");
+    layer.style.cssText = "position:absolute;left:0;top:0;width:0;height:0;z-index:2147483644;pointer-events:none;" +
+      "transition:opacity .6s;";
+    for (i = 0; i < places.length && i < 40; i++) {
+      var box = places[i].getBoundingClientRect();
+      if (!box.width && !box.height) continue;
+      var mark = document.createElement("div");
+      mark.style.cssText = "position:absolute;box-sizing:border-box;border:2px solid #f59e0b;border-radius:6px;" +
+        "background:rgba(245,158,11,.14);left:" + (box.left + window.scrollX - 4) + "px;top:" +
+        (box.top + window.scrollY - 3) + "px;width:" + (box.width + 8) + "px;height:" + (box.height + 6) + "px;";
+      layer.appendChild(mark);
+    }
+    document.documentElement.appendChild(layer);
+    marks.layer = layer;
+    try { places[0].scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) { places[0].scrollIntoView(); }
+    marks.timer = setTimeout(function () {
+      if (marks.layer) marks.layer.style.opacity = "0";
+      marks.timer = setTimeout(clearMarks, 700);
+    }, 7000);
+  }
+
   // ---- capture-phase listeners (page handlers never see events we consume) -----------------
   function swallow(event) {
     event.preventDefault();
@@ -1116,6 +1194,8 @@
     if (!data || data.source !== "studio-shell") return;
     if (data.type === "set-mode") setMode(data.mode);
     else if (data.type === "enlarge-offer") { large.on = true; refreshLarge(); }
+    else if (data.type === "changes-base") saveBase();
+    else if (data.type === "show-changes") showChanges();
     else onDrawMessage(data);
   });
 
@@ -1173,7 +1253,7 @@
     });
     window.addEventListener("load", refreshLarge);
     var reloadMeta = document.querySelector('meta[name="studio-reload"]');
-    post("ready", { path: location.pathname + location.search + location.hash, title: document.title,
+    post("ready", { path: location.pathname + location.search + location.hash, title: document.title, changes: true,
                     auto_reload: !(reloadMeta && String(reloadMeta.content).toLowerCase() === "off") });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ready);

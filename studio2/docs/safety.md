@@ -60,7 +60,8 @@ runs as you too.
 
 ## What it cannot do yet
 
-- **Linux:** the installer and the keychain fallback are written, not run.
+- **Linux:** reported installed and running on Red Hat Enterprise Linux (13 November 2026). Nothing else on
+  Linux has been run: not Debian or Ubuntu, and not the keychain fallback on its own.
 - **Phones and tablets:** the layouts exist and were checked in a desktop browser at phone and
   tablet sizes. They have not been tried on a real device.
 - **Accounts, isolation and hosting:** none. It is for one person on their own machine.

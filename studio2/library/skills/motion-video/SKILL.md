@@ -35,7 +35,7 @@ generation tool is available.
 <div id="stage" data-width="1920" data-height="1080" data-duration="18" data-fps="30">
   <section data-start="0" data-end="4.5" data-out=".4" class="scene">
     <div class="bg drift"></div>
-    <h1 class="rise" data-split="words">Batteries that pay for themselves</h1>
+    <h1 class="rise" data-split="words">A bike that pays for itself</h1>
     <p class="wipe" style="--d:1.1s">in four years, not nine</p>
     <svg class="mark" viewBox="0 0 100 100"><circle class="draw" cx="50" cy="50" r="30" style="--d:.4s"/></svg>
   </section>
@@ -54,13 +54,13 @@ generation tool is available.
 | `class="rise"`, `fade`, `pop`, `wipe`, `wipe-up`, `slide-left`, `slide-right` | an entrance. `style="--d:.6s"` starts it 0.6 s into the scene; `--dur` changes its length |
 | `data-split="words"` (or `chars`, `lines`) with an entrance class | each word enters in turn (`--gap`, 70 ms by default). The headline of every scene |
 | `class="draw"` on an SVG `path`, `line`, `circle`, `rect` | the stroke draws itself: icons, underlines, chart lines, a route on a map |
-| `<span data-count="71999" data-at=".5" data-for="1.4" data-locale="en-IN" data-prefix="₹">₹71,999</span>` | counts up to the value (write the real, sourced value as the text too) |
+| `<span data-count="71999" data-at=".5" data-for="1.4" data-locale="en-US" data-prefix="$">$71,999</span>` | counts up to the value (write the real, sourced value as the text too) |
 | `class="drift"` on a background layer | a slow push-in, so a held scene is never frozen |
 
 Your own CSS `@keyframes` inside a scene also run on the scene's clock (`animation-delay: 1.2s`
 is 1.2 s into the scene; always `both` fill). For what CSS cannot say:
 `studioStage.timeline(gsapTimeline)` (a paused GSAP timeline on the stage clock, GSAP from
-`https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js`), and `studioStage.onFrame(t => …)` to
+`https://cdn.jsdelivr.net/npm/gsap@3.15.1/dist/gsap.min.js`), and `studioStage.onFrame(t => …)` to
 draw anything from `t` (a canvas, a three.js camera, a chart filling in).
 `studioStage.ready(promise)` holds the first frame until a model or picture has loaded.
 

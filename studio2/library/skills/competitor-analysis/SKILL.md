@@ -14,7 +14,7 @@ what a complete analysis contains.
 2. **Products and pricing**: the company's own product pages and price lists; launches in the last two years.
 3. **Each main competitor** (two to four): the same financial and product facts, from their own filings.
 4. **Market**: size, growth, share estimates, regulation and policy; name the analyst or agency behind each estimate.
-5. **Customers and channel**: reviews, installer or partner commentary, complaints, switching reasons.
+5. **Customers and channel**: reviews, partner or reseller commentary, complaints, switching reasons.
    Treat forums and reviews as opinion and label them so.
 
 ## Sections of the page

@@ -116,8 +116,9 @@ def test_the_vite_template_leaves_vites_own_name_check_on():
 
 
 async def test_the_agent_is_told_to_answer_only_to_the_names_it_is_given(client, studio, project):
-    facts = studio.agent_context(project["id"])
-    line = next(line for line in facts.splitlines() if "STUDIO_ALLOWED_HOSTS" in line)
+    # A rule that is the same for every project: said once, in the system prompt (one bullet).
+    told = (studio.settings.library_dir / "system-prompt.md").read_text()
+    line = next(" ".join(bullet.split()) for bullet in told.split("\n- ") if "STUDIO_ALLOWED_HOSTS" in bullet)
     assert "Host" in line and "TrustedHostMiddleware" in line and "allowedHosts" in line
     # Host carries the port (127.0.0.1:$PORT): a check that compares it whole refuses the studio itself.
     assert "without its port" in line

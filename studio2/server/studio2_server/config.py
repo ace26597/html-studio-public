@@ -79,6 +79,114 @@ def library_places(from_env: str | None, from_file) -> tuple:
     return tuple(out)
 
 
+def studios_dir() -> Path:
+    """Where every studio on this computer records itself (CONTRACT.md, "What an agent's shell may
+    not reach"): one file per data folder. STUDIO2_STUDIOS_DIR moves it (tests, a throwaway studio)."""
+    raw = os.environ.get("STUDIO2_STUDIOS_DIR")
+    return Path(raw).expanduser() if raw else Path.home() / ".local" / "state" / "studio2" / "studios"
+
+
+def studio_record(settings: "Settings") -> dict:
+    """What another studio must know of this one to keep its agents out: its ports, its folders
+    and the addresses and names it answers on. The config file itself is recorded, and its folder
+    only when that is a folder of its own (`STUDIO2_CONFIG=~/studio.json` must not make the whole
+    home folder the studio's)."""
+    config_file = Path(settings.config_path).expanduser()
+    folder, home = config_file.parent.resolve(), Path.home().resolve()
+    own_folder = folder != home and not home.is_relative_to(folder)
+    return {"port": settings.port, "port_range": list(settings.port_range), "data_dir": str(settings.data_dir),
+            "config_file": str(config_file), "config_dir": str(config_file.parent) if own_folder else None,
+            "records": str(studios_dir()), "hosts": list(settings.hosts), "names": list(settings.names),
+            "pid": os.getpid()}
+
+
+def _valid_record(record) -> dict | None:
+    """A record as another studio wrote it, with every field of the right type; None otherwise."""
+    if not isinstance(record, dict):
+        return None
+    try:
+        port = record["port"]
+        low, high = record["port_range"]
+        if not all(isinstance(n, int) and not isinstance(n, bool) and 0 < n < 65536 for n in (port, low, high)):
+            return None
+        if not isinstance(record["data_dir"], str) or not record["data_dir"]:
+            return None
+        for key in ("config_file", "config_dir", "records"):
+            if record.get(key) is not None and not isinstance(record[key], str):
+                return None
+        for key in ("hosts", "names"):
+            if not isinstance(record.get(key, []), list) or not all(isinstance(h, str) for h in record.get(key, [])):
+                return None
+        if record.get("pid") is not None and (not isinstance(record["pid"], int) or isinstance(record["pid"], bool)):
+            return None
+    except (KeyError, TypeError, ValueError):
+        return None
+    return record
+
+
+def _gone(record: dict) -> bool:
+    """Has the studio that wrote this record stopped: its process is not there and its port does not
+    answer (a short look, so a request never waits on it)?"""
+    pid = record.get("pid")
+    if isinstance(pid, int) and pid > 0:
+        try:
+            os.kill(pid, 0)
+            return False
+        except PermissionError:
+            return False
+        except OSError:
+            pass
+    import socket
+    try:
+        with socket.create_connection(("127.0.0.1", record["port"]), timeout=0.2):
+            return False
+    except OSError:
+        return True
+
+
+def _record_name(data_dir: Path) -> str:
+    import hashlib
+    return hashlib.sha256(str(Path(data_dir).expanduser().resolve()).encode()).hexdigest()[:16] + ".json"
+
+
+def record_studio(settings: "Settings") -> None:
+    """Called when a studio starts (__main__.serve). A failure is logged, never fatal: the studio's
+    own block of ports and folders is known to it without the file."""
+    folder = studios_dir()
+    try:
+        folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+        path = folder / _record_name(settings.data_dir)
+        tmp = path.with_suffix(f".{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(studio_record(settings), indent=1), "utf-8")
+        tmp.chmod(0o600)
+        tmp.replace(path)
+    except OSError as exc:
+        log.warning("Could not record this studio in %s (%s).", folder, exc)
+
+
+def known_studios(settings: "Settings") -> list[dict]:
+    """This studio, then every other one recorded on this computer. A record with a field of the
+    wrong type is skipped; one whose data folder is gone, or whose studio has stopped (no process,
+    no answer on its port), is removed. This studio's own is never removed here."""
+    found, mine = [studio_record(settings)], _record_name(settings.data_dir)
+    folder = studios_dir()
+    for path in sorted(folder.glob("*.json")) if folder.is_dir() else []:
+        if path.name == mine:
+            continue
+        try:
+            record = _valid_record(json.loads(path.read_text("utf-8")))
+        except (OSError, ValueError):
+            continue
+        if record is None:
+            continue
+        if not Path(record["data_dir"]).exists() or _gone(record):
+            with contextlib.suppress(OSError):
+                path.unlink()
+            continue
+        found.append(record)
+    return found
+
+
 def read_config(path: Path) -> dict:
     """The config file as a dict; {} when it is missing or not a JSON object."""
     try:

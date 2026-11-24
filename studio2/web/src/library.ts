@@ -1,6 +1,6 @@
 // The Library ("What this studio can do"): pure views over `GET /api/library`.
 
-import type { Library, LibrarySkill, McpServer, ProjectLibrary } from "./types";
+import type { Library, LibraryIndex, LibrarySkill, McpServer, ProjectLibrary } from "./types";
 
 /** Show a filter box once the library lists more than this many items. */
 export const FILTER_THRESHOLD = 12;
@@ -60,13 +60,13 @@ export interface SkillGroup<T extends LibrarySkill = LibrarySkill> {
 const EXPORTABLE = new Set(["studio", "yours", "machine", "plugin"]);
 
 const SKILL_GROUPS: { source: string; title: string; intro: string | null }[] = [
-  { source: "studio", title: "Studio skills", intro: "Come with the studio. On in every project unless you switch them off there." },
-  { source: "yours", title: "Your skills", intro: "Added by you in this studio. On in every project unless you switch them off there." },
-  { source: "machine", title: "On this machine", intro: "Found in ~/.claude/skills on this Mac. Picked for a request when they fit." },
+  { source: "studio", title: "From the studio", intro: "Come with the studio. On in every project unless you switch them off there." },
+  { source: "yours", title: "Your own", intro: "Added by you in this studio. On in every project unless you switch them off there." },
+  { source: "machine", title: "On this computer", intro: "Found in ~/.claude/skills on this computer. Picked for a request when they fit." },
   { source: "built-in", title: "Built into the assistant", intro: "Reported by the assistant itself; they can’t be switched." },
 ];
 
-/** Skills in the four groups, in this order. Unknown sources join "On this machine"'s neighbour list at the end. */
+/** Skills in the four groups, in this order. Unknown sources join "On this computer"'s neighbour list at the end. */
 export function groupSkills<T extends LibrarySkill>(skills: readonly T[]): SkillGroup<T>[] {
   const known = new Set(SKILL_GROUPS.map((group) => group.source));
   const groups = SKILL_GROUPS.map((group) => ({ ...group, items: skills.filter((skill) => skill.source === group.source) }));
@@ -91,26 +91,26 @@ export interface McpGroup<T extends McpServer = McpServer> {
 }
 
 const MCP_GROUPS: { source: string; title: string; intro: string | null; empty: string }[] = [
-  { source: "yours", title: "Your servers", intro: "Added in this studio. Secret values are kept in your Mac’s Keychain.", empty: "You haven’t added any servers." },
+  { source: "yours", title: "Your own", intro: "Added in this studio. Secret values are kept in your Mac’s Keychain.", empty: "You haven’t added any connectors." },
   {
     source: "machine",
-    title: "On this machine",
-    intro: "Read from this Mac’s Claude settings (~/.claude.json) when used. Picked for a request when they fit.",
-    empty: "No servers were found in this Mac’s Claude settings.",
+    title: "On this computer",
+    intro: "Read from this computer’s Claude settings (~/.claude.json) when used. Picked for a request when they fit.",
+    empty: "No connectors were found in this computer’s Claude settings.",
   },
   {
     source: "plugin",
     title: "From plugins",
     intro: "Come with your Claude Code plugins. Picked for a request when they fit.",
-    empty: "No plugin brings a server.",
+    empty: "No plugin brings a connector.",
   },
   {
     source: "app",
     title: "From this app",
     intro: "Declared in the attached app’s own .mcp.json. Used only when you say always.",
-    empty: "This app declares no servers.",
+    empty: "This app declares no connectors.",
   },
-  { source: "suggested", title: "Suggested", intro: "Public servers that need no account. Switch them on in a project, or test them here.", empty: "No suggestions." },
+  { source: "suggested", title: "Suggested", intro: "Public connectors that need no account. Switch them on in a project, or test them here.", empty: "No suggestions." },
 ];
 
 export function groupMcp<T extends McpServer>(servers: readonly T[]): McpGroup<T>[] {
@@ -119,7 +119,7 @@ export function groupMcp<T extends McpServer>(servers: readonly T[]): McpGroup<T
     // Plugins and an attached app only get a group when they bring something.
     .filter((group) => (group.source !== "plugin" && group.source !== "app") || group.items.length > 0);
   const other = servers.filter((server) => !known.has(server.source));
-  if (other.length) groups.push({ source: "other", title: "Other servers", intro: null, empty: "", items: other });
+  if (other.length) groups.push({ source: "other", title: "Other connectors", intro: null, empty: "", items: other });
   return groups;
 }
 
@@ -244,7 +244,7 @@ export function librarySections(library: Library, observedLabel: string | null =
         : group.source === "yours"
           ? "You haven’t added any skills."
           : group.source === "machine"
-            ? "No skills were found in ~/.claude/skills on this Mac."
+            ? "No skills were found in ~/.claude/skills on this computer."
             : "None.",
       rows: skillRows(group.items, builtIn),
     };
@@ -281,8 +281,8 @@ export function librarySections(library: Library, observedLabel: string | null =
       ? [
           {
             id: "studio-tools" as const,
-            title: "Studio tools",
-            intro: "Tools the studio gives the agent in every turn.",
+            title: "The studio’s own tools",
+            intro: "Tools the studio gives the agent in every request.",
             empty: "The studio reported no tools of its own.",
             rows: library.studio_tools
               .filter((tool) => !toolNames.has(tool.name.toLowerCase()))
@@ -301,9 +301,9 @@ export function librarySections(library: Library, observedLabel: string | null =
       ? [
           {
             id: "agents" as const,
-            title: "Sub-agents",
+            title: "Helper agents",
             intro: "Helpers the agent can hand part of a task to.",
-            empty: "The studio ships no sub-agents.",
+            empty: "The studio comes with no helper agents.",
             rows: library.agents.map((agent) => ({
               key: `agent:${agent.name}`,
               title: agent.name,
@@ -316,14 +316,14 @@ export function librarySections(library: Library, observedLabel: string | null =
       : []),
     {
       id: "templates",
-      title: "Templates",
-      intro: null,
+      title: "From the studio",
+      intro: "Start a new page from one of these.",
       empty: "The studio has no templates.",
       rows: (library.templates ?? []).map((template) => ({
         key: `template:${template.id}`,
         title: template.label,
         detail: template.description || null,
-        status: template.app ? { tone: "neutral" as const, text: "Has a back end" } : null,
+        status: template.app ? { tone: "neutral" as const, text: "Runs its own server" } : null,
         note: null,
       })),
     },
@@ -361,4 +361,98 @@ export function filterSections(sections: LibrarySection[], query: string): Libra
       return words.every((word) => haystack.includes(word));
     }),
   }));
+}
+
+// ---- what the Library opens on, and what is under "Everything else" -------------------------
+
+/** The sections the Library opens on, in this order (Skills, then Templates; Connectors sit between them). */
+export const MAIN_SECTIONS: readonly LibrarySection["id"][] = ["skills-studio", "skills-yours", "templates"];
+
+/** Connectors shown up front: the person's own, the studio's suggestions and an attached app's. */
+export const MAIN_MCP_SOURCES: readonly string[] = ["yours", "suggested", "app"];
+
+/** The closed section at the end of the Library. */
+export const MORE_TITLE = "Everything else";
+
+/** Where the Library remembers, in this browser, whether "Everything else" is open. */
+export const MORE_STORAGE_KEY = "library.more";
+
+/** Split the sections into what the Library opens on and what is under "Everything else" (order kept). */
+export function splitSections(sections: readonly LibrarySection[]): { main: LibrarySection[]; more: LibrarySection[] } {
+  const main = MAIN_SECTIONS.flatMap((id) => sections.filter((section) => section.id === id));
+  const more = sections.filter((section) => !MAIN_SECTIONS.includes(section.id));
+  return { main, more };
+}
+
+/** Split connectors the same way: the person's own and the suggested ones first; the rest found on this computer. */
+export function splitServers<T extends McpServer>(servers: readonly T[]): { main: T[]; more: T[] } {
+  return {
+    main: servers.filter((server) => MAIN_MCP_SOURCES.includes(server.source)),
+    more: servers.filter((server) => !MAIN_MCP_SOURCES.includes(server.source)),
+  };
+}
+
+export type IndexKind = "skills" | "connectors" | "agents";
+
+/** Sources of the index whose items the Library already shows up front. */
+const SHOWN_FIRST: Record<IndexKind, readonly string[]> = {
+  skills: ["studio", "yours"],
+  connectors: MAIN_MCP_SOURCES,
+  agents: [],
+};
+
+/** Of `counts` (items per source, one kind), how many are only in "Everything else". */
+export function countElsewhere(kind: IndexKind, counts: Record<string, number> | null | undefined): number {
+  return Object.entries(counts ?? {}).reduce((sum, [source, n]) => (SHOWN_FIRST[kind].includes(source) ? sum : sum + n), 0);
+}
+
+/** Skills, connectors and helper agents found on this computer that the Library does not show up front. */
+export function elsewhereCounts(index: LibraryIndex | null | undefined): Record<IndexKind, number> {
+  const by = index?.by_source;
+  return {
+    skills: countElsewhere("skills", by?.skills),
+    connectors: countElsewhere("connectors", by?.connectors),
+    agents: countElsewhere("agents", by?.agents),
+  };
+}
+
+/** A block of "Everything else" that is not a list of rows (Models, Keys, …): found by its title and a few words. */
+export interface MoreBlockWords {
+  title: string;
+  words: string;
+}
+
+/** Whether a search reaches a block: every word of `query` is in its title or words. */
+export function blockMatches(block: MoreBlockWords, query: string): boolean {
+  return query.trim() !== "" && matchesQuery([block.title, block.words], query);
+}
+
+/**
+ * How many things a search finds in "Everything else": the rows of its sections, its connectors,
+ * its blocks matched by name, and what the index of this computer finds outside the front.
+ */
+export function moreMatchCount(input: {
+  sections: readonly LibrarySection[];
+  servers: number;
+  blocks: readonly MoreBlockWords[];
+  query: string;
+  index?: Partial<Record<IndexKind, number>> | null;
+}): number {
+  if (!input.query.trim()) return 0;
+  const rows = countRows(filterSections([...input.sections], input.query));
+  const blocks = input.blocks.filter((block) => blockMatches(block, input.query)).length;
+  const index = Object.values(input.index ?? {}).reduce((sum, n) => sum + (n ?? 0), 0);
+  return rows + input.servers + blocks + index;
+}
+
+/** The first kind the index found something for, so its list opens on that kind. */
+export function firstKindFound(hits: Partial<Record<IndexKind, number>> | null | undefined): IndexKind | null {
+  for (const kind of ["skills", "connectors", "agents"] as const) if ((hits?.[kind] ?? 0) > 0) return kind;
+  return null;
+}
+
+/** "1 skill", "3 connectors", "2 helper agents". */
+export function countWords(n: number, kind: IndexKind): string {
+  const noun = { skills: "skill", connectors: "connector", agents: "helper agent" }[kind];
+  return `${n.toLocaleString("en-US")} ${noun}${n === 1 ? "" : "s"}`;
 }

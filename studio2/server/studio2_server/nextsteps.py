@@ -17,17 +17,9 @@ LOOK_OPTIONS = {"depth": "standard", "verify": False, "polish": True}
 LOOK_LABEL = "Polish the look"
 
 
-# What the agent is told, with the project facts of every message. The agent program loads the studio's
-# tools on demand, so a rule kept only in the tool's description is never read: it has to be here.
-AGENT_RULE = (
-    "- When a request made or changed the page, end it by calling `mcp__studio__suggest_next_steps` once, as "
-    "your last tool call, with one to three things the person might ask for next: steps [{label, text}]. "
-    "`label` is a few words starting with a verb (\"Add a section on battery life\", 40 characters at most); "
-    "`text` is the whole request as the person would write it, specific to this page, and something you could "
-    "carry out yourself here. The person sees them as chips under your reply; a tap only fills their chat box. "
-    "Suggest nothing already done, no questions, no check of the page's content and no general polish of its "
-    "look (the studio offers those two itself); skip "
-    "the call only when nothing sensible follows. Do not repeat the steps in your closing message.")
+# When to call `suggest_next_steps` is one line of library/system-prompt.md (the agent program loads the
+# studio's tools on demand, so a rule kept only in the tool's description is not read before the call);
+# what to offer is in the tool's description, read when the agent loads it (tools.py).
 
 
 class StepsError(ValueError):

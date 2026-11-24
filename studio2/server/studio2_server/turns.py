@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import html
 import json
 import logging
@@ -84,8 +85,8 @@ def compose_prompt(text: str, selection: dict | None, changed: list[dict], works
                    options: dict | None = None) -> str:
     parts = [text.strip()]
     if context:
-        # Sent with every message, not in the system prompt: a resumed conversation keeps the
-        # system prompt it started with, so facts placed there go stale (or never arrive).
+        # The facts that can change between requests ride in the message; what stays the same is in
+        # the system prompt (CONTRACT.md, "What the agent is told once, and what with each message").
         parts.append(f"<studio-project>\n{context}\n</studio-project>")
     if said := effort.block(options):   # standard without verify adds nothing
         parts.append(said)
@@ -153,6 +154,7 @@ class TurnRunner:
         self.asking: dict[str, dict[str, dict]] = {}    # turn id → question id → {future, questions}
         self.asked: dict[str, int] = {}             # turn id → how many times ask_person has asked in it
         self.no_more_asks: set[str] = set()         # turns in which the person skipped the questions
+        self.guarded: set[str] = set()              # waiting approvals for what an agent may not reach
 
     def start(self, project: dict, text: str, selection: dict | None,
               connection_id: str | None, model: str | None,
@@ -246,6 +248,9 @@ class TurnRunner:
                                             text=item.get("text") or "")
 
     # -- approvals --------------------------------------------------------------------------
+    def is_guarded(self, approval_id: str) -> bool:
+        return approval_id in self.guarded
+
     def answer(self, turn_id: str, approval_id: str, decision: str) -> bool:
         """The user's answer. → False when that approval is not waiting."""
         future = self.pending.get(turn_id, {}).get(approval_id)
@@ -258,7 +263,8 @@ class TurnRunner:
         events = self.studio.log(pid)
 
         async def approve(tool: str, title: str, detail: str, reason: str, always: bool = False,
-                          detail_limit: int | None = None, skill: dict | None = None) -> bool:
+                          detail_limit: int | None = None, skill: dict | None = None,
+                          guarded: bool = False) -> bool:
             # `always`: something that spends the person's money asks even in a project set to "allow".
             # `detail_limit`: characters to keep when the person must see the whole text to decide.
             if not always and self.studio.store.get(pid).get("approvals", "ask") == "allow":
@@ -266,10 +272,16 @@ class TurnRunner:
             approval_id = "a_" + secrets.token_hex(4)
             future = asyncio.get_running_loop().create_future()
             self.pending.setdefault(turn_id, {})[approval_id] = future
+            if guarded:     # what an agent may not reach: on a shared studio only the owner may allow it
+                self.guarded.add(approval_id)
             events.append("approval_request", turn_id, approval_id=approval_id, tool=tool, title=title,
                           detail=detail[:detail_limit] if detail_limit else _clip(detail, 4_000), reason=reason,
-                          **({"skill": skill} if skill is not None else {}))
-            allowed = await future  # cancelled when the turn ends first; _close_approvals announces that
+                          **({"skill": skill} if skill is not None else {}),
+                          **({"guarded": True} if guarded else {}))
+            try:
+                allowed = await future  # cancelled when the turn ends first; _close_approvals announces that
+            finally:
+                self.guarded.discard(approval_id)
             if self.pending.get(turn_id, {}).pop(approval_id, None) is not None:
                 events.append("approval_resolved", turn_id, approval_id=approval_id,
                               decision="allow" if allowed else "deny", by="user")
@@ -529,14 +541,17 @@ class TurnRunner:
         project = studio.store.get(pid)
         started, started_at = time.monotonic(), now_iso()
         status, error, usage = "completed", None, empty_usage()
-        session = {"id": project.get("session_id")}
+        session = {"id": project.get("session_id"), "compacted": False}
         request = None
+        facts_digest, facts_short = None, False
 
         def emit(event: dict) -> None:
             fields = dict(event)
             kind = fields.pop("type")
             if kind == "session":  # internal: lets a harness report its session before it finishes
                 session["id"] = fields.get("session_id") or session["id"]
+                if fields.get("compacted"):     # the earlier messages, project facts included, were summarised
+                    session["compacted"] = True
                 if fields.get("skills") is not None:
                     studio.record_session({"skills": fields["skills"], "mcp_servers": fields.get("mcp_servers") or []})
                 return
@@ -557,14 +572,28 @@ class TurnRunner:
             prepared = await studio.prepare_turn(pid, turn_id, text, connection,   # this request's skills and connectors
                                                  depth=options["depth"],
                                                  check_only=bool(options.get("check_only")))
+            # The standing facts go in full only when this conversation has not had them as they are now.
+            standing, current = studio.project_facts(pid, prepared["picked"])
+            facts_digest = hashlib.sha256(standing.encode("utf-8")).hexdigest()[:16]
+            sent = project.get("facts_sent") or {}
+            already = bool(project.get("session_id")) and sent == {"session_id": project.get("session_id"),
+                                                                     "digest": facts_digest}
+            facts_short = already
+
+            def composed(full: bool) -> str:
+                facts = "\n".join([studio.FACTS_HEAD, standing if full else studio.FACTS_SAME, current])
+                return compose_prompt(text, selection, changed, workspace, attachments, facts, options)
             request = TurnRequest(
                 project_id=pid, turn_id=turn_id, workspace=workspace,
-                prompt=compose_prompt(text, selection, changed, workspace, attachments,
-                                      studio.agent_context(pid, prepared["picked"]), options),
+                prompt=composed(not already), fresh_prompt=composed(True) if already else None,
+                context=studio.system_context(),
                 session_id=project.get("session_id"), connection=connection, model=model,
                 text=text, selection=selection, attachments=attachments,
                 approve=approve, studio_tool=lambda name, args: tools.call(studio, pid, name, args),
                 plan_due=lambda: self.plan_due(turn_id),
+                reach=studio.reach(pid),
+                # A shared studio refuses what an agent may not reach for everyone but its owner.
+                guest=bool(studio.settings.shared) and turn_id not in self.by_owner,
                 options=options, **prepared["request"])
             if turn_id not in self.cancellable:  # Stop arrived before the harness started
                 raise asyncio.CancelledError
@@ -686,6 +715,17 @@ class TurnRunner:
             if status == "completed" and record.get("name") == "Untitled" and not record.get("name_offered"):
                 name = suggested_name(text, workspace)  # offered once; nothing is renamed without a tap
                 offer = {"name_suggestion": name, "name_offered": True} if name else {}
+            if status == "completed" and session["id"] and facts_digest:
+                # What this conversation now holds. Nothing after a compaction, or when the short line went
+                # to a conversation other than the one that had the facts (sent in full next time).
+                moved = facts_short and session["id"] != project.get("session_id")
+                kept["facts_sent"] = None if session["compacted"] or moved else {"session_id": session["id"],
+                                                                                  "digest": facts_digest}
+            elif facts_digest:
+                # A request that was stopped or failed may or may not have left its facts in the
+                # conversation, and they can change back before the next one: the next message carries
+                # them in full, whatever was recorded before.
+                kept["facts_sent"] = None
             studio.store.update(pid, running_turn=None, session_id=session["id"], **offer, **kept)
         except ProjectNotFound:
             pass

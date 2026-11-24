@@ -28,7 +28,7 @@ def clean(raw) -> str:
 def fact(text: str | None, cleared: bool = False) -> str | None:
     """The project fact the agent gets. None for a project that never had instructions.
 
-    The facts go with every message (turns.compose_prompt), so an earlier message of the same
+    The facts go in the message (turns.compose_prompt; again whenever they change), so an earlier message of the same
     conversation still holds the text of that time: say that this one replaces it, and say so
     too when the person has cleared them.
     """

@@ -83,7 +83,7 @@ for in one sentence, the framed viewer, and a plain link as a fallback.
 <section id="files">
   <h2>Files</h2>
   <article class="file">
-    <h3>Board deck: the case for the battery line</h3>
+    <h3>Board deck: the case for the new product line</h3>
     <p>12 slides. The argument of this report for a 20-minute meeting.</p>
     <iframe src="files/board-deck.pptx.preview/index.html" title="Board deck" loading="lazy"
             style="width:100%;height:720px;border:1px solid var(--line, #d9dce3);border-radius:10px"></iframe>

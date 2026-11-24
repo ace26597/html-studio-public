@@ -15,7 +15,7 @@ from claude_agent_sdk import (
 
 from studio2_server.config import Settings, load_connections
 from studio2_server.harness import Registry
-from studio2_server.harness.base import TurnRequest
+from studio2_server.harness.base import TurnRequest, TurnResult
 from studio2_server.harness.claude import (
     LIBRARY_DIR, ClaudeHarness, EventMapper, HarnessError, build_options, child_env, describe_tool, hidden_secrets,
     outside_workspace,
@@ -260,7 +260,9 @@ def test_library_is_a_valid_local_plugin():
     assert manifest["name"] == "studio"
     skill = (LIBRARY_DIR / "skills" / "studio-page-basics" / "SKILL.md").read_text()
     assert skill.startswith("---\nname: studio-page-basics\ndescription: ")
-    assert 25 <= len((LIBRARY_DIR / "system-prompt.md").read_text().splitlines()) <= 60
+    prompt = (LIBRARY_DIR / "system-prompt.md").read_text()
+    # It holds the rules that do not change between requests (CONTRACT.md, "What the agent is told once"); a cap keeps it lean.
+    assert 25 <= len(prompt.splitlines()) <= 140 and len(prompt) <= 11_000
 
 
 def test_connections_from_config_file(tmp_path):
@@ -761,3 +763,34 @@ async def test_a_file_change_is_held_back_once_when_the_plan_is_due(tmp_path):
     # No turn behind it (the cheap helper call, a test): nothing is held back.
     plain = build_options(TurnRequest("p_1", "t_1", tmp_path, "hi", None, GATEWAY, "gpt-sol"), {}, None)
     assert await plain.hooks["PreToolUse"][0].hooks[0](inside, None, None) == {}
+
+
+def test_the_system_prompt_is_sent_again_on_every_request(tmp_path):
+    """CONTRACT.md, "What the agent is told once": with `snapshot` left out the agent program keeps
+    the system prompt a session started with (tried on CLI 2.1.327); False sends the new text."""
+    request = TurnRequest("p_1", "t_1", tmp_path, "hi", "sess", SUB, "opus", context="## On this studio\n- marker")
+    prompt = build_options(request, {}, resume="sess").system_prompt
+    assert prompt["snapshot"] is False and prompt["append"].endswith("## On this studio\n- marker")
+
+
+def test_a_compaction_is_reported_to_the_turn(tmp_path):
+    mapper = EventMapper(tmp_path)
+    feed(mapper, SystemMessage(subtype="init", data={"session_id": "s1"}))
+    events = feed(mapper, SystemMessage(subtype="compact_boundary", data={"compact_metadata": {"trigger": "auto"}}))
+    assert events == [{"type": "session", "session_id": "s1", "compacted": True}]
+    assert mapper.activity == 0
+
+
+async def test_a_new_conversation_after_a_failed_resume_gets_the_facts_in_full(tmp_path, monkeypatch):
+    sent = []
+
+    async def attempt(self, request, emit, env, scrub, resume):
+        sent.append((resume, request.prompt))
+        if resume:
+            return TurnResult("failed", None, "No conversation found with session ID sess"), 0
+        return TurnResult("completed", "new"), 1
+
+    monkeypatch.setattr(ClaudeHarness, "_attempt", attempt)
+    request = TurnRequest("p_1", "t_1", tmp_path, "short", "sess", SUB, "opus", fresh_prompt="in full")
+    result = await ClaudeHarness("claude-subscription").run(request, lambda _e: None)
+    assert result.status == "completed" and sent == [("sess", "short"), (None, "in full")]

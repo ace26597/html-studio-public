@@ -11,6 +11,8 @@ import { FileShown, SHOW_LABEL, shownAs } from "./FileShown";
 import type { FileEntry } from "./types";
 import { IconButton, useToast } from "./ui";
 import { latestOnly, mayDiscard } from "./discard";
+import { loadString, saveString } from "./storage";
+import { isWorkingFile, splitWorking } from "./workingFiles";
 
 interface FilesPanelProps {
   projectId: string;
@@ -192,7 +194,14 @@ export function FilesPanel({
     };
   }, [projectId, filesRev]);
 
-  const tree = useMemo(() => buildTree(files ?? []), [files]);
+  // The person's files first; the studio's and the agent's working files one step away.
+  const [showWorking, setShowWorking] = useState(() => loadString("files-working") === "1");
+  const listed = useMemo(() => splitWorking(files ?? [], showWorking), [files, showWorking]);
+  const tree = useMemo(() => buildTree(listed.shown), [listed]);
+  // A file opened from the chat that sits among them: show them, or it would open with no row.
+  useEffect(() => {
+    if (openFile && isWorkingFile(openFile.path)) setShowWorking(true);
+  }, [openFile]);
   const changed = useMemo(() => new Set(changedPaths), [changedPaths]);
 
   const select = (path: string) => {
@@ -413,6 +422,21 @@ export function FilesPanel({
             <ul role="tree" aria-label="Project files" className="file-tree">
               {renderDir(tree, 0)}
             </ul>
+          )}
+          {listed.working > 0 && (
+            <button
+              type="button"
+              className="files-working"
+              aria-pressed={showWorking}
+              title="Saved sources, check results, research notes and what was attached to messages"
+              onClick={() => {
+                saveString("files-working", showWorking ? "0" : "1");
+                setShowWorking(!showWorking);
+              }}
+            >
+              <Icon name={showWorking ? "chevron-down" : "chevron-right"} size={13} />
+              {showWorking ? "Hide working files" : `Working files (${listed.working})`}
+            </button>
           )}
         </div>
         <footer className="panel-footer files-footer">

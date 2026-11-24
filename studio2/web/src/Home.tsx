@@ -136,9 +136,20 @@ function ProjectCard({
               }}
             />
           ) : (
-            <span className="card-name" title={project.name}>
+            // The name opens the page too. One stop for the keyboard: the picture above is the link.
+            <a
+              className="card-name"
+              title={project.name}
+              href={`/p/${project.id}`}
+              tabIndex={-1}
+              onClick={(event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+                event.preventDefault();
+                onOpen();
+              }}
+            >
               {project.name}
-            </span>
+            </a>
           )}
           {project.attach && (
             <span className="card-origin" title={project.attach.path}>

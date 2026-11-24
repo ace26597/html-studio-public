@@ -18,7 +18,8 @@ NOT_REPORTED = "Verification was asked for and was not reported."
 
 QUICK = (
     "The person chose Quick for this request: do the smallest thing that fully answers it. Use few "
-    "sources (only as many as the answer needs), start no sub-agents, keep the result short and plain, "
+    "sources (only as many as the answer needs), start no sub-agents (except the checker when verification "
+    "is asked for), keep the result short and plain, "
     "and do not add sections, features or polish nobody asked for. Still mark every figure you state "
     "with its source.")
 
@@ -31,8 +32,8 @@ DEEP = (
     "source, and include a section on what could not be confirmed.\n"
     "- For an app, build a more complete set of features, handle the edge cases (empty, wrong and very "
     "large input, errors from the back end), and exercise the main paths with look_at_page.\n"
-    "- Make the result longer and more complete where the subject has more to say; do not pad.\n"
-    "- At the end, have the work checked independently (the checker sub-agent) and fix what it finds.")
+    "- Make the result longer and more complete where the subject has more to say; do not pad.")
+DEEP_CHECK = "\n- At the end, have the work checked independently (the checker sub-agent) and fix what it finds."
 
 VERIFY = (
     "The person asked for the result to be verified. After your work in this request (or, when the "
@@ -46,8 +47,8 @@ VERIFY = (
     "percentages add up;\n"
     "- every chart matches its data table; units, dates and currencies are consistent;\n"
     "- statements in the text agree with the numbers and with each other;\n"
-    "- for an app: the main paths exercised with look_at_page, and the values shown compared with what "
-    "the back end returns.\n"
+    "- for an app: the main paths exercised with look_at_page, and the values shown compared with the "
+    "app's own data (its files, an attached database, or what its back end answers).\n"
     "Fix what fails when the fix is certain; otherwise list it. Drop nothing silently. After your fixes "
     "and before you report, run check_page again on every page you changed and check_file on every file you changed: report an item as fixed only "
     "when that re-check shows it passing (otherwise it is failed), and make sure every source the page "
@@ -148,16 +149,8 @@ INVOLVE = {
           "each answer for the parts still to come; when it changes a part already made, fix that first."),
 }
 INVOLVE_HOW = (
-    "How to ask: call `mcp__studio__ask_person` with {kind, title?, summary?, references?: [{label, url? or "
-    "path?, note?}], questions: [{question, choices?: [{label, description}], multiple?}], why?}. The request "
-    "waits on a card until the person answers.\n"
-    "- Give two to five concrete choices wherever choices make sense, your own pick first, marked `pick: true`, "
-    "with the reason in its description (the card shows it as suggested, so do not also write \"my pick\"), and "
-    "set `multiple` when more than one can apply. They can always answer in their own words instead, so add no "
-    "\"Other\" choice. `why` is one sentence on what the answers change.\n"
-    "- Every choice is an answer in itself. Never offer one that only promises an answer (\"I'll paste it\", "
-    "\"I'll give you the targets\"): what only they have (a list, figures, a name) is a question without "
-    "choices, saying what to type or paste; they can also add a file to the project and tell you.\n"
+    "How to ask: call `mcp__studio__ask_person` (its description says how to fill the card); the request waits "
+    "on the card until the person answers.\n"
     "- How much to do is already set (the person's Depth setting): never ask how deep or how thorough to be.\n"
     "- Never ask what the request, the person's standing instructions (for every project and for this one), the "
     "project's context or the page already answer, what you can look up yourself, or for permission in "
@@ -166,8 +159,8 @@ INVOLVE_HOW = (
     "change, a selected element, a follow-up to answers you already have) gets no card at all: do it. For "
     "anything larger, do what the setting above says, sized to the piece: the bigger and the more open it is, "
     "the more of the setting's cards it earns.\n"
-    "- A question they leave empty is yours to decide. When they press the button that tells you to go on by "
-    "yourself, the tool says so: do not ask again in this request.\n"
+    "- A question they leave empty is yours to decide, and when they tell you to go on by yourself, do not ask "
+    "again in this request.\n"
     "- In your closing message, name in one line each what you assumed for anything you decided without "
     "asking. Do not repeat their answers back to them.")
 
@@ -233,8 +226,8 @@ def block(options: dict | None) -> str:
     parts = []
     if options.get("depth") == "quick":
         parts.append(QUICK)
-    elif options.get("depth") == "deep":
-        parts.append(DEEP)
+    elif options.get("depth") == "deep":     # with verify on, VERIFY orders the checker: once is enough
+        parts.append(DEEP if options.get("verify") else DEEP + DEEP_CHECK)
     if options.get("verify"):
         parts.append(VERIFY)
     if options.get("polish"):

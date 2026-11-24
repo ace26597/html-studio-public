@@ -574,23 +574,26 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      "source through once and write down what you take from it (id, figure, exact quote); go back only with "
      "`find` or a range, never to read the whole text again.",
      _schema({"id": S, "find": S, "offset": I, "end": I, "max_chars": I}, ["id"]), t_read_source),
-    ("add_source", "Register a file that is already in the project (PDF, text, Markdown, HTML) as a source so it can be quoted.",
+    ("add_source", "Register a file that is already in the project (PDF, text, Markdown, HTML), such as one the "
+     "person added, as a source, so figures from it can be marked and checked like a fetched page",
      _schema({"path": S, "title": S}, ["path"]), t_add_source),
     ("query_files", "Run one read-only SQL statement (DuckDB) over files in the project: "
      "select … from 'data/sales.csv', Parquet and JSON too. Paths are relative to the project folder. "
      "save_as writes the rows to a .csv or .json file in the project instead of returning them.",
      _schema({"sql": S, "limit": I, "save_as": S}, ["sql"]), t_query_files),
-    ("database_schema", "List the tables of an attached database, or the columns of one table (schema.table).",
+    ("database_schema", "See what an attached database holds before you query it: its tables, or the columns of one "
+     "table (schema.table)",
      _schema({"source": S, "table": S}, ["source"]), t_database_schema),
     ("query_database", "Run one read-only SQL statement on an attached database. save_as writes up to 500,000 rows "
      "to a .csv or .json file in the project instead of returning them.",
      _schema({"source": S, "sql": S, "limit": I, "save_as": S}, ["source", "sql"]), t_query_database),
-    ("look_at_page", "Load the project's page in a real browser and get screenshot files (the whole page, and the same "
-     "page in readable pieces: `tiles`), what the studio measured on it (`layout`: text cut off, sideways scrolling, "
-     "overlaps, small or faint text, missing padding), console errors and failed requests. `width` 1440 is a desktop "
-     "(the default), 820 a tablet, 390 a phone. One look covers 6,000 px of height; `top` starts it further down a longer page. `actions` run first: {fill, value}, {click}, {hover}, {press}, {select, value}, {wait_for}, "
-     "{wait_ms}. `url` in place of `path`: the full address of a page under one of the project's context addresses "
-     "(an app the person pointed at), loaded without any sign-in.",
+    ("look_at_page", "Load the project's page in a real browser, to see what the person sees before you finish or "
+     "when something looks wrong. Returns screenshot files (`image`, and `tiles`: the page in readable pieces; "
+     "judge from the tiles), `layout` (what the studio measured: cut-off text, sideways scrolling, overlaps, small "
+     "or faint text, missing padding), console errors and failed requests. `width`: 1440 desktop (default), 820 "
+     "tablet, 390 phone; `dark`; `top` to start further down (one look covers 6,000 px). `actions` run first: "
+     "{fill, value}, {click}, {hover}, {press}, {select, value}, {wait_for}, {wait_ms}. `url` instead of `path`: "
+     "a page under one of the project's context addresses, loaded without sign-in",
      _schema({"path": S, "url": S, "width": I, "dark": B, "full_page": B, "wait_ms": I, "top": I,
               "actions": {"type": "array", "items": {"type": "object"}}}, []), t_look_at_page),
     ("check_page", "Check every marked figure and quote on a page against its saved source or project data, and list "
@@ -614,7 +617,8 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      "this project, specific to this page. label is what the chip says (40 characters at most, starting with a verb: "
      "\"Add a section on battery life\"); text is the whole request as the person would write it. The person sees "
      "them as chips under your reply; a tap only puts the text in their chat box. Suggest nothing that is already "
-     "done, no questions, and no check of the page (the studio offers that itself). Give fewer steps, or do not call "
+     "done, no questions, no check of the page's content and no general polish of its look (the studio offers those "
+     "two itself). Give fewer steps, or do not call "
      "this at all, when nothing sensible follows. Do not repeat the steps in your closing message.",
      _schema({"steps": {"type": "array", "items": {"type": "object", "properties": {"label": S, "text": S}}}},
              ["steps"]), t_suggest_next_steps),
@@ -625,13 +629,12 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      "60 page images are drawn in one call: `pages` (\"61-120\") draws others from the same PDF; past 20 pages "
      "`overview` shows every page small.",
      _schema({"path": S, "store_results": B, "pages": S}, ["path"]), t_render_document),
-    ("render_diagram", "Draw a diagram from Mermaid source (flowchart, sequence, state, entity-relationship, class, "
-     "timeline, Gantt) and check it before it is shown. Read the `diagrams` skill first. Give `source` (or `path`, a "
-     ".mmd file of the project) and a `name`; it saves files/diagrams/<name>.mmd, <name>.svg and <name>-dark.svg "
-     "(and <name>.png at `png_width` pixels, for decks and Word files). A parse error saves nothing and gives the "
-     "line. `must_show`: labels the diagram has to contain; any not drawn are listed in `missing`. `layout` says "
-     "when it is too wide or its text too small, cut off or overlapping. `colors` {light, dark}: Mermaid theme "
-     "variables to follow the page's palette. Put the saved SVG in the page, never the Mermaid script.",
+    ("render_diagram", "Draw a diagram (flowchart, sequence, state, entity-relationship, class, timeline, Gantt) "
+     "from Mermaid, when a page, deck or document needs one; read the `diagrams` skill first. Give `source` (or "
+     "`path` to a .mmd file) and a `name`; it saves files/diagrams/<name>.svg and <name>-dark.svg (and .png at "
+     "`png_width`, for decks and Word). `must_show`: labels it has to contain. `colors` {light, dark}: theme "
+     "variables to follow the page's palette. The answer gives a parse error's line, labels `missing` and `layout` "
+     "problems. Put the saved SVG in the page, never the Mermaid script",
      _schema({"source": S, "path": S, "name": S, "must_show": {"type": "array", "items": S}, "png_width": I,
               "colors": {"type": "object"}, "alt": S}, ["name"]), t_render_diagram),
     ("convert_document", "Convert a finished file of the project to another format, written beside it under the "
@@ -649,9 +652,10 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      _schema({"path": S, "out": S, "format": S, "width": I, "height": I, "fps": N, "duration": N, "start": N,
               "scale": I, "audio": S, "volume": N, "check": B, "times": {"type": "array", "items": N},
               "frames": I, "poster_at": N}, ["path"]), t_render_video),
-    ("render_image", "Save a picture of a project page as a .png, .jpg or .webp file in the project: the whole page "
-     "at `width`, exactly width × height, or one element (`selector`). `scale` 2 or 3 for more pixels, "
-     "`transparent` to leave out the background, `at` (seconds) for a still from an animated page.",
+    ("render_image", "Save a picture of a project page as a .png, .jpg or .webp file, when the person wants an "
+     "image file (a thumbnail, a social card, a still for a deck): the whole page at `width`, exactly width × "
+     "height, or one element (`selector`). `scale` 2 or 3 for more pixels, `transparent` to leave out the "
+     "background, `at` (seconds) for a still from an animated page",
      _schema({"path": S, "out": S, "width": I, "height": I, "scale": I, "selector": S, "transparent": B,
               "dark": B, "at": N, "wait_ms": I}, ["path", "out"]), t_render_image),
     ("generation_models", "List what the generation service can make (kind: image, video or audio), or with `model` "
@@ -670,29 +674,28 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      "workbook or document and is usually left out. Put how it was made in `notes`: palette, type, grid, section "
      "order, chart choices, what each part of the build script does.",
      _schema({"name": S, "description": S, "kind": S, "file": S, "notes": S}, ["name"]), t_save_template),
-    ("save_skill", "Save a skill to the person's library: instructions another agent follows for one kind of job, in "
-     "every project from their next request. Read the `make-a-skill` skill first. `name`: lower-case letters, digits, "
-     "- and _. `description`: when to use it (600 characters at most). `body`: the instructions in Markdown (12,000 "
-     "characters at most), without front matter. `files`: files from this project (at most 12; 5 MB each, 10 MB "
-     "together): documents, data and pictures go to reference/<as or the file's name>, scripts (.py .js .sh and the "
-     "like; text, 40,000 characters together) to scripts/<as or the file's name>; give `to` instead of `as` to name "
-     "the whole path inside the skill, which is how a file the skill already has is replaced. `remove`: paths of "
-     "files to take out of a skill being replaced. The person sees all of it on a card, every script whole, and "
-     "allows or denies it, every time. A skill of theirs with that name is changed only with `replace: true`; its "
-     "other files stay and the earlier version is kept.",
+    ("save_skill", "Save a skill to the person's library when they ask to make or change one (read the `make-a-skill` "
+     "skill first): instructions another agent follows for one kind of job, in every project from their next "
+     "request. `name`: lower-case letters, digits, - and _. `description`: when to use it (600 characters at "
+     "most). `body`: the Markdown instructions without front matter (12,000 at most). `files`: project files to "
+     "include [{path, as? or to?}]: documents, data and pictures go to reference/, scripts to scripts/; `to` names "
+     "the whole path inside the skill (how a file it has is replaced). `remove`: paths to take out. `replace: true` "
+     "changes a skill of theirs with that name (the earlier version is kept). They see all of it on a card and "
+     "allow or deny it; limits that are passed are said in the answer",
      _schema({"name": S, "description": S, "body": S, "replace": B,
               "files": {"type": "array", "items": {"type": "object", "properties": {"path": S, "as": S, "to": S},
                                                    "required": ["path"]}},
               "remove": {"type": "array", "items": S}},
              ["name", "description", "body"]), t_save_skill),
-    ("propose_ship_recipe", "Propose how this attached app is made live (its ship recipe); the person confirms it on a "
-     "card. Give the whole recipe: `checks` (commands run in this project folder before every ship, for example the "
-     "tests or a build), `method` (branch: leave a branch in the original's repository; merge: fast-forward the "
-     "original's checked-out branch; files: copy changed files into a plain folder; none: edited in place), `after` "
-     "(commands run in the ORIGINAL folder afterwards, such as a build and a restart), `address` (http(s) address "
-     "checked afterwards), `protected` (path patterns that need the owner's extra confirmation, such as .env* or "
-     "migrations/), `back` (commands to run after the studio has put the original back; empty means the after-"
-     "commands again), `timeout` (seconds per command) and `notes` (what you read to decide this).",
+    ("propose_ship_recipe", "Propose how this attached app is made live, when the person asks to ship it and there is no "
+     "recipe yet or it must change; they confirm it on a card, then make_live uses it. Give the whole recipe: "
+     "`method` (one the project facts list: branch leaves a branch in the original's repository, merge "
+     "fast-forwards its checked-out branch, files copies changed files into a plain folder, none: edited in "
+     "place), `checks` (commands run "
+     "here before every ship), `after` (commands run in the ORIGINAL folder afterwards), `address` (checked "
+     "afterwards), `protected` (path patterns that need the owner, such as .env* or migrations/), `back` "
+     "(commands after the studio puts the original back; empty: the after-commands again), `timeout` (seconds "
+     "per command) and `notes` (what you read to decide)",
      _schema({"checks": {"type": "array", "items": S}, "method": S, "after": {"type": "array", "items": S},
               "address": S, "protected": {"type": "array", "items": S}, "back": {"type": "array", "items": S},
               "timeout": I, "notes": S}, ["method"]), t_propose_ship_recipe),
@@ -712,17 +715,16 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      "cannot join the request that is running: the studio connects it when the person sends their next message, so "
      "say so plainly. `reason`: what you need it for.",
      _schema({"id": S, "reason": S}, ["id"]), t_request_connector),
-    ("ask_person", "Put a card to the person and wait for their answer, when they set how much to involve them "
-     "above 0. `kind`: questions (things you need to know before or while you work), plan (what you mean to build: "
-     "the plan in `summary`, before you build) or checkpoint (a part you have made: its name in `title`, what you "
-     "made and found in `summary`). `summary` is short Markdown. `references` are what the plan or the part rests "
-     "on, each a label with a `url` or the `path` of a file in this project, and a `note`. `questions`: one to "
-     "four; each may have `choices` (two to six, each a real answer with a label and a short description; your own "
-     "pick first with `pick: true`) and "
-     "`multiple` when more than one can apply; they can always type their own answer. A plan or a checkpoint "
-     "without a question asks whether to go ahead. `why`: one sentence on what the answers change. They may tell "
-     "you to go on by yourself: then decide, and do not ask again. The answer says how many more cards this "
-     "request may show. It answers with an error, and you decide yourself, when the person wants no questions.",
+    ("ask_person", "Put a card to the person and wait for their answer. Use it only as the `<studio-effort>` block's "
+     "involve setting says; at 0 it answers with an error and you decide yourself. `kind`: questions (what you "
+     "need to know), plan (what you mean to build, in `summary`, before you build) or checkpoint (a part you made: "
+     "`title`, and what you made and found in `summary`). `summary`: short Markdown. `references`: [{label, url or "
+     "path, note}]. `questions`: one to four {question, choices?, multiple?}; choices are two to six real answers "
+     "{label, description}, your own pick first with `pick: true` and its reason in the description; never a choice "
+     "that only promises an answer (\"I'll paste it\") and no \"Other\" (they can always type their own). What "
+     "only they have is a question without choices. A plan or checkpoint without questions asks whether to go "
+     "ahead. `why`: one sentence on what the answers change. The answer says what to do next and how many cards "
+     "are left",
      _schema({"kind": {"type": "string", "enum": ["questions", "plan", "checkpoint"]}, "title": S, "summary": S,
               "references": {"type": "array", "items": {"type": "object", "properties": {
                   "label": S, "url": S, "path": S, "note": S}, "required": ["label"]}},
@@ -770,6 +772,43 @@ def describe(studio) -> list[dict]:
              "note": notes.get(name)} for name, description, _s, _h in TOOLS]
 
 
+def _studio_wide(studio) -> dict[str, str | None]:
+    """Tool name → why this studio cannot run it (None: it can). Only tools that need something the
+    computer may lack; the rest always work."""
+    look = studio.looker.reason()
+    return {"look_at_page": look, "render_image": look, "render_video": media.video_reason(studio.looker),
+            "render_document": office.reason(), "render_diagram": diagram.reason(studio.looker),
+            "convert_document": convert.reason(), "generate_media": generate.reason(),
+            "generation_models": generate.reason()}
+
+
+def missing_here(studio) -> dict[str, list[str]]:
+    """→ {reason: [tool names]} for the studio tools this studio leaves out (said once in the system
+    prompt, so a skill that names one does not turn into a confusing instruction)."""
+    out: dict[str, list[str]] = {}
+    if studio.settings.fake:     # the fake harness has no studio tools server at all
+        return out
+    for name, why in _studio_wide(studio).items():
+        if why:
+            out.setdefault(str(why), []).append(name)
+    return out
+
+
+def registered(studio, project_id: str) -> list[tuple[str, str, dict, Handler]]:
+    """The tools one turn of one project is given: each only where it can work (CONTRACT.md, "What the
+    agent is told once, and what with each message"). Ship tools need an attached app, the database
+    tools an attached database; the rest need what `_studio_wide` checks."""
+    project = studio.store.get(project_id)
+    wide = _studio_wide(studio)
+    def fits(name: str) -> bool:
+        if name in ("propose_ship_recipe", "make_live"):
+            return bool(project.get("attach"))
+        if name in ("database_schema", "query_database"):
+            return bool(studio.attached_sources(project_id))
+        return not wide.get(name)
+    return [entry for entry in TOOLS if fits(entry[0])]
+
+
 def build_server(studio, project_id: str):
     """→ the SDK's in-process MCP server config for one turn of one project."""
     from claude_agent_sdk import create_sdk_mcp_server, tool
@@ -780,4 +819,4 @@ def build_server(studio, project_id: str):
             return await call(studio, project_id, name, args)
         return handler
 
-    return create_sdk_mcp_server(SERVER_NAME, "1.0.0", [wrap(n, d, s) for n, d, s, _h in TOOLS])
+    return create_sdk_mcp_server(SERVER_NAME, "1.0.0", [wrap(n, d, s) for n, d, s, _h in registered(studio, project_id)])

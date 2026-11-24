@@ -62,6 +62,8 @@ export interface ThreadActions {
   projectId?: string | null;
   /** A suggested next step was tapped: its text goes into the chat box, and nothing is sent. */
   onUseStep?: (step: NextStep) => void;
+  /** "Show what changed on the page" under the newest answer; absent when the page cannot say. */
+  onShowChanges?: () => void;
   /** A message is queued or being sent: the last request's chips are not shown. */
   busy?: boolean;
   /** "Put it back": text that Stop removed from the queue goes into the chat box, and nothing is sent. */
@@ -766,6 +768,11 @@ const TurnView = memo(function TurnView({
             <UsageLine parts={usage} />
           </span>
         </div>
+      )}
+      {isLast && turn.status === "completed" && actions.onShowChanges && (
+        <button type="button" className="turn-link" onClick={actions.onShowChanges}>
+          Show what changed on the page
+        </button>
       )}
       {actions.onUseStep && (
         <NextStepChips steps={shownSteps(turn, isLast, actions.busy === true)} onUse={actions.onUseStep} />

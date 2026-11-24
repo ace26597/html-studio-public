@@ -1,4 +1,4 @@
-// MCP servers in the Library: your own, the ones on this Mac, and the studio's suggestions.
+// Connectors (MCP servers) in the Library: your own, the ones on this computer, and the studio's suggestions.
 // Each can be tested; yours can be edited and deleted. Secret values are write-only.
 
 import { Fragment, useEffect, useId, useRef, useState } from "react";
@@ -170,7 +170,7 @@ export function McpServerDialog({
 
   if (!server && step === "describe") {
     return (
-      <Modal title="Add an MCP server" onClose={onClose} wide>
+      <Modal title="Add a connector" onClose={onClose} wide>
         <DescribeStep
           text={text}
           problem={problem}
@@ -194,7 +194,7 @@ export function McpServerDialog({
   const describe = (field: McpFieldError["field"]) => (fieldError?.field === field ? id("error") : undefined);
 
   return (
-    <Modal title={server ? `Edit ${server.label || server.name}` : "Add an MCP server"} onClose={onClose} busy={saving} wide>
+    <Modal title={server ? `Edit ${server.label || server.name}` : "Add a connector"} onClose={onClose} busy={saving} wide>
       {!server && (
         <div className="suggest-form-note">
           {used && <p className="ds-note">{suggestedFormNote(used, answer?.asked?.model)}</p>}
@@ -594,6 +594,13 @@ export function McpServersView({
   onChanged,
   manage = true,
   startAdding = false,
+  sources,
+  title = "Connectors",
+  secondary = "MCP servers",
+  intro = "Extra tools from other programs or web services. Switch them on per project.",
+  headingId = "lib-mcp",
+  exclude,
+  level = 3,
 }: {
   servers: McpServer[];
   query: string;
@@ -602,6 +609,17 @@ export function McpServersView({
   manage?: boolean;
   /** Open the Add dialog at "Describe what you need" once (`/library#new-connector`). */
   startAdding?: boolean;
+  /** Only these groups (by source), e.g. the person's own and the suggested ones. All when left out. */
+  sources?: readonly string[] | null;
+  /** Leave these groups out (by source). */
+  exclude?: readonly string[];
+  /** The heading's level: 2 where the connectors are a part of the Library of their own. */
+  level?: 2 | 3;
+  title?: string;
+  /** The builder's word, shown smaller after the title. */
+  secondary?: string | null;
+  intro?: string | null;
+  headingId?: string;
 }) {
   const toast = useToast();
   const confirm = useConfirm();
@@ -636,18 +654,23 @@ export function McpServersView({
     }
   };
 
-  const groups = groupMcp(servers).map((group) => ({
+  const Heading = level === 2 ? "h2" : "h3";
+  const groups = groupMcp(servers)
+    .filter((group) => (!sources || sources.includes(group.source)) && !exclude?.includes(group.source))
+    .map((group) => ({
     ...group,
     shown: query ? group.items.filter((server) => serverMatches(server, query)) : group.items,
   }));
   if (query && groups.every((group) => group.shown.length === 0)) return null;
 
   return (
-    <section className="lib-block-mcp" aria-labelledby="lib-mcp">
-      <h3 id="lib-mcp" className="lib-title">
-        MCP servers {servers.length > 0 && <span className="lib-count">{servers.length}</span>}
-      </h3>
-      <p className="lib-intro">Extra tools from other programs or web services. Switch them on per project.</p>
+    <section className="lib-block-mcp" aria-labelledby={headingId}>
+      <Heading id={headingId} className={level === 2 ? "lib-group-title" : "lib-title"}>
+        {title}
+        {secondary && <span className="lib-title-aside"> ({secondary})</span>}{" "}
+        {servers.length > 0 && <span className="lib-count">{servers.length}</span>}
+      </Heading>
+      {intro && <p className="lib-intro">{intro}</p>}
       {groups.map((group) => {
         if (query && group.shown.length === 0) return null;
         return (
@@ -656,7 +679,7 @@ export function McpServersView({
               <h4>{group.title}</h4>
               {manage && group.source === "yours" && (
                 <button type="button" className="btn btn-small" onClick={() => setEditing("new")}>
-                  <Icon name="plus" size={13} strokeWidth={2.2} /> Add a server
+                  <Icon name="plus" size={13} strokeWidth={2.2} /> Add a connector
                 </button>
               )}
             </div>

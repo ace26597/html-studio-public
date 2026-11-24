@@ -855,6 +855,8 @@ a {
 }
 
 .card-name {
+  color: inherit;
+  text-decoration: none;
   font-weight: 550;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3404,6 +3406,26 @@ a.attachment:hover {
   font-weight: 600;
 }
 
+.composer-error.is-send,
+.composer-note {
+  margin: 0 0 6px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.composer-error.is-send {
+  border: 1px solid var(--err-border);
+  background: var(--err-soft);
+}
+
+.composer-note {
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, var(--border));
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
 .composer-error {
   flex-basis: 100%;
   color: var(--err);
@@ -4234,6 +4256,10 @@ a.attachment:hover {
   gap: 26px;
 }
 
+.library-main .lib {
+  gap: 44px;
+}
+
 .lib.is-compact {
   gap: 20px;
   padding: 8px 8px 16px;
@@ -4292,6 +4318,104 @@ a.attachment:hover {
   margin-top: 3px;
   color: var(--text-3);
   font-size: 12.5px;
+}
+
+/* The Library's three parts (Skills, Connectors, Templates) and "Everything else" at the end. */
+.lib-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scroll-margin-top: 56px;
+}
+
+.lib-group > .lib-intro,
+.lib-group > .lib-block-mcp > .lib-intro {
+  margin-top: -10px;
+}
+
+.lib-group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.lib.is-compact .lib-group-title {
+  font-size: 15px;
+}
+
+.lib-group-title .lib-count {
+  font-size: 14px;
+}
+
+.lib-title-aside {
+  color: var(--text-3);
+  font-weight: 500;
+  font-size: 0.8em;
+  letter-spacing: 0;
+}
+
+.lib-elsewhere {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.lib-link {
+  padding: 0;
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 550;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.lib-rest {
+  gap: 10px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.lib-rest-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  margin-left: -6px;
+  padding: 0 10px 0 4px;
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+}
+
+.lib-rest-toggle:hover {
+  background: var(--surface-2, var(--accent-soft));
+}
+
+.lib-rest-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.lib-rest > .lib-rest-line {
+  margin-top: -6px;
+}
+
+.lib-rest-note {
+  color: var(--accent-text);
+  font-size: 12.5px;
+}
+
+.lib-rest-body {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  margin-top: 8px;
+}
+
+.lib-rest-block {
+  scroll-margin-top: 56px;
 }
 
 .lib-empty {
@@ -9748,4 +9872,42 @@ button.file-card-action:hover {
     top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px) + 8px);
     bottom: auto;
   }
+}
+
+/* The Files panel: the studio's and the agent's working files, one step away. */
+.files-working {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 10px;
+  border-top: 1px solid var(--border);
+  color: var(--text-3);
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.files-working:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+a.card-name:hover {
+  text-decoration: underline;
+}
+
+/* Under the newest answer: outline what it changed on the page, only when asked. */
+.turn-link {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 2px 0;
+  color: var(--accent-text);
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.turn-link:hover {
+  color: var(--accent);
 }

@@ -43,7 +43,8 @@ async def test_the_app_gets_an_address_and_never_the_gateway_key(gated):
     client, studio, pid, _seen = gated
     env = studio.app(pid).extra_env
     assert env["STUDIO_MODEL_URL"].endswith(f"/api/projects/{pid}/model/v1") and GATEWAY_KEY not in json.dumps(env)
-    assert "$STUDIO_MODEL_URL" in studio.agent_context(pid) and GATEWAY_KEY not in studio.agent_context(pid)
+    told = studio.system_context()      # a fact of this studio's configuration: in the system prompt
+    assert "$STUDIO_MODEL_URL" in told and GATEWAY_KEY not in told and GATEWAY_KEY not in studio.agent_context(pid)
     assert (await client.get(f"/api/projects/{pid}/model/v1/models")).status_code == 401
     wrong = await client.post(f"/api/projects/{pid}/model/v1/chat/completions", json={"model": "gpt-local"},
                               headers={"Authorization": "Bearer nope"})
@@ -84,4 +85,4 @@ async def test_without_a_gateway_the_route_says_so(client, studio, project):
     answer = await client.get(f"/api/projects/{project['id']}/model/v1/models",
                               headers={"X-Studio-Token": studio.token(project["id"])})
     assert answer.status_code == 503 and answer.json()["error"]["code"] == "no_gateway"
-    assert "$STUDIO_MODEL_URL" not in studio.agent_context(project["id"])
+    assert "$STUDIO_MODEL_URL" not in studio.system_context()

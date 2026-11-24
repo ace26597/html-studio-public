@@ -87,6 +87,10 @@ interface ChatProps {
   onRemoveAttachment: (id: string) => void;
   /** Long pasted text: kept as an attachment instead of filling the message box. */
   onAddPasted: (text: string) => void;
+  /** Why the last message was not sent (it is back in the box); null once one goes or the model changes. */
+  sendError?: string | null;
+  /** Outline what the newest request changed on the page; absent when the page cannot say. */
+  onShowChanges?: () => void;
   /** "Keep in the project" on a pasted-text card: also save it in the project's top folder. */
   onKeepPasted: (id: string) => void;
   onDecide: (item: ApprovalItem, decision: "allow" | "deny") => void;
@@ -256,7 +260,14 @@ function namePasted(file: File, index: number): File {
   return new File([file], `pasted-${stamp}${index ? `-${index + 1}` : ""}.${ext}`, { type: file.type });
 }
 
-function modelLabel(project: Project, connections: Connection[]): string {
+/** The project remembers a connection this studio does not have (a copied project, a plan that is
+ * the owner's alone, a gateway that was removed): nothing can be sent until another is chosen. */
+export function modelMissing(project: Pick<Project, "connection">, connections: readonly Pick<Connection, "id">[]): boolean {
+  return connections.length > 0 && !connections.some((item) => item.id === project.connection);
+}
+
+export function modelLabel(project: Project, connections: Connection[]): string {
+  if (modelMissing(project, connections)) return "Choose one";
   const connection = connections.find((item) => item.id === project.connection) ?? connections[0];
   if (!connection) return "Model";
   const modelId = project.model ?? connection.default_model;
@@ -349,6 +360,8 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
     onRemoveAttachment,
     onAddPasted,
     onKeepPasted,
+    sendError = null,
+    onShowChanges,
     onDecide,
     decisions,
     onAnswer,
@@ -576,10 +589,11 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
       readDrawing,
       projectId: project.id,
       onUseStep: fillFromStep,
+      onShowChanges: running ? undefined : onShowChanges,
       onPutBack: putBackNote,
       busy: starting || queue.length > 0,
     }),
-    [onRetry, onOpenVersion, running, starting, onDecide, decisions, onAnswer, answering, fileHref, chatFiles, onOpenFile, readDrawing, project.id, fillFromStep, putBackNote, queue.length],
+    [onRetry, onOpenVersion, running, starting, onDecide, decisions, onAnswer, answering, fileHref, chatFiles, onOpenFile, readDrawing, project.id, fillFromStep, putBackNote, queue.length, onShowChanges],
   );
 
   const activity = running ? latestActivity(thread) : null;
@@ -978,6 +992,17 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
           </div>
         )}
         <ContextChips items={project.context ?? []} onOpen={onOpenContext} />
+        {/* Said here and kept, not in a notice that fades: the message is still in the box. */}
+        {sendError && (
+          <p className="composer-error is-send" role="alert">
+            Not sent: {sendError}
+          </p>
+        )}
+        {!sendError && modelMissing(project, connections) && (
+          <p className="composer-note" role="status">
+            This project was set to a model this studio does not have. Choose one under the message box.
+          </p>
+        )}
         <label className="sr-only" htmlFor="composer-input">
           Message
         </label>

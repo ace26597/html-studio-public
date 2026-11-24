@@ -18,13 +18,13 @@ Use this as the default shape for a report or dashboard in `index.html`.
   the source list) in `<details>`: a page many screens long on a phone is read from its menu.
 
 ## Typography and colour
-- System font stack, 16px base, line-height 1.5; headings 1.25-2rem, sentence case.
+- System font stack, 16px base, line-height 1.55 (the `theme` skill's starting CSS); headings 1.25-2rem, sentence case.
 - Define colours as CSS variables on `:root` and override them inside
   `@media (prefers-color-scheme: dark)`. Check text contrast in both.
 - Tables: right-align numbers, use `font-variant-numeric: tabular-nums`, keep units in the header.
 
 ## Charts
-- Minimum height 280px; label both axes with units; start bar-chart axes at zero.
+- Give a chart an explicit height, 320 to 420px on a desktop page and never under 280px; label both axes with units; start bar-chart axes at zero.
 - Put the takeaway in the chart title ("Revenue grew in every quarter"), the description below it.
 - Inline SVG or a canvas library from a CDN are both fine. Keep the data in a file under
   `data/` or in one clearly marked `<script type="application/json">` block, not scattered in markup.

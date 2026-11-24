@@ -20,13 +20,13 @@ from . import context as contexts
 from . import workspace as ws
 from .access import AccessGuard, gate_for, known_names, preview_url_for
 from .apps import Apps
-from .config import REPO_ROOT, Settings, model_gateway, now_iso
+from .config import REPO_ROOT, Settings, known_studios, model_gateway, now_iso
 from .datasources import KINDS as DATA_KINDS
 from .datasources import DataSources, KeychainSecrets, MemorySecrets, driver_available
 from .events import EventHub, EventLog
 from .examples import Examples
 from .harness import Registry, empty_usage
-from . import generate, instructions, media, nextsteps, office, services, ship as shipping, tools
+from . import generate, instructions, media, office, services, ship as shipping, tools
 from .modelcheck import ModelChecks
 from .costs import CURRENT_TURN, RESTART_ERROR, Costs
 from .library import KeychainJson, Library, MemoryJson
@@ -381,113 +381,24 @@ class Studio:
             self.store.update(project_id, app_stopped=False)    # a turn changed the project: they are working on it
         await app.sync(restart=restart)
 
-    def agent_context(self, project_id: str, picked: dict | None = None) -> str:
-        """Project facts for the agent, sent with every message (turns.compose_prompt)."""
-        project = self.store.get(project_id)
-        app = self.app(project_id)
-        api = f"http://127.0.0.1:{self.settings.port}/api/projects/{project_id}/app"
-        lines = [
-            "Facts about this project and this studio, current as of this message "
-            "(they replace anything said about them earlier in the conversation):",
-            f"- The person sees this project at {project['preview_url']} (the live preview).",
-            "- To give the project its own back end, write `studio.json` in the project root with a `run` "
-            'command, for example {"run": "uv run --with-requirements requirements.lock uvicorn server:app --host '
-            '127.0.0.1 --port $PORT"} beside a `requirements.txt` that lists the packages (fastapi, uvicorn). '
-            "The studio starts that command for you with PORT set, keeps it "
-            f"running, and serves it at {project['preview_url']}. The app must listen on 127.0.0.1:$PORT.",
-            "- A back end must answer only to the names in `$STUDIO_ALLOWED_HOSTS` (comma-separated; the studio "
-            "always reaches it as 127.0.0.1:$PORT) and refuse any other `Host` with 400 or 421, so a web page "
-            "elsewhere cannot point its own name at this machine and use the app (DNS rebinding). Check only while "
-            "the variable is set, so a copy run elsewhere still works. FastAPI or Starlette: "
-            "`TrustedHostMiddleware(allowed_hosts=…)`; Flask or Express: a check before every request that "
-            "compares the name without its port, because Host is 127.0.0.1:$PORT and comparing it whole "
-            "refuses the studio itself (Express: `req.hostname`; Flask: `request.host.rsplit(':', 1)[0]`); Vite: "
-            "leave `server.allowedHosts` unset; Django: `ALLOWED_HOSTS`. In an attached app, suggest it; "
-            "do not add it unasked.",
-            "- Never start a long-running server yourself (no `&`, `nohup` or background shells): it would "
-            "not survive and the person would not see it. Short commands and scripts are fine.",
-            "- The studio restarts the app when your turn ends. To test during your turn: "
-            f"`curl -s -X POST {api}/restart`, then `curl -s {api}` until \"state\" is \"running\" "
-            f"(or \"crashed\"), then request your own pages at http://127.0.0.1:{app.port}/. "
-            "\"starting\" with \"slow\": true means it is alive but has not answered on its port within 90 s. "
-            "Wait on that for a minute or two at most, then read its output: if nothing there is still "
-            "installing or compiling, check that it listens on $PORT and fix it rather than waiting on. "
-            "\"not_answering\": true means it has been running for minutes and never answered: it is not "
-            "crashed, but it is almost certainly on another port or not serving.",
-            f"- The app's output (stdout and stderr) is in {app.log_path}. Read it when something fails.",
-            "- Prefer `uv run --with <package>` or a `.venv` in the project over installing packages globally. "
-            "A Python app lists its packages in `requirements.txt` (names; a version only where you need one) and "
-            "runs from `requirements.lock`, which holds the exact version of every package so the app runs the "
-            "same every time. The studio writes the lock from `requirements.txt` when the app starts and the lock "
-            "is missing or older; after you change `requirements.txt`, write it yourself in the same turn with "
-            "`uv pip compile -q requirements.txt -o requirements.lock`. Never edit the lock by hand. "
-            "Run Python with `uv run python …`, in `studio.json` too: a bare `python` or `python3` is whatever "
-            "this machine happens to have (on a Mac often 3.9), or nothing at all.",
-            "- The preview reloads whenever a project file changes. If the page keeps itself up to date "
-            "(a dev server with hot reload, or a page that saves data files into the project), add "
-            '`<meta name="studio-reload" content="off">` to its <head> so it is not reloaded under the person.',
-            "- A back end that stores data keeps what it writes while it runs in `state/` in the project folder "
-            "(a SQLite file, saved settings, uploads): it survives restarts, and the studio neither watches nor "
-            "versions that folder, so saving data never reloads the page under the person, is never reported as a "
-            "file they changed, and is not undone by restoring a version. Files you prepare for the page yourself "
-            "(a CSV to chart) belong in `data/`, which is versioned.",
-        ]
-        lines.append(
-            "- The studio gives you its own tools (their names start with `mcp__studio__`): search_web, "
-            "fetch_source, read_source, add_source, query_files, database_schema, query_database, look_at_page, "
-            "check_page, check_file, render_document, render_diagram and convert_document. Prefer fetch_source over other ways of reading a page you will cite: it saves the "
-            "text in the project under an id (s1, s2, …) that the page's figures point to, and check_page then "
-            "verifies them. check_file does the same for a .pptx, .docx, .xlsx or .pdf file of the project. "
-            "render_diagram draws a Mermaid diagram, checks it and saves it as SVG (the `diagrams` skill says how); "
-            "convert_document turns a finished file into another format (Word to RTF, ODT or PDF, Markdown to Word, "
-            "EPUB or HTML, and more).")
-        searching = services.search_connectors([item.get("name") for item in (picked or {}).get("connectors") or []])
-        if searching:       # a search connector attached to this request is the first way to search
-            lines.append(f"- For web search, use the tools of the connector {' or '.join(f'“{name}”' for name in searching)} "
-                         "first: the person attached it for this. `search_web` is the fallback when it cannot answer.")
-        lines.append("- After a request that changed the project, the studio opens the page once itself and tells the "
-                     "person about any script error or failed request it shows on loading. Before you finish, look "
-                     "at the page yourself (look_at_page reports the same) and leave it loading clean.")
-        lines.append(nextsteps.AGENT_RULE)
-        lines.append("- The person takes this project out of the studio themselves, from Export in the page's menu: "
-                     "one HTML file with everything inside (a page without a back end), a folder to host or run "
-                     "with a note on how, or the whole working folder. Point them there when they ask to export, "
-                     "share or host it; do not build a copy for export unless they ask for another format.")
-        if project.get("from_example"):
-            without = Sources(self.store.workspace(project_id)).without_text()
-            if without:
-                shipped = self.examples.get(project["from_example"]) or {}
-                lines.append(
-                    f"- This project is a copy of the example “{shipped.get('title') or project['from_example']}” "
-                    f"that comes with the studio. The saved text of its sources was not included ({len(without)} "
-                    "of them: it is other people's writing), only the list in sources/index.json with each "
-                    "address. check_page cannot confirm a quote from a source without its text: before checking, "
-                    "call fetch_source with the address of each source the page cites; the text comes back under "
-                    "the same id, so the page's marks stay right. Say so plainly if a source can no longer be "
-                    "fetched or no longer says what the page quotes.")
-        if model_gateway(self.settings):
+    # -- what the agent is told (CONTRACT.md, "What the agent is told once, and what with each message") --
+    def system_context(self) -> str:
+        """The part of the system prompt that depends on this studio's configuration but on no project or
+        request (TurnRequest.context, after library/system-prompt.md). It must stay the same from one
+        request to the next, or the cached start of the conversation is written again."""
+        lines = ["## On this studio"]
+        if self.looker.reason() is None:
             lines.append(
-                "- A back end you write for this project can call language models through the studio. It speaks "
-                "the OpenAI chat API: base URL `$STUDIO_MODEL_URL`, API key `$STUDIO_TOKEN` (both are environment "
-                "variables of the app; call from the server, never from the page). `GET $STUDIO_MODEL_URL/models` "
-                "lists the models; each has `paid` true or false, and paid ones cost the person money per call, so "
-                "label them and default to one that is not paid. No streaming (`stream` must be false or absent). "
-                f"A project may spend ${self.settings.app_model_daily_usd:.2f} a day; past that the answer is 429 "
-                "with a message to show the person. The app gets no other model key: never look for one in the "
-                "person's shell files or ask them to put one in a file.")
-        using = project.get("uses_template")
-        if using and (self.store.workspace(project_id) / "template").is_dir():
-            lines.append(
-                f"- This project uses the person's template “{using['label']}” ({using['kind']}). Its files are in "
-                "`template/`; read `template/TEMPLATE.md` first and follow the `use-template` skill. Make what the "
-                "person asks look like the template and build it the same way. Do not reuse the template's facts, "
-                "figures, names, dates or sources, and do not edit anything under `template/`.")
-        lines.append(
-            "- When the person asks to save this work as a template (or to make a template from a deck, workbook "
-            "or document), use the save_template tool; put how it was made in `notes`.")
-        lines.append(
-            "- When the person asks to make or change a skill, read the `make-a-skill` skill first, then save it to "
-            "their library with the save_skill tool; they see the whole skill on a card and allow or deny it.")
+                "- You can see the page: look_at_page loads it in a real browser and returns screenshot files "
+                "(open them with the Read tool), what the studio measured on the page (`layout`), console errors "
+                "and failed requests; `actions` let you type and click first. One picture of a tall page reaches "
+                "you scaled down, so judge text, spacing and anything cut off from the `tiles` (the same page in "
+                "readable pieces), not from `image`. Look at every page you create or change before you finish, "
+                "in the state the person will see it, at width 1440 (a desktop) first, then 820 (a tablet) and "
+                "390 (a phone) when its layout changes with the width, and fix what is broken or looks wrong. "
+                "Say plainly if you did not look.")
+        else:
+            lines.append("- You cannot see the rendered page in this studio; say so instead of guessing.")
         if office.reason() is None:
             lines.append(
                 "- You can make real PowerPoint, Word, Excel and PDF files (the `office-files` skill says how, with "
@@ -514,6 +425,61 @@ class Studio:
                 "before every one, so use it only when they asked for generated imagery or the piece plainly needs "
                 "a photograph you cannot draw; ask for one at a time. A generated picture is an illustration: never "
                 "present it as a photo of the person's real product, place, team or customers.")
+        if model_gateway(self.settings):
+            lines.append(
+                "- A back end you write for this project can call language models through the studio. It speaks "
+                "the OpenAI chat API: base URL `$STUDIO_MODEL_URL`, API key `$STUDIO_TOKEN` (both are environment "
+                "variables of the app; call from the server, never from the page). `GET $STUDIO_MODEL_URL/models` "
+                "lists the models; each has `paid` true or false, and paid ones cost the person money per call, so "
+                "label them and default to one that is not paid. No streaming (`stream` must be false or absent). "
+                f"A project may spend ${self.settings.app_model_daily_usd:.2f} a day; past that the answer is 429 "
+                "with a message to show the person. The app gets no other model key: never look for one in the "
+                "person's shell files or ask them to put one in a file.")
+        missing = tools.missing_here(self)
+        if missing:
+            lines.append("- Studio tools this studio does not have: " + "; ".join(
+                f"{', '.join(names)} ({why.rstrip('.')})" for why, names in missing.items())
+                + ". When a skill asks for one, skip that step and say plainly what you could not do.")
+        return "\n".join(lines)
+
+    FACTS_HEAD = ("Facts about this project, current as of this message (they replace anything said about "
+                  "them earlier in the conversation):")
+    FACTS_SAME = ("- The standing facts about this project are unchanged since the last full <studio-project> "
+                  "block in this conversation, which still holds. What follows is about this request.")
+
+    def project_facts(self, project_id: str, picked: dict | None = None) -> tuple[str, str]:
+        """→ (standing, current): what the agent needs to know about this project. `standing` changes
+        only when the project does (it is sent again only then, turns.TurnRunner); `current` is about
+        this request (what was picked, the app's state) and goes with every message."""
+        project = self.store.get(project_id)
+        app = self.app(project_id)
+        api = f"http://127.0.0.1:{self.settings.port}/api/projects/{project_id}/app"
+        lines = [
+            f"- The person sees this project at {project['preview_url']} (the live preview); a back end of "
+            "the project is served there too.",
+            f"- To test the app during your turn: `curl -s -X POST {api}/restart`, then `curl -s {api}` until "
+            f"\"state\" is \"running\" (or \"crashed\"), then request your own pages at http://127.0.0.1:{app.port}/. "
+            f"The app's output (stdout and stderr) is in {app.log_path}.",
+        ]
+        if project.get("from_example"):
+            without = Sources(self.store.workspace(project_id)).without_text()
+            if without:
+                shipped = self.examples.get(project["from_example"]) or {}
+                lines.append(
+                    f"- This project is a copy of the example “{shipped.get('title') or project['from_example']}” "
+                    f"that comes with the studio. The saved text of its sources was not included ({len(without)} "
+                    "of them: it is other people's writing), only the list in sources/index.json with each "
+                    "address. check_page cannot confirm a quote from a source without its text: before checking, "
+                    "call fetch_source with the address of each source the page cites; the text comes back under "
+                    "the same id, so the page's marks stay right. Say so plainly if a source can no longer be "
+                    "fetched or no longer says what the page quotes.")
+        using = project.get("uses_template")
+        if using and (self.store.workspace(project_id) / "template").is_dir():
+            lines.append(
+                f"- This project uses the person's template “{using['label']}” ({using['kind']}). Its files are in "
+                "`template/`; read `template/TEMPLATE.md` first and follow the `use-template` skill. Make what the "
+                "person asks look like the template and build it the same way. Do not reuse the template's facts, "
+                "figures, names, dates or sources, and do not edit anything under `template/`.")
         sources = self.attached_sources(project_id)
         if sources:
             names = ", ".join(f"“{s['name']}” ({DATA_KINDS[s['kind']]['label']}, database {s['database']})" for s in sources)
@@ -534,34 +500,36 @@ class Studio:
             if standing:
                 lines.append(standing)
         if self.looker.reason() is None:
-            lines.append(
-                "- You can see the page: look_at_page loads it in a real browser and returns screenshot files "
-                "(open them with the Read tool), what the studio measured on the page (`layout`), console errors "
-                "and failed requests; `actions` let you type and click first. One picture of a tall page reaches "
-                "you scaled down, so judge text, spacing and anything cut off from the `tiles` (the same page in "
-                "readable pieces), not from `image`. Look at every page you create or change before you finish, "
-                "in the state the person will see it, at width 1440 (a desktop) first, then 820 (a tablet) and "
-                "390 (a phone) when its layout changes with the width, and fix what is broken or looks wrong. "
-                "Say plainly if you did not look.")
             lines.append(self._signed_in_context(project))
-        else:
-            lines.append("- You cannot see the rendered page in this studio; say so instead of guessing.")
-        lines.append(self._library_context(project, picked))
+        current = [self._library_context(project, picked)]
         attached = project.get("attach")
         if attached:
-            lines.extend(self._attached_context(project, attached, app))
+            # With every message, not once per conversation: these are the lines that keep the person's
+            # own app and folder safe (edit in place, never touch the original, leave its git alone).
+            # A long request can be compacted, and a summary must never be all that is left of them.
+            current.extend(self._attached_context(project, attached, app))
+        searching = services.search_connectors([item.get("name") for item in (picked or {}).get("connectors") or []])
+        if searching:       # a search connector attached to this request is the first way to search
+            current.append(f"- For web search, use the tools of the connector {' or '.join(f'“{name}”' for name in searching)} "
+                           "first: the person attached it for this. `search_web` is the fallback when it cannot answer.")
         if app.address:
-            lines.append(f"- Current app: a server the studio did not start, at {app.address} (state {app.state}). "
-                         "The studio never starts, restarts or stops it; it reloads by itself when files change.")
+            current.append(f"- Current app: a server the studio did not start, at {app.address} (state {app.state}). "
+                           "The studio never starts, restarts or stops it; it reloads by itself when files change.")
         elif app.run:
-            lines.append(f"- Current app: `{app.run}` — state {app.state}"
-                         + (f", exit code {app.exit_code}" if app.state == "crashed" else "")
-                         + ((" (running for minutes and not answering on its port: read its output and check "
-                             "that it listens on $PORT)") if app.not_answering else
-                            " (alive, not answering on its port after 90 s)" if app.slow else "") + ".")
+            current.append(f"- Current app: `{app.run}` — state {app.state}"
+                           + (f", exit code {app.exit_code}" if app.state == "crashed" else "")
+                           + ((" (running for minutes and not answering on its port: read its output and check "
+                               "that it listens on $PORT)") if app.not_answering else
+                              " (alive, not answering on its port after 90 s)" if app.slow else "") + ".")
         else:
-            lines.append("- This project has no back end yet (no studio.json); it is served as static files.")
-        return "\n".join(lines)
+            current.append("- This project has no back end yet (no studio.json); it is served as static files.")
+        return "\n".join(lines), "\n".join(current)
+
+    def agent_context(self, project_id: str, picked: dict | None = None, standing: bool = True) -> str:
+        """The project facts for one message (turns.compose_prompt): in full, or (standing=False) with
+        the standing part replaced by one line saying it is unchanged."""
+        kept, current = self.project_facts(project_id, picked)
+        return "\n".join([self.FACTS_HEAD, kept if standing else self.FACTS_SAME, current])
 
     def _signed_in_context(self, project: dict) -> str:
         """The one sentence about seeing the app signed in (CONTRACT.md, "Seeing an app signed in as the person")."""
@@ -578,7 +546,7 @@ class Studio:
                 "the studio stops.")
 
     def _library_context(self, project: dict, picked: dict | None) -> str:
-        """How skills and connectors work in this studio, and what this request was given."""
+        """What this request was given from the library (how the library works is in system-prompt.md)."""
         index = self.picker.summary()
         if picked is None:
             skills = []
@@ -587,18 +555,10 @@ class Studio:
             skills = [item["name"] for item in picked["skills"]]
             servers = [item["name"] for item in picked["connectors"]]
         return (
-            f"- Skills and connectors: the person's library on this computer holds {index['skills']} skills and "
-            f"{index['connectors']} connectors (MCP servers), far more than can be loaded at once. For THIS request the "
-            "studio loaded its own skills plus a small set picked from that library by a quick first look at the "
-            "message. Picked skills: " + (", ".join(skills) if skills else "none beyond the studio's own")
-            + ". Connectors in this request: " + (", ".join(servers) + " (tools named `mcp__<name>__…`; use them when "
-                                                  "they fit the task)" if servers else "none")
-            + ". The pick can be wrong or incomplete. When the task calls for know-how, a file format, a method or an "
-            "outside service you were not given, do not make do without it: call search_library to look through the "
-            "whole library, then activate_skill to switch a skill on at once (its instructions come back in the "
-            "answer and its files are put in a folder you can read), or request_connector to ask for a connector (it "
-            "joins when the person sends their next message; tell them so plainly). Reach for more whenever a "
-            "better-fitting skill is likely to exist.")
+            f"- This request: the library holds {index['skills']} skills and {index['connectors']} connectors; "
+            "loaded are the studio's own skills and these picked ones: " + (", ".join(skills) if skills else "none")
+            + ". Connectors: " + (", ".join(servers) + " (tools named `mcp__<name>__…`; use them when "
+                                  "they fit the task)" if servers else "none") + ".")
 
     def _attached_context(self, project: dict, attached: dict, app) -> list[str]:
         where = attached.get("path")
@@ -675,6 +635,16 @@ class Studio:
     # -- attaching an app by its folder -------------------------------------------------------
     def _protected(self) -> list[Path]:
         return [self.settings.data_dir, REPO_ROOT]
+
+    def reach(self, project_id: str):
+        """What this project's agent may not reach (CONTRACT.md, "What an agent's shell may not
+        reach"): read again for every request, so a studio started since is known."""
+        from . import risk
+        import os
+        more = [p for p in (os.environ.get("STUDIO2_AGENT_PRIVATE") or "").split(":") if p.strip()]
+        return risk.reach_for(self.store.workspace(project_id), self.store.dir(project_id),
+                              self.store.get(project_id).get("port"), known_studios(self.settings),
+                              more_private=more)
 
     # -- context from this computer (CONTRACT.md, "Context from this computer") --------------
     async def inspect_context(self, value: str) -> dict:

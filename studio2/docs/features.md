@@ -65,6 +65,8 @@ Files a request makes for you (a deck, a document, a spreadsheet, a picture, a C
 under its answer in the chat, each with its kind and size and a button that opens it. In the
 Files panel a Markdown file is shown formatted, a CSV as a table and an SVG as a picture, with
 the source one click away.
+The panel lists your files first; what the studio and the agent keep for their own work (saved
+sources, check results, research notes, what you attached to messages) is under *Working files*.
 
 **An app behind a sign-in.** When a project's app has a sign-in screen and you are signed in to
 it in your browser, the agent's own browser can see the app as you do, so Polish the look and
@@ -140,7 +142,7 @@ found on your computer, the ones your plugins bring, and your own.
 A connector (an MCP server) lets the agent reach something outside the project: your notes, your
 tickets, a database, a search engine. You no longer need to know its address.
 
-- **Library → MCP servers → Add** opens on *Describe what you need*. Say it in a sentence
+- **Library → Connectors → Add a connector** opens on *Describe what you need*. Say it in a sentence
   ("read and search the pages in my Notion workspace") and a small model suggests up to three.
 - **It answers from memory, so the studio checks what it can.** A suggestion is only ever a web
   address or a package from npm or PyPI. The package is looked up in its registry (version,
@@ -175,7 +177,7 @@ closing section, a tone, who the reader is. Each project has a box for them.
 
 **For every project.** The same dialog has a second part, **Every project**, for what is true
 of all your work: where it is, the currency and number format, how you like things written
-("My solar businesses are in Maharashtra, India. Use rupees, with lakh and crore."). The agent
+("My bakery is in Lyon, France. Use euros and metric units."). The agent
 gets it with every request in every project and does not ask what it already answers. A
 project's own instructions come first where the two differ. A shared studio has no such text.
 
@@ -243,6 +245,12 @@ On a desktop the chat floats at the bottom right of the page.
   the corner, so the page has the whole screen; tap it and the chat comes up over the lower half,
   and the handle at its top makes it full screen or closes it again. A new, empty project opens
   the chat for you, and so does a request that is waiting for your answer.
+- **See what a request changed, when you ask.** Under the newest answer, *Show what changed on the
+  page* outlines the places that read differently for a few seconds and scrolls to the first.
+  Nothing moves by itself. It cannot show text that was only removed, or a change on another page.
+- **A message that could not be sent says why, beside the box.** It stays in the box with the
+  reason above it until one goes through. When a project remembers a model this studio does not
+  have, the box says so before you send.
 - **Files are dropped on the chat.** Drop them on the chat, open or closed, and they go with your
   next message. A file dropped anywhere else on the studio does nothing; the Files panel has its
   own drop area for adding to the project.
@@ -265,6 +273,14 @@ you, its owner, by the email you signed in with.
   for every project.
 
 Add your own skills, connectors and databases on the **Library** page.
+
+The Library opens on what you come for: **Skills** (the studio's and your own), **Connectors**
+(your own and suggested ones) and **Templates**, with one search box at the top that reaches all
+of it. Everything else is in one section at the end, **Everything else**, closed until you open
+it: models, keys and data sources, the studio's own tools and helper agents, and every skill and
+connector found on this computer. The browser remembers whether you left it open. A search that
+finds something in it shows it there with a note, and a link such as `/library#data-sources`
+opens it. A project's drawer (its *Everything* tab) is laid out the same way.
 
 A project's page can have an address of its own behind the gate, and the gate keeps a sign-in
 for each address. The studio signs you in there by itself: when you open such a project the tab

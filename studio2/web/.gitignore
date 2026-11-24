@@ -2,3 +2,6 @@ node_modules
 dist
 *.tsbuildinfo
 .shots
+dist-staging
+dist-prev
+dist-undone

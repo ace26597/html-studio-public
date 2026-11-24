@@ -97,7 +97,9 @@ uv pip install --no-deps -e .
   Details and the order of checks: [docs/install.md](docs/install.md), "Looking at pages".
 - Interface work: run the server, then `cd web && npm run dev` (http://127.0.0.1:5200, which
   proxies the API). Or `npm run mock` for a stand-in server with no Python at all.
-- The server serves `web/dist`. `npm run build` therefore changes a running studio at once.
+- The server serves `web/dist`, so `npm run build` changes a running studio at once. With a studio running
+  from this folder, use `tools/release-ui.sh` instead: it builds aside, tries the build in a real browser on a
+  throwaway studio with no model calls, and only then switches (`--rollback` puts the earlier build back).
   To look at a build first, build elsewhere (`npx vite build --outDir <folder>`).
 - A second studio beside a running one needs its own port and data folder:
   `studio start --port 9400 --data <folder>`. To keep it away from your real settings and
