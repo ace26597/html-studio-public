@@ -1949,11 +1949,6 @@ a {
   opacity: 0.7;
 }
 
-/* A phone's collapsed bar keeps to the message box. */
-.chat.sheet.is-bar .chat-options {
-  display: none;
-}
-
 .chat-header {
   position: relative;
   z-index: 2;
@@ -5775,12 +5770,21 @@ a.attachment:hover {
     flex: none;
   }
 
-  /* The page stops above the collapsed chat bar. */
-  .project.is-compact .preview {
-    bottom: var(--sheet-bar, 0px);
+  /* ---- project: the chat as a bottom sheet ------------------------------------------------------- */
+
+  /* Closed, the chat is the round button in the corner, clear of the home bar and a notch. */
+  .chat-dock.is-compact {
+    position: fixed;
+    right: calc(16px + var(--safe-right));
+    bottom: calc(16px + var(--safe-bottom));
+    z-index: 25;
+    /* Only the button takes touches: the strip beside it stays the page's. */
+    max-width: calc(100vw - 32px - var(--safe-left) - var(--safe-right));
   }
 
-  /* ---- project: the chat as a bottom sheet ------------------------------------------------------- */
+  .chat-dock.is-compact .chat-ticker {
+    min-width: 0;
+  }
 
   .chat.sheet {
     position: fixed;
@@ -5789,6 +5793,8 @@ a.attachment:hover {
     bottom: var(--kb-inset, 0px);
     z-index: 25;
     width: auto;
+    /* The desktop panel's limit would leave a strip of page beside the sheet. */
+    max-width: none;
     max-height: none;
     border-radius: 18px 18px 0 0;
     border-width: 1px 0 0;
@@ -5869,16 +5875,6 @@ a.attachment:hover {
 
   .sheet-status.is-attention {
     color: var(--warn);
-  }
-
-  .sheet-review {
-    flex: none;
-    padding: 6px 12px;
-    border-radius: 999px;
-    background: var(--warn-soft);
-    color: var(--warn);
-    font-size: 14px;
-    font-weight: 600;
   }
 
   .chat.sheet .chat-scroll {
@@ -9744,4 +9740,12 @@ button.file-card-action:hover {
   color: var(--text-3);
   font-size: 12px;
   text-align: center;
+}
+
+/* On a phone or iPad the bottom corner is the chat button's: the notice sits under the top bar. */
+@media (max-width: 1089px) {
+  .build-banner {
+    top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px) + 8px);
+    bottom: auto;
+  }
 }

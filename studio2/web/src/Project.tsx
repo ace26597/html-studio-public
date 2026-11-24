@@ -22,7 +22,7 @@ import { appStateLabel, projectFileUrl } from "./format";
 import { Icon, Spinner } from "./icons";
 import { offeredName } from "./nameOffer";
 import { LogsDrawer } from "./LogsDrawer";
-import { useCompact, useKeyboardInset } from "./media";
+import { chatStartsOpen, useCompact, useKeyboardInset } from "./media";
 import { ProjectLibraryPanel, type LibraryTab } from "./ProjectLibraryPanel";
 import { ContextDialog } from "./ContextDialog";
 import { InstructionsDialog } from "./InstructionsDialog";
@@ -107,7 +107,9 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   const logsOpen = rightPanel === "logs";
   const libraryOpen = rightPanel === "library";
   const [selectedSha, setSelectedSha] = useState<string | null>(null);
-  const [chatOpen, setChatOpenState] = useState(() => loadString(`chat:${id}`) !== "0");
+  // Open or closed is remembered per project. With nothing remembered, a desktop starts with the
+  // chat open and a phone or iPad with it closed (the round button), so the page has the screen.
+  const [chatOpen, setChatOpenState] = useState(() => chatStartsOpen(loadString(`chat:${id}`), window.innerWidth));
   const [draft, setDraftState] = useState(() => loadString(`draft:${id}`) ?? "");
   const [selection, setSelection] = useState<Selection | null>(null);
   const [starting, setStarting] = useState(false);
@@ -337,18 +339,34 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   const compact = useCompact();
   useKeyboardInset(compact);
 
+  // A new, empty project on a phone or iPad: the chat is where it starts, so open it. The events
+  // have no "replay finished" mark; a thread still empty a moment after the stream opened is new.
+  const chatRemembered = useRef(loadString(`chat:${id}`) !== null);
+  const threadEmpty = useRef(true);
+  threadEmpty.current = thread.entries.length === 0 && !running;
+  useEffect(() => {
+    if (!compact || chatRemembered.current || stream !== "open") return;
+    const timer = window.setTimeout(() => {
+      if (chatRemembered.current) return;
+      chatRemembered.current = true;
+      if (threadEmpty.current) setChatOpenState(true);
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [compact, stream]);
+
   // ---- chat state ---------------------------------------------------------------
   const setChatOpen = useCallback(
     (open: boolean) => {
       reopenChat.current = false;
+      chatRemembered.current = true;
       setChatOpenState(open);
       saveString(`chat:${id}`, open ? "1" : "0");
     },
     [id],
   );
 
-  // On a phone or iPad portrait the whole page is the canvas while drawing:
-  // the sheet collapses (and is hidden); Done brings the collapsed bar back with the drawing chip.
+  // On a phone or iPad portrait the whole page is the canvas while drawing: the sheet closes and
+  // its button is hidden; Done opens the chat with the drawing's chip when something was drawn.
   useEffect(() => {
     if (compact && effectiveMode === "draw") setChatOpenState(false);
   }, [compact, effectiveMode]);
@@ -1352,8 +1370,8 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             onClear={() => preview.current?.send({ type: "draw-clear" })}
             onDone={() => {
               setMode("browse");
-              // Show where the drawing went: the composer's chip. (The phone's bar shows it already.)
-              if (!compact && draw.count > 0) setChatOpen(true);
+              // Show where the drawing went: the composer's chip.
+              if (draw.count > 0) setChatOpen(true);
             }}
           />
         )}

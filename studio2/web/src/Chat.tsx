@@ -101,7 +101,8 @@ interface ChatProps {
   onUnqueue: (queuedId: string) => void;
   unqueuing: ReadonlySet<string>;
   onSetApprovals: (value: Approvals) => void;
-  /** Phone / iPad portrait: the chat is a bottom sheet (bar → half → full), never a floating window. */
+  /** Phone / iPad portrait: closed, the chat is the same round button as on a desktop; open, it is a
+   * bottom sheet (half → full), never a floating window. */
   compact?: boolean;
   /** Marks drawn on the page that go with the next message (0: none). */
   drawingMarks?: number;
@@ -436,23 +437,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
   const sheet = useRef<HTMLElement>(null);
   const drag = useRef<{ y: number } | null>(null);
 
-  // The collapsed sheet's height, so the page preview can stop above it.
-  useEffect(() => {
-    const element = sheet.current;
-    const root = document.documentElement;
-    if (!compact || open || !element || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => root.style.setProperty("--sheet-bar", `${element.offsetHeight}px`));
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [compact, open]);
-  useEffect(
-    () => () => {
-      document.documentElement.style.removeProperty("--sheet-bar");
-    },
-    [],
-  );
-
-  // On a phone an approval would otherwise wait unseen behind the collapsed bar.
+  // On a phone an approval would otherwise wait unseen behind the closed chat's button.
   const waitingCount = waitingOnYou(thread);
   const lastWaiting = useRef(waitingCount);
   useEffect(() => {
@@ -620,11 +605,13 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
     [],
   );
 
-  if (!open && !compact) {
+  if (!open) {
+    // Drawing on a phone: the whole screen is the canvas, and the tools sit where the button would.
+    if (hidden) return null;
     // The closed chat takes dropped files too: it opens with them attached.
     return (
       <div
-        className={`chat-dock${dropping ? " is-dropping" : ""}`}
+        className={`chat-dock${compact ? " is-compact" : ""}${dropping ? " is-dropping" : ""}`}
         onDragEnter={(event) => {
           if (!hasFiles(event)) return;
           event.preventDefault();
@@ -688,7 +675,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
     );
   }
 
-  const sheetState = !compact ? null : !open ? "bar" : full ? "full" : "half";
+  const sheetState = !compact ? null : full ? "full" : "half";
   const statusLine = needsYou ? (
     <>
       <Icon name="hand" size={14} /> Waiting for you
@@ -754,10 +741,9 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
     const dy = event.clientY - start.y;
     if (Math.abs(dy) < 30) return; // a tap; the button's click handles it
     event.preventDefault();
-    if (dy < 0) {
-      if (!open) onOpenChange(true);
-      else setFull(true);
-    } else if (full) setFull(false);
+    // Up makes it full screen; down makes it half, then closes it to the round button.
+    if (dy < 0) setFull(true);
+    else if (full) setFull(false);
     else onOpenChange(false);
   };
 
@@ -806,20 +792,17 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
           <button
             type="button"
             className="sheet-grab"
-            aria-expanded={open}
-            aria-label={open ? "Collapse the chat" : needsYou ? "Open the chat: the agent is waiting for you" : "Open the chat"}
+            aria-expanded={true}
+            aria-label="Close the chat"
             onPointerDown={onGrabStart}
             onPointerUp={onGrabEnd}
             onClick={() => {
-              if (open) {
-                setFull(false);
-                onOpenChange(false);
-              } else onOpenChange(true);
+              setFull(false);
+              onOpenChange(false);
             }}
           >
             <span className="sheet-grabber" aria-hidden="true" />
             <span className={`sheet-status${needsYou ? " is-attention" : ""}`}>{statusLine}</span>
-            {!open && needsYou && <span className="sheet-review">Review</span>}
           </button>
           {open && (
             <span className="chat-header-actions">

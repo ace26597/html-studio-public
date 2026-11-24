@@ -239,6 +239,10 @@ On a desktop the chat floats at the bottom right of the page.
   content check after each request) and **Involve** (the slider above). Click one to change it.
 - **It is glass.** The panel is translucent and the page shows through it, blurred. The top bar
   has the same finish. If your system is set to reduce transparency, both are solid.
+- **On a phone or an iPad held upright it starts as a button.** The chat is the round button in
+  the corner, so the page has the whole screen; tap it and the chat comes up over the lower half,
+  and the handle at its top makes it full screen or closes it again. A new, empty project opens
+  the chat for you, and so does a request that is waiting for your answer.
 - **Files are dropped on the chat.** Drop them on the chat, open or closed, and they go with your
   next message. A file dropped anywhere else on the studio does nothing; the Files panel has its
   own drop area for adding to the project.

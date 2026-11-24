@@ -15,6 +15,16 @@ export function isCompactWidth(width: number): boolean {
   return width <= COMPACT_MAX_WIDTH;
 }
 
+/**
+ * Whether a project's chat starts open: what was remembered for it ("1" or "0"), else open on a
+ * desktop and closed on a phone or iPad, where an open chat covers most of the page.
+ */
+export function chatStartsOpen(remembered: string | null, width: number): boolean {
+  if (remembered === "1") return true;
+  if (remembered === "0") return false;
+  return !isCompactWidth(width);
+}
+
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() =>
     typeof window !== "undefined" && window.matchMedia ? window.matchMedia(query).matches : false,

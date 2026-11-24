@@ -10,7 +10,7 @@ import questionCard from "./QuestionCard.tsx?raw";
  * This reads the source instead: in these components, no hook call comes after the named return.
  */
 const GUARDED: { file: string; source: string; after: string }[] = [
-  { file: "Chat.tsx", source: chat, after: "if (!open && !compact) {" },
+  { file: "Chat.tsx", source: chat, after: "if (!open) {" },
   { file: "QuestionCard.tsx", source: questionCard, after: 'if (item.status !== "waiting") return' },
 ];
 const HOOK = /\buse(?:State|Effect|LayoutEffect|Memo|Callback|Ref|Id|Reducer|Context|ImperativeHandle|Toast)\s*[(<]/;
