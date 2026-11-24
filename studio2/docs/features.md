@@ -33,7 +33,13 @@ is saved as a version you can restore, and a running request can be stopped.
 - **Diagrams.** Flow, sequence, state, entity, timeline and Gantt diagrams are drawn by the
   studio from a short description the agent writes, checked before they are shown (the drawing
   parses, contains every label that was asked for, and is readable on a desktop page), and saved
-  as pictures in a light and a dark version. Nothing extra to install.
+  as pictures in a light and a dark version. The agent is also told how small one gets on a
+  phone, so it can draw a narrower one. Nothing extra to install.
+- **Any picture opens large.** In the studio, a diagram, chart or image in a page has an
+  *Enlarge* button (on the picture under the pointer, or on the pictures in view on a touch
+  screen). It opens over the whole studio: drag to move, pinch or scroll to zoom, `+`, `−` and
+  *Fit*, Escape to close. Small pictures, icons and pictures that are links are left alone. It
+  is the studio's, not the page's: an exported page has no such button.
 - **Animation, 3D scenes, pictures and video.** A video is built as a page and rendered frame
   by frame to MP4, GIF or WebM. Needs `ffmpeg` and the assistant's browser.
 - **Generated media.** Photographs, clips and sound from Higgsfield, through its command-line
@@ -233,6 +239,13 @@ On a desktop the chat floats at the bottom right of the page.
   content check after each request) and **Involve** (the slider above). Click one to change it.
 - **It is glass.** The panel is translucent and the page shows through it, blurred. The top bar
   has the same finish. If your system is set to reduce transparency, both are solid.
+- **Files are dropped on the chat.** Drop them on the chat, open or closed, and they go with your
+  next message. A file dropped anywhere else on the studio does nothing; the Files panel has its
+  own drop area for adding to the project.
+- **A long paste becomes a card, not a wall of text.** Paste 2,000 characters or 40 lines, or
+  more, and it is kept as a text file and shown above the box as *Pasted text* with its size. The
+  agent reads the file. *Put in message* writes it into the box after all; *Keep in project*
+  also saves it as a file of the project.
 
 ## A studio you share
 

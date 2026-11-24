@@ -5,7 +5,7 @@
 // under the visible one and takes over when its bridge reports `ready`.
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { isFileDragMessage } from "./drag";
+import { readEnlarge, type LargePicture } from "./enlarge";
 import { readAutoReload } from "./reload";
 import type { Drawing, DrawTool, Mode, Selection, TextEdit } from "./types";
 
@@ -26,8 +26,8 @@ interface PreviewProps {
   onTextEdit: (edit: TextEdit) => void;
   /** The visible page's `ready.auto_reload` (true when it did not say). */
   onAutoReload?: (autoReload: boolean) => void;
-  /** The bridge saw a drag carrying files enter the page (`file-drag`). */
-  onFileDrag?: () => void;
+  /** The person pressed "Enlarge" on a picture in the page (the bridge's `enlarge`, already checked). */
+  onEnlarge?: (picture: LargePicture) => void;
   /** Draw mode's tool and colour, sent with `draw` on change and after every `ready`. */
   drawTool?: DrawTool;
   drawColor?: string;
@@ -149,7 +149,7 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
     onSelect,
     onTextEdit,
     onAutoReload,
-    onFileDrag,
+    onEnlarge,
     drawTool = "pen",
     drawColor = "#ef4444",
     onDrawing,
@@ -167,9 +167,9 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
   const nextKey = useRef(2);
   const pathRef = useRef(new URL(previewUrl).pathname || "/");
   const modeRef = useRef(mode);
-  const handlers = useRef({ onSelect, onTextEdit, onAutoReload, onFileDrag, onDrawing, onPageLoad });
+  const handlers = useRef({ onSelect, onTextEdit, onAutoReload, onEnlarge, onDrawing, onPageLoad });
   useEffect(() => {
-    handlers.current = { onSelect, onTextEdit, onAutoReload, onFileDrag, onDrawing, onPageLoad };
+    handlers.current = { onSelect, onTextEdit, onAutoReload, onEnlarge, onDrawing, onPageLoad };
   });
   const drawRef = useRef({ tool: drawTool, color: drawColor });
   // What each frame's bridge said in `ready`; a frame that never said counts as true.
@@ -220,6 +220,8 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
         if (key === activeRef.current) handlers.current.onAutoReload?.(readAutoReload(data));
         post(key, { type: "set-mode", mode: modeRef.current });
         post(key, { type: "draw", tool: drawRef.current.tool, color: drawRef.current.color });
+        // Pictures in this page may offer to open large (a thumbnail's frame is never told so).
+        post(key, { type: "enlarge-offer" });
         if (key === pendingRef.current) promote(key);
         else if (key === activeRef.current) handlers.current.onPageLoad?.();
         if (key === activeRef.current) pathRef.current = str(data.path, 2000) || "/";
@@ -227,8 +229,9 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
       }
       // Only the visible frame may drive the shell.
       if (key !== activeRef.current) return;
-      if (isFileDragMessage(data)) {
-        handlers.current.onFileDrag?.();
+      if (data.type === "enlarge") {
+        const picture = readEnlarge(data);
+        if (picture) handlers.current.onEnlarge?.(picture);
       } else if (data.type === "drawing") {
         const count = typeof data.count === "number" ? data.count : 0;
         const drawing = data.drawing && typeof data.drawing === "object" ? (data.drawing as Drawing) : null;

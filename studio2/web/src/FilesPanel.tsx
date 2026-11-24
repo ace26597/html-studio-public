@@ -19,7 +19,7 @@ interface FilesPanelProps {
   changedPaths: string[];
   running: boolean;
   /** Uploads to the workspace root and reports the result; resolves when all files are done. */
-  onUpload: (files: File[]) => Promise<void>;
+  onUpload: (files: File[]) => Promise<unknown>;
   downloadUrl: string;
   onClose: () => void;
   /** Whether the open file has unsaved edits, so a close from outside the panel can ask first. */

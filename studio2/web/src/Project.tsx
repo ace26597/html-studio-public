@@ -12,7 +12,8 @@ import { Chat, FOCUS_SHORTCUT, type ChatHandle, type PendingAttachment } from ".
 import { FilesPanel } from "./FilesPanel";
 import { useChatFiles } from "./chatFiles";
 import { planAttachments } from "./attachments";
-import { dragExpired, DRAG_IDLE_MS } from "./drag";
+import type { LargePicture } from "./enlarge";
+import { describePaste, pastedName, type PastedText } from "./paste";
 import { drawingImages, drawReducer, initialDraw, messageText, turnAttachments } from "./drawing";
 import { CostDialog } from "./CostDialog";
 import { ExportDialog } from "./ExportDialog";
@@ -31,6 +32,7 @@ import { MakeSkillDialog, makeSkillEntry } from "./MakeSkillDialog";
 import { signedInEntries } from "./signedInLook";
 import { SaveTemplateDialog } from "./SaveTemplateDialog";
 import { fromWorkRequest } from "./skillMaking";
+import { PictureViewer } from "./PictureViewer";
 import { Preview, type PreviewHandle } from "./Preview";
 import { refreshFailure, REFRESH_RETRY_MS } from "./projectLoad";
 import { mayDiscard } from "./discard";
@@ -63,10 +65,6 @@ import { VersionsDrawer } from "./VersionsDrawer";
 type RightPanel = "versions" | "logs" | "library" | null;
 
 let attachmentCounter = 0;
-
-function hasFiles(event: React.DragEvent): boolean {
-  return event.dataTransfer.types.includes("Files");
-}
 
 interface ProjectPageProps {
   id: string;
@@ -125,45 +123,22 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   const [appBusy, setAppBusy] = useState<AppAction | null>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [makingSkill, setMakingSkill] = useState(false);
-  const [dropping, setDropping] = useState(false);
   const [shipOpen, setShipOpen] = useState(false);
   const [shipTick, setShipTick] = useState(0);
   const [shipStep, setShipStep] = useState<ShipStepEvent | null>(null);
-  const dropDepth = useRef(0);
-  const lastDragAt = useRef(0);
-  const endDrop = useCallback(() => {
-    dropDepth.current = 0;
-    setDropping(false);
+  // A picture from the page, opened large over the studio (the bridge's `enlarge`). The page
+  // sends that message, so it is held to what a person does: one at a time, and not the moment
+  // the last one was closed.
+  const [largePicture, setLargePicture] = useState<LargePicture | null>(null);
+  const largeClosedAt = useRef(0);
+  const openLarge = useCallback((picture: LargePicture) => {
+    if (Date.now() - largeClosedAt.current < 600) return;
+    setLargePicture((open) => open ?? picture);
   }, []);
-  // A drag that started over the page (shown via the bridge's `file-drag`) can be cancelled
-  // without any event reaching the shell: hide the target once drag events stop, or on Escape.
-  useEffect(() => {
-    if (!dropping) return;
-    const timer = window.setInterval(() => {
-      if (dragExpired(lastDragAt.current, Date.now())) endDrop();
-    }, DRAG_IDLE_MS / 4);
-    // Capture phase, so this Escape only dismisses the drop target and closes nothing else.
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      endDrop();
-    };
-    const onEnd = () => endDrop();
-    window.addEventListener("keydown", onKey, true);
-    window.addEventListener("dragend", onEnd);
-    window.addEventListener("drop", onEnd);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("keydown", onKey, true);
-      window.removeEventListener("dragend", onEnd);
-      window.removeEventListener("drop", onEnd);
-    };
-  }, [dropping, endDrop]);
-  const onFileDrag = useCallback(() => {
-    if (!project) return;
-    lastDragAt.current = Date.now();
-    setDropping(true);
-  }, [project]);
+  const closeLarge = useCallback(() => {
+    largeClosedAt.current = Date.now();
+    setLargePicture(null);
+  }, []);
 
   const chat = useRef<ChatHandle>(null);
   const reloadTimer = useRef(0);
@@ -407,7 +382,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   useEffect(() => () => dropAttachments(null), [id, dropAttachments]);
 
   const addAttachments = useCallback(
-    (files: File[]) => {
+    (files: File[], pasted?: PastedText) => {
       for (const file of files) {
         const itemId = `att${++attachmentCounter}`;
         const thumbUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
@@ -419,6 +394,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
           path: null,
           error: null,
           thumbUrl,
+          pasted,
         };
         setAttachments((list) => [...list, item]);
         const update = (patch: Partial<PendingAttachment>) =>
@@ -433,6 +409,21 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   );
 
   const removeAttachment = useCallback((itemId: string) => dropAttachments(new Set([itemId])), [dropAttachments]);
+
+  // Long pasted text: a file in attachments/, shown as a card (paste.ts).
+  const pastedCount = useRef({ second: 0, count: 0 });
+  const addPasted = useCallback(
+    (text: string) => {
+      const now = new Date();
+      const second = Math.floor(now.getTime() / 1000);
+      const seen = pastedCount.current;
+      seen.count = seen.second === second ? seen.count + 1 : 0;
+      seen.second = second;
+      const file = new File([text], pastedName(now, seen.count), { type: "text/plain" });
+      addAttachments([file], describePaste(text));
+    },
+    [addAttachments],
+  );
 
   // ---- drawing on the page ----------------------------------------------------------------
   const preview = useRef<PreviewHandle>(null);
@@ -641,7 +632,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
     [id, project, toast],
   );
 
-  // ---- uploads to the workspace (Files panel, or a drop on the page) ---------------------
+  // ---- uploads to the workspace (the Files panel, or pasted text kept in the project) ------
   const uploadToWorkspace = useCallback(
     async (files: File[]) => {
       const added: string[] = [];
@@ -659,8 +650,28 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
           kind: "success",
         });
       }
+      return added;
     },
     [id, toast],
+  );
+
+  // "Keep in the project" on a pasted-text card: the same text, also in the top folder.
+  const keeping = useRef(new Set<string>());
+  const keepPasted = useCallback(
+    (itemId: string) => {
+      const item = attachments.find((entry) => entry.id === itemId);
+      if (!item?.pasted || item.pasted.kept || keeping.current.has(itemId)) return;   // a second press while it saves
+      keeping.current.add(itemId);
+      const file = new File([item.pasted.text], item.name, { type: "text/plain" });
+      void uploadToWorkspace([file]).then((added) => {
+        keeping.current.delete(itemId);
+        if (!added.length) return;
+        setAttachments((list) =>
+          list.map((entry) => (entry.id === itemId && entry.pasted ? { ...entry, pasted: { ...entry.pasted, kept: true } } : entry)),
+        );
+      });
+    },
+    [attachments, uploadToWorkspace],
   );
 
   const changeOptions = useCallback(
@@ -988,30 +999,6 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   return (
     <div
       className={`project${compact ? " is-compact" : ""}${effectiveMode === "draw" ? " is-drawing" : ""}${rightPanel ? " has-right" : ""}${logsOpen || libraryOpen ? " has-logs" : ""}${filesOpen ? " has-left" : ""}${chatOpen ? " has-chat" : ""}`}
-      onDragEnter={(event) => {
-        if (!hasFiles(event) || !project) return;
-        event.preventDefault();
-        lastDragAt.current = Date.now();
-        dropDepth.current++;
-        setDropping(true);
-      }}
-      onDragOver={(event) => {
-        if (!hasFiles(event)) return;
-        event.preventDefault();
-        lastDragAt.current = Date.now();
-        event.dataTransfer.dropEffect = project ? "copy" : "none";
-      }}
-      onDragLeave={() => {
-        dropDepth.current = Math.max(0, dropDepth.current - 1);
-        if (!dropDepth.current) setDropping(false);
-      }}
-      onDrop={(event) => {
-        if (!hasFiles(event)) return;
-        event.preventDefault();
-        dropDepth.current = 0;
-        setDropping(false);
-        if (project) void uploadToWorkspace(Array.from(event.dataTransfer.files));
-      }}
     >
       {compact ? (
         <header className="topbar is-compact">
@@ -1395,7 +1382,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             onAutoReload={(value) => {
               autoReload.current = value;
             }}
-            onFileDrag={onFileDrag}
+            onEnlarge={openLarge}
             ref={preview}
             drawTool={draw.tool}
             drawColor={draw.color}
@@ -1472,6 +1459,8 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
           />
         )}
 
+        {largePicture && <PictureViewer picture={largePicture} onClose={closeLarge} />}
+
         {instructionsOpen && project && instructionsKept(project) && (
           <InstructionsDialog
             projectId={id}
@@ -1528,6 +1517,8 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             attachments={attachments}
             onAddFiles={addAttachments}
             onRemoveAttachment={removeAttachment}
+            onAddPasted={addPasted}
+            onKeepPasted={keepPasted}
             onDecide={decide}
             decisions={decisions}
             onAnswer={answerQuestion}
@@ -1551,15 +1542,6 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
           />
         )}
 
-        {dropping && (
-          <div className="stage-drop" aria-hidden="true">
-            <div className="stage-drop-card">
-              <Icon name="upload" size={20} />
-              <span>Drop to add to the project</span>
-              <span className="dim">Files go to the top folder. To attach them to a message, drop them on the chat.</span>
-            </div>
-          </div>
-        )}
       </main>
       <span className="sr-only">Press {FOCUS_SHORTCUT} to write to the agent.</span>
     </div>

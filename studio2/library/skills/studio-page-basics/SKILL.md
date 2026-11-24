@@ -29,6 +29,9 @@ Use this as the default shape for a report or dashboard in `index.html`.
 - Inline SVG or a canvas library from a CDN are both fine. Keep the data in a file under
   `data/` or in one clearly marked `<script type="application/json">` block, not scattered in markup.
 - If a series is incomplete, show the gap and say why; do not interpolate silently.
+- In the studio the reader can open any chart, diagram or image large and zoom it (an Enlarge
+  button the studio adds). Do not build a zoom or a pop-up for an ordinary picture, and do not
+  wrap one in a link; for a graphic that is itself explored, use `interactive-graphic`.
 
 ## Sources
 - Read what you cite with the `fetch_source` tool and mark each figure with `data-src` and

@@ -8,6 +8,7 @@ import { useRoute } from "./router";
 import { SetupPage } from "./SetupPage";
 import { SignInAgain } from "./SignInAgain";
 import { BuildBanner } from "./BuildBanner";
+import { guardStrayDrops } from "./drag";
 import { goToSignIn, healthFailure, type HealthFailure } from "./signIn";
 import { useTheme } from "./theme";
 import type { Health } from "./types";
@@ -106,6 +107,9 @@ export function App() {
   useEffect(() => {
     check();
   }, [check]);
+
+  // A file dropped anywhere but the chat or the Files panel does nothing (drag.ts).
+  useEffect(() => guardStrayDrops(), []);
 
   // While the server is down (or answers with an error), keep looking for it.
   const failed = health !== null && "failed" in health;

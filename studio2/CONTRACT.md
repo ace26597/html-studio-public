@@ -878,10 +878,11 @@ still reported after installing.
 disk, also while the project's app owns the URL (same path rules as the static preview, never
 `.git`). The shell uses it for thumbnails, file links and the image viewer.
 
-## Bridge addition: files dragged onto the page
+## Bridge addition: files dragged onto the page (withdrawn 24 November 2026)
 
-frame → shell `file-drag` (no fields) when a drag carrying files enters the page. The shell
-shows its drop target over the frame; a drop there uploads to the workspace root.
+The bridge used to send `file-drag` when a drag carrying files entered the page, and the shell
+covered the whole screen with a drop target. Both are gone: see "Files are dropped on the chat,
+nowhere else" at the end of this file.
 
 ---
 
@@ -4293,7 +4294,7 @@ decks and Word files), replacing earlier files of the same name, and answers:
  "png_width": 1200 | null, "size": {"width": 483, "height": 162}, "nodes": 4, "edges": 4 | null,
  "labels": ["Start here", "Is it ok?", "…"], "must_show": 2, "missing": ["Refund"],
  "layout": {"width": 483, "height": 162, "smallest_text_px": 16, "smallest_text_at_desktop_px": 16,
-            "hard_to_read": false,
+            "hard_to_read": false, "smallest_text_at_phone_px": 11.9, "small_on_phone": false,
             "findings": [{"kind": "too_wide" | "small_text" | "clipped_text" | "overlapping_text",
                           "count": 1, "means": "…", "examples": [{"text": "…", "detail": "…"}]}]},
  "safe": {"scripts": 0, "outside_references": 0, "removed": [], "text_as_text": true, "fonts": "…"},
@@ -4314,6 +4315,12 @@ decks and Word files), replacing earlier files of the same name, and answers:
   smaller one). Either of the first two sets `hard_to_read`, and `next` gives the remedy: split it
   or change its direction. The kinds are this tool's own; `look_at_page`'s `layout` measures HTML
   text, not SVG.
+- **On a phone.** A page 390 px wide leaves a picture about 358 px. `smallest_text_at_phone_px`
+  is the smallest text once the drawing is shrunk to that, and `small_on_phone` is true when it
+  is under 9 px. It is not a finding and does not set `hard_to_read`: a reader in the studio can
+  open the picture large ("A picture in the page opens large"). `next` says how far it is shrunk
+  and, for a flowchart, state, class or entity diagram drawn left to right, to draw it top to
+  bottom when the reader may be on a phone.
 - **A safe file.** Mermaid's strict mode leaves out click handlers and links; the studio then
   removes from both SVGs every `script`, `iframe`, `object`, `embed`, `img`, `image`, `link`,
   `meta`, `audio` and `video` element, every `<a>` (its content kept), any `on…` attribute, any `href` or
@@ -5364,3 +5371,86 @@ studio now does that trip itself.
   with the page in its frame. Otherwise the notice is shown as before, and its button makes the
   same trip instead of opening a second tab.
 - Not through a gate (a port on the same host), nothing here applies.
+
+# Files are dropped on the chat, nowhere else
+
+Until 24 November 2026 a drag carrying files anywhere over a project covered the whole screen
+with "Drop to add to the project". A browser can report an ordinary picture dragged inside the
+page as such a drag, so the cover appeared when nobody was adding a file. It is removed.
+
+- **The chat takes drops**, open or closed: the files are uploaded to `attachments/` and go
+  with the next message, as before. A drop on the closed chat opens it with the files attached.
+- **The Files panel keeps its own drop area** (a drop there adds to the project's top folder).
+- **Anywhere else a dropped file does nothing.** A browser would otherwise replace what is
+  shown with the file, so the shell cancels such a drop on its window, and the bridge cancels
+  it in the page. A page with a drop area of its own still gets its files: the bridge acts only
+  when the page has not handled the event.
+- The bridge no longer sends `file-drag`, and the shell ignores it from an older page.
+
+# A picture in the page opens large
+
+A diagram, a chart or an image in a page is as large as the page lets it be; on a phone a wide
+diagram is a quarter of its size. The studio offers to open it large. Nothing is added to the
+page's files: an exported page, or one opened outside the studio, has no such button.
+
+**The bridge.** It offers nothing until the shell says so (shell → frame `enlarge-offer`, no
+fields, sent after every `ready`), so a thumbnail of a page never shows a button. Then, in
+`browse` mode only, an "Enlarge" button (one of the bridge's own elements) sits at the top
+left corner of a picture (the studio's chat floats over the right side of the page):
+
+- A picture is an `<img>`, a `<canvas>` or an outermost `<svg>`, drawn at least 160 px wide and
+  100 px high, visible, and not inside a link, a button, a `label`, a `summary`, something with
+  `role="button"` or something being edited. That leaves out icons, logos and pictures that
+  already do something when pressed.
+- With a mouse the button shows on the picture under the pointer. On a touch screen, which has
+  no hover, it shows on the pictures in view (six at most).
+- Pressing it sends frame → shell `enlarge`:
+
+  | Field | |
+  |---|---|
+  | `blob` | the picture as a file: the image's own bytes (fetched again from its address), a canvas as PNG, or an inline SVG written out as a file with the styles the page gave it |
+  | `url` | instead of `blob`, when the image's bytes cannot be read (another site without permission): its http(s) address |
+  | `alt` | the picture's text alternative, 300 characters at most |
+  | `background` | the colour behind the picture in the page, as the browser reports it (`rgb(…)` or `rgba(…)`), so a drawing made for a dark page is shown on dark |
+  | `width`, `height` | its own size in CSS pixels |
+
+  A canvas the page may not read, or an image that cannot be fetched and has no http(s) address,
+  sends nothing and the button says "Can't enlarge this one".
+
+**The shell.** The page is not trusted, and it can send this message without anyone pressing
+anything. The shell accepts `enlarge` from the visible frame only, with a `blob` of 25 MB at
+most whose type is a picture's (PNG, JPEG, GIF, WebP, AVIF, BMP, SVG) or an http(s) `url`, and a
+`background` only in that form. One picture is open at a time, and a message that arrives
+while one is open, or within 0.6 s of one being closed, is dropped. The picture is shown as the
+source of an `<img>` and in no other way (an SVG shown so never runs a script), from a `data:`
+address made of its bytes and the accepted type: never a `blob:` address, which would belong
+to the studio's own origin and, opened in a tab of its own, would run an SVG's script as the
+studio. The viewer carries the studio's own words, "A picture from the page", above the
+picture. It opens over the whole studio as a modal dialog:
+
+- It starts fitted to the window, never above its own size. When fitting would leave it under
+  60% (a wide diagram on a phone) it starts at 80% from the top left instead, so it can be read
+  at once.
+- Drag moves it; the wheel, a pinch and a double press zoom at that point; `+`, `−`, `Fit` and
+  close are buttons, and `+`, `-`, `0`, the arrow keys and Escape do the same. It zooms to four
+  times its size and cannot be dragged out of sight. A canvas is pixels and blurs when enlarged;
+  an SVG stays sharp.
+- Closing it gives the page back as it was; nothing is kept.
+
+# Long pasted text becomes an attachment
+
+Text pasted into the message box that is 2,000 characters or 40 lines long, or longer, is not
+put in the box. It is kept as a file, `attachments/pasted-text-<date>-<time>.txt`, uploaded like
+any attachment, and shown above the box as "Pasted text" with its size. The agent gets it as
+one of the message's `attachments` and reads it from the project folder; the thread shows the
+same card, not the text.
+
+- **"Put in message"** on the card writes the text into the box at the cursor and takes the
+  card away (the person wanted it typed in after all). The file stays in `attachments/`, as a
+  removed attachment's does.
+- **"Keep in project"** also saves it in the project's top folder under the same name.
+  `attachments/` is in the project folder and in the Files list too, but it is what the studio
+  saved for a message and is left out of exports and templates; the copy in the top folder is
+  the person's own file and goes with them.
+- Shorter text is pasted as before. Nothing here needs the server: it is the upload and the
+  `attachments` that exist already.

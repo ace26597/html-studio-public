@@ -1554,14 +1554,6 @@ const BRIDGE_JS = String.raw`(() => {
   window.addEventListener("popstate", () => send("navigate", { path: here() }));
 
   // Files dragged onto the page: the shell shows its drop target over the frame.
-  document.addEventListener(
-    "dragenter",
-    (event) => {
-      const types = event.dataTransfer ? Array.from(event.dataTransfer.types || []) : [];
-      if (types.includes("Files")) send("file-drag", {});
-    },
-    true,
-  );
   const ready = () => {
     document.body.appendChild(box);
     const off = document.querySelector('meta[name="studio-reload"]');

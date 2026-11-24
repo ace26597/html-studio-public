@@ -17,6 +17,7 @@ import {
   useState,
 } from "react";
 import { planAttachments } from "./attachments";
+import { insertText, isLongPaste, pasteSize, type PastedText } from "./paste";
 import { marksLabel } from "./drawing";
 import { canRecord, insertDictation, type VoiceState } from "./voice";
 import { VoiceButton } from "./VoiceButton";
@@ -42,6 +43,8 @@ export interface PendingAttachment {
   error: string | null;
   /** An object URL for an image's thumbnail, made from the local file. */
   thumbUrl: string | null;
+  /** Long text that was pasted and is kept as this file (paste.ts). */
+  pasted?: PastedText;
 }
 
 const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -82,6 +85,10 @@ interface ChatProps {
   attachments: PendingAttachment[];
   onAddFiles: (files: File[]) => void;
   onRemoveAttachment: (id: string) => void;
+  /** Long pasted text: kept as an attachment instead of filling the message box. */
+  onAddPasted: (text: string) => void;
+  /** "Keep in the project" on a pasted-text card: also save it in the project's top folder. */
+  onKeepPasted: (id: string) => void;
   onDecide: (item: ApprovalItem, decision: "allow" | "deny") => void;
   decisions: Record<string, DecisionState>;
   onAnswer: QuestionActions["onAnswer"];
@@ -178,8 +185,48 @@ export function ContextChips({ items, onOpen }: { items: readonly ContextItem[];
   );
 }
 
-function ComposerAttachment({ item, onRemove }: { item: PendingAttachment; onRemove: () => void }) {
+function ComposerAttachment({
+  item,
+  onRemove,
+  onUnpaste,
+  onKeep,
+}: {
+  item: PendingAttachment;
+  onRemove: () => void;
+  onUnpaste: () => void;
+  onKeep: () => void;
+}) {
   const failed = item.status === "error";
+  if (item.pasted) {
+    const size = pasteSize(item.pasted.chars, item.pasted.lines);
+    return (
+      <li className={`composer-attachment is-pasted is-${item.status}`} title={`Pasted text · ${size} · sent as ${item.name}`}>
+        <Icon name={failed ? "alert" : "note"} size={13} className="composer-attachment-icon" />
+        <span className="composer-attachment-name">
+          Pasted text <span className="composer-attachment-size">· {size}</span>
+        </span>
+        {item.status === "uploading" && <Spinner size={12} />}
+        {failed && <span className="composer-attachment-failed">Not uploaded</span>}
+        <button type="button" className="chip-action" onClick={onUnpaste} title="Write this text into the message instead">
+          Put in message
+        </button>
+        {item.status === "done" && (
+          <button
+            type="button"
+            className="chip-action"
+            disabled={item.pasted.kept}
+            onClick={onKeep}
+            title={item.pasted.kept ? `Saved in the project as ${item.name}` : "Also save it as a file in the project"}
+          >
+            {item.pasted.kept ? "Kept" : "Keep in project"}
+          </button>
+        )}
+        <button type="button" className="chip-remove" aria-label="Remove the pasted text" onClick={onRemove}>
+          <Icon name="x" size={11} strokeWidth={2.2} />
+        </button>
+      </li>
+    );
+  }
   return (
     <li
       className={`composer-attachment is-${item.status}${item.thumbUrl ? " is-image" : ""}`}
@@ -299,6 +346,8 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
     attachments,
     onAddFiles,
     onRemoveAttachment,
+    onAddPasted,
+    onKeepPasted,
     onDecide,
     decisions,
     onAnswer,
@@ -572,8 +621,44 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
   );
 
   if (!open && !compact) {
+    // The closed chat takes dropped files too: it opens with them attached.
     return (
-      <div className="chat-dock">
+      <div
+        className={`chat-dock${dropping ? " is-dropping" : ""}`}
+        onDragEnter={(event) => {
+          if (!hasFiles(event)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          dropDepth.current++;
+          setDropping(true);
+        }}
+        onDragOver={(event) => {
+          if (!hasFiles(event)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          event.dataTransfer.dropEffect = "copy";
+        }}
+        onDragLeave={(event) => {
+          event.stopPropagation();
+          dropDepth.current = Math.max(0, dropDepth.current - 1);
+          if (!dropDepth.current) setDropping(false);
+        }}
+        onDrop={(event) => {
+          if (!hasFiles(event)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          dropDepth.current = 0;
+          setDropping(false);
+          onAddFiles(Array.from(event.dataTransfer.files));
+          onOpenChange(true);
+        }}
+      >
+        {dropping && (
+          <div className="chat-dock-drop" aria-hidden="true">
+            <Icon name="paperclip" size={14} />
+            <span>Drop to attach to your message</span>
+          </div>
+        )}
         {running && activity && (
           <div className={`chat-ticker${needsYou ? " is-attention" : ""}`} aria-hidden="true">
             {needsYou ? <Icon name="hand" size={13} /> : <Spinner size={12} />}
@@ -878,7 +963,25 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
             {attachments.length > 0 && (
               <ul className="composer-attachments" aria-label="Attachments">
                 {attachments.map((item) => (
-                  <ComposerAttachment key={item.id} item={item} onRemove={() => onRemoveAttachment(item.id)} />
+                  <ComposerAttachment
+                    key={item.id}
+                    item={item}
+                    onRemove={() => onRemoveAttachment(item.id)}
+                    onKeep={() => onKeepPasted(item.id)}
+                    onUnpaste={() => {
+                      if (!item.pasted) return;
+                      const box = textarea.current;
+                      const at = box ? box.selectionStart : draft.length;
+                      const to = box ? box.selectionEnd : draft.length;
+                      const next = insertText(draft, item.pasted.text, at, to);
+                      onDraftChange(next.draft);
+                      onRemoveAttachment(item.id);
+                      window.requestAnimationFrame(() => {
+                        box?.focus();
+                        box?.setSelectionRange(next.caret, next.caret);
+                      });
+                    }}
+                  />
                 ))}
               </ul>
             )}
@@ -914,9 +1017,16 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
           onChange={(event) => onDraftChange(event.target.value)}
           onPaste={(event) => {
             const files = Array.from(event.clipboardData.files);
-            if (!files.length) return;
+            if (files.length) {
+              event.preventDefault();
+              onAddFiles(files.map(namePasted));
+              return;
+            }
+            // Long text is kept as a file and shown as a card, not poured into the box.
+            const text = event.clipboardData.getData("text/plain");
+            if (!isLongPaste(text)) return;
             event.preventDefault();
-            onAddFiles(files.map(namePasted));
+            onAddPasted(text);
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {

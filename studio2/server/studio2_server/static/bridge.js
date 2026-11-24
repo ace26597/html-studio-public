@@ -84,7 +84,7 @@
   }
 
   function isOwn(el) {
-    return el === overlay || el === style || isDrawn(el);
+    return el === overlay || el === style || isDrawn(el) || isChip(el);
   }
 
   function isUnique(selector) {
@@ -779,6 +779,248 @@
     }
   }
 
+  // ---- a picture opens large (CONTRACT.md, "A picture in the page opens large") ------------
+  // An "Enlarge" button on a diagram, chart or image; pressing it hands the picture to the shell,
+  // which shows it over the whole studio. Off until the shell asks (a thumbnail never does).
+  var large = { on: false, touch: false, chips: [], timer: null, scanAt: 0 };
+  try { large.touch = !!(window.matchMedia && window.matchMedia("(hover: none)").matches); } catch (e) {}
+  var MIN_W = 160, MIN_H = 100, MAX_CHIPS = 6, MAX_SVG_TEXT = 8000000, MAX_SVG_NODES = 4000;
+  var DOES_SOMETHING = "a[href],button,label,summary,[role=button],[contenteditable=''],[contenteditable=true]";
+  var SVG_STYLES = ["fill", "fill-opacity", "fill-rule", "stroke", "stroke-width", "stroke-opacity", "stroke-dasharray",
+                    "stroke-dashoffset", "stroke-linecap", "stroke-linejoin", "opacity", "color", "display", "visibility",
+                    "font-family", "font-size", "font-weight", "font-style", "letter-spacing", "text-anchor",
+                    "dominant-baseline", "text-decoration", "paint-order", "stop-color", "stop-opacity", "mix-blend-mode"];
+  var CHIP_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" ' +
+    'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ' +
+    'style="display:block;flex:none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+
+  function isChip(el) {
+    for (var i = 0; i < large.chips.length; i++) {
+      if (large.chips[i].el === el || large.chips[i].el.contains(el)) return true;
+    }
+    return false;
+  }
+
+  function chipFor(el) {
+    for (var i = 0; i < large.chips.length; i++) {
+      if (large.chips[i].el === el || large.chips[i].el.contains(el)) return large.chips[i];
+    }
+    return null;
+  }
+
+  // Big enough to be worth opening, visible, and not something that already acts when pressed.
+  function isPicture(pic) {
+    if (!pic || !pic.isConnected || isDrawn(pic)) return false;
+    var box = pic.getBoundingClientRect();
+    if (box.width < MIN_W || box.height < MIN_H) return false;
+    if (pic.localName === "img" && !(pic.complete && pic.naturalWidth > 0)) return false;
+    if (pic.closest && pic.closest(DOES_SOMETHING)) return false;
+    var shown = getComputedStyle(pic);
+    return shown.visibility !== "hidden" && shown.display !== "none" && +shown.opacity > 0.05;
+  }
+
+  // The picture an element belongs to: itself (an image, a canvas) or the outermost <svg> around it.
+  function pictureOf(el) {
+    if (!el || el.nodeType !== 1 || isOwn(el)) return null;
+    var pic = el;
+    if (el.localName !== "img" && el.localName !== "canvas") {
+      pic = el.closest ? el.closest("svg") : null;
+      while (pic && pic.ownerSVGElement) pic = pic.ownerSVGElement;
+    }
+    return isPicture(pic) ? pic : null;
+  }
+
+  function makeChip(pic) {
+    var el = document.createElement("button");
+    el.type = "button";
+    el.setAttribute("data-studio-bridge", "enlarge");
+    el.setAttribute("aria-label", "Enlarge this picture");
+    // `all:initial` first: whatever the page says about buttons does not reach this one.
+    el.style.cssText = "all:initial;position:fixed;z-index:2147483645;display:none;align-items:center;gap:6px;" +
+      "box-sizing:border-box;height:" + (large.touch ? 34 : 30) + "px;padding:0 10px;border-radius:9px;cursor:pointer;" +
+      "font:600 12px/1 system-ui,-apple-system,'Segoe UI',sans-serif;color:#fff;background:rgba(17,24,39,.8);" +
+      "border:1px solid rgba(255,255,255,.3);box-shadow:0 2px 10px rgba(0,0,0,.28);white-space:nowrap;" +
+      "-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;";
+    el.innerHTML = CHIP_ICON + (large.touch ? "" : '<span style="all:unset">Enlarge</span>');
+    document.documentElement.appendChild(el);
+    return { el: el, pic: pic, said: null };
+  }
+
+  function placeChips() {
+    for (var i = 0; i < large.chips.length; i++) {
+      var chip = large.chips[i], box = chip.pic.isConnected ? chip.pic.getBoundingClientRect() : null;
+      var seen = box && isPicture(chip.pic) && box.bottom > 70 && box.top < window.innerHeight - 40 &&
+        box.right > 90 && box.left < window.innerWidth - 40;
+      if (!seen) { chip.el.style.display = "none"; continue; }
+      chip.el.style.display = "inline-flex";
+      // The top left corner: the studio's chat floats over the right side of the page.
+      var width = chip.el.offsetWidth || 90;
+      chip.el.style.top = Math.max(box.top, 0) + 8 + "px";
+      chip.el.style.left = Math.min(Math.max(box.left, 0) + 8, window.innerWidth - 8 - width) + "px";
+    }
+  }
+
+  // The pictures that get a button now: `wanted`, in order. Buttons already there are kept.
+  function setChips(wanted) {
+    var kept = [];
+    for (var i = 0; i < large.chips.length; i++) {
+      var at = wanted.indexOf(large.chips[i].pic);
+      if (at === -1 && !large.chips[i].said) large.chips[i].el.remove();
+      else { kept.push(large.chips[i]); if (at !== -1) wanted[at] = null; }
+    }
+    for (var j = 0; j < wanted.length; j++) if (wanted[j]) kept.push(makeChip(wanted[j]));
+    large.chips = kept;
+    placeChips();
+  }
+
+  // A touch screen has no hover: the pictures in view carry the button.
+  function scanPictures() {
+    if (!large.on || mode !== "browse" || !large.touch) return;
+    var all = document.querySelectorAll("img,canvas,svg"), found = [];
+    for (var i = 0; i < all.length && i < 600 && found.length < MAX_CHIPS; i++) {
+      var pic = all[i];
+      if (pic.localName === "svg" && pic.ownerSVGElement) continue;
+      if (isOwn(pic) || !isPicture(pic)) continue;
+      var box = pic.getBoundingClientRect();
+      if (box.bottom > 70 && box.top < window.innerHeight - 40) found.push(pic);
+    }
+    setChips(found);
+  }
+
+  function hoverPicture(target) {
+    if (!large.on || mode !== "browse" || large.touch || isChip(target)) return;
+    var pic = pictureOf(target);
+    if (large.chips.length === 1 && large.chips[0].pic === pic) return;
+    setChips(pic ? [pic] : []);
+  }
+
+  function refreshLarge() {
+    if (!large.on || mode !== "browse") {
+      setChips([]);
+      if (large.timer) { clearInterval(large.timer); large.timer = null; }
+      return;
+    }
+    if (large.touch) {
+      scanPictures();
+      // Pictures that finish loading, and pages that draw their charts late, bring no event.
+      if (!large.timer) large.timer = setInterval(scanPictures, 1200);
+    } else placeChips();
+  }
+
+  function onLargeScroll() {
+    if (!large.on || mode !== "browse") return;
+    placeChips();
+    if (!large.touch) return;
+    var now = Date.now();
+    if (now - large.scanAt < 150) return;
+    large.scanAt = now;
+    scanPictures();
+  }
+
+  // The colour the picture sits on, so a drawing made for a dark page is shown on dark.
+  function backgroundBehind(el) {
+    for (var node = el; node && node.nodeType === 1; node = node.parentElement) {
+      var colour = getComputedStyle(node).backgroundColor || "";
+      var parts = /^rgba?\(([^)]+)\)$/.exec(colour);
+      if (!parts) continue;
+      var values = parts[1].split(/[\s,\/]+/).filter(Boolean);
+      var alpha = values.length > 3 ? parseFloat(values[3]) * (/%$/.test(values[3]) ? 0.01 : 1) : 1;
+      if (alpha >= 0.5) return "rgb(" + values.slice(0, 3).join(", ") + ")";
+    }
+    return "rgb(255, 255, 255)";
+  }
+
+  function copyStyles(from, to) {
+    if (!to.style) return;
+    var shown = getComputedStyle(from);
+    for (var i = 0; i < SVG_STYLES.length; i++) {
+      var value = shown.getPropertyValue(SVG_STYLES[i]);
+      if (value) to.style.setProperty(SVG_STYLES[i], value);
+    }
+    // Only a transform the page's CSS gave: one written as an attribute is in the copy already.
+    var transform = shown.getPropertyValue("transform");
+    if (transform && transform !== "none" && !from.getAttribute("transform")) {
+      to.style.setProperty("transform", transform);
+      to.style.setProperty("transform-origin", shown.getPropertyValue("transform-origin"));
+      to.style.setProperty("transform-box", shown.getPropertyValue("transform-box"));
+    }
+  }
+
+  // An inline SVG as a file of its own: a copy that carries the styles the page gave it.
+  function svgFile(svg, box) {
+    var clone = svg.cloneNode(true);
+    var from = svg.querySelectorAll("*"), to = clone.querySelectorAll("*");
+    if (from.length === to.length && from.length <= MAX_SVG_NODES) {
+      copyStyles(svg, clone);
+      for (var i = 0; i < from.length; i++) copyStyles(from[i], to[i]);
+    }
+    var scripts = clone.querySelectorAll("script");
+    for (var s = 0; s < scripts.length; s++) scripts[s].remove();
+    var width = Math.round(box.width), height = Math.round(box.height);
+    if (!clone.getAttribute("viewBox")) clone.setAttribute("viewBox", "0 0 " + width + " " + height);
+    clone.setAttribute("width", width);
+    clone.setAttribute("height", height);
+    clone.style.width = width + "px";
+    clone.style.height = height + "px";
+    clone.style.maxWidth = "none";
+    clone.style.maxHeight = "none";
+    clone.style.margin = "0";
+    clone.style.position = "static";
+    var text = new XMLSerializer().serializeToString(clone);
+    return text.length <= MAX_SVG_TEXT ? text : null;
+  }
+
+  function sayOnChip(chip, text) {
+    if (chip.said) clearTimeout(chip.said);
+    var label = chip.el.querySelector("span");
+    if (!label) { label = document.createElement("span"); label.style.cssText = "all:unset"; chip.el.appendChild(label); }
+    label.textContent = text;
+    placeChips();
+    chip.said = setTimeout(function () {
+      chip.said = null;
+      if (large.touch) label.remove(); else label.textContent = "Enlarge";
+      refreshLarge();
+    }, 2600);
+  }
+
+  function sendLarge(chip) {
+    var pic = chip.pic;
+    if (!pic.isConnected) return;
+    var box = pic.getBoundingClientRect();
+    var fields = { alt: clip(pic.getAttribute("alt") || pic.getAttribute("aria-label") || "", 300),
+                   background: backgroundBehind(pic) };
+    function done(blob, url, width, height) {
+      if (!blob && !url) { sayOnChip(chip, "Can’t enlarge this one"); return; }
+      fields.width = Math.round(width);
+      fields.height = Math.round(height);
+      if (blob) fields.blob = blob; else fields.url = url;
+      post("enlarge", fields);
+    }
+    if (pic.localName === "canvas") {
+      try { pic.toBlob(function (blob) { done(blob, null, box.width, box.height); }, "image/png"); }
+      catch (e) { done(null, null, 0, 0); }       // a canvas the page may not read
+      return;
+    }
+    if (pic.localName === "img") {
+      var src = pic.currentSrc || pic.src || "";
+      var width = pic.naturalWidth || box.width, height = pic.naturalHeight || box.height;
+      var web = /^https?:/i.test(src) ? src : null;
+      var same = false;
+      try { same = new URL(src, location.href).origin === location.origin; } catch (e) {}
+      if (!window.fetch || !src) { done(null, web, width, height); return; }
+      fetch(src, { credentials: same ? "same-origin" : "omit" })
+        .then(function (response) { if (!response.ok) throw new Error("status"); return response.blob(); })
+        .then(function (blob) {
+          // The shell takes only files that say they are pictures; otherwise it gets the address.
+          if (/^image\//i.test(blob.type)) done(blob, null, width, height); else done(null, web, width, height);
+        }, function () { done(null, web, width, height); });
+      return;
+    }
+    var text = null;
+    try { text = svgFile(pic, box); } catch (e) {}
+    done(text ? new Blob([text], { type: "image/svg+xml" }) : null, null, box.width, box.height);
+  }
+
   // ---- capture-phase listeners (page handlers never see events we consume) -----------------
   function swallow(event) {
     event.preventDefault();
@@ -788,10 +1030,17 @@
 
   function onMove(event) {
     if (mode === "select") outline(event.target);
+    else if (mode === "browse") hoverPicture(event.target);
   }
 
   function onClick(event) {
     var el = event.target;
+    var chip = el && el.nodeType === 1 ? chipFor(el) : null;
+    if (chip) {                       // the studio's own button: the page never hears of it
+      swallow(event);
+      if (event.type === "click" && mode === "browse") sendLarge(chip);
+      return;
+    }
     if (mode === "browse" || mode === "draw" || !el || el.nodeType !== 1 || isOwn(el)) return;
     if (mode === "select") {
       swallow(event);
@@ -806,6 +1055,12 @@
   }
 
   function onPointer(event) {
+    if (isChip(event.target)) {
+      // Hidden from the page, never cancelled: cancelling a touch would cancel its click too.
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      return;
+    }
     if (mode === "browse" || mode === "draw" || isOwn(event.target)) return;
     if (mode === "edit" && editing && editing.el.contains(event.target)) return;
     if (mode === "edit" && event.type === "mousedown" && editing) return;  // let blur commit the edit
@@ -826,6 +1081,7 @@
     finishEdit(true);
     mode = next;
     showDraw(mode === "draw");
+    refreshLarge();
     if (mode === "browse" || mode === "draw") {
       if (overlay) overlay.style.display = "none";
       if (style) style.textContent = "";
@@ -845,14 +1101,21 @@
     document.addEventListener(type, onPointer, true);
   });
   document.addEventListener("mousemove", onMove, true);
-  document.addEventListener("mouseleave", function () { outline(null); }, true);
-  window.addEventListener("scroll", function () { outline(null); }, true);
+  document.addEventListener("mouseleave", function (event) {
+    outline(null);
+    // Heard here for every element the pointer leaves; only leaving the page itself counts
+    // (no element the pointer went to: browsers differ on which target they report).
+    if (event.target === document || event.relatedTarget == null) hoverPicture(null);
+  }, true);
+  window.addEventListener("scroll", function () { outline(null); onLargeScroll(); }, true);
+  window.addEventListener("resize", onLargeScroll);
 
   window.addEventListener("message", function (event) {
     if (event.source !== window.parent) return;
     var data = event.data;
     if (!data || data.source !== "studio-shell") return;
     if (data.type === "set-mode") setMode(data.mode);
+    else if (data.type === "enlarge-offer") { large.on = true; refreshLarge(); }
     else onDrawMessage(data);
   });
 
@@ -892,12 +1155,23 @@
   function ready() {
     restoreScroll();
     window.addEventListener("load", restoreScroll, { once: true });
-    // A file dragged from the desktop straight onto the page never reaches the studio shell
-    // (different origin), so tell it; the shell then covers the frame with its drop target.
-    window.addEventListener("dragenter", function (event) {
+    // A file dropped on the page would replace the page with that file. Files go on the chat
+    // (CONTRACT.md, "Files are dropped on the chat, nowhere else"), so such a drop does nothing
+    // here. These run last, on the window: a page with a drop area of its own has handled the
+    // event by then and keeps its files.
+    function strayFiles(event) {
       var types = event.dataTransfer && event.dataTransfer.types;
-      if (types && Array.prototype.indexOf.call(types, "Files") !== -1) post("file-drag", {});
-    }, true);
+      return !event.defaultPrevented && !!types && Array.prototype.indexOf.call(types, "Files") !== -1;
+    }
+    window.addEventListener("dragover", function (event) {
+      if (!strayFiles(event)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "none";
+    });
+    window.addEventListener("drop", function (event) {
+      if (strayFiles(event)) event.preventDefault();
+    });
+    window.addEventListener("load", refreshLarge);
     var reloadMeta = document.querySelector('meta[name="studio-reload"]');
     post("ready", { path: location.pathname + location.search + location.hash, title: document.title,
                     auto_reload: !(reloadMeta && String(reloadMeta.content).toLowerCase() === "off") });

@@ -5,6 +5,7 @@ import { QuestionCard, type QuestionActions } from "./QuestionCard";
 import { RECHECK_COVERS, fileProblemLine, recheckHeadline, type Recheck } from "./effort";
 import { memo, useEffect, useState, type ReactNode } from "react";
 import { isDrawingAttachment } from "./drawing";
+import { isPastedText } from "./paste";
 import { baseName, checkpointLabel, costLabel, formatCount, formatDuration, isImagePath, prettyInput, truncate } from "./format";
 import {
   approvalFileRows,
@@ -138,12 +139,14 @@ export function AttachmentView({ path, href }: { path: string; href: string | nu
   const [broken, setBroken] = useState(false);
   const name = baseName(path);
   const image = isImagePath(path) && href && !broken;
+  // Long text that was pasted (paste.ts): named for what it is, not by its file name.
+  const pasted = isPastedText(path);
   const body = image ? (
     <img src={href} alt={name} loading="lazy" onError={() => setBroken(true)} />
   ) : (
     <>
-      <Icon name="paperclip" size={12} />
-      <span className="attachment-name">{name}</span>
+      <Icon name={pasted ? "note" : "paperclip"} size={12} />
+      <span className="attachment-name">{pasted ? "Pasted text" : name}</span>
     </>
   );
   const className = `attachment${image ? " is-image" : ""}`;

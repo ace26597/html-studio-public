@@ -95,7 +95,11 @@ gantt
 5. `layout.hard_to_read` (wider than 1,400 px, or text under 9 px on a desktop page): split it, or
    change direction (`LR` to `TB`). `clipped_text` or `overlapping_text`: shorten those labels or
    break them with `<br>`. Render again.
-6. Keep one `name` per diagram and render again under it; when you try another name and drop
+6. `layout.small_on_phone` (text under 9 px on a phone): not an error, because a reader in the
+   studio can press Enlarge on any diagram and zoom. When the person reads on a phone, or the
+   page is a report they will pass on, prefer `flowchart TB` to `LR`, and no more than five
+   participants across a sequence diagram.
+7. Keep one `name` per diagram and render again under it; when you try another name and drop
    that variant, delete its files from `files/diagrams/` so nothing stale is left behind.
 
 ## Put it in the page
@@ -104,6 +108,10 @@ Use the saved SVG, never the Mermaid script. The answer's `embed` is a `<picture
 relative to the page. When the page switches colours with its own control instead, put both SVGs
 in and show one with the page's CSS (their ids differ, so both can sit inline). Give each a
 caption that says what it shows, and an `alt` that says it in one sentence.
+
+The studio puts an Enlarge button on a diagram, chart or image at least 160 by 100 px, and opens
+it in a viewer to zoom and move around. Build nothing for that yourself, and do not wrap the
+picture in a link or a button: the studio leaves pictures that already do something alone.
 
 ## Decks and Word files
 Call again with `png_width` (1600 for a full slide, 1200 for a Word page, 800 for half a slide) and

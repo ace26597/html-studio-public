@@ -142,6 +142,34 @@ async def test_a_wide_diagram_is_reported_hard_to_read(looker, tmp_path):
 
 
 @needs_browser
+async def test_a_diagram_too_small_on_a_phone_is_said_without_being_a_finding(looker, tmp_path):
+    # Five boxes in a row: fine on a desktop, a third of its size on a phone.
+    row = "flowchart LR\n" + "\n".join(f"  N{i}[Step number {i}] --> N{i + 1}[Step number {i + 1}]" for i in range(5))
+    wide = await diagram.render(looker, tmp_path, name="row", source=row)
+    layout = wide["layout"]
+    assert not layout["hard_to_read"] and layout["findings"] == []
+    assert layout["small_on_phone"] and layout["smallest_text_at_phone_px"] < 9 < layout["smallest_text_at_desktop_px"]
+    assert layout["smallest_text_at_phone_px"] == round(layout["smallest_text_px"] * diagram.PHONE / wide["size"]["width"], 1)
+    assert "On a phone" in wide["next"] and "top to bottom" in wide["next"] and "open it large" in wide["next"]
+    # Drawn top to bottom it is narrow enough: nothing is said.
+    tall = await diagram.render(looker, tmp_path, name="column", source=row.replace("flowchart LR", "flowchart TB"))
+    assert not tall["layout"]["small_on_phone"] and "On a phone" not in tall["next"]
+    assert tall["layout"]["smallest_text_at_phone_px"] == tall["layout"]["smallest_text_px"]
+    # A sequence diagram cannot be turned: it is told the size, not to turn it.
+    talk = "sequenceDiagram\n" + "\n".join(f"  participant P{i} as Participant {i}" for i in range(6)) + "\n  P0->>P5: Hello"
+    seq = await diagram.render(looker, tmp_path, name="talk", source=talk)
+    assert seq["layout"]["small_on_phone"] and "On a phone" in seq["next"] and "top to bottom" not in seq["next"]
+
+
+def test_which_sources_are_drawn_sideways():
+    assert diagram.SIDEWAYS.search("flowchart LR\n  a --> b")
+    assert diagram.SIDEWAYS.search("%% a note\ngraph RL\n  a --> b")
+    assert diagram.SIDEWAYS.search("stateDiagram-v2\n  direction LR\n  [*] --> A")
+    assert not diagram.SIDEWAYS.search("flowchart TB\n  a --> b")
+    assert not diagram.SIDEWAYS.search("sequenceDiagram\n  A->>B: flowchart LR is a label")
+
+
+@needs_browser
 async def test_png_for_office_files_at_the_width_asked(looker, tmp_path):
     from PIL import Image
     result = await diagram.render(looker, tmp_path, name="deck", source=GOOD["sequence"][0], png_width=900)

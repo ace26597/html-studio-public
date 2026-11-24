@@ -1,19 +1,34 @@
-// The page-wide drop target. Pure parts, so the rules are testable.
+// Files are dropped on the chat (or on the Files panel), nowhere else (CONTRACT.md, "Files are
+// dropped on the chat, nowhere else"). A file dropped anywhere else would make the browser show
+// that file in place of the studio, so such a drop is cancelled.
 
-/** With no dragenter/dragover for this long, a shown drop target is treated as a cancelled drag. */
-export const DRAG_IDLE_MS = 2000;
-
-/** True when the drop target has seen no drag activity for `idleMs` (a drag cancelled where the shell can't see it). */
-export function dragExpired(lastActivityAt: number, now: number, idleMs: number = DRAG_IDLE_MS): boolean {
-  return now - lastActivityAt > idleMs;
+interface DragLike {
+  defaultPrevented: boolean;
+  dataTransfer: { types: ArrayLike<string>; dropEffect?: string } | null;
+  preventDefault: () => void;
 }
 
-/** The bridge's `file-drag`: a drag carrying files entered the page inside the frame. */
-export function isFileDragMessage(data: unknown): boolean {
-  return Boolean(
-    data &&
-      typeof data === "object" &&
-      (data as Record<string, unknown>).source === "studio-bridge" &&
-      (data as Record<string, unknown>).type === "file-drag",
-  );
+/** True when a drag carries files (a browser may say so for a picture dragged inside a page too). */
+export function carriesFiles(types: ArrayLike<string> | null | undefined): boolean {
+  return !!types && Array.prototype.indexOf.call(types, "Files") !== -1;
+}
+
+/** A drag or drop of files that no drop area took: cancel it. Returns whether it was. */
+export function cancelStray(event: DragLike, over: boolean): boolean {
+  if (event.defaultPrevented || !carriesFiles(event.dataTransfer?.types)) return false;
+  event.preventDefault();
+  if (over && event.dataTransfer) event.dataTransfer.dropEffect = "none";
+  return true;
+}
+
+/** Listen on the window, after every drop area has had the event. Returns how to stop. */
+export function guardStrayDrops(target: Pick<Window, "addEventListener" | "removeEventListener"> = window): () => void {
+  const onOver = (event: DragEvent) => void cancelStray(event, true);
+  const onDrop = (event: DragEvent) => void cancelStray(event, false);
+  target.addEventListener("dragover", onOver);
+  target.addEventListener("drop", onDrop);
+  return () => {
+    target.removeEventListener("dragover", onOver);
+    target.removeEventListener("drop", onDrop);
+  };
 }

@@ -29,6 +29,8 @@ FONT = "Helvetica, Arial, sans-serif"
 MAX_SOURCE = 50_000
 DESKTOP = 1400                       # wider than this, a diagram is shrunk on a desktop page
 MIN_TEXT = 9.0                       # px at desktop width; under this it is hard to read
+PHONE = 358                          # what a page 390 px wide leaves a picture (16 px each side)
+SIDEWAYS = re.compile(r"^\s*(?:(?:flowchart|graph)\s+(?:LR|RL)\b|direction\s+(?:LR|RL)\b)", re.M)
 PNG_MIN, PNG_MAX = 200, 4000
 NAME = re.compile(r"[a-z0-9][a-z0-9_-]{0,59}")
 COLOR_KEY = re.compile(r"[A-Za-z][A-Za-z0-9]{0,40}")
@@ -399,6 +401,11 @@ async def render(looker, workspace: Path, *, name: str, source: str | None = Non
     scale = min(1.0, DESKTOP / width) if width else 1.0
     smallest = facts["smallest_text_px"]
     at_desktop = round(smallest * scale, 1) if smallest is not None else None
+    # A phone is not a finding: the studio lets the reader open the picture large. It is said so
+    # the agent can draw a narrower one when it has the choice.
+    phone_scale = min(1.0, PHONE / width) if width else 1.0
+    at_phone = round(smallest * phone_scale, 1) if smallest is not None else None
+    small_on_phone = at_phone is not None and at_phone < MIN_TEXT
     findings = []
     if width > DESKTOP:
         findings.append({"kind": "too_wide", "count": 1, "means": KINDS["too_wide"],
@@ -427,6 +434,13 @@ async def render(looker, workspace: Path, *, name: str, source: str | None = Non
                      "with <br>, then render again.")
     if not nexts:
         nexts.append("All asked-for labels are there and it reads at desktop width.")
+    if small_on_phone:
+        said = (f"On a phone it is shown at {phone_scale:.0%} and its smallest text is {at_phone} px; the reader "
+                "can open it large in the studio.")
+        if SIDEWAYS.search(source):
+            said += (" It is drawn left to right: when the reader may be on a phone, draw it top to bottom "
+                     "(TB) so it is narrower, and render again.")
+        nexts.append(said)
     nexts.append("Put the saved SVG in the page (`embed`, or the SVG inline); never load Mermaid in the page. For a "
                  "deck or Word file use the PNG (call again with png_width).")
     if facts["foreign"]:
@@ -438,7 +452,9 @@ async def render(looker, workspace: Path, *, name: str, source: str | None = Non
             "size": {"width": width, "height": height}, "nodes": facts["nodes"], "edges": facts["edges"],
             "labels": facts["labels"][:LABELS_KEPT], "must_show": len(wanted), "missing": missing,
             "layout": {"width": width, "height": height, "smallest_text_px": smallest,
-                       "smallest_text_at_desktop_px": at_desktop, "hard_to_read": hard, "findings": findings},
+                       "smallest_text_at_desktop_px": at_desktop, "hard_to_read": hard,
+                       "smallest_text_at_phone_px": at_phone, "small_on_phone": small_on_phone,
+                       "findings": findings},
             "safe": {**safe, "removed": facts["removed"], "text_as_text": facts["foreign"] == 0,
                      "fonts": f"No font is embedded or linked: the text names the system fonts {FONT}. Sizes were "
                               "measured with the fonts on the studio's computer."},
