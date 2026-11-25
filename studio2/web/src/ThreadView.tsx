@@ -3,7 +3,7 @@
 import { VerificationCard } from "./EffortControl";
 import { QuestionCard, type QuestionActions } from "./QuestionCard";
 import { RECHECK_COVERS, fileProblemLine, recheckHeadline, type Recheck } from "./effort";
-import { memo, useEffect, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { isDrawingAttachment } from "./drawing";
 import { isPastedText } from "./paste";
 import { baseName, checkpointLabel, costLabel, formatCount, formatDuration, isImagePath, prettyInput, truncate } from "./format";
@@ -23,11 +23,13 @@ import type { ChatFiles } from "./chatFiles";
 import { Markdown } from "./markdown";
 import { draftHolds, shownSteps, type NextStep } from "./nextSteps";
 import {
+  planPlacement,
   turnViewItems,
   type ActivityGroup,
   type ApprovalItem,
   type CheckpointItem,
   type NoticeItem,
+  type PlanPlacement,
   type ThoughtItem,
   type ThreadEntry,
   type ToolNode,
@@ -325,7 +327,7 @@ function PlanList({ entries }: { entries: PlanEntry[] }) {
   );
 }
 
-function Plan({ entries, running }: { entries: PlanEntry[]; running: boolean }) {
+function Plan({ entries, running, changedBy = null }: { entries: PlanEntry[]; running: boolean; changedBy?: string | null }) {
   const done = entries.filter((entry) => entry.status === "completed").length;
   // Pinned while the turn runs: open as a checklist, or folded to the current step.
   const [open, setOpen] = useState(running);
@@ -353,6 +355,7 @@ function Plan({ entries, running }: { entries: PlanEntry[]; running: boolean }) 
         <Icon name={open ? "chevron-down" : "chevron-right"} size={14} className="tool-icon" />
         <span className="tool-title">
           Plan · {done} of {entries.length} done
+          {changedBy && <span className="plan-changed-by"> · last changed by “{changedBy}”</span>}
         </span>
       </button>
       {open && (
@@ -647,10 +650,13 @@ const TurnView = memo(function TurnView({
   turn,
   isLast,
   actions,
+  plan = null,
 }: {
   turn: Turn;
   isLast: boolean;
   actions: ThreadActions;
+  /** The project's plan when it is drawn in this turn (thread.planPlacement), else null. */
+  plan?: PlanPlacement | null;
 }) {
   const running = turn.status === "running";
   const items = turnViewItems(turn);
@@ -665,9 +671,9 @@ const TurnView = memo(function TurnView({
       (last.type === "question" && last.status !== "waiting") ||
       (last.type === "tool" && last.tool.status !== "running"));
   const usage = usageParts(turn);
-  // After the turn the plan is only worth showing if it was left unfinished.
-  const unfinishedPlan =
-    !running && turn.plan && turn.plan.some((entry) => entry.status !== "completed") ? turn.plan : null;
+  // Only the newest plan is drawn: pinned while the request that changes it runs, folded otherwise.
+  const livePlan = plan && running && !plan.changedBy ? plan : null;
+  const foldedPlan = plan && !livePlan ? plan : null;
 
   return (
     <article className={`turn is-${turn.status}`} aria-label="Exchange">
@@ -679,7 +685,7 @@ const TurnView = memo(function TurnView({
         </div>
       )}
 
-      {turn.plan && running && <Plan key="plan-live" entries={turn.plan} running />}
+      {livePlan && <Plan key="plan-live" entries={livePlan.entries} running />}
 
       <div className="turn-body">
         {turn.pick && <LibraryPickCard pick={turn.pick} projectId={actions.projectId} />}
@@ -723,7 +729,9 @@ const TurnView = memo(function TurnView({
         {!running && actions.onOpenFile && (
           <FileCards turn={turn} files={actions.chatFiles} onOpen={actions.onOpenFile} onOpenVersion={actions.onOpenVersion} fileHref={actions.fileHref} />
         )}
-        {unfinishedPlan && <Plan key="plan-after" entries={unfinishedPlan} running={false} />}
+        {foldedPlan && (
+          <Plan key={`plan-after-${foldedPlan.changedIn}`} entries={foldedPlan.entries} running={false} changedBy={foldedPlan.changedBy} />
+        )}
         {waiting && (
           <div className="waiting" aria-hidden="true">
             <span />
@@ -782,6 +790,7 @@ const TurnView = memo(function TurnView({
 });
 
 export function ThreadView({ entries, actions, putBack }: { entries: ThreadEntry[]; actions: ThreadActions; putBack?: PutBackState }) {
+  const plan = useMemo(() => planPlacement(entries), [entries]);
   let lastTurnIndex = -1;
   for (let i = entries.length - 1; i >= 0; i--) {
     if (entries[i].type === "turn") {
@@ -793,7 +802,15 @@ export function ThreadView({ entries, actions, putBack }: { entries: ThreadEntry
     <>
       {entries.map((entry, index) => {
         if (entry.type === "turn") {
-          return <TurnView key={entry.key} turn={entry} isLast={index === lastTurnIndex} actions={actions} />;
+          return (
+            <TurnView
+              key={entry.key}
+              turn={entry}
+              isLast={index === lastTurnIndex}
+              actions={actions}
+              plan={plan && plan.turnId === entry.id ? plan : null}
+            />
+          );
         }
         if (entry.type === "checkpoint") {
           return (

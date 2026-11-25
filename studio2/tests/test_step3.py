@@ -469,9 +469,9 @@ def test_each_helper_has_the_tools_its_job_needs_and_no_more():
         assert not listed & never, name
         assert "Write" in listed, name            # each writes its own output file
     assert lists["checker"] == {"Read", "Grep", "Glob", "Write", "mcp__studio__check_page", "mcp__studio__check_file",
-                                "mcp__studio__read_source", "mcp__studio__fetch_source", "mcp__studio__query_files",
+                                "mcp__studio__check_site", "mcp__studio__read_source", "mcp__studio__fetch_source", "mcp__studio__query_files",
                                 "mcp__studio__database_schema", "mcp__studio__query_database",
-                                "mcp__studio__look_at_page"}
+                                "mcp__studio__look_at_page", "mcp__studio__run_tests"}
     assert "Bash" not in lists["checker"] | lists["slide-reviewer"]
     assert "Edit" not in lists["checker"] | lists["slide-reviewer"]
     assert "Bash" in lists["section-writer"]      # it builds its own section with node to see that it runs

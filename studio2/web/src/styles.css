@@ -2407,6 +2407,16 @@ a {
   color: var(--text-3);
 }
 
+.plan-entry.is-completed .plan-text {
+  text-decoration: line-through;
+  text-decoration-color: var(--text-3);
+}
+
+.plan-changed-by {
+  color: var(--text-3);
+  font-weight: 400;
+}
+
 .plan-entry.is-completed .plan-box {
   background: var(--accent);
   border-color: var(--accent);
@@ -9910,4 +9920,119 @@ a.card-name:hover {
 
 .turn-link:hover {
   color: var(--accent);
+}
+
+/* ---- New page: one height from tab to tab; an optional name ------------------------------- */
+
+.newpage-name {
+  display: block;
+  margin-top: 12px;
+}
+
+.newpage-name .text-input {
+  width: 100%;
+  margin-top: 4px;
+}
+
+@media (min-width: 1090px) {
+  .dialog.dialog-wide.newpage {
+    display: flex;
+    flex-direction: column;
+    height: min(700px, calc(100dvh - 48px));
+    overflow: hidden;
+  }
+
+  .newpage > * {
+    flex: none;
+  }
+
+  .newpage .newpage-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0 -22px;
+    padding: 0 22px 4px;
+    overflow-y: auto;
+  }
+
+  /* The body scrolls, so the template list does not scroll inside it. */
+  .newpage .template-groups {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .newpage .dialog-actions {
+    margin-top: 14px;
+  }
+}
+
+/* ---- touch: nothing to tap is under 40 px ------------------------------------------------- */
+
+@media (max-width: 1089px), (pointer: coarse) {
+  .opt-btn,
+  .marker,
+  .tool-head,
+  .next-step,
+  .newpage-tab,
+  .example-open,
+  .lib-filter {
+    min-height: 40px;
+  }
+
+  .opt-btn,
+  .marker,
+  .tool-head {
+    height: auto;
+  }
+
+  .lib-filter {
+    height: 44px;
+  }
+
+  /* Small marks keep their look; the area that takes the tap grows around them. */
+  .chip-remove,
+  .queued-remove,
+  .turn-link {
+    position: relative;
+  }
+
+  .chip-remove::before,
+  .queued-remove::before,
+  .turn-link::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+
+  /* The name clips long text, so it grows by padding that the margin takes back. */
+  .card-name {
+    padding-block: 12px;
+    margin-block: -12px;
+  }
+}
+
+/* ---- Library loose ends -------------------------------------------------------------------- */
+
+/* A heading scrolled to must clear the search box that stays at the top. */
+.lib-section,
+.lib-rest-block {
+  scroll-margin-top: 76px;
+}
+
+.lib-rest-block > .lib-title + .lib-intro {
+  margin-top: 8px;
+}
+
+/* On a phone a row shows the start of a long description; Open has the rest. */
+@media (max-width: 720px) {
+  .lib-row:has(button) .lib-row-detail {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+  }
 }

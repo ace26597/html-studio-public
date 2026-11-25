@@ -18,6 +18,7 @@ import uvicorn
 import websockets
 from uvicorn.server import ServerState
 
+from . import keyfiles
 from . import session as signin
 from .access import REQUEST_NAMES
 
@@ -317,8 +318,10 @@ def content_type(path: Path) -> str:
 class PreviewApp:
     """A minimal ASGI static server for one workspace."""
 
-    def __init__(self, workspace: Path, target=None, sessions=None, project_id: str | None = None):
+    def __init__(self, workspace: Path, target=None, sessions=None, project_id: str | None = None,
+                 hide_keys=None):
         self.workspace = workspace
+        self.hide_keys = hide_keys or (lambda _scope: False)      # → leave key files (keyfiles.py) out
         self.target = target or (lambda: ("static", None, None))  # → (mode, app port, app)
         self.sessions, self.project_id = sessions, project_id      # the person's sign-in (session.py)
         # A jar that keeps nothing: the app's Set-Cookie is the browser's to keep, never this client's
@@ -390,6 +393,8 @@ class PreviewApp:
         if path.startswith("/__studio/files/"):
             # The project's files as they are on disk, whatever is serving the project URL.
             status, target, _redirect = self.resolve(path[len("/__studio/files"):])
+            if target is not None and self._key_file(target, scope):
+                status = 404
             if status != 200 or scope["method"] not in ("GET", "HEAD"):
                 return await self._send(send, scope, 404, b"Not found", "text/plain; charset=utf-8", headers)
             return await self._send_file(send, scope, target, {**headers, **as_download(scope, target)})
@@ -403,6 +408,8 @@ class PreviewApp:
         if scope["method"] not in ("GET", "HEAD"):
             return await self._send(send, scope, 405, b"Method not allowed", "text/plain; charset=utf-8", headers)
         status, target, redirect = self.resolve(path)
+        if status == 200 and self._key_file(target, scope):
+            return await self._send(send, scope, 404, b"Not found", "text/plain; charset=utf-8", headers)
         if redirect:
             query = scope.get("query_string", b"").decode("latin-1")
             headers["location"] = redirect + (f"?{query}" if query else "")
@@ -416,6 +423,15 @@ class PreviewApp:
             return await self._send_file(send, scope, target, {**headers, **as_download(scope, target)})
         body = inject_bridge(await asyncio.to_thread(target.read_bytes))
         await self._send(send, scope, 200, body, kind, {**headers, **as_download(scope, target)})
+
+    def _key_file(self, target: Path, scope) -> bool:
+        if not self.hide_keys(scope):
+            return False
+        root = self.workspace.resolve()
+        try:
+            return keyfiles.is_key_file(target.resolve().relative_to(root).parts)
+        except ValueError:
+            return True
 
     async def _session_report(self, scope, receive, send, headers: dict) -> None:
         """The bridge's report of the page's storage (CONTRACT.md, "The report from the page")."""
@@ -786,8 +802,9 @@ class Previews:
     """One listening socket per project and address, all in the studio's event loop."""
 
     def __init__(self, hosts: tuple[str, ...] = (), guard=None, tls: tuple[str, str] | None = None,
-                 sessions=None):
+                 sessions=None, hide_keys=None):
         self.tls = tls
+        self.hide_keys = hide_keys
         self.sessions = sessions
         self.running: dict[str, tuple[list[asyncio.AbstractServer], ServerState, int]] = {}
         self.hosts = ("127.0.0.1", *hosts)   # loopback first: it decides whether the port is free
@@ -803,7 +820,7 @@ class Previews:
             return
         sockets = bind(self.hosts, port)
         state = ServerState()
-        servers = await listen(self.guard(PreviewApp(workspace, target, self.sessions, project_id)),
+        servers = await listen(self.guard(PreviewApp(workspace, target, self.sessions, project_id, self.hide_keys)),
                                sockets, self.tls, state)
         self.running[project_id] = (servers, state, port)
 

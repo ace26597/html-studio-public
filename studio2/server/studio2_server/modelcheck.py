@@ -334,6 +334,9 @@ class ModelChecks:
         if self.running:
             raise CheckError(409, "check_running", f"A check of {self.running['model']} is still running. "
                                                    "Wait for it, or stop it.")
+        if not studio.turns.room_for(owner=True):    # the owner's: room like any other, except on a shared studio
+            raise CheckError(429, "studio_busy", f"The studio is already running {len(studio.turns.active)} requests, "
+                                                 "its limit. Try the check again when one finishes.")
         public = studio.registry.harness(connection["kind"]).describe(connection)
         if not public["available"]:
             raise CheckError(409, "connection_unavailable", public["reason"] or "This model account is not available.")
@@ -381,11 +384,20 @@ class ModelChecks:
         for folder in (studio.store.root / ".trash").glob(f"{pid}-*"):
             await asyncio.to_thread(shutil.rmtree, folder, True)     # a fixture, not anyone's work
 
+    ROOM_POLL = 0.5         # seconds between looks for room in a full studio
+
     async def _message(self, pid: str, text: str, connection: dict, model: str, notes: list[str]) -> dict:
         """Send one message and wait for it; a question the agent asks is answered no."""
         studio = self.studio
+        # Between its own messages a queued request may have taken the room: wait for it, so a full studio
+        # is never recorded as the model failing (CONTRACT.md, "Room for a few requests at once").
+        while not studio.turns.room_for(owner=True):
+            if self.running and self.running.get("stopping"):    # stopped while it waited: nothing was sent
+                return {"turn_id": None, "status": "stopped", "error": None, "seconds": 0.0, "input_tokens": None,
+                        "output_tokens": None, "cost_usd": None, "cost_estimated": False}
+            await asyncio.sleep(self.ROOM_POLL)
         started = time.monotonic()
-        turn_id = studio.turns.start(studio.store.get(pid), text, None, connection["id"], model)
+        turn_id = studio.turns.start(studio.store.get(pid), text, None, connection["id"], model, owner=True)
         task = studio.turns.tasks.get(pid)
         timed_out = False
         while task is not None and not task.done():

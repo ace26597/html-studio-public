@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import Body, FastAPI, File, Form, Header, Request, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Form, Header, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
@@ -40,8 +40,9 @@ from .studio import Studio
 from . import export as exporting
 from . import ownskills
 from . import places, services
+from . import keyfiles
 from .templates import TemplateError
-from .turns import TurnRunning
+from .turns import QueueFull, StudioBusy, TurnRunning
 from .ship import ShipError, ShipRunning
 
 log = logging.getLogger("studio2")
@@ -292,6 +293,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                                        "finishes."),
         ProjectNotFound: lambda exc: error(404, "project_not_found", "That project does not exist."),
         TurnRunning: lambda exc: error(409, "turn_running", "The assistant is still working in this project."),
+        QueueFull: lambda exc: error(
+            429, "queue_full", f"This project already has {exc.waiting} messages waiting. Send more when some "
+            "have run.", {"waiting": exc.waiting, "cap": exc.cap}),
+        StudioBusy: lambda exc: error(
+            429, "studio_busy", f"The studio is already running {exc.running} "
+            f"{'request' if exc.running == 1 else 'requests'}, its limit. Try again when one finishes.",
+            {"running": exc.running, "limit": exc.limit}),
         ws.InvalidPath: lambda exc: error(400, "invalid_path", "That is not a valid path inside the project."),
         ws.GitError: lambda exc: error(500, "git_failed", f"Version history failed: {exc}"),
         NoFreePort: lambda exc: error(503, "no_free_port", str(exc)),
@@ -329,6 +337,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         when the gate in front signed in one of the owner's emails."""
         return is_owner(request.scope, settings)
 
+    def owner_only(what: str):
+        """A route only a shared studio's owner may use (CONTRACT.md, "What a guest may not do on a
+        shared studio"). Checked before the body is read, so a guest learns nothing else from it."""
+        async def check(request: Request) -> None:
+            if not owner(request):
+                raise ApiError(403, "not_for_shared", f"On a shared studio only its owner {what}.")
+        check.owner_only = True      # tests/test_guest_routes.py finds the routes by it
+        return [Depends(check)]
+
+    FOLDERS = owner_only("brings in a folder of this computer")
+    CONTEXT = owner_only("adds context from this computer")
+    APP_RUN = owner_only("changes how an attached app runs")
+    TEMPLATES = owner_only("changes the templates")
+    MEDIA = owner_only("lets paid media generation start again")
+    CONNECTORS = owner_only("adds, changes or tests connectors")
+    PICKS = owner_only("sets what is always or never used in every project")
+    SOURCES = owner_only("adds, changes or uses data sources")
+    KEYS = owner_only("saves or removes keys")
+    SHIP = owner_only("makes an app live")
+
+    def guest(request: Request) -> bool:
+        """Someone on a shared studio who is not its owner."""
+        return bool(settings.shared) and not owner(request)
+
+    KEY_FILES = "On a shared studio only its owner opens key files such as .env."
+    NO_STUDIO_JSON = "On a shared studio only its owner changes studio.json, the command that starts a project's app."
+
     @app.get("/api/health")
     async def health(request: Request):
         return {"ok": True, "version": __version__, "fake": settings.fake,
@@ -338,7 +373,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "site": (settings.site_dir / "index.html").is_file(),
                 "build": await asyncio.to_thread(studio.build.view),
                 "transcription": {"available": voice.reason() is None, "reason": voice.reason()},
-                "connections": studio.registry.describe_all(owner(request))}
+                "connections": studio.registry.describe_all(owner(request)),
+                "turns": {"running": len(studio.turns.active), "limit": studio.turns.limit,
+                          "waiting": len(studio.turns.waiting_long())}}
 
     @app.get("/api/projects")
     async def list_projects():
@@ -377,11 +414,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise ApiError(400, "unknown_template", "There is no such template.") from None
         return studio.view(project)
 
-    @app.post("/api/apps/inspect")
+    @app.post("/api/apps/inspect", dependencies=FOLDERS)
     async def inspect_folder(body: InspectBody):
         return await studio.inspect_folder(body.path)
 
-    @app.post("/api/context/inspect")
+    @app.post("/api/context/inspect", dependencies=CONTEXT)
     async def inspect_context(body: ContextValue):
         return await studio.inspect_context(body.value)
 
@@ -389,7 +426,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def project_context(project_id: str):
         return await contexts.with_state(studio.store.get(project_id).get("context") or [])
 
-    @app.post("/api/projects/{project_id}/context", status_code=201)
+    @app.post("/api/projects/{project_id}/context", status_code=201, dependencies=CONTEXT)
     async def add_context(project_id: str, body: ContextValue):
         return await studio.add_context(project_id, body.value, body.label, body.note)
 
@@ -402,7 +439,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         studio.remove_context(project_id, item_id)
         return Response(status_code=204)
 
-    @app.post("/api/projects/attach", status_code=201)
+    @app.post("/api/projects/attach", status_code=201, dependencies=FOLDERS)
     async def attach_project(body: AttachBody):
         project = await studio.attach_project(
             body.path, body.mode, _clean_name(body.name) if body.name and body.name.strip() else None,
@@ -443,8 +480,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise ApiError(400, "invalid_request", str(exc)) from None
 
     @app.patch("/api/projects/{project_id}")
-    async def patch_project(project_id: str, body: ProjectPatch):
+    async def patch_project(project_id: str, body: ProjectPatch, request: Request):
         project = studio.store.get(project_id)
+        if body.approvals == "allow" and guest(request):
+            raise ApiError(403, "not_for_shared", "On a shared studio only its owner sets a project to allow everything.")
         changes: dict = {}
         if "name" in body.model_fields_set:
             changes["name"] = _clean_name(body.name)
@@ -491,14 +530,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def get_app(project_id: str):
         return studio.app(project_id).describe()
 
-    @app.put("/api/projects/{project_id}/app/config")
+    @app.put("/api/projects/{project_id}/app/config", dependencies=APP_RUN)
     async def set_app_config(project_id: str, body: AppConfigBody):
         studio.store.get(project_id)
         await studio.set_app_config(project_id, body.model_dump())
         return studio.app(project_id).describe()
 
     @app.post("/api/projects/{project_id}/app/{action}")
-    async def control_app(project_id: str, action: str):
+    async def control_app(project_id: str, action: str, request: Request):
         if action not in ("start", "stop", "restart"):
             raise ApiError(404, "not_found", "There is no such API route.")
         current = studio.app(project_id)
@@ -508,6 +547,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                            "or restart it.")
         project_app = configured_app(project_id)
         studio.watch(project_id)
+        if action != "stop" and settings.shared:
+            project_app.refresh_config()
+            if owner(request):          # the owner has seen this run line: it may run (studio.run_refusal)
+                studio.store.update(project_id, run_seen=project_app.run)
+            elif refusal := studio.run_refusal(project_id, project_app.run, project_app):
+                raise ApiError(403, "run_not_seen", refusal)
         if action == "stop":
             await project_app.stop()
         elif action == "start":
@@ -579,19 +624,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise ApiError(404, "unknown_template", "There is no such template.")
         return found
 
-    @app.post("/api/projects/{project_id}/template", status_code=201)
+    @app.post("/api/projects/{project_id}/template", status_code=201, dependencies=TEMPLATES)
     async def save_template(project_id: str, body: dict = Body(...)):
         idle_project(project_id)
         return await studio.save_template(project_id, str(body.get("name") or ""), str(body.get("description") or ""),
                                           body.get("kind") or None, body.get("file") or None, str(body.get("notes") or ""))
 
-    @app.patch("/api/templates/{template_id}")
+    @app.patch("/api/templates/{template_id}", dependencies=TEMPLATES)
     async def edit_template(template_id: str, body: dict = Body(...)):
         own_template(template_id)
         return studio.saved.update(template_id, body.get("label") if isinstance(body.get("label"), str) else None,
                                    body.get("description") if isinstance(body.get("description"), str) else None)
 
-    @app.delete("/api/templates/{template_id}", status_code=204)
+    @app.delete("/api/templates/{template_id}", status_code=204, dependencies=TEMPLATES)
     async def delete_template(template_id: str):
         own_template(template_id)
         studio.saved.delete(template_id)
@@ -612,7 +657,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return Response(content=data, media_type="application/zip",
                         headers={"content-disposition": f'attachment; filename="{name}.studio-template.zip"'})
 
-    @app.post("/api/templates/import", status_code=201)
+    @app.post("/api/templates/import", status_code=201, dependencies=TEMPLATES)
     async def import_template(file: UploadFile = File(...), confirm: str = Form("")):
         chunks, size = [], 0
         while chunk := await file.read(1024 * 1024):
@@ -639,7 +684,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"available": generate.reason() is None, "reason": generate.reason(), "paused": generator.halted(),
                 "spent_today": generator.spent_today(), "daily_limit": generator.daily_credits}
 
-    @app.delete("/api/generation/pause", status_code=204)
+    @app.delete("/api/generation/pause", status_code=204, dependencies=MEDIA)
     async def generation_resume():
         studio.generator.resume()
         return Response(status_code=204)
@@ -787,6 +832,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/library/skills/ask", status_code=202)
     async def ask_about_skill(request: Request):
         body = await json_object(request)
+        studio.turns.check_room(owner(request))      # refused before a project is made for it
         title, text = await asyncio.to_thread(ownskills.question, studio.lib, str(body.get("id") or ""),
                                               str(body.get("about") or ""), body.get("text"), owner(request))
         project = await studio.create_project(_clean_name(title), "blank", owner=owner(request))
@@ -811,18 +857,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         studio.lib.delete_skill(name)
         return Response(status_code=204)
 
-    @app.post("/api/mcp-servers", status_code=201)
+    @app.post("/api/mcp-servers", status_code=201, dependencies=CONNECTORS)
     async def add_server(request: Request):
         return studio.lib.add_server(await json_object(request))
 
-    @app.post("/api/mcp-servers/suggest")
+    @app.post("/api/mcp-servers/suggest", dependencies=CONNECTORS)
     async def suggest_servers(request: Request):
         # A model names connectors from memory; the studio checks what it can and adds nothing.
         from . import connector_suggest
         body = await json_object(request)
         return await connector_suggest.suggest(studio, body.get("text"), body.get("connection") or None)
 
-    @app.patch("/api/mcp-servers/{server_id}")
+    @app.patch("/api/mcp-servers/{server_id}", dependencies=CONNECTORS)
     async def update_server(server_id: str, request: Request):
         fields = await json_object(request)
         current = studio.lib.server(server_id)
@@ -841,14 +887,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                                                      + " again. Saved ones are only sent where they were saved for.")
         return studio.lib.update_server(server_id, fields)
 
-    @app.delete("/api/mcp-servers/{server_id}", status_code=204)
+    @app.delete("/api/mcp-servers/{server_id}", status_code=204, dependencies=CONNECTORS)
     async def delete_server(server_id: str):
         studio.lib.delete_server(server_id)
         for project_id, chosen in studio.lib.forget_server(studio.store.list(), server_id):
             studio.store.update(project_id, library=chosen)
         return Response(status_code=204)
 
-    @app.post("/api/mcp-servers/{server_id}/test")
+    @app.post("/api/mcp-servers/{server_id}/test", dependencies=CONNECTORS)
     async def try_server(server_id: str):
         studio.lib.server(server_id)
         # Started as a request starts it: a library connector through the launcher (server_config).
@@ -880,7 +926,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         chosen = studio.store.get(project) if project else None
         return await asyncio.to_thread(studio.picker.items, kind, q, source or None, state or None, offset, limit, chosen)
 
-    @app.put("/api/library/prefs")
+    @app.put("/api/library/prefs", dependencies=PICKS)
     async def library_prefs(body: LibraryPrefs):
         return studio.picker.set_prefs(body.model_dump())
 
@@ -893,20 +939,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def list_sources():
         return studio.data.list()
 
-    @app.post("/api/data-sources", status_code=201)
+    @app.post("/api/data-sources", status_code=201, dependencies=SOURCES)
     async def create_source(body: SourceBody):
         return studio.data.create(body.model_dump())
 
-    @app.post("/api/data-sources/test")
+    @app.post("/api/data-sources/test", dependencies=SOURCES)
     async def test_unsaved_source(body: SourceBody):
         clean = studio.data.normalise(body.model_dump())
         return await asyncio.to_thread(run_test, clean, body.password)
 
-    @app.patch("/api/data-sources/{source_id}")
+    @app.patch("/api/data-sources/{source_id}", dependencies=SOURCES)
     async def update_source(source_id: str, body: SourceBody):
         return studio.data.update(source_id, body.model_dump(exclude_unset=True))
 
-    @app.delete("/api/data-sources/{source_id}", status_code=204)
+    @app.delete("/api/data-sources/{source_id}", status_code=204, dependencies=SOURCES)
     async def delete_source(source_id: str):
         studio.data.delete(source_id)
         for project in studio.store.list():
@@ -914,7 +960,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 studio.store.update(project["id"], data_sources=[i for i in project["data_sources"] if i != source_id])
         return Response(status_code=204)
 
-    @app.post("/api/data-sources/{source_id}/test")
+    @app.post("/api/data-sources/{source_id}/test", dependencies=SOURCES)
     async def test_source(source_id: str):
         source = studio.data.raw(source_id)
         result = await asyncio.to_thread(run_test, source, studio.data.password(source_id))
@@ -926,7 +972,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         attached = studio.store.get(project_id).get("data_sources") or []
         return [{**item, "attached": item["id"] in attached} for item in studio.data.list()]
 
-    @app.put("/api/projects/{project_id}/data-sources/{source_id}", status_code=204)
+    @app.put("/api/projects/{project_id}/data-sources/{source_id}", status_code=204, dependencies=SOURCES)
     async def attach_source(project_id: str, source_id: str):
         studio.data.raw(source_id)
         current = studio.store.get(project_id).get("data_sources") or []
@@ -973,12 +1019,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return result
 
     @app.get("/api/projects/{project_id}/download")
-    async def download(project_id: str):
+    async def download(project_id: str, request: Request):
         project = studio.store.get(project_id)
         handle = tempfile.NamedTemporaryFile(prefix="studio2-", suffix=".zip", delete=False)
         handle.close()
         await asyncio.to_thread(ws.zip_workspace, studio.store.workspace(project_id), Path(handle.name),
-                                bool(project.get("attach")))
+                                bool(project.get("attach")), guest(request))
         name = re.sub(r"[^A-Za-z0-9._ -]+", "", project["name"]).strip() or project_id
         return FileResponse(handle.name, media_type="application/zip", filename=f"{name}.zip",
                             background=BackgroundTask(Path(handle.name).unlink, missing_ok=True))
@@ -1004,7 +1050,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def list_services():
         return await asyncio.to_thread(services.listing, settings)
 
-    @app.put("/api/services/{name}")
+    @app.put("/api/services/{name}", dependencies=KEYS)
     async def save_service_key(name: str, body: dict = Body(...)):
         try:
             await asyncio.to_thread(services.save, settings, name, str(body.get("key") or ""))
@@ -1014,7 +1060,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise ApiError(400, "invalid_key", str(exc)) from None
         return next(item for item in services.listing(settings) if item["name"] == name)
 
-    @app.delete("/api/services/{name}")
+    @app.delete("/api/services/{name}", dependencies=KEYS)
     async def remove_service_key(name: str):
         try:
             await asyncio.to_thread(services.remove, settings, name)
@@ -1073,9 +1119,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                                        bool(project.get("attach")))
 
     @app.get("/api/projects/{project_id}/file")
-    async def read_file(project_id: str, path: str):
+    async def read_file(project_id: str, path: str, request: Request):
         studio.store.get(project_id)
-        target = ws.safe_path(studio.store.workspace(project_id), path)
+        workspace = studio.store.workspace(project_id)
+        target = ws.safe_path(workspace, path)
+        if guest(request) and (keyfiles.is_key_file(path.strip("/"))
+                               or keyfiles.is_key_file(target.relative_to(workspace.resolve()).parts)):
+            raise ApiError(403, "not_for_shared", KEY_FILES)
         if not target.is_file():
             raise ApiError(404, "file_not_found", f"There is no file at {path}.")
         if target.stat().st_size > TEXT_LIMIT:
@@ -1087,9 +1137,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise ApiError(415, "unsupported_file", "This file is not UTF-8 text.") from None
 
     @app.put("/api/projects/{project_id}/file")
-    async def write_file(project_id: str, body: FilePut):
+    async def write_file(project_id: str, body: FilePut, request: Request):
         idle_project(project_id)
         target = ws.safe_path(studio.store.workspace(project_id), body.path)
+        if guest(request) and target == (studio.store.workspace(project_id).resolve() / "studio.json"):
+            raise ApiError(403, "not_for_shared", NO_STUDIO_JSON)
         data = body.content.encode("utf-8")
         if len(data) > TEXT_LIMIT:
             raise ApiError(413, "file_too_large", "Text files are limited to 1 MB here.")
@@ -1105,7 +1157,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"path": body.path, "hash": _hash(data), "checkpoint": checkpoint}
 
     @app.post("/api/projects/{project_id}/upload")
-    async def upload(project_id: str, file: UploadFile = File(...), dir: str = Form("")):
+    async def upload(request: Request, project_id: str, file: UploadFile = File(...), dir: str = Form("")):
         studio.store.get(project_id)
         if project_id in studio.ships.running:
             raise ShipRunning(project_id)
@@ -1114,6 +1166,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise ApiError(400, "invalid_path", "The uploaded file needs a name.")
         rel = "/".join(part for part in (dir.strip("/"), name) if part)
         target = ws.safe_path(studio.store.workspace(project_id), rel)
+        if guest(request) and target == (studio.store.workspace(project_id).resolve() / "studio.json"):
+            raise ApiError(403, "not_for_shared", NO_STUDIO_JSON)
         chunks, size = [], 0
         while chunk := await file.read(1024 * 1024):
             size += len(chunk)
@@ -1163,9 +1217,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return await asyncio.to_thread(ws.versions, studio.store.workspace(project_id), 500, studio.since(project_id))
 
     @app.get("/api/projects/{project_id}/versions/{sha}/diff")
-    async def version_diff(project_id: str, sha: str):
+    async def version_diff(project_id: str, sha: str, request: Request):
         studio.store.get(project_id)
-        return await asyncio.to_thread(ws.diff, studio.store.workspace(project_id), commit_or_404(project_id, sha))
+        return await asyncio.to_thread(ws.diff, studio.store.workspace(project_id), commit_or_404(project_id, sha),
+                                       without_keys=guest(request))
 
     @app.post("/api/projects/{project_id}/restore")
     async def restore(project_id: str, body: Restore):
@@ -1197,7 +1252,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 raise ApiError(400, "missing_attachment", f"The attached file {raw} is not in the project.")
             attachments.append(target.relative_to(workspace.resolve()).as_posix())
         options = checked_options(body.options)
-        if body.queue and (project_id in studio.turns.active or project_id in studio.ships.running):
+        # A queued message waits for room in the studio too, instead of being refused (turns.start_waiting).
+        # A project whose messages already wait queues the new one behind them, whatever the interface asked;
+        # a shared studio's owner waits only for its own project (turns.should_queue).
+        if studio.turns.should_queue(project_id, owner(request), body.queue):
             return {"queued_id": studio.turns.enqueue(project, body.text, selection, body.connection,
                                                        body.model, attachments, options, owner=owner(request))}
         return {"turn_id": studio.turns.start(project, body.text, selection, body.connection, body.model,
@@ -1222,11 +1280,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         studio.turns.unqueue(project_id, queued_id)
         return Response(status_code=204)
 
+    OWNER_CARDS = {"save_skill", "save_template", "ship_recipe", "make_live"}
+
+    def card_needs_owner(project_id: str, turn_id: str, approval_id: str) -> bool:
+        if studio.turns.is_guarded(approval_id) or turn_id in studio.turns.by_owner:
+            return True
+        for event in reversed(studio.log(project_id).read()):
+            if event.get("type") == "approval_request" and event.get("approval_id") == approval_id:
+                return event.get("tool") in OWNER_CARDS
+        return False
+
     @app.post("/api/projects/{project_id}/turns/{turn_id}/approvals/{approval_id}", status_code=204)
     async def answer_approval(project_id: str, turn_id: str, approval_id: str, body: Decision, request: Request):
         studio.store.get(project_id)
-        # What an agent may not reach (CONTRACT.md): on a shared studio only its owner may allow it.
-        if body.decision == "allow" and settings.shared and studio.turns.is_guarded(approval_id) and not owner(request):
+        # What an agent may not reach, a card of the owner's own request, and a card for what only the
+        # owner may do (CONTRACT.md): on a shared studio only its owner may allow it.
+        if body.decision == "allow" and guest(request) and card_needs_owner(project_id, turn_id, approval_id):
             raise ApiError(403, "owner_only", "Only this studio's owner can allow this.")
         if studio.turns.active.get(project_id) != turn_id or not studio.turns.answer(turn_id, approval_id, body.decision):
             raise ApiError(404, "unknown_approval", "That request is no longer waiting for an answer.")
@@ -1262,13 +1331,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise ApiError(404, "not_attached", "Only a project brought in from a folder can be made live.")
         return studio.ships.view(project)
 
-    @app.put("/api/projects/{project_id}/ship/recipe")
+    @app.put("/api/projects/{project_id}/ship/recipe", dependencies=SHIP)
     async def ship_recipe(project_id: str, body: dict = Body(...)):
         studio.ships.set_recipe(project_id, body.get("recipe") if isinstance(body.get("recipe"), dict) else body,
                                 "person")
         return studio.ships.view(studio.store.get(project_id))
 
-    @app.post("/api/projects/{project_id}/ships", status_code=202)
+    @app.post("/api/projects/{project_id}/ships", status_code=202, dependencies=SHIP)
     async def start_ship(project_id: str):
         return {"ship_id": await studio.ships.start(project_id, "person")}
 
@@ -1285,13 +1354,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise ApiError(404, "ship_not_found", "There is no such ship.")
         return record
 
-    @app.post("/api/projects/{project_id}/ships/{ship_id}/decision", status_code=204)
+    @app.post("/api/projects/{project_id}/ships/{ship_id}/decision", status_code=204, dependencies=SHIP)
     async def decide_ship(project_id: str, ship_id: str, body: ShipDecision):
         studio.store.get(project_id)
         studio.ships.decide(project_id, ship_id, body.decision, body.confirm)
         return Response(status_code=204)
 
-    @app.post("/api/projects/{project_id}/ship/update-copy")
+    @app.post("/api/projects/{project_id}/ship/update-copy", dependencies=SHIP)
     async def update_copy(project_id: str):
         studio.watch(project_id)
         return await studio.ships.update_copy(project_id)

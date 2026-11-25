@@ -39,9 +39,20 @@ runs as you too.
   the gate signed in as an owner you named (`STUDIO2_OWNERS`) may run on the plan. This narrows who
   can open the studio. It does not change what they can do once inside: everyone let in can run
   commands on that machine, so the next point still holds.
-- **One trusted person per machine,** until accounts and a container per project exist. The
-  agent runs as the same user as the studio, so an agent that set out to could call the
-  studio's own interface on this computer and answer its own approval card.
+- **Trusted people only,** until accounts and a container per project exist. The agent runs as
+  the same user as the studio. A command that reaches the studio's own interface, keys on this
+  computer or another project always asks, also with "allow everything", and on a shared studio
+  a guest's is refused. These rules read the command's text, so a program the agent writes first
+  can get past them: they stop mistakes, they do not contain an agent that sets out to.
+- **What a guest of a shared studio cannot do, and what that does not mean.** A guest (signed
+  in by the gate, not one of the owners) cannot change the studio for everyone (skills,
+  templates, connectors, picks, instructions), use your keys, data sources and model accounts,
+  bring in a folder of this computer, make an app live, open key files such as `.env`, set a
+  project to allow everything, or allow a card that is yours to answer. A project's app runs only
+  a run line you have started. These limits hold for the studio's own buttons and routes. They
+  do not contain a guest who sets out to get around them: a project's app and every script an
+  agent writes run as your user and can read what you can. Real separation needs a separate
+  user or machine for guests' work, which the studio does not have yet.
 - **Your sign-in to a project's app.** With "Let the agent use my sign-in" ticked in a
   project's menu (on for apps made in the studio, off for an app you brought, refused on a
   shared studio), the agent's own browser opens that project's pages with your session, so it
@@ -64,7 +75,8 @@ runs as you too.
   Linux has been run: not Debian or Ubuntu, and not the keychain fallback on its own.
 - **Phones and tablets:** the layouts exist and were checked in a desktop browser at phone and
   tablet sizes. They have not been tried on a real device.
-- **Accounts, isolation and hosting:** none. It is for one person on their own machine.
+- **Accounts, isolation and hosting:** none. A shared studio behind a gate lets in people you
+  trust, but everyone let in runs commands as you on your machine.
 - **Other agent programs** (Codex, Gemini and others): not built. Other models run only
   through translation, as described in [models.md](models.md).
 - **Real provider keys:** no request has been made with an Anthropic, OpenAI, OpenRouter,

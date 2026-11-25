@@ -170,12 +170,25 @@ APP_ENV = {"PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "TERM",
            "UV_CACHE_DIR", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "NVM_DIR", "PNPM_HOME"}
 
 
+def clean_env() -> dict:
+    """The short list of harmless variables a project's own code gets (its app, its tests), never
+    the studio's whole environment: that holds the access key, model keys and whatever else the
+    person's shell exported."""
+    env = {name: value for name, value in os.environ.items() if name in APP_ENV or name.startswith("LC_")}
+    cleaned = outside_python(os.environ)      # the studio's own Python is taken off PATH
+    if "PATH" in cleaned:
+        env["PATH"] = cleaned["PATH"]
+    return env
+
+
 class App:
     """State of one project's app. All mutation happens on the event loop."""
 
     def __init__(self, project_id: str, workspace: Path, directory: Path, port: int, url: str,
                  on_status: Callable[[str, dict], None], extra_env: dict | None = None):
         self.extra_env = extra_env or {}
+        # → why this run line may not start now, or None (Studio.run_refusal: a shared studio's owner rule)
+        self.may_start: Callable[[str | None], str | None] | None = None
         self.project_id, self.workspace, self.directory = project_id, workspace, directory
         self.port, self.url, self.on_status = port, url, on_status
         self.own_port = port
@@ -436,6 +449,11 @@ class App:
     async def _start(self, after_exit: str | None = None) -> None:
         """Start the app. `after_exit` is the studio's line for a restart after the app stopped by
         itself: the output of the run that died is kept above it, in the tail and in the log file."""
+        refusal = self.may_start(self.run) if self.may_start is not None else None
+        if refusal:
+            self.error = refusal
+            self._set("stopped")
+            return
         self._kill_stale()
         self._stopping, self.exit_code, self._answered_at = False, None, None
         if after_exit is None:
@@ -444,11 +462,7 @@ class App:
         # A project's app gets a short list of harmless variables, never the studio's whole
         # environment: that holds the access key, model keys and whatever else the person's shell
         # exported. What an app needs from the studio comes through extra_env (token and addresses).
-        env = {name: value for name, value in os.environ.items()
-               if name in APP_ENV or name.startswith("LC_")}
-        cleaned = outside_python(os.environ)      # the environment variables are not passed on at all; PATH is
-        if "PATH" in cleaned:
-            env["PATH"] = cleaned["PATH"]
+        env = clean_env()
         env.update({"PORT": str(self.port), "HOST": "127.0.0.1", "PYTHONUNBUFFERED": "1",
                     "STUDIO_PROJECT_ID": self.project_id, "STUDIO_PROJECT_URL": self.url,
                     "STUDIO_ALLOWED_HOSTS": APP_ALLOWED_HOSTS})

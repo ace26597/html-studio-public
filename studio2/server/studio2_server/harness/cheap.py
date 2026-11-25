@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
+import tempfile
+from pathlib import Path
 
 from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, ClaudeSDKClient, ResultMessage, TextBlock
 
@@ -25,8 +27,12 @@ class CheapCallFailed(Exception):
 
 
 async def ask(connection: dict, system: str, prompt: str, timeout: float, secrets=None,
-              workdir: str | None = None, endpoint=None) -> str:
-    """→ the model's text. Raises CheapCallFailed on any failure and asyncio.TimeoutError on time."""
+              workdir: str | None = None, endpoint=None, run_dir: Path | None = None) -> str:
+    """→ the model's text. Raises CheapCallFailed on any failure and asyncio.TimeoutError on time.
+
+    `system` goes in an owner-only file (`--system-prompt-file`), never on the command line: it lists
+    the library's skills in the person's own words (agent.write_prompt_file). `run_dir`: where (the
+    studio's run folder); without it, a private temporary folder."""
     parent = environment()      # os.environ lacks the endpoint variables while another program starts
     try:
         env, scrub = agent.child_env(connection, parent, None, secrets, endpoint)
@@ -36,8 +42,13 @@ async def ask(connection: dict, system: str, prompt: str, timeout: float, secret
     header = costs.turn_header(str(connection.get("kind")), costs.CURRENT_TURN.get())
     if header:      # a request of the turn it helps: its spend is counted in the turn
         env["ANTHROPIC_CUSTOM_HEADERS"] = header
+    folder = run_dir if run_dir is not None else Path(tempfile.mkdtemp(prefix="studio2-cheap-"))
+    try:
+        system_file = agent.write_prompt_file(system, folder)
+    except OSError as exc:
+        raise CheapCallFailed(f"The system text could not be written ({exc.__class__.__name__}).") from None
     options = ClaudeAgentOptions(
-        model=CHEAP_MODEL, system_prompt=system, max_turns=1, tools=[], setting_sources=[],
+        model=CHEAP_MODEL, system_prompt={"type": "file", "path": str(system_file)}, max_turns=1, tools=[], setting_sources=[],
         strict_mcp_config=True, mcp_servers={}, permission_mode="default", env=env, cwd=workdir,
         cli_path=os.environ.get("STUDIO2_CLAUDE_CLI") or None)
     client = ClaudeSDKClient(options)
@@ -75,4 +86,8 @@ async def ask(connection: dict, system: str, prompt: str, timeout: float, secret
                 process.kill()   # a picking call is never worth a graceful wait
         with contextlib.suppress(Exception):
             await asyncio.wait_for(client.disconnect(), 2)
+        system_file.unlink(missing_ok=True)
+        if run_dir is None:
+            with contextlib.suppress(OSError):
+                folder.rmdir()
     return "".join(parts)

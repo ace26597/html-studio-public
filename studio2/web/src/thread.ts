@@ -136,6 +136,8 @@ export interface Turn {
   finishedAt: string | null;
   /** The latest plan; each `plan` event replaces the previous one. */
   plan: PlanEntry[] | null;
+  /** The latest project plan this turn set (`source: "set_plan"`); a task list of the agent program never replaces it. */
+  projectPlan?: PlanEntry[] | null;
   items: TurnItem[];
   /** Workspace paths reported by `files_changed` during this turn. */
   changedPaths: string[];
@@ -399,8 +401,8 @@ function applyEvent(state: ThreadState, event: StudioEvent): ThreadState {
       const removed = state.queue.find((item) => item.queuedId === event.queued_id);
       if (!removed) return state;
       const queue = state.queue.filter((item) => item !== removed);
-      if (event.reason === "stopped" || event.reason === "not_started") {
-        // Stop cleared it, or its turn came and it could not start: say so, and keep the text so
+      if (event.reason === "stopped" || event.reason === "not_started" || event.reason === "restart") {
+        // Stop cleared it, its turn came and it could not start, or the studio restarted: say so, and keep the text so
         // the person can send it again.
         const text = removed.text || (typeof event.text === "string" ? event.text : "");
         const stopped = event.reason === "stopped";
@@ -411,23 +413,16 @@ function applyEvent(state: ThreadState, event: StudioEvent): ThreadState {
           message:
             (stopped
               ? `Stop also removed a message that was waiting, so it was not sent: “${text}”`
-              : `A message that was waiting could not start, so it was not sent: “${text}”`) +
+              : event.reason === "restart"
+                ? `A queued message was not sent because the studio restarted: “${text}”`
+                : `A message that was waiting could not start, so it was not sent: “${text}”`) +
             notPutBack(removed.selection, removed.attachments),
           ts,
           restoreText: text,
         };
         return { ...state, queue, entries: [...state.entries, notice] };
       }
-      if (event.reason !== "restart") return { ...state, queue };
-      // Removed by a restart, not by the user: say so, or the message silently vanishes.
-      const notice: NoticeItem = {
-        type: "notice",
-        key: `unqueued:${seq}`,
-        level: "warning",
-        message: `A queued message was not sent because the studio restarted: “${removed.text}”`,
-        ts,
-      };
-      return { ...state, queue, entries: [...state.entries, notice] };
+      return { ...state, queue };
     }
 
     case "approval_request": {
@@ -607,7 +602,10 @@ function applyEvent(state: ThreadState, event: StudioEvent): ThreadState {
     case "plan": {
       if (!event.turn_id) return state;
       const entries = Array.isArray(event.entries) ? event.entries : [];
-      return withTurn(state, event.turn_id, seq, ts, (turn) => ({ ...turn, plan: entries }));
+      const project = event.source === "set_plan";
+      return withTurn(state, event.turn_id, seq, ts, (turn) =>
+        project ? { ...turn, plan: entries, projectPlan: entries } : { ...turn, plan: entries },
+      );
     }
 
     case "files_changed": {
@@ -997,4 +995,46 @@ function markResent(entries: ThreadEntry[], text: string): ThreadEntry[] {
   return entries.map((entry) =>
     entry.type === "notice" && !entry.resent && entry.restoreText?.trim() === sent ? { ...entry, resent: true } : entry,
   );
+}
+
+/** Where the chat draws the project's plan: only the newest one, once (CONTRACT.md, "Big projects"). */
+export interface PlanPlacement {
+  /** The turn the plan is drawn in. */
+  turnId: string;
+  entries: PlanEntry[];
+  /** The turn whose request last changed it. */
+  changedIn: string;
+  /** The start of that request's text when it is drawn in a newer turn; null when drawn where it changed. */
+  changedBy: string | null;
+}
+
+export function planPlacement(entries: readonly ThreadEntry[]): PlanPlacement | null {
+  const turns = entries.filter((entry): entry is Turn => entry.type === "turn");
+  const newest = turns[turns.length - 1];
+  // The project's plan (set_plan) wins; the agent program's own task list is drawn only in a thread without one.
+  const newestWith = (pick: (turn: Turn) => PlanEntry[] | null | undefined) => {
+    for (let i = turns.length - 1; i >= 0; i--) {
+      const found = pick(turns[i]);
+      if (found !== null && found !== undefined) return { turn: turns[i], plan: found };
+    }
+    return null;
+  };
+  const chosen = newestWith((turn) => turn.projectPlan) ?? newestWith((turn) => turn.plan);
+  if (!newest || !chosen || !chosen.plan.length) return null;
+  const changed = chosen.turn;
+  const plan = chosen.plan;
+  const unfinished = plan.some((entry) => entry.status !== "completed");
+  if (changed.id === newest.id || !unfinished) {
+    return { turnId: changed.id, entries: plan, changedIn: changed.id, changedBy: null };
+  }
+  const words = changed.text.replace(/\s+/g, " ").trim();
+  const cut = words.slice(0, 47);
+  const said = words.length > 48 ? `${(cut.includes(" ") ? cut.slice(0, cut.lastIndexOf(" ")) : cut).trimEnd()}…` : words;
+  return { turnId: newest.id, entries: plan, changedIn: changed.id, changedBy: said || "an earlier request" };
+}
+
+/** Whether a new message joins the project's queue: a request runs, or messages already wait (for it, or for
+ * room in the studio). Sent otherwise, it could be refused while older ones wait, or start ahead of them. */
+export function sendsQueued(state: Pick<ThreadState, "runningTurnId" | "queue">): boolean {
+  return state.runningTurnId !== null || state.queue.length > 0;
 }

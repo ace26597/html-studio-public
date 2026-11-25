@@ -224,26 +224,50 @@ def unmarked_numbers(blocks: list[dict]) -> list[dict]:
     return out
 
 
-def run_sql(workspace: Path, sql: str, limit: int = 1000) -> tuple[list[str], list[tuple]]:
-    """One read-only DuckDB statement; relative file names resolve inside the project."""
-    import duckdb
-
+def _statement(sql: str) -> str:
     from .datasources import DataError, split_statement
     try:
-        statement, _first = split_statement(sql)
+        return split_statement(sql)[0]
     except DataError as exc:
         raise SourceError(exc.message) from None
-    con = duckdb.connect(":memory:")
+
+
+def run_sql(workspace: Path, sql: str, limit: int = 1000, timeout: int | None = None) -> tuple[list[str], list[tuple]]:
+    """One read-only DuckDB statement over the project's files, in a worker that can open nothing
+    outside the project (filesql.py); relative file names resolve inside the project."""
+    from . import filesql
+    statement = _statement(sql)
     try:
-        con.execute("SET file_search_path = ?", [str(workspace.resolve())])
-        con.execute("SET enable_progress_bar = false")
-        cursor = con.execute(statement)
-        columns = [d[0] for d in cursor.description or []]
-        return columns, cursor.fetchmany(limit)
-    except duckdb.Error as exc:
-        raise SourceError(" ".join(str(exc).split())[:600]) from None
-    finally:
-        con.close()
+        answer = filesql.run(workspace, [{"sql": statement, "limit": limit}], filesql.scratch_root(),
+                             timeout or filesql.DEFAULT_TIMEOUT)[0]
+    except filesql.QueryError as exc:
+        raise SourceError(exc.message) from None
+    if "error" in answer:
+        raise SourceError(answer["error"])
+    return answer["columns"], [tuple(row) for row in answer["rows"]]
+
+
+def run_marks(workspace: Path, statements: list[str]) -> list[tuple[list[str], list[tuple]] | SourceError]:
+    """Every data-sql of one page in one worker (the page check): → per statement its (columns,
+    rows) or the SourceError that says why it failed."""
+    from . import filesql
+    out: list = [None] * len(statements)
+    parts, where = [], []
+    for index, sql in enumerate(statements):
+        try:
+            parts.append({"sql": _statement(sql), "limit": 2})
+            where.append(index)
+        except SourceError as exc:
+            out[index] = exc
+    if parts:
+        try:
+            answers = filesql.run(workspace, parts, filesql.scratch_root(), filesql.DEFAULT_TIMEOUT)
+        except filesql.QueryError as exc:
+            answers = [{"error": exc.message}] * len(parts)
+        for index, answer in zip(where, answers):
+            out[index] = SourceError(answer["error"]) if "error" in answer else (
+                answer["columns"], [tuple(row) for row in answer["rows"]])
+    return out
 
 
 def _shown(text: str) -> tuple[Decimal, int, int, bool] | None:
@@ -278,11 +302,15 @@ def _check_quote(mark: dict, sources: Sources) -> dict:
     return {"status": "verified", "reason": "; ".join(notes) or None}
 
 
-def _check_sql(mark: dict, workspace: Path) -> dict:
+def _check_sql(mark: dict, workspace: Path, ran=None) -> dict:
     for name in mark["sources"]:
         if not re.fullmatch(r"s\d+", name) and not (workspace / name).is_file():
             return {"status": "failed", "reason": f"There is no file {name} in the project."}
-    _columns, rows = run_sql(workspace, mark["sql"], limit=2)
+    if ran is None:
+        ran = run_marks(workspace, [mark["sql"]])[0]
+    if isinstance(ran, SourceError):
+        raise ran
+    _columns, rows = ran
     if len(rows) != 1 or len(rows[0]) != 1:
         return {"status": "failed", "reason": "data-sql must return exactly one value (one row, one column)."}
     value = rows[0][0]
@@ -315,11 +343,13 @@ def check_page(workspace: Path, page: str = "index.html", save: bool = True) -> 
     known = {item["id"]: item for item in sources.list()}
     cited: dict[str, int] = {}
     items = []
+    with_sql = [mark for mark in marks if mark["sql"]]
+    ran = dict(zip(map(id, with_sql), run_marks(workspace, [mark["sql"] for mark in with_sql]))) if with_sql else {}
     for number, mark in enumerate(marks, 1):
         kind = "data" if mark["sql"] else "quote" if mark["quote"] else "derived"
         try:
             if kind == "data":
-                outcome = _check_sql(mark, workspace)
+                outcome = _check_sql(mark, workspace, ran[id(mark)])
             elif kind == "quote":
                 outcome = _check_quote(mark, sources)
             else:

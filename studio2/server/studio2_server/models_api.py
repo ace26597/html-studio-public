@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from . import gateway, setup
-from .access import is_local
+from .access import is_local, is_owner
 from .config import Settings, connection_key, environment
 from .modelcheck import CheckError
 
@@ -50,15 +50,27 @@ def register(app: FastAPI, studio, settings: Settings) -> None:
     async def models():
         return {**studio.checks.view(), "note": setup.other_models(), "litellm": litellm_status()}
 
+    def not_owner(request: Request) -> JSONResponse | None:
+        # A check runs a request on one of the owner's model accounts, the Claude plan included.
+        if not is_owner(request.scope, settings):
+            return problem(403, "not_for_shared", "On a shared studio only its owner checks models.")
+        return None
+
     @app.post("/api/models/check", status_code=202)
-    async def check(body: CheckBody):
+    async def check(request: Request, body: CheckBody):
+        refused = not_owner(request)
+        if refused:
+            return refused
         try:
             return studio.checks.start(body.connection, body.model, body.confirm_cost)
         except CheckError as exc:
             return problem(exc.status, exc.code, exc.message)
 
     @app.post("/api/models/check/stop", status_code=202)
-    async def stop_check():
+    async def stop_check(request: Request):
+        refused = not_owner(request)
+        if refused:
+            return refused
         return {"stopping": studio.checks.stop()}
 
     @app.get("/api/litellm")

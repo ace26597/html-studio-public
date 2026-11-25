@@ -179,7 +179,8 @@ closing section, a tone, who the reader is. Each project has a box for them.
 of all your work: where it is, the currency and number format, how you like things written
 ("My bakery is in Lyon, France. Use euros and metric units."). The agent
 gets it with every request in every project and does not ask what it already answers. A
-project's own instructions come first where the two differ. A shared studio has no such text.
+project's own instructions come first where the two differ. On a shared studio only its owner
+writes this text.
 
 Context tells the agent *where to look*; instructions tell it *how to work*. Something you want
 in every project of a kind is better as a [skill of your own](#making-a-skill-of-your-own).

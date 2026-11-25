@@ -15,6 +15,31 @@ export function shouldReloadPreview(reason: ReloadReason, autoReload: boolean | 
 }
 
 /**
+ * Top-level folders whose files are never page content: a change there does not reload the preview.
+ * `notes/` (the project notes) and `research/` (research notes, the saved check_site result) are the
+ * agent's working files. `sources/` holds the saved text of sources, which no page shows; its
+ * `index.json` is the one exception (a page may read it for its source list). Not here, on purpose:
+ * `checks/` (the checked-numbers appendix shows the saved check), `attachments/` (a page may show a
+ * picture the person attached) and `state/` (an app's own data, which the studio never reports).
+ */
+export const NOT_PAGE_FOLDERS = ["notes", "research", "sources"] as const;
+
+/** Files inside NOT_PAGE_FOLDERS that a page may still read. */
+export const PAGE_READS = ["sources/index.json"] as const;
+
+/** Whether one changed path could change what the page shows. */
+export function isPageFile(path: string): boolean {
+  if (!path.includes("/") || (PAGE_READS as readonly string[]).includes(path)) return true;
+  return !(NOT_PAGE_FOLDERS as readonly string[]).includes(path.split("/", 1)[0]);
+}
+
+/** Whether a `files_changed` event touched anything the page could show (an empty list counts as yes). */
+export function changesPage(paths: readonly string[] | undefined): boolean {
+  if (!paths || !paths.length) return true;
+  return paths.some(isPageFile);
+}
+
+/**
  * A reload drops every mark on the page (the bridge draws them in the frame), and positions on
  * a changed page would not mean the same thing. So while the person is drawing, or holds a
  * drawing that was not sent, reloads wait; the caller runs one once the drawing is gone.

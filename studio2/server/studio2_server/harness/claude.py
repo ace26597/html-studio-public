@@ -37,7 +37,7 @@ from claude_agent_sdk.types import ServerToolUseBlock
 from .. import costs
 from .. import gateway as managed
 from ..config import STUDIO2_ROOT, TRANSLATED_KINDS, connection_key, environment, outside_python, without
-from ..risk import Guarded, reach_reason, risky_command
+from ..risk import Guarded, judged_from, reach_reason, risky_command
 from .. import workspace as ws
 from .. import prices
 from .. import questions
@@ -304,8 +304,38 @@ def write_mcp_config(servers: dict, folder: Path) -> Path | None:
     return path
 
 
+def system_text(request: TurnRequest) -> str:
+    """What the agent is told once (CONTRACT.md, "What the agent is told once, and what with each
+    message"): library/system-prompt.md, then this studio's own lines."""
+    prompt_file = LIBRARY_DIR / "system-prompt.md"
+    append = prompt_file.read_text("utf-8") if prompt_file.is_file() else ""
+    if request.context:
+        append = f"{append}\n\n{request.context}".strip()
+    return append
+
+
+def write_prompt_file(text: str, folder: Path) -> Path:
+    """The system text in an owner-only file, for `--append-system-prompt-file`.
+
+    Passed as `--append-system-prompt <text>` it would sit on the agent program's command line, where
+    `ps` shows it to every process on the machine, and a cleanup job that matches words in command
+    lines can kill the agent for a word in it (a tool's name in "On this studio"). Mode 600 in the
+    folder of mode 700 that holds the connector settings, outside every project; removed when the
+    request ends."""
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    folder.chmod(0o700)
+    path = folder / f"prompt-{token_hex(8)}.md"
+    handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(handle, "w", encoding="utf-8") as out:
+        out.write(text)
+    return path
+
+
 def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=None,
-                  mcp_file: Path | None = None, studio_places: tuple[Path, ...] = ()) -> ClaudeAgentOptions:
+                  mcp_file: Path | None = None, studio_places: tuple[Path, ...] = (),
+                  prompt_file: Path | None = None) -> ClaudeAgentOptions:
+    """`prompt_file`: the system text written by write_prompt_file (the turn always passes one;
+    without it no text is appended)."""
     workspace = request.workspace
     servers = request.mcp_servers or {}
     if _external(servers) and mcp_file is None:
@@ -359,13 +389,29 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
                 return refuse(reason)
         return {}
 
+    # Where the agent's shell is when each command is judged (CONTRACT.md, "Where a shell command is judged
+    # from"). The agent program's Bash keeps its folder between calls (`cd data` in one, `cd ..` in the next),
+    # and its PreToolUse input says where that shell is (`cwd`, tried on CLI 2.1.327). Kept by tool call, so a
+    # helper's shell, which is another one, is judged from its own folder; nothing outlives the request.
+    shell_at: dict[str, str] = {}
+
+    async def shell_folder(hook_input, tool_use_id, _context):
+        if hook_input.get("tool_name") == "Bash" and isinstance(hook_input.get("cwd"), str):
+            key = tool_use_id or hook_input.get("tool_use_id")
+            if key:
+                if len(shell_at) > 500:      # answered calls are taken out below; this only bounds a leak
+                    shell_at.clear()
+                shell_at[str(key)] = hook_input["cwd"]
+        return {}
+
     guards = [HookMatcher(matcher=WRITE_TOOLS, hooks=[pre_tool_use], on_failure="block")]
     if not request.pictures:
         guards.append(HookMatcher(matcher="Read", hooks=[no_pictures], on_failure="block"))
+    guards.append(HookMatcher(matcher="Bash", hooks=[shell_folder]))
     if request.reach is not None:
         guards.append(HookMatcher(matcher=None, hooks=[no_reaching], on_failure="block"))
 
-    async def can_use_tool(tool_name, tool_input, _context):
+    async def can_use_tool(tool_name, tool_input, context):
         if tool_name in WRITE_TOOLS.split("|") and outside_workspace(workspace, tool_input):
             return PermissionResultDeny(message="Files outside the project folder cannot be changed.")
         if tool_name == questions.BUILT_IN:     # one card, one path: the studio's own ask_person
@@ -373,9 +419,10 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
                 message=questions.BUILT_IN_ON if (request.options or {}).get("involve") else questions.OFF)
         if tool_name == "Bash":
             command = str(tool_input.get("command") or "")
+            folder = shell_at.pop(str(getattr(context, "tool_use_id", None) or ""), None)
             # In place, the folder's own .git is the person's repository: git that discards work asks.
             # Off the event loop: reading a very long line must not hold up every other request.
-            reason = await asyncio.to_thread(risky_command, command, workspace,
+            reason = await asyncio.to_thread(risky_command, judged_from(command, folder, workspace), workspace,
                                              in_place=ws.history_dir(workspace) is not None,
                                              studio_places=studio_places, reach=request.reach)
             # What an agent may not reach asks even where everything is allowed, and a shared
@@ -401,10 +448,9 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
 
     allowed_servers: set[str] = set()
     plugin = request.plugin_dir or LIBRARY_DIR
-    prompt_file = LIBRARY_DIR / "system-prompt.md"
-    append = prompt_file.read_text("utf-8") if prompt_file.is_file() else ""
-    if request.context:
-        append = f"{append}\n\n{request.context}".strip()
+    extra = {"mcp-config": str(mcp_file)} if mcp_file else {}
+    if prompt_file is not None:     # a path on the command line, never the text (write_prompt_file)
+        extra["append-system-prompt-file"] = str(prompt_file)
     return ClaudeAgentOptions(
         cwd=str(workspace),
         resume=resume,
@@ -433,14 +479,15 @@ def build_options(request: TurnRequest, env: dict, resume: str | None, stderr=No
         # The studio's own tools only: the SDK must hold their instance and they carry no secret.
         # Every other connector is in `mcp_file` (the agent program reads both --mcp-config values).
         mcp_servers={name: config for name, config in servers.items() if name not in _external(servers)},
-        extra_args={"mcp-config": str(mcp_file)} if mcp_file else {},
+        extra_args=extra,
         # snapshot False: the appended text is sent again on every request, a resumed conversation too.
         # By default the agent program keeps the system prompt a session started with: tried on CLI
         # 2.1.327 / SDK 0.2.180 (24 November 2026), a resumed session answered with the marker word of
         # its first system prompt, not the new one; with snapshot False it answered with the new one,
         # and the cached start of the conversation was still read (CONTRACT.md, "What the agent is told
         # once, and what with each message").
-        system_prompt={"type": "preset", "preset": "claude_code", "append": append, "snapshot": False},
+        # The text itself is in `prompt_file`, not in `append`: the SDK would put `append` on the command line.
+        system_prompt={"type": "preset", "preset": "claude_code", "snapshot": False},
         # Thinking text is omitted by default on current Claude models; ask for the summary so
         # the activity feed can show it. Gateways opt in with "thinking": true (not every
         # routed model accepts the parameter).
@@ -726,6 +773,10 @@ class EventMapper:
                     task["status"] = _plan_status(tool_input.get("status") or task["status"])
                     task["content"] = str(tool_input.get("subject") or task["content"])
             events.append({"type": "plan", "entries": [dict(task) for task in self._tasks.values()]})
+            return
+        if block.name == "mcp__studio__set_plan" and not parent:
+            # The tool writes the `plan` event itself (tools.t_set_plan); the chat draws the plan, not a row.
+            self._plan_tools.add(block.id)
             return
         kind, title = describe_tool(block.name, tool_input, self.workspace)
         if kind == "agent":
@@ -1077,13 +1128,15 @@ class ClaudeHarness:
         request.progress["heard"] = mapper.heard_models     # for a turn that is stopped before any result
         started = time.monotonic()
         stderr: deque[str] = deque(maxlen=12)
-        process = client = mcp_file = None
+        process = client = mcp_file = prompt_file = None
         try:
-            if self.mcp_dir is None and _external(request.mcp_servers or {}):
+            if self.mcp_dir is None:
                 self.mcp_dir = Path(tempfile.mkdtemp(prefix="studio2-mcp-"))      # mode 700
-            # Kept while the program runs (it may read it again to reconnect), removed below.
-            mcp_file = write_mcp_config(request.mcp_servers or {}, self.mcp_dir) if self.mcp_dir else None
-            client = ClaudeSDKClient(build_options(request, env, resume, stderr.append, mcp_file, self.studio_places))
+            # Kept while the program runs (it may read them again to reconnect), removed below.
+            mcp_file = write_mcp_config(request.mcp_servers or {}, self.mcp_dir)
+            prompt_file = write_prompt_file(system_text(request), self.mcp_dir)
+            client = ClaudeSDKClient(build_options(request, env, resume, stderr.append, mcp_file, self.studio_places,
+                                                   prompt_file))
             async with _SPAWN_LOCK:
                 with without(scrub):    # environment() still has them for everything else meanwhile
                     await client.connect()
@@ -1127,8 +1180,9 @@ class ClaudeHarness:
                     with contextlib.suppress(Exception):
                         process.kill()
             finally:    # however the turn ended, even when cancelled while closing
-                if mcp_file is not None:
-                    mcp_file.unlink(missing_ok=True)
+                for written in (mcp_file, prompt_file):
+                    if written is not None:
+                        written.unlink(missing_ok=True)
         result = mapper.turn_result(" ".join(stderr)[-600:] if mapper.result is None else "")
         if mapper.result is not None:  # the CLI reports only its last turn; background sub-agents add more
             result.usage["duration_ms"] = int((time.monotonic() - started) * 1000)

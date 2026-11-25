@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { drawingHoldsReload, heldReloadNote, readAutoReload, shouldReloadPreview } from "./reload";
+import { changesPage, drawingHoldsReload, heldReloadNote, isPageFile, readAutoReload, shouldReloadPreview } from "./reload";
 
 describe("preview reload rule", () => {
   it("reloads on file changes unless the page refreshes itself", () => {
@@ -39,5 +39,23 @@ describe("a drawing holds reloads back", () => {
     expect(heldReloadNote(true, 2)).toMatch(/sent or removed/);
     expect(heldReloadNote(false, 1)).toMatch(/sent or removed/);
     expect(heldReloadNote(true, 0)).toMatch(/press Done/);
+  });
+});
+
+describe("which changed files reload the page", () => {
+  it("does not reload for the agent's working notes, research and saved source text", () => {
+    expect(changesPage(["research/site-check.json"])).toBe(false);
+    expect(changesPage(["notes/project.md", "research/notes/market.md"])).toBe(false);
+    expect(changesPage(["sources/s3.txt", "sources/s3.pdf"])).toBe(false);
+  });
+
+  it("still reloads for page files, the source list a page may read, and the saved check", () => {
+    expect(changesPage(["research/site-check.json", "index.html"])).toBe(true);
+    expect(isPageFile("sources/index.json")).toBe(true);
+    expect(isPageFile("checks/index.html.json")).toBe(true);     // the checked-numbers appendix shows it
+    expect(isPageFile("attachments/photo.png")).toBe(true);      // a page may show an attached picture
+    expect(isPageFile("research")).toBe(true);                    // a top-level file, not the folder
+    expect(changesPage([])).toBe(true);
+    expect(changesPage(undefined)).toBe(true);
   });
 });

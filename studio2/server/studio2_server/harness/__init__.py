@@ -44,15 +44,17 @@ class Registry:
 
     @property
     def mcp_dir(self) -> Path:
-        """Where a turn's connector settings are written for the agent program (mode 700, outside
-        every project; harness/claude.py write_mcp_config). Each file goes when its turn ends."""
+        """Where a turn's connector settings and system text are written for the agent program (mode
+        700, outside every project; harness/claude.py write_mcp_config, write_prompt_file). Each file
+        goes when its turn ends."""
         return self.settings.data_dir / "run" / "mcp"
 
     def sweep(self) -> None:
         """Remove connector settings left by a studio that was killed mid-turn. Called once at start,
         before any turn runs."""
-        for path in self.mcp_dir.glob("mcp-*.json") if self.mcp_dir.is_dir() else []:
-            path.unlink(missing_ok=True)
+        for pattern in ("mcp-*.json", "prompt-*.md"):     # and the system text (write_prompt_file)
+            for path in self.mcp_dir.glob(pattern) if self.mcp_dir.is_dir() else []:
+                path.unlink(missing_ok=True)
         # The start folders of library connectors (connector_launch.py) untouched for a day; a
         # younger one may still be in use by a connector that outlived the last studio.
         from ..connector_launch import remove_old_folders

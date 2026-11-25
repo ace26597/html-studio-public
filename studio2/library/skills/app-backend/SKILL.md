@@ -21,7 +21,8 @@ a missing or out-of-date lock itself when it starts the app.)
 Serve `index.html` and static files from the same app, and put the API under `/api/…`.
 Keep what the app writes while it runs in `state/` (SQLite for records, JSON for small settings):
 the studio neither watches nor versions that folder, so saving never reloads the page or shows up
-as a change to the project. Create the folder at start-up. Files you prepare yourself for the page
+as a change to the project. Create the folder at start-up, and take its place from
+`STUDIO_TEST_STATE` when that is set, so tests never touch live records (`app-tests` skill). Files you prepare yourself for the page
 (a CSV to chart) go in `data/`, which is versioned. Run Python with `uv run …`, never a bare
 `python3`.
 
@@ -39,6 +40,6 @@ as a change to the project. Create the folder at start-up. Files you prepare you
 - **Saving input**: validate on the server, write atomically, return the saved record.
 
 ## Before finishing
-Restart the app as the project block describes, request your own endpoints with curl, read
+Give the app tests and run them with `run_tests` (the `app-tests` skill says how). Restart the app as the project block describes, request your own endpoints with curl, read
 the log when something fails, and look at the page with `look_at_page`: requests made by the
 real page can fail where curl succeeds.

@@ -995,7 +995,7 @@ class Shipper:
                                               merge_help=self._merge_help(project["attach"])
                                               if planned["method"] == "branch" and result == "shipped" else None)
             with contextlib.suppress(Exception):
-                studio.turns._start_next(project_id)   # messages sent during the ship run now
+                studio.turns.start_waiting()   # messages sent during the ship run now (when there is room)
 
     async def _back(self, project_id: str, record: dict, planned: dict, backup: Path, folder: Path,
                     why: str) -> tuple[str, str]:

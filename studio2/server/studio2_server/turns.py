@@ -51,6 +51,20 @@ class TurnRunning(Exception):
     pass
 
 
+class QueueFull(Exception):
+    """A project of a shared studio holds as many waiting messages as it may (TurnRunner.QUEUE_CAP)."""
+    def __init__(self, waiting: int, cap: int):
+        super().__init__(f"{waiting} messages waiting, at most {cap}")
+        self.waiting, self.cap = waiting, cap
+
+
+class StudioBusy(Exception):
+    """As many requests run in this studio as it allows (Settings.max_turns)."""
+    def __init__(self, running: int, limit: int):
+        super().__init__(f"{running} of {limit} requests running")
+        self.running, self.limit = running, limit
+
+
 def _clip(text: str, limit: int) -> str:
     raw = text.encode("utf-8")
     return text if len(raw) <= limit else raw[:limit - 20].decode("utf-8", "ignore") + "… [truncated]"
@@ -140,6 +154,8 @@ class TurnRunner:
         self.followed: set[str] = set()             # turns whose ending has dealt with the queue
         self.harness_tasks: dict[str, asyncio.Task] = {}
         self.queue: dict[str, list[dict]] = {}      # project id → messages waiting for the running turn
+        self.queued_count = 0                       # orders queued messages over all projects (start_waiting)
+        self.waiting_since: dict[str, float] = {}   # turn id → when its first open card began to wait
         self.pending: dict[str, dict[str, asyncio.Future]] = {}  # turn id → approval id → answer
         self.verified: set[str] = set()             # turns that called report_verification
         self.checked_pages: dict[str, list[str]] = {}   # turn id → pages check_page ran on in it
@@ -150,7 +166,6 @@ class TurnRunner:
         self.planned: set[str] = set()              # turns in which a plan card was shown
         self.reminded: set[str] = set()             # turns whose first file change was held back for a plan
         self.by_owner: set[str] = set()             # turns a request of the studio's owner started
-        self.queued_guests: set[str] = set()        # queued messages a guest of a shared studio sent
         self.asking: dict[str, dict[str, dict]] = {}    # turn id → question id → {future, questions}
         self.asked: dict[str, int] = {}             # turn id → how many times ask_person has asked in it
         self.no_more_asks: set[str] = set()         # turns in which the person skipped the questions
@@ -169,6 +184,7 @@ class TurnRunner:
         if pid in studio.ships.running:   # a ship works from the saved version; nothing may change under it
             from .ship import ShipRunning
             raise ShipRunning(pid)
+        self.check_room(owner)
         wanted = connection_id or project.get("connection")
         connection, other = studio.registry.usable(wanted, owner)
         if other:       # a guest where the owner left the plan: another connection, for this request only
@@ -200,6 +216,78 @@ class TurnRunner:
             self._run(pid, turn_id, text, selection, connection, model, attachments, options))
         return turn_id
 
+    # -- how many run at once (CONTRACT.md, "Room for a few requests at once") ----------------
+    @property
+    def limit(self) -> int:
+        return max(0, int(self.studio.settings.max_turns or 0))
+
+    QUEUE_CAP = 20          # waiting messages one project of a shared studio may hold
+    WAIT_GRACE = 300.0      # seconds a request may wait for the person before it stops taking room
+
+    def waiting_long(self) -> set[str]:
+        """Running turns that have waited for the person (a card) longer than WAIT_GRACE."""
+        now = time.monotonic()
+        return {turn for turn, since in self.waiting_since.items()
+                if turn in self.active.values() and now - since >= self.WAIT_GRACE}
+
+    def counted(self) -> int:
+        """Running turns that take room: all but those waiting long for the person."""
+        return len(self.active) - len(self.waiting_long())
+
+    def full(self) -> bool:
+        return bool(self.limit) and self.counted() >= self.limit
+
+    def exempt(self, owner: bool) -> bool:
+        """On a shared studio the limit holds guests back, never its owner (CONTRACT.md, "Room for a few
+        requests at once"). A studio that is not shared: everyone is its owner, and the limit is for all."""
+        return bool(self.studio.settings.shared) and owner is True
+
+    def room_for(self, owner: bool = False) -> bool:
+        return self.exempt(owner) or not self.full()
+
+    def check_room(self, owner: bool = False) -> None:
+        """Raise StudioBusy when one more request would go over the studio's limit."""
+        if not self.room_for(owner):
+            raise StudioBusy(self.counted(), self.limit)
+
+    def should_queue(self, pid: str, owner: bool, asked: bool) -> bool:
+        """Whether a new message to this project waits in its queue instead of starting now."""
+        waiting = self.queue.get(pid) or []
+        if self.exempt(owner):     # the owner waits only for its own project, and only behind its own messages
+            ahead = any(item.get("owner") is True for item in waiting)
+            return pid in self.active or pid in self.studio.ships.running or ahead
+        busy = pid in self.active or pid in self.studio.ships.running or self.full() or bool(waiting)
+        return (asked or bool(waiting)) and busy
+
+    def _wait_begins(self, turn_id: str) -> None:
+        """A card waits for the person. After WAIT_GRACE the turn stops taking room, and what is queued may start."""
+        if turn_id in self.waiting_since:
+            return
+        self.waiting_since[turn_id] = time.monotonic()
+        def room() -> None:
+            with contextlib.suppress(Exception):
+                self.start_waiting()
+        asyncio.get_running_loop().call_later(self.WAIT_GRACE + 0.05, room)
+
+    def _wait_ends(self, turn_id: str) -> None:
+        """No card of this turn waits any more: it takes room again."""
+        if not self.pending.get(turn_id) and not self.asking.get(turn_id):
+            self.waiting_since.pop(turn_id, None)
+
+    def start_waiting(self) -> None:
+        """Start what is queued in projects with no request running, over all projects, while there is
+        room: a shared studio's owner first (with or without room), then oldest first. A project's own
+        follow-up waits behind a message queued earlier elsewhere."""
+        while True:
+            full = self.full()
+            ready = [(0 if self.exempt(items[0].get("owner") is True) else 1, items[0]["seq"], pid)
+                     for pid, items in self.queue.items()
+                     if items and pid not in self.active and pid not in self.studio.ships.running]
+            ready = [entry for entry in ready if entry[0] == 0 or not full]
+            if not ready:
+                return
+            self._start_next(min(ready)[2])     # starts it, or takes out what cannot start (and says so)
+
     # -- queued follow-ups ------------------------------------------------------------------
     def enqueue(self, project: dict, text: str, selection: dict | None, connection_id: str | None,
                 model: str | None, attachments: list[str] | None = None, options: dict | None = None,
@@ -207,12 +295,21 @@ class TurnRunner:
         pid = project["id"]
         if pid in self.studio.deleting:
             raise ProjectNotFound(pid)
+        waiting = self.queue.setdefault(pid, [])
+        if self.studio.settings.shared and len(waiting) >= self.QUEUE_CAP:
+            raise QueueFull(len(waiting), self.QUEUE_CAP)
+        self.queued_count += 1
         item = {"queued_id": "q_" + secrets.token_hex(4), "text": text, "selection": selection,
                 "attachments": list(attachments or []), "connection": connection_id, "model": model,
                 "options": effort.clean(options)}
-        if not owner:      # kept beside the message, not in its event: a guest's stays a guest's when it runs
-            self.queued_guests.add(item["queued_id"])
-        self.queue.setdefault(pid, []).append(item)
+        # Who sent it is kept beside the message, not in its event: a guest's stays a guest's when it runs,
+        # and only a message the studio knows is the owner's runs as the owner's.
+        kept = {**item, "seq": self.queued_count, "owner": owner is True}
+        if self.exempt(owner):     # the owner's messages go before guests', each keeping its own order
+            at = next((i for i, other in enumerate(waiting) if other.get("owner") is not True), len(waiting))
+            waiting.insert(at, kept)
+        else:
+            waiting.append(kept)
         self.studio.log(pid).append("turn_queued", None, **item)
         return item["queued_id"]
 
@@ -233,12 +330,13 @@ class TurnRunner:
             waiting.clear()
             return
         while waiting and pid not in self.active:
+            if not self.room_for(waiting[0].get("owner") is True):   # no room: it waits for any request to end
+                return
             item = waiting.pop(0)
             try:
                 self.start(self.studio.store.get(pid), item["text"], item["selection"], item["connection"],
                            item["model"], item["attachments"], item["queued_id"], item.get("options"),
-                           owner=item["queued_id"] not in self.queued_guests)
-                self.queued_guests.discard(item["queued_id"])
+                           owner=item.get("owner") is True)
             except ProjectNotFound:
                 waiting.clear()
             except Exception:  # e.g. its connection was removed meanwhile
@@ -278,6 +376,7 @@ class TurnRunner:
                           detail=detail[:detail_limit] if detail_limit else _clip(detail, 4_000), reason=reason,
                           **({"skill": skill} if skill is not None else {}),
                           **({"guarded": True} if guarded else {}))
+            self._wait_begins(turn_id)
             try:
                 allowed = await future  # cancelled when the turn ends first; _close_approvals announces that
             finally:
@@ -285,6 +384,7 @@ class TurnRunner:
             if self.pending.get(turn_id, {}).pop(approval_id, None) is not None:
                 events.append("approval_resolved", turn_id, approval_id=approval_id,
                               decision="allow" if allowed else "deny", by="user")
+            self._wait_ends(turn_id)
             return allowed
 
         return approve
@@ -320,10 +420,12 @@ class TurnRunner:
         self.asking.setdefault(turn_id, {})[question_id] = {"future": future, "questions": asked}
         events = self.studio.log(pid)
         events.append("question_request", turn_id, question_id=question_id, questions=asked, **card)
+        self._wait_begins(turn_id)
         answers = await future      # cancelled when the turn ends first; _close_questions announces that
         if self.asking.get(turn_id, {}).pop(question_id, None) is not None:
             events.append("question_resolved", turn_id, question_id=question_id, by="user",
                           skipped=answers is None, answers=answers or [])
+        self._wait_ends(turn_id)
         return questions.result(asked, answers, cut, max(0, allowed - self.asked.get(turn_id, 0)))
 
     def plan_due(self, turn_id: str) -> str | None:
@@ -490,7 +592,7 @@ class TurnRunner:
                          self.planned, self.reminded):
                 held.discard(turn_id)
             for held in (self.harness_tasks, self.checked_pages, self.checked_files, self.reports, self.proposed,
-                         self.options, self.asked):
+                         self.options, self.asked, self.waiting_since):
                 held.pop(turn_id, None)
             for waiting in self.asking.pop(turn_id, {}).values():
                 if not waiting["future"].done():
@@ -519,7 +621,7 @@ class TurnRunner:
                 try:    # the queue goes on, as after any failed request: nothing waits for ever
                     self._clear_stopped(pid, turn_id)
                     self.studio.ships.from_agent.pop(pid, None)
-                    self._start_next(pid)
+                    self.start_waiting()     # this project's queue, or another's that waited for room
                 except Exception:  # noqa: BLE001
                     log.exception("Could not start the queue after turn %s", turn_id)
             self.stopped_with.pop(turn_id, None)
@@ -747,7 +849,8 @@ class TurnRunner:
             if status == "failed":
                 studio.ships.from_agent.pop(pid, None)
             await studio.ships.after_turn(pid)   # "make it live" asked for during this turn
-        self._start_next(pid)
+        # This project's queue, or a message another project queued while the studio was full: oldest first.
+        self.start_waiting()
         # Only now has this ending dealt with the queue: marked earlier, a failure in the lines
         # above would have told _run's safety net there was nothing left for it to do.
         self.followed.add(turn_id)

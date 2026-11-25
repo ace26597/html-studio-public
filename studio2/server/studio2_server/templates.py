@@ -39,9 +39,10 @@ class TemplateError(Exception):
 
 def private(parts: tuple[str, ...]) -> bool:
     """What a template never carries, whatever its kind: an app's run-time data (`state/`: its
-    database, uploads) and key files (keyfiles.py). Applied at save, at export, at import and on use, so
-    a template saved before this rule loses them too."""
-    return bool(parts) and (parts[0] == "state" or is_env(parts))
+    database, uploads), the project's own notes (`notes/`: its decisions, not the template's) and key
+    files (keyfiles.py). Applied at save, at export, at import and on use, so a template saved before
+    this rule loses them too."""
+    return bool(parts) and (parts[0] in ("state", "notes") or is_env(parts))
 
 
 def _wanted(kind: str, relative: Path, main: str | None) -> bool:

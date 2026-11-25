@@ -13,9 +13,10 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from . import workspace as ws
-from .check import check_page, run_sql
-from .datasources import DataError, run_query, run_schema, to_json
-from . import convert, diagram, effort, filecheck, generate, media, nextsteps, office, services
+from .config import now_iso
+from .check import check_page
+from .datasources import DataError, run_query, run_schema, split_statement, to_json
+from . import convert, diagram, effort, filecheck, filesql, generate, media, nextsteps, office, services, sitecheck
 from . import context as contexts
 from .look import LookUnavailable
 from . import search as web_search
@@ -127,12 +128,7 @@ async def t_add_source(studio, project_id, args):
 
 
 def _save_rows(workspace: Path, save_as: str, columns: list[str], rows: list) -> str:
-    try:
-        target = ws.safe_path(workspace, save_as)
-    except Exception:
-        raise ToolError("save_as must be a path inside the project.") from None
-    if target.suffix.lower() not in (".csv", ".json"):
-        raise ToolError("save_as must end in .csv or .json.")
+    target = _save_target(workspace, save_as)
     target.parent.mkdir(parents=True, exist_ok=True)
     if target.suffix.lower() == ".csv":
         with target.open("w", newline="", encoding="utf-8") as handle:
@@ -144,17 +140,112 @@ def _save_rows(workspace: Path, save_as: str, columns: list[str], rows: list) ->
     return target.relative_to(workspace.resolve()).as_posix()
 
 
+def _save_target(workspace: Path, save_as: str) -> Path:
+    try:
+        target = ws.safe_path(workspace, save_as)
+    except Exception:
+        raise ToolError("save_as must be a path inside the project.") from None
+    if target.suffix.lower() not in (".csv", ".json", ".parquet"):
+        raise ToolError("save_as must end in .csv, .json or .parquet.")
+    return target
+
+
+def _profile_target(workspace: Path, relative: str) -> Path:
+    try:
+        target = ws.safe_path(workspace, relative)
+    except Exception:
+        raise ToolError("profile must be a file inside the project.") from None
+    if not target.is_file():
+        raise ToolError(f"There is no file {relative} in the project.")
+    if target.suffix.lower() not in filesql.PROFILED:
+        raise ToolError("profile reads .csv, .tsv, .parquet, .json, .jsonl and .ndjson files. Convert a workbook "
+                        "to CSV or Parquet with a short script first.")
+    return target
+
+
+def _query_parts(workspace: Path, args: dict) -> tuple[list[dict], dict]:
+    """→ (the worker's parts, what the answer needs to know) for one query_files call."""
+    if args.get("profile"):
+        if args.get("sql"):
+            raise ToolError("Send either sql or profile, not both.")
+        target = _profile_target(workspace, str(args["profile"]))
+        relative = target.relative_to(workspace.resolve()).as_posix()
+        return [{"profile": relative}], {"profile": relative, "bytes": target.stat().st_size}
+    statement = _statement(str(args.get("sql") or ""))
+    save_as = args.get("save_as")
+    if save_as and _save_target(workspace, save_as).suffix.lower() == ".parquet":
+        cap = int(args["limit"]) if args.get("limit") else None
+        return [{"sql": statement, "limit": cap, "save_parquet": str(_save_target(workspace, save_as))}], {"parquet": True}
+    limit = max(1, min(int(args.get("limit") or (500_000 if save_as else 200)), 500_000 if save_as else 5_000))
+    return [{"sql": statement, "limit": limit}], {"limit": limit}
+
+
+def _statement(sql: str) -> str:
+    try:
+        return split_statement(sql)[0]
+    except DataError as exc:
+        raise ToolError(exc.message) from None
+
+
+PROFILE_COLUMNS, SAMPLE_COLUMNS = 250, 30
+
+
+def _profiled(answer: dict, known: dict, timeout: int) -> dict:
+    size, kind = known["bytes"], Path(known["profile"]).suffix.lower().lstrip(".")
+    out = {"path": known["profile"], "bytes": size, "size": filesql.human(size), "format": kind, **answer}
+    # A wide file must not push the answer past RESULT_CAP: every column is described, the sample shows
+    # the first columns only, with short values.
+    if len(out.get("columns") or []) > PROFILE_COLUMNS:
+        out["columns_cut"] = len(out["columns"]) - PROFILE_COLUMNS
+        out["columns"] = out["columns"][:PROFILE_COLUMNS]
+    cut = lambda v, n: v[:n] + "…" if isinstance(v, str) and len(v) > n else v      # noqa: E731
+    out["columns"] = [{**column, "min": cut(column.get("min"), 60), "max": cut(column.get("max"), 60)}
+                      for column in out.get("columns") or []]
+    sample = out.get("sample") or {}
+    if len(sample.get("columns") or []) > SAMPLE_COLUMNS:
+        out["sample"] = {"columns": sample["columns"][:SAMPLE_COLUMNS],
+                         "rows": [row[:SAMPLE_COLUMNS] for row in sample.get("rows") or []],
+                         "columns_cut": len(sample["columns"]) - SAMPLE_COLUMNS}
+    out["sample"]["rows"] = [[cut(v, 80) for v in row] for row in out["sample"].get("rows") or []]
+    steps = []
+    if out.get("sampled"):
+        steps.append(f"Reading every row did not fit in {int(timeout * filesql.FULL_SHARE)} s, so these figures come from "
+                     f"{out['sampled']['how']}: say so wherever you use them.")
+    if size > filesql.BIG_FILE and kind not in ("parquet",):
+        name = str(Path(known["profile"]).with_suffix(".parquet"))
+        steps.append(f"This file is over 100 MB: convert it to Parquet once (query_files with sql \"select * from "
+                     f"'{known['profile']}'\" and save_as \"{name}\") and query that; it is much faster.")
+    steps.append("For a page, save small aggregated tables (save_as) and load those, never the raw file.")
+    out["next"] = " ".join(steps)
+    return out
+
+
 async def t_query_files(studio, project_id, args):
     workspace = _workspace(studio, project_id)
-    save_as = args.get("save_as")
-    limit = max(1, min(int(args.get("limit") or (500_000 if save_as else 200)), 500_000 if save_as else 5_000))
-    columns, rows = await asyncio.to_thread(run_sql, workspace, str(args.get("sql") or ""), limit + 1)
-    truncated, rows = len(rows) > limit, rows[:limit]
-    if save_as:
-        saved = await asyncio.to_thread(_save_rows, workspace, save_as, columns, rows)
+    try:
+        timeout = filesql.timeout_of(args.get("timeout"))
+    except filesql.QueryError as exc:
+        raise ToolError(exc.message) from None
+    parts, known = _query_parts(workspace, args)
+    try:
+        answer = (await asyncio.to_thread(filesql.run, workspace, parts, filesql.scratch_root(), timeout))[0]
+    except filesql.QueryError as exc:
+        raise ToolError(exc.message) from None
+    if "error" in answer:
+        raise ToolError(answer["error"])
+    if "profile" in known:
+        return _profiled(answer, known, timeout)
+    if known.get("parquet"):
+        saved = Path(parts[0]["save_parquet"])
+        return {"columns": answer["columns"], "row_count": answer["row_count"], "truncated": False,
+                "saved": saved.relative_to(workspace.resolve()).as_posix(), "bytes": saved.stat().st_size,
+                "seconds": answer["seconds"]}
+    columns, rows = answer["columns"], answer["rows"]
+    truncated = bool(answer.get("truncated"))
+    if args.get("save_as"):
+        saved = await asyncio.to_thread(_save_rows, workspace, args["save_as"], columns, rows)
         return {"columns": columns, "row_count": len(rows), "truncated": truncated, "saved": saved}
-    return {"columns": columns, "rows": [[to_json(v) for v in row] for row in rows],
-            "row_count": len(rows), "truncated": truncated}
+    return {"columns": columns, "rows": rows, "row_count": len(rows), "truncated": truncated}
 
 
 def _attached(studio, project_id: str, name: str) -> dict:
@@ -271,6 +362,19 @@ async def t_check_file(studio, project_id, args):
     if turn_id:      # the studio re-checks these files itself after a verification (turns.py)
         studio.turns.checked_files.setdefault(turn_id, []).append(result["file"])
     return filecheck.compact(result)
+
+
+async def t_check_site(studio, project_id, args):
+    try:
+        max_pages = int(args.get("max_pages") or 200)
+    except (TypeError, ValueError):
+        raise ToolError("max_pages is a number of pages (200 by default).") from None
+    # An app brought in from a folder is the person's own (or a copy that ships back): the result goes in the
+    # project's record folder, beside look_at_page's pictures, never into the app.
+    attached = bool(studio.store.get(project_id).get("attach"))
+    save_to = studio.store.dir(project_id) / "site-check.json" if attached else None
+    return await asyncio.to_thread(sitecheck.check_site, _workspace(studio, project_id),
+                                   str(args.get("start") or "index.html"), max_pages, save_to)
 
 
 async def t_render_document(studio, project_id, args):
@@ -490,6 +594,51 @@ async def t_make_live(studio, project_id, args):
                     "changed, and do not run any deploy command yourself."}
 
 
+_TEST_RUNS: dict[str, asyncio.Lock] = {}
+
+
+async def t_run_tests(studio, project_id, args):
+    """CONTRACT.md, "Tests for a project's app: `run_tests`"."""
+    from . import risk, testrun
+    project = studio.store.get(project_id)
+    workspace = _workspace(studio, project_id)
+    try:
+        timeout = int(args.get("timeout") or testrun.DEFAULT_TIMEOUT)
+    except (TypeError, ValueError):
+        raise ToolError("timeout must be a whole number of seconds (at most 900).") from None
+    timeout = max(1, min(timeout, testrun.MAX_TIMEOUT))
+    found = await asyncio.to_thread(testrun.find_command, workspace, project)
+    if not found.get("command"):
+        return {"command": None, "passed": False, "counts": None, "failures": [], "found": found.get("found", False),
+                "next": found["next"]}
+    try:
+        command = testrun.narrow(found, workspace, args.get("path") or None, args.get("filter") or None)
+    except testrun.TestsError as exc:
+        raise ToolError(str(exc)) from None
+    # The same rules as the agent's own shell: run_tests runs only what that would run without a card.
+    reason = await asyncio.to_thread(
+        risk.risky_command, command, workspace, in_place=ws.history_dir(workspace) is not None,
+        studio_places=(studio.settings.data_dir, studio.settings.config_path.parent), reach=studio.reach(project_id))
+    if reason:
+        raise ToolError(f"The studio did not run this test command: {reason} run_tests runs only what the studio "
+                        "would run in your shell without asking. Run it with Bash if it is needed: there the person "
+                        "is asked (on a shared studio a guest's request is refused). Otherwise change the command.")
+    lock = _TEST_RUNS.setdefault(project_id, asyncio.Lock())
+    if lock.locked():
+        raise ToolError("The tests of this project are already running. Wait for that run to end.")
+    async with lock:
+        try:
+            result = await testrun.run(workspace, project_id, command, timeout)
+        except testrun.TestsError as exc:
+            raise ToolError(str(exc)) from None
+    kept = await asyncio.to_thread(testrun.record, result, workspace)
+    studio.store.update(project_id, tests_last=kept)
+    result["next"] = testrun.next_step(result, timeout)
+    if (project.get("attach") or {}).get("mode") == "in_place":
+        result["note"] = "These tests ran in the person's own folder (the project is edited in place)."
+    return result
+
+
 def _library(run):
     from .library import LibraryError
     try:
@@ -552,6 +701,41 @@ async def t_ask_person(studio, project_id: str, args: dict) -> dict:
         raise ToolError(str(exc)) from None
 
 
+PLAN_ITEMS, PLAN_TEXT = 30, 200
+PLAN_STATUS = {"pending": "pending", "doing": "in_progress", "done": "completed"}
+
+
+async def t_set_plan(studio, project_id: str, args: dict) -> dict:
+    """The project's plan, replaced whole → the project record and one `plan` event of the running
+    request (CONTRACT.md, "Big projects"). Never a file: no reload, no version, no person's change."""
+    raw = args.get("items")
+    if raw is None:
+        raw = []
+    if not isinstance(raw, list):
+        raise ToolError("items must be a list of {text, status}.")
+    if len(raw) > PLAN_ITEMS:
+        raise ToolError(f"A plan has at most {PLAN_ITEMS} items; this one has {len(raw)}. Group the small steps.")
+    items = []
+    for number, item in enumerate(raw, 1):
+        if not isinstance(item, dict):
+            raise ToolError(f"Item {number} must be {{text, status}}.")
+        text = " ".join(str(item.get("text") or "").split())
+        status = str(item.get("status") or "pending")
+        if not text:
+            raise ToolError(f"Item {number} has no text.")
+        if len(text) > PLAN_TEXT:
+            raise ToolError(f"Item {number} is {len(text)} characters; at most {PLAN_TEXT}. Say it shorter.")
+        if status not in PLAN_STATUS:
+            raise ToolError(f"Item {number}: status must be pending, doing or done.")
+        items.append({"text": text, "status": status})
+    turn_id = studio.turns.active.get(project_id)
+    studio.store.update(project_id, plan={"items": items, "turn_id": turn_id, "updated_at": now_iso()} if items else None)
+    studio.log(project_id).append("plan", turn_id, source="set_plan", entries=[
+        {"content": item["text"], "status": PLAN_STATUS[item["status"]]} for item in items])
+    done = sum(item["status"] == "done" for item in items)
+    return {"saved": len(items), "done": done, "left": len(items) - done}
+
+
 def _schema(properties: dict, required: list[str]) -> dict:
     return {"type": "object", "properties": properties, "required": required, "additionalProperties": False}
 
@@ -578,9 +762,12 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      "person added, as a source, so figures from it can be marked and checked like a fetched page",
      _schema({"path": S, "title": S}, ["path"]), t_add_source),
     ("query_files", "Run one read-only SQL statement (DuckDB) over files in the project: "
-     "select … from 'data/sales.csv', Parquet and JSON too. Paths are relative to the project folder. "
-     "save_as writes the rows to a .csv or .json file in the project instead of returning them.",
-     _schema({"sql": S, "limit": I, "save_as": S}, ["sql"]), t_query_files),
+     "select … from 'data/sales.csv', Parquet and JSON too. Paths are relative to the project folder; "
+     "nothing outside it can be read. `profile` (a file path, instead of sql) describes a file: size, rows, and "
+     "per column type, missing values, distinct values, min and max, with five sample rows; do this first "
+     "with a big file. save_as writes the rows to a .csv, .json or .parquet file in the project instead of "
+     "returning them. 60 s and 2 GB of memory per call; `timeout` up to 300.",
+     _schema({"sql": S, "profile": S, "limit": I, "save_as": S, "timeout": I}, []), t_query_files),
     ("database_schema", "See what an attached database holds before you query it: its tables, or the columns of one "
      "table (schema.table)",
      _schema({"source": S, "table": S}, ["source"]), t_database_schema),
@@ -604,6 +791,12 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      "a rounding), derived (a workbook formula) or not_found, with where it is (slide, paragraph, cell, page). "
      "Run it before handing over any file that states figures.",
      _schema({"path": S}, ["path"]), t_check_file),
+    ("check_site", "Check all the pages of the project together, from their files (no browser): links and anchors "
+     "between pages, missing or empty pictures, scripts and stylesheets, pages no link reaches from `start` "
+     "(index.html), pages that lead nowhere, missing or repeated titles, no viewport, and a menu (<nav>) or "
+     "stylesheet one page does not share with the rest. Returns `findings` [{page, kind, target, detail}], "
+     "`by_kind`, `pages_list` and what it does not cover. Run it before finishing any project of more than one page.",
+     _schema({"start": S, "max_pages": I}, []), t_check_site),
     ("report_verification", "Report the result of verifying the page(s), once, at the end of a request that was asked "
      "to verify: the counts (checked, passed, fixed, failed, unverifiable) and findings [{what, where, status: passed|"
      "fixed|failed|unverifiable, note}]. List every fixed, failed and unverifiable item; passed ones may be summarised. "
@@ -703,6 +896,12 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      "make it live. The studio does the shipping after your turn ends and asks the person on a card first; you never "
      "run deploy commands yourself.",
      _schema({}, []), t_make_live),
+    ("run_tests", "Run the project's tests and keep the result: the \"test\" command in studio.json, else pytest "
+     "(tests/ or test_*.py), else npm test. Run it before finishing whenever the app's code changed. `path` (a test "
+     "file or folder) and `filter` (a test name) narrow the run; `timeout` in seconds (300, at most 900). Returns "
+     "passed (true only on exit code 0), counts, failures, the end of the output and what to do next. The tests get "
+     "STUDIO_TEST_STATE, an empty folder to use instead of the app's state/",
+     _schema({"path": S, "filter": S, "timeout": I}, []), t_run_tests),
     ("search_library", "Search the person's whole library of skills and connectors (far more than are loaded for one "
      "request) by words: what the task is, a file format, a service, a method. Use it when the task needs know-how or "
      "a service you were not given. `kind` is skill, connector or all. Each result has an `id` for activate_skill or "
@@ -734,13 +933,43 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
                                                          "required": ["label"]}}},
                   "required": ["question"]}},
               "why": S}, []), t_ask_person),
+    ("set_plan", "Show the person the plan for work of more than a few steps, and keep it current: call it first, "
+     "then again as each item starts and ends. It replaces the whole plan; [] clears it. `items`: up to 30 "
+     "{text (at most 200 characters), status: pending, doing or done}. The plan is the project's, kept across "
+     "requests and conversations; while it has items not done it comes back in the project facts.",
+     _schema({"items": {"type": "array", "items": {"type": "object", "properties": {
+         "text": S, "status": {"type": "string", "enum": ["pending", "doing", "done"]}},
+         "required": ["text", "status"]}}}, ["items"]), t_set_plan),
 ]
 HANDLERS = {name: handler for name, _d, _s, handler in TOOLS}
+
+
+# What a request a guest started on a shared studio may not do through the agent (CONTRACT.md, "What a
+# guest may not do on a shared studio"): each adds to what every project gets or makes an app live, and a
+# card for it would be the guest's to answer. save_skill is refused in ownskills.plan the same way.
+OWNER_TOOLS = {
+    "save_template": "Only the studio's owner can save a template: it is offered to every project. Nothing was "
+                     "saved. Tell the person to ask the owner.",
+    "propose_ship_recipe": "Only the studio's owner can set how this app is made live. Nothing was changed. Tell "
+                           "the person to ask the owner.",
+    "make_live": "Only the studio's owner can make this app live. Nothing was started. Tell the person to ask "
+                 "the owner.",
+}
+
+
+def guest_request(studio, project_id: str) -> bool:
+    """Whether the running request of this project is not the owner's, on a shared studio. With no
+    request running there is nobody to vouch for, so that counts as a guest's too."""
+    if not studio.settings.shared:
+        return False
+    return studio.turns.active.get(project_id) not in studio.turns.by_owner
 
 
 async def call(studio, project_id: str, name: str, args: dict) -> dict:
     """Run one tool → the MCP result ({content, is_error?}). Never raises."""
     try:
+        if name in OWNER_TOOLS and guest_request(studio, project_id):
+            raise ToolError(OWNER_TOOLS[name])
         result = await HANDLERS[name](studio, project_id, args or {})
         text = json.dumps(result, ensure_ascii=False, default=str)
         if len(text) > RESULT_CAP:

@@ -13,7 +13,7 @@ layout, running from source, tests, every setting, and the rules.
 | `server/studio2_server/` | The FastAPI server and the `studio` command |
 | `web/` | The interface: React 19, Vite, TypeScript. Built into `web/dist`, which the server serves |
 | `web/mock/` | A stand-in server for interface work (`npm run mock`); not shipped |
-| `library/` | What the agent is given: `system-prompt.md`, 24 skills (four of them Anthropic's, see `library/skills/THIRD_PARTY.md`), 4 sub-agents, 6 starting templates, 8 finished examples (`examples/`, made from real projects with `tools/examples/add.py`), the price list for the backup cost calculation (`model-prices.json`, written by `tools/prices/update.py`), suggested connectors |
+| `library/` | What the agent is given: `system-prompt.md`, the studio's skills (four of them Anthropic's, see `library/skills/THIRD_PARTY.md`), sub-agents, starting templates, finished examples (`examples/`, made from real projects with `tools/examples/add.py`), the price list for the backup cost calculation (`model-prices.json`, written by `tools/prices/update.py`), suggested connectors |
 | `tests/` | Server tests. They run on the scripted agent and make no model call |
 | `install.sh` | The installer described on the front page |
 | `server-requirements.txt`, `server-dev-requirements.txt` | The server's packages at exact versions, pinned by hash, for macOS and Linux; the second adds what the tests need. Written by `tools/lock-server.sh` |
@@ -21,6 +21,7 @@ layout, running from source, tests, every setting, and the rules.
 | `start-tailnet.sh` | Starts the server for one machine plus its owner's Tailscale devices |
 | `tools/demo-video/` | The scripts that recorded [`docs/demo/`](docs/demo/) ([how](tools/demo-video/README.md)) |
 | `tools/model-comparison/` | The same job given to many models and checked in a browser: the brief, the data, the runner, the grader, the page builder and one run's results ([how](tools/model-comparison/README.md)) |
+| `tools/counts.py` | Prints how many studio tools, skills, sub-agents, examples and templates there are, and how many server and interface tests are collected, read from the code (collects, runs nothing) |
 | `tools/prices/` | Writes `library/model-prices.json`, the price list behind a figure the studio works out itself, from OpenRouter's public model list |
 | `../docs/` | The site: the [guide](../docs/index.html), the [benchmarks page](../docs/benchmarks/index.html) and the interactive model comparison. Static files, served as they are: by the public copy's host as a web site, and by the studio itself under `/site/`, linked from the projects page |
 | `screenshots/` | Five screenshots from the first step, taken with the scripted agent |
@@ -33,7 +34,7 @@ The server, by concern:
 | `api.py`, `studio.py`, `store.py`, `events.py`, `turns.py` | Routes, the project record, the event log, one agent turn per project at a time |
 | `harness/` (`base.py`, `claude.py`, `fake.py`, `cheap.py`) | The agent program behind one interface: Claude Agent SDK, the scripted agent, the cheap-model call |
 | `workspace.py`, `watcher.py`, `preview.py`, `apps.py`, `static/bridge.js` | A project's folder and git history, live reload, the page proxy, a project's own back end, the select/edit/draw bridge |
-| `tools.py`, `search.py`, `sources.py`, `check.py`, `filecheck.py`, `look.py`, `layout.py`, `session.py`, `datasources.py` | The studio's 27 tools for the agent: search, saved sources, the page check, the check of figures in Office files and PDFs, looking at the page (pieces, measurements, and the person's sign-in when they allow it), databases |
+| `tools.py`, `search.py`, `sources.py`, `check.py`, `filecheck.py`, `look.py`, `layout.py`, `session.py`, `datasources.py` | The studio's tools for the agent: search, saved sources, the page check, the check of figures in Office files and PDFs, looking at the page (pieces, measurements, and the person's sign-in when they allow it), databases |
 | `office.py`, `convert.py`, `diagram.py`, `media.py`, `generate.py`, `voice.py`, `drawing.py`, `templates.py`, `ownskills.py` | Office files, conversions between document formats, diagrams (Mermaid, kept in `static/vendor/mermaid`), video and pictures, generated media, dictation, drawings, templates, skills a person makes |
 | `attach.py`, `ship.py` | Bringing an app by its folder; making it live |
 | `context.py` | Folders, files and addresses a project points at as read-only context for the agent |
@@ -115,13 +116,14 @@ cd studio2 && STUDIO2_FAKE=1 .venv/bin/pytest -q
 cd studio2/web && npm test && npx tsc --noEmit
 ```
 
-On 19 November 2026: 1676 server tests passed and 3 were skipped, in about 350 seconds; 513
-interface tests passed. Neither suite calls a model, and the server suite uses an in-memory
-secret store and an empty LiteLLM folder, so it does not touch your settings.
+`tools/counts.py` prints how many tests each suite collects (from a worktree, with
+`PYTHONPATH=$PWD/server`). Neither suite calls a model, and the server suite uses an in-memory
+secret store and an empty LiteLLM folder, so it does not touch your settings. Neither builds or
+releases the interface.
 
-Two of the skipped tests are rows of a table that do not apply to their case (a git setting that
-exists only in config). The third needs a real PostgreSQL and a user that may write, to prove that
-the studio's queries are read-only:
+A few server tests are skipped: rows of a table that do not apply to their case, and one that
+needs a real PostgreSQL and a user that may write, to prove that the studio's queries are
+read-only:
 
 ```sh
 STUDIO2_TEST_PG=host:port:database:user:password STUDIO2_FAKE=1 .venv/bin/pytest -q
@@ -175,6 +177,10 @@ Limits and helper programs:
 | Variable | Default | Meaning |
 |---|---|---|
 | `STUDIO2_APP_MODEL_DAILY_USD` | `2.00` | What one project's back end may spend on paid models per day |
+| `STUDIO2_MAX_TURNS` | `4` | How many requests may run at once in this studio (`0`: no limit). One more is refused with a plain message; a queued message waits. On a shared studio the limit holds guests back, never the owner |
+| `STUDIO2_QUERY_MEMORY` | `2GB` | Memory one `query_files` call may use before it spills to disk and then fails |
+| `STUDIO2_QUERY_THREADS` | `4` | Threads one `query_files` call may use |
+| `STUDIO2_QUERY_SPILL` | `10GB` | Disk one `query_files` call may use for spilling (never more than half the free disk) |
 | `STUDIO2_GENERATE_DAILY_CREDITS` | `100` | What the studio may spend on generated media per day |
 | `STUDIO2_FFMPEG` | `ffmpeg` on the PATH | The program that encodes video |
 | `STUDIO2_SOFFICE` | LibreOffice in `/Applications`, else `soffice` or `libreoffice` on the PATH | The program that renders Office files |
@@ -210,7 +216,8 @@ tailscale cert --cert-file <cert file> --key-file <key file> <name>.ts.net
 The address then answers only over HTTPS and only by that name. Tailscale certificates last 90
 days and are renewed by running the same command. A browser allows the microphone only over
 HTTPS or on localhost. Every signed-in device has your full rights, the shell included: never
-forward this to the public internet.
+forward this to the public internet. To let people you trust in from outside, use a gate that
+signs them in and shared mode ([docs/safety.md](docs/safety.md)).
 
 ## Working rules
 
@@ -220,10 +227,10 @@ forward this to the public internet.
 - The contract changes first, then both sides.
 - `STUDIO2_FAKE=1` keeps the whole suite at zero model calls. Say what a run on a paid model
   will cost before starting it.
-- Screens: phones (360 to 430 px wide), tablets in both orientations, and desktop up to 2560
-  px; touch and mouse; light and dark.
-- Loopback by default. Never a public address before accounts and a container per project
-  exist (Step 4, not built yet): the studio can run a shell.
+- Screens: desktop first (1440 px), then tablet (820 px); phone (390 px) last, but it must not
+  break. Touch and mouse; light and dark.
+- Loopback by default. Never a public address for a studio without a gate in front: the studio
+  can run a shell, and there are no accounts or containers yet (Step 4, not built).
 - No secret in the repository, in a project or in the config file.
 - No invented data presented as real. Say plainly what was not checked.
 - Test shipping only against folders you made for the purpose, on a throwaway studio. Never

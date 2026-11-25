@@ -78,7 +78,21 @@ def _scratch(path: str, workspace: Path) -> bool:
 DELETERS = {"rm", "rmdir", "unlink", "shred"}
 # A substitution or variable followed somewhere by `..`: `$(pwd)/..` can climb anywhere.
 CLIMBS = re.compile(r"(?:\$\(|`|\$\{?\w).*(?:^|/)\.\.(?:/|$)")
-SCRATCH = Path("/nonexistent-scratch")     # `here` after a `cd` to a scratch folder such as /tmp
+class ScratchDir(type(Path())):
+    """`here` after a `cd` to a scratch folder such as /tmp: the folder as written (`..` worked out, links
+    not followed), so a relative path that climbs out of it is judged as the place it really leads to,
+    read both ways (`/tmp/../Users` is `/Users` to the shell's `cd`, `/private/Users` to a file read)."""
+
+
+def _under_scratch(path: Path) -> bool:
+    """Is `path`, as written or with links followed, a scratch folder or inside one?"""
+    for form in _forms(Path(path)):
+        if any(form == root or root in form.parents for root in SCRATCH_ROOTS):
+            return True
+    return False
+
+
+SCRATCH_ROOTS = tuple({Path(p) for p in ("/tmp", "/private/tmp", "/var/folders", "/private/var/folders")} | set(SAFE_ROOTS))
 UNKNOWN = Path("/nonexistent-unknown")     # `here` after a `cd` to a place that cannot be read
 
 
@@ -117,8 +131,9 @@ def _outside(token: str, workspace: Path, here: Path | None = None) -> bool:
     if home is not None:     # judged by where it leads: an app can live under the home folder
         resolved = home.resolve()
         return workspace.resolve() not in (resolved, *resolved.parents)
-    if here is SCRATCH and not token.startswith("/"):
-        return False
+    if isinstance(here, ScratchDir) and not token.startswith("/"):
+        if _under_scratch(Path(os.path.normpath(str(here / token)))):
+            return False            # still in the scratch folder, both ways
     if here is not None and not token.startswith("/"):
         resolved = (here / token).resolve()
         return workspace.resolve() not in (resolved, *resolved.parents)
@@ -895,8 +910,6 @@ def _in_git(token: str, workspace: Path, here: Path | None = None) -> bool:
         path = home
     elif token.startswith("/"):
         path = Path(token)
-    elif here is SCRATCH:
-        return False
     else:
         path = (here or workspace) / token
     git_dir, resolved = workspace.resolve() / ".git", path.resolve()
@@ -944,8 +957,6 @@ def _studio_place(token: str, workspace: Path, here: Path | None, places: tuple[
         path = home
     elif token.startswith("/"):
         path = Path(token)
-    elif here is SCRATCH:
-        return False
     else:
         path = (here or workspace) / token
     resolved, root = path.resolve(), workspace.resolve()
@@ -983,9 +994,14 @@ def _move(here: Path | None, target: str, workspace: Path) -> Path | None:
         return here                 # cannot be read from the text: judged from where it was
     if target.startswith("/"):
         resolved = Path(target).resolve()
-        return SCRATCH if resolved in SAFE_ROOTS or _scratch(target, workspace) else resolved
-    if here is SCRATCH:
-        return SCRATCH
+        if resolved in SAFE_ROOTS or _scratch(target, workspace):
+            return ScratchDir(os.path.normpath(target))
+        return resolved
+    if isinstance(here, ScratchDir):
+        moved = Path(os.path.normpath(str(here / target)))
+        if moved.resolve() in SAFE_ROOTS or _scratch(str(moved), workspace) or _scratch(str(moved.resolve()), workspace):
+            return ScratchDir(moved)
+        return moved                # climbed out of the scratch folder: judged as where it is
     return ((here or workspace.resolve()) / target).resolve()
 
 
@@ -1026,7 +1042,7 @@ def _path_reason(command: str, workspace: Path, in_place: bool = False,
     pieces = _pieces(command)
     for index, (part, _sep) in enumerate(pieces):
         if nested is not None:      # what this part hands on to run, read from where it runs
-            prefix = "" if here is None else f"cd {'/tmp' if here is SCRATCH else shlex.quote(str(here))} && "
+            prefix = "" if here is None else f"cd {shlex.quote(str(here))} && "
             for inner in _nested(part, pieces[index - 1][0:1] + (_sep,) if index else None, ctx):
                 if isinstance(inner, _Reason) or inner is None:
                     nested.append(inner)
@@ -1104,7 +1120,7 @@ def _path_reason(command: str, workspace: Path, in_place: bool = False,
                 here is not None and _outside(".", workspace, here))
             if away and not _git_reads(sub, args):
                 return f"It runs git {sub or ''} in a folder outside the project.".replace("  ", " ")
-            base = here if here not in (None, SCRATCH) else workspace
+            base = here if here is not None and not isinstance(here, ScratchDir) else workspace
             if in_place and _git_discards(sub, args, base):
                 return (f"It runs git {sub} in your app's own repository, where it can discard or rewrite work "
                         "(the studio keeps its versions separately).")
@@ -1907,6 +1923,21 @@ def _quoted_programs(text: str) -> str:
 CANNOT_READ = "The studio could not read this command, so it asks before running it."
 
 
+def judged_from(command: str, folder: str | None, workspace: Path) -> str:
+    """The line to judge for a command the agent's shell runs in `folder` (where an earlier call's `cd`
+    left it, as the agent program reports): `cd <folder> && <command>`, so every rule reads relative
+    paths from there, a folder outside the project included. The project's top, or a folder not known:
+    the command as it is (judged from the top, as before)."""
+    if not folder:
+        return command
+    try:
+        if Path(folder).resolve() == Path(workspace).resolve():
+            return command
+    except (OSError, RuntimeError, ValueError):
+        return command
+    return f"cd {shlex.quote(folder)} && {command}"
+
+
 def risky_command(command: str, workspace: Path, in_place: bool | None = None,
                   studio_places=(), _depth: int = 0, _outer: str = "", reach: "Reach | None" = None) -> str | None:
     """→ a one-sentence reason when the command needs the user's approval, else None.
@@ -2162,14 +2193,14 @@ def _locate(token: str, workspace: Path, here: Path | None, home: Path) -> Path 
         return Path(expanded) if expanded != token else None
     for prefix in ("$PWD", "${PWD}"):
         if token == prefix or token.startswith(prefix + "/"):
-            if here in (SCRATCH, UNKNOWN):
+            if here is UNKNOWN:
                 return None
             return Path(here or workspace) / token[len(prefix):].lstrip("/")
     if "$" in token or "`" in token:
         return None
     if token.startswith("/"):
         return Path(token)
-    if here in (SCRATCH, UNKNOWN):
+    if here is UNKNOWN:
         return None
     return Path(here or workspace) / token
 
@@ -2306,9 +2337,10 @@ def _address_reason(text: str, reach: Reach) -> str | None:
     return None
 
 
-def _text_reason(chunk: str, workspace: Path, reach: Reach) -> str | None:
+def _text_reason(chunk: str, workspace: Path, reach: Reach, climbs: bool = True) -> str | None:
     """The rules that read any text, code included: addresses, the keychain, paths from `~`, `$HOME`
-    or `/`, and a home-folder path built in code."""
+    or `/`, and a home-folder path built in code. `climbs` False: a relative path that climbs (`../x`)
+    is left to `_climbs_reason`, which reads it from where its part of the line runs."""
     if not chunk:
         return None
     if reason := _address_reason(chunk, reach):
@@ -2316,11 +2348,110 @@ def _text_reason(chunk: str, workspace: Path, reach: Reach) -> str | None:
     if KEYCHAIN.search(chunk):
         return Guarded("It reads or changes the keys, passwords or sign-ins in this computer's keychain.")
     for match in PATHISH.finditer(chunk):
+        if not climbs and match.group(0).startswith(".."):
+            continue
         if reason := _token_reason(match.group(0), workspace, None, reach, False):
             return reason
     if HOME_CODE.search(chunk) and (name := PRIVATE_NAME.search(chunk)):
         return Guarded(f"It builds a path to ~/{name.group(1).lstrip('/')}, {PRIVATE_SAYS}.")
     return None
+
+
+def _climbs_reason(chunk: str, workspace: Path, here: Path | None, reach: Reach) -> str | None:
+    """A relative path that climbs (`../../x`) anywhere in one part's text, code included, read from
+    where that part runs (a folder that cannot be known: from the project's top, as before)."""
+    for match in PATHISH.finditer(chunk):
+        if match.group(0).startswith(".."):
+            if reason := _token_reason(match.group(0), workspace, None if here is UNKNOWN else here, reach, False):
+                return reason
+    return None
+
+
+# Arguments that are only text: what they hold is printed or rewritten, never opened, so a relative
+# path in them (`href="../../styles/"` in a page) is not a path the command reaches. An absolute or a
+# home path in them is still judged (CONTRACT.md, "Text a command only rewrites or prints").
+SED_FLAGS, PERL_FLAGS = re.compile(r"[gpiIm0-9]*"), re.compile(r"[gimsxrnaludp]*")
+SED_PROGRAMS, PERL_PROGRAMS, PRINTERS = {"sed", "gsed"}, {"perl"}, {"echo", "printf"}
+
+
+def _only_substitutions(script: str, flags: re.Pattern) -> bool:
+    """Is `script` nothing but `s<d>pattern<d>replacement<d>flags` commands, joined by `;` or new
+    lines, with flags that neither write a file (`w`) nor run anything (`e`)? Anything else (an
+    address, `r`, `w`, `e`, `R`, `W`, a block) is not: it is read as before."""
+    i, n, seen = 0, len(script), False
+    while i < n:
+        while i < n and script[i] in " \t\n;":
+            i += 1
+        if i >= n:
+            break
+        if script[i] != "s" or i + 1 >= n or script[i + 1] in "\\\n " or script[i + 1].isalnum():
+            return False
+        delimiter, i, parts = script[i + 1], i + 2, 0
+        while i < n and parts < 2:
+            if script[i] == "\\":
+                i += 2
+                continue
+            if script[i] == delimiter:
+                parts += 1
+            i += 1
+        if parts < 2:
+            return False
+        found = flags.match(script, i)
+        i = found.end()
+        if i < n and script[i] not in " \t\n;":
+            return False
+        seen = True
+    return seen
+
+
+def _text_only(words: list[str], raw: list[str], piped: bool) -> set[int]:
+    """The indices of the words (unquoted, the program first; `raw` as written) that are only text:
+    a sed or perl script of substitutions alone, and what echo or printf prints up to the first
+    redirection, when that output does not go on through a pipe (into `xargs`, a shell: there the
+    text can become a path or a command)."""
+    if not words or len(words) != len(raw):
+        return set()
+    name = Path(words[0]).name
+    if name in PRINTERS:
+        out = set()
+        if piped:
+            return out
+        for index in range(1, len(words)):
+            if re.match(r"^\d*(?:<>|<<<|[<>]+)", raw[index]):
+                break
+            out.add(index)
+        return out
+    if name in SED_PROGRAMS:
+        scripts, first, i = [], None, 1
+        while i < len(words):
+            word = words[i]
+            if word in ("-e", "--expression") and i + 1 < len(words):
+                scripts.append(i + 1)
+                i += 2
+                continue
+            if word.startswith("--expression="):
+                return set()            # the script and the option are one word: read as before
+            if word in ("-f", "--file") or word.startswith(("--file=", "-f")) and word != "-f":
+                return set()            # a script in a file: not read here
+            if word in ("-l", "--line-length") and i + 1 < len(words):
+                i += 2
+                continue
+            if not word.startswith("-") and first is None and not scripts:
+                first = i
+            i += 1
+        chosen = scripts or ([first] if first is not None else [])
+        return set(chosen) if chosen and all(_only_substitutions(words[j], SED_FLAGS) for j in chosen) else set()
+    if name in PERL_PROGRAMS:
+        chosen = []
+        for i in range(1, len(words) - 1):
+            word = words[i]
+            if re.fullmatch(r"-[a-zA-Z]*e", word) and not re.search(r"[MmIx]", word):
+                chosen.append(i + 1)
+            elif word.startswith("-") and "e" in word[1:]:
+                return set()            # `-e` joined with what follows it: read as before
+        # `e` (run the replacement as code) is not among PERL_FLAGS, so such a script is read as before.
+        return set(chosen) if chosen and all(_only_substitutions(words[j], PERL_FLAGS) for j in chosen) else set()
+    return set()
 
 
 SERVE_VALUE = {"-l", "--listen", "-p", "--port", "-c", "--config"}
@@ -2358,7 +2489,7 @@ def _served(words: list[str]) -> list[str]:
 def _reach_line(text: str, workspace: Path, reach: Reach, ctx: tuple[str, int]) -> str | None:
     """One reading of a line: every word of every part, from where the part runs, and what each
     part hands on to run."""
-    if reason := _text_reason(text, workspace, reach):
+    if reason := _text_reason(text, workspace, reach, climbs=False):
         return reason
     here: Path | None = None
     stack: list[Path | None] = []
@@ -2374,10 +2505,20 @@ def _reach_line(text: str, workspace: Path, reach: Reach, ctx: tuple[str, int]) 
         recursive = bool(flag and any(flag.fullmatch(w) for w in words[1:]))
         whole = (COPY if name in COPIERS and (name != "cp" or recursive) else
                  READ if name in WHOLE_READERS or recursive else "")
-        for word in words:
+        raw = _raw_words(part)
+        piped = index + 1 < len(pieces) and "|" in pieces[index + 1][1] and "||" not in pieces[index + 1][1]
+        text_only = _text_only(words, raw, piped)
+        for at, word in enumerate(words):
             for token in _tokens(word):
+                if at in text_only and not token.lstrip("'\"").startswith(("/", "~", "$")):
+                    continue        # page text being printed or rewritten, not a path it opens
                 if reason := _token_reason(token, workspace, here, reach, whole):
                     return reason
+        # Relative climbs written anywhere in this part (code given to a program included), from where
+        # it runs; the words that are only text are left out.
+        kept = " ".join(w for at, w in enumerate(raw) if at not in text_only) if text_only else part
+        if reason := _climbs_reason(kept, workspace, here, reach):
+            return reason
         for served in _served(programs):        # a folder handed out over the network, all of it
             if reason := _token_reason(served, workspace, here, reach, READ):
                 return reason
@@ -2389,7 +2530,7 @@ def _reach_line(text: str, workspace: Path, reach: Reach, ctx: tuple[str, int]) 
             here = UNKNOWN if forms is None or len(forms) != 1 else _move(here, forms[0], workspace)
         elif name == "popd":
             here = stack.pop() if stack else here
-        prefix = "" if here is None else f"cd {'/tmp' if here is SCRATCH else shlex.quote(str(here))} && "
+        prefix = "" if here is None else f"cd {shlex.quote(str(here))} && "
         for inner in _nested(part, pieces[index - 1][0:1] + (sep,) if index else None, ctx):
             if isinstance(inner, str) and not isinstance(inner, _Reason) and inner.strip():
                 if reason := _reach(prefix + inner, workspace, reach, ctx[1] + 1, ctx[0]):

@@ -144,7 +144,7 @@ async def test_a_request_keeps_who_started_it(shared, studio, project):
     # A guest's message that waits in the queue is still a guest's when its turn comes.
     first = (await shared["owner"].post(f"/api/projects/{pid}/turns", json={"text": "slow, please"})).json()["turn_id"]
     queued = (await shared["guest"].post(f"/api/projects/{pid}/turns", json={"text": "then this", "queue": True})).json()["queued_id"]
-    assert queued in studio.turns.queued_guests
+    assert [item["owner"] for item in studio.turns.queue[pid] if item["queued_id"] == queued] == [False]
     await shared["owner"].post(f"/api/projects/{pid}/turns/{first}/stop")
     await studio.turns.wait(pid)
 

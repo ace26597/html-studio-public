@@ -5632,6 +5632,21 @@ project facts wherever an earlier section says so.
   resumed session answered with the marker word of the system prompt it started with; with it, the
   new one; the cached start of the conversation was still read after a commit in the project.
   The text must stay the same from one request to the next, or that cache is written again.
+- **Where that text travels.** Never on the agent program's command line, where `ps` shows it to
+  every process on the computer and a cleanup job that matches words in command lines once killed a
+  request for a tool's name in "On this studio". The harness writes it per request to
+  `<data>/run/mcp/prompt-<random>.md` (mode 600, in the folder of mode 700 that holds the
+  connector settings, outside every project) and passes only its path, with
+  `--append-system-prompt-file` (`extra_args`; the SDK's `append` would put the text in argv). The
+  file goes when the request ends, a failed start included, and a studio start removes any left
+  behind. `snapshot: false` still reaches the program through its control channel, so a resumed
+  conversation gets the current text. What stays on the command line is names and paths only: the
+  model, the session id, `--disallowedTools AskUserQuestion`, `--plugin-dir`, the inline
+  `--mcp-config` of the studio's own tools (`{"studio": {"type": "sdk"}}`) and the path of the
+  connector file. The message goes through standard input; helper definitions go through the
+  control channel. The library picker's small model call (`harness/cheap.py`), whose system text
+  lists the library's skills in the person's own words, does the same with `--system-prompt-file`
+  (a file in the same folder, removed when the call ends).
 - **Precedence.** A `<studio-effort>` block and the person's involve setting override the defaults in
   the system prompt, including when to ask and how long the closing reply is (said once there).
 - **The `<studio-project>` block** has two parts (`Studio.project_facts`). The standing facts (the
@@ -5674,3 +5689,560 @@ project facts wherever an earlier section says so.
   its section's build). slide-reviewer: Read, Glob, Write, render_document. None has ask_person,
   make_live, report_verification or suggest_next_steps. Each brief starts with one sentence on the
   goal of the whole request.
+
+# What a guest may not do on a shared studio
+
+On a shared studio everyone the gate lets in who is not on the owner list is a guest (see "The
+owner of a shared studio"). On a studio that is not shared everyone is the owner and nothing here
+applies.
+
+**What these limits are, and what they are not.** They stop a guest from changing the studio for
+everyone, and from using the owner's accounts, keys, data sources and folders, through the studio's
+own controls: its routes, its cards and the agent's studio tools. They do not contain a guest who
+sets out to get around them. The studio runs as the owner's own user on the owner's computer, and so
+does everything it starts for a project: a project's app, and every script an agent writes and runs.
+Such a program can read what the owner can read and do what the owner can do, and the rules on the
+agent's shell read a command's text, not what a program does ("What an agent's shell may not
+reach"). A guest who can get a program run (a request that writes a script and runs it, for
+example) can get past every limit below. Real separation needs a separate user or a separate
+machine for guests' work; the studio does not have that yet. Let in only people you trust with your
+computer.
+
+- **A guest may:** create projects, send requests, stop them, answer questions, deny any approval
+  card, allow a card of their own request that is not guarded and asks for nothing that is the
+  owner's, read, edit, upload, restore and export a project's files (key files left out, below),
+  start and stop a project's own app when its run line is one the owner has started (below), draw
+  on the page, use a template, choose a project's skills and connectors from the library, detach a
+  database from a project, set a project's approvals back to asking, read the library and the
+  examples, refresh the library's list, and ask the agent about a skill.
+- **Only the owner may**, and a guest gets 403 `not_for_shared` with a sentence saying so, before
+  anything is changed or run:
+  - connectors: add, change, remove and test one (`POST`, `PATCH`, `DELETE /api/mcp-servers…`,
+    `POST /api/mcp-servers/{id}/test`), and ask a model to suggest one (`POST /api/mcp-servers/suggest`).
+    A connector can be a command, and its test starts it.
+  - a folder of this computer: look at one or bring it in (`POST /api/apps/inspect`,
+    `POST /api/projects/attach`), and change how an attached app runs (`PUT …/app/config`).
+  - context from this computer: look at a path or address, and add it to a project
+    (`POST /api/context/inspect`, `POST /api/projects/{id}/context`). Changing an item's label or
+    note, and removing it, stay open.
+  - templates: save a project as one, change, delete or import one (`POST …/template`,
+    `PATCH` and `DELETE /api/templates/{id}`, `POST /api/templates/import`).
+  - always and never for every project (`PUT /api/library/prefs`).
+  - data sources: add, change, remove and test one, test one not saved, and attach one to a project
+    (`POST`, `PATCH`, `DELETE /api/data-sources…`, `POST …/test`, `PUT /api/projects/{id}/data-sources/{source}`).
+  - keys for other services: save or remove one (`PUT` and `DELETE /api/services/{name}`).
+  - making an app live: set the recipe, start a ship, answer its card, update the copy
+    (`PUT …/ship/recipe`, `POST …/ships`, `POST …/ships/{id}/decision`, `POST …/ship/update-copy`).
+  - letting paid media generation start again after its daily stop (`DELETE /api/generation/pause`).
+  - checking a model and stopping a check (`POST /api/models/check`, `POST /api/models/check/stop`):
+    a check runs a request on one of the owner's model accounts.
+- **Already so before:** skills in the library and the instructions for every project are the
+  owner's (403 `not_for_shared`); "allow" on a guarded approval card is the owner's (403
+  `owner_only`); setup, model lists with a key and installing LiteLLM answer only a plainly local
+  request (403 `setup_is_local`); the places the library looks and the signed-in look are refused
+  on a shared studio for everyone.
+- **`GET` routes stay open**: what they show holds no key (keys, passwords and connector values are
+  never shown, only that they are set).
+- **The interface** hides or disables these for a guest (`shared` and not `owner` in
+  `/api/health`) and says that the studio's owner does this.
+- **New routes:** a test walks the server's route table and fails on a route that changes
+  something (`POST`, `PUT`, `PATCH`, `DELETE`) and is neither owner-only nor on its list of what a
+  guest may do.
+- **The agent in a guest's request** holds the same line. A request keeps who started it (`turns.by_owner`);
+  on a shared studio one that is not the owner's (or a tool called with no request running) gets a plain
+  refusal from these studio tools, and nothing is saved or started:
+  - `save_template`: "Only the studio's owner can save a template: it is offered to every project. …"
+  - `propose_ship_recipe` and `make_live`: "Only the studio's owner can set how this app is made live …" /
+    "… can make this app live …". Their cards would otherwise be the guest's to answer.
+  - `save_skill` was already refused for a guest before its card is shown (`not_for_shared`).
+  - The other tools stay as they are: `activate_skill` and `request_connector` change only this project's
+    request; `query_database` and a connector with saved keys are open (left for the owner to decide);
+    `generate_media` keeps its card and its daily cap.
+  - A shell command that writes the studio's own skills or templates folders, `~/.claude/`, the studio's
+    config, runs the `studio` command's changing subcommands or calls a studio's API is already a guarded
+    reason ("What an agent's shell may not reach"), so a guest's request is refused it with no card.
+- **Cards that need the owner.** On a shared studio "allow" on a card needs the owner when the card
+  is guarded, when it belongs to a request the owner started (any card of the owner's own request),
+  or when it asks for something only the owner may do (`save_skill`, `save_template`, a ship recipe,
+  making an app live), whoever started the request. Anyone else gets 403 `owner_only`, "Only this
+  studio's owner can allow this." "Deny" stays open to everyone.
+- **Allow everything.** Only the owner may set a project's approvals to `allow`
+  (`PATCH /api/projects/{id}` with `approvals: "allow"`); a guest gets 403 `not_for_shared`. A guest
+  may set them back to `ask`.
+- **Key files** (the names in "Key files": `.env`, `.env.*`, `.envrc`, `.dev.vars`, `.netrc`,
+  `.pypirc`, SSH private keys, and anything under a folder so named) are never handed to a guest:
+  `GET …/file` answers 403 `not_for_shared`; the project download and a version's diff leave them
+  out; a project's page port does not serve them (404) to anyone but the owner. They stay listed by
+  name in the Files list. This is not containment: a guest may still ask the agent to read such a
+  file, and the agent can, as the owner's user. Who may see which project is the owner's decision
+  and is not changed here.
+- **A project's app runs only a run line the owner has started.** On a shared studio the project
+  record keeps `run_seen`, the `run` line of `studio.json` when the owner last started the app (the
+  owner's start, restart, or the end of a request the owner started). The studio does not start or
+  restart the app while `studio.json` says anything else: a guest's `POST …/app/start` and
+  `…/app/restart` answer 403 `run_not_seen`, and the start after a guest's request, after a file
+  change and at the studio's own start leave the app stopped, with the reason on the app and a
+  `notice`: "On a shared studio a project's app runs only with a run line the studio's owner has
+  started. This one is new or changed, so it was not started. Ask the owner to start the app once."
+  A guest may not write or upload `studio.json` through the file routes (403 `not_for_shared`). A
+  project made from a template or an example takes that template's run line as seen, and so does a
+  copy the owner brought in; a project that existed before this rule takes its current one, once.
+  An app the owner set up (in place, from its record) is not checked: only the owner sets that. This
+  stops a guest from getting a command started by the studio itself; it does not stop a script the
+  agent runs in a guest's request (above).
+- **The route table test** fails on any route kind it does not know (a plain Starlette route, a
+  websocket, a mounted app), on a route that changes something and was not judged, on a `GET` that
+  acts and was not judged, and on an owner-only mark that is not the studio's own check.
+
+# Projects of many pages
+
+A project can be a site, documentation or a report in chapters: many pages that link to each other
+and share one look. `check_page` and `look_at_page` see one page at a time, so nothing used to see
+a broken link between pages, a page nobody can reach, or a page whose menu or styles drifted. The
+tool `check_site` reads all the pages together. The skill `multi-page-site` says how to lay such a
+project out, and `large-documents` now covers a long HTML report or a site as well as Office files.
+
+## The tool `check_site {start?, max_pages?}`
+
+It reads the project's files. It opens no browser and fetches nothing from the internet, so it is
+on every studio. `start` is the start page (`index.html`); `max_pages` is how many pages it reads
+(200 by default, 2,000 at most).
+
+- **Which pages.** Every `.html` and `.htm` file that an export keeps (`export.kept`: no `.git`,
+  `research`, `attachments`, `template`, `notes`, `state`, `looks`, `node_modules` and the rest
+  of `export.LEFT_OUT`, no key files, no links), also leaving out any folder or file whose name
+  starts with `.`. A file with no `<html>`, `<head>` or `<body>` tag and no doctype is a piece of
+  a page (a section written to be joined), not a page; so is a file that still holds the joiner's
+  marks (`<!-- join:…-->` or `{{fact:…}}`, see "Long documents, Office or HTML"). Pieces are counted
+  in `pieces` and not checked.
+- **What it reads in each page** (`html.parser`, no browser): links (`a` and `area` `href`),
+  pictures (`img` `src` and `srcset`, `source`, `video` and `audio` and `track`, `poster`,
+  `input type=image`, icons), scripts, stylesheets, frames (`iframe`, `frame`, `object`, `embed`),
+  every `id` and every `a name`, the `<title>`, the viewport `<meta>`, the links inside `<nav>`,
+  and a local `<base href>`. The `url(…)` and `@import` of a local stylesheet are read once.
+- **How an address is read.** Its `?query` and `#fragment` are taken off and it is decoded. A
+  leading `/` is the project's root; anything else is from the page's folder. An address ending in
+  `/` or naming a folder means that folder's `index.html`. `mailto:`, `tel:`, `javascript:`,
+  `data:`, `blob:` and any address with a scheme or `//` are not files of the project: other sites
+  are counted in `outside_links`, the rest ignored. `#`, `#top` and `#:~:text=` need no id.
+- **Never outside the project.** An address that climbs out of the project folder (`../../x`), or a
+  link (symlink) that ends outside it, is the finding `leaves_project` and is not read
+  (`workspace.safe_path`).
+
+### Findings
+
+Each is `{page, kind, target?, detail}`, the detail in plain words.
+
+| kind | When |
+|---|---|
+| `broken_link` | A link names a file of the project that is not there |
+| `broken_anchor` | `#id` or `page.html#id` where that page has no such `id` or `name` |
+| `missing_file` | A picture, script, stylesheet, frame, or a stylesheet's `url(…)`, that is not there (for a stylesheet's own address, `page` is the stylesheet) |
+| `empty_file` | One of those that is there with 0 bytes |
+| `leaves_project` | An address that leaves the project folder |
+| `too_large` | A page of more than 2 MB: it is not read, so nothing else is said about it |
+| `wrong_case` | A link or file whose name differs from the file's only in capitals (`About.html` for `about.html`): it works on this Mac, whose disk ignores case, and breaks on a host that tells capitals apart |
+| `not_exported` | A link to a file that is there but that an export leaves out (in `research/`, `notes/` and the like), so it breaks once exported |
+| `no_start` | The start page is not there (no orphans are then reported) |
+| `orphan` | A page that no chain of links or frames reaches from the start page |
+| `dead_end` | A page with no link to any other page of the project (only when there are two pages or more; a page reached only through a frame is not one) |
+| `no_title` | No `<title>`, or an empty one |
+| `duplicate_title` | Two or more pages with the same title (one finding per title: `page` is the first, `target` names the others) |
+| `no_viewport` | No `<meta name="viewport">` |
+| `nav_differs` | Most pages (more than half of those with three pages or more) have the same set of `<nav>` links and this page's set is another: the detail says which links it lacks and which it adds. A nav link is the page it leads to; links to a place on the same page (a jump menu) are not counted |
+| `styles_differ` | More than half of the pages link the same local stylesheet and this page links none of the shared ones |
+
+The same finding twice (one page, one kind, one target) is kept once, with `times`.
+
+**Limits, held while it collects** (a page of 500,000 broken links once took 3 GB and 157 s): a page
+over 2 MB is `too_large` and not read; 50 MB of pages and stylesheets in one run; 5,000 links and files
+kept per page; 2,000 findings kept, the rest only counted in `by_kind`; addresses and titles cut at
+300 characters; 1,000 outside host names; 20 seconds for the whole run; a saved file of at most
+5 MB. Each limit reached is said in `truncated` (`time`, `bytes`, `links`, `findings`, `pages`). It
+runs in a worker thread (`asyncio.to_thread`), never on the studio's event loop.
+
+A project with a back end (`studio.json` with a `run` command) answers addresses that are no file:
+there a missing target is counted in `unchecked` (`{count, examples}`) instead of being a finding.
+
+### The answer
+
+`{start, pages, pieces, findings, by_kind, pages_list, outside_links, unchecked, truncated, covers,
+saved, next}`.
+
+- `pages`: how many pages were read. `pages_list`: `{path, title, links_out, reachable}` for each,
+  the first 100. `outside_links`: `{count, sites}` (the first 20 host names).
+- `findings`: the first 300, start page first, then in page order; `by_kind` counts all of them.
+  `truncated` says what was cut: `pages` (more pages than `max_pages`, with the number left
+  unread) and `findings` (how many past 300). The whole result is saved in
+  `research/site-check.json` (`saved`), through the project's path rule (`workspace.safe_path`) and
+  never through a link: when `research` or the file is a link, nothing is written and `saved` is
+  null. In a project brought in from a folder (attached, in place or
+  as a safe copy) nothing is written into the project: the folder is the person's own app, and a
+  file in a safe copy could travel back with a ship. The result is saved in the project's record
+  folder instead, beside the pictures of `look_at_page` (`projects/<id>/site-check.json`), and
+  `saved` is that full path.
+- A run that writes `research/site-check.json` does not reload the preview: `research/` and
+  `notes/` never hold page content, nor does any file under `sources/` except `sources/index.json`,
+  which a page may read for its source list (`web/src/reload.ts`, `NOT_PAGE_FOLDERS`). `checks/`
+  still reloads it, because the checked-numbers appendix shows the saved check;
+  `attachments/` too, because a page may show a picture from it; `state/` is never reported.
+- `covers`: one sentence on what this check does not see: links a script builds, an app's own
+  routes, how the pages look, whether the facts on them are right.
+- `next`: one or two sentences on what to do now (fix the findings and run it again; then
+  `check_page` on the pages that state facts and `look_at_page` on the start page and an inner page).
+
+## The skill `multi-page-site`
+
+A studio skill (under 150 lines) for a site, documentation, a report in chapters or anything of more
+than one page: `index.html` as the start page, one shared stylesheet with the `theme` tokens, the
+same `<nav>` on every page with `aria-current="page"`, relative links only, every page complete by
+itself, the site's conventions kept in the project notes (`notes/project.md`), when one long page
+beats several, `check_site` until it is clean, then `check_page` and `look_at_page`, and what each
+export does with several pages (one HTML file holds one page and names the others it links to; the
+folder keeps them all).
+
+## Long documents, Office or HTML
+
+`large-documents` states its method once (plan, one ledger of facts in `data/facts.json` for the
+whole project, sections or pages written by `section-writer` helpers, one join, checks, one review)
+and keeps what is specific to Office files and to pages in two reference files
+(`reference/office.md`, `reference/html.md`).
+
+- **Pages.** A long report is one page joined from a shell (`build/shell.html`) and sections
+  (`build/sections/<nn>-<id>.html`); a site is one shell (`build/page-shell.html`) filled with each
+  page's module (`build/pages/<id>.html`). `build/outline.json` says which (`kind: report` or
+  `site`) and in what order.
+- **The joiner** `reference/join-pages.py` (standard library only; the agent copies it to
+  `tools/join_pages.py`) fills the shell's marks: `<!-- join:toc -->`, `<!-- join:sections -->`,
+  `<!-- join:title -->`, `<!-- join:nav -->` (the site menu, the same on every page, the current
+  page with `aria-current="page"`), `<!-- join:content -->`, `<!-- join:sources -->` (the sources
+  that page cites, `id="src-<id>"`), `{{root}}` (`""` or `../`), `{{check}}` (the page's saved
+  check) and `{{fact:<key>}}`: the ledger's figure with its `check_page` mark (`data-quote` for
+  `quoted`, `data-sql` for `data`, `data-derived` with the sources of its inputs for `computed`,
+  `data-nocheck` for `given`). Pages add `display` (the figure as shown, which must be in the
+  quote) and `sql` (for `data` facts) to the ledger. An unknown key, a key listed twice in the
+  ledger, a missing module, a section without its id, or any path in the outline that is absolute or
+  leaves the project (by `..` or through a link: every path is resolved and must stay inside the
+  folder it is run in) stops the join and nothing is written. Only an `http:` or `https:` source
+  address becomes a link. `--only <id>` joins one piece into a temporary folder.
+- **The finish for pages** is `check_site` until it reports nothing, `check_page` on every page that
+  states facts, and `look_at_page` on the start page and inner pages; the review is the `checker`
+  helper. Office files keep their finish (`check_file`, `render_document`, `slide-reviewer`).
+- **Helpers.** `section-writer` keeps its tools (Read, Grep, Glob, Write, Edit, Bash: Bash runs the
+  joiner or the deck assembler on its own piece); its description and steps now cover an HTML
+  section or page. `checker` gains `check_site`. This replaces those two lists in "What the agent
+  is told once, and what with each message".
+- **Where the work is tracked.** Both skills keep the plan in `set_plan` (one item per section or
+  page) and the conventions in the project notes. `large-documents`' outline page in `index.html` is
+  for the person only, shows no progress the plan lacks, and goes when the first join or assembly
+  writes the real page.
+- **The picker.** Every studio skill is in the agent's skill list; `large-documents`' description
+  now names a long report and a site of many pages (290 characters), and `multi-page-site` names a
+  site, several pages, docs and chapters (209). The two descriptions are kept short because the list has a budget
+  (`library.LIST_BUDGET_CHARS`).
+
+`make-a-skill` keeps every rule but moves the detail of scripts and of keeping a skill's look to
+`reference/scripts-and-looks.md`, and is 150 lines.
+
+# Big projects: a plan the person sees, notes that last, and room for a few requests at once
+
+A big project runs over many requests and conversations. Three things keep it on track.
+
+## The plan: the tool `set_plan`
+
+```
+set_plan {items: [{text, status}]}      status: "pending" | "doing" | "done"
+```
+
+- 0 to 30 items, each `text` 1 to 200 characters (longer is refused, not cut). The list replaces
+  the whole plan; an empty list clears it. The answer says how many items are done and left.
+- It belongs to the project, not to one conversation. It is kept in the project record as
+  `plan: {items, turn_id, updated_at}` (`items` as given, `turn_id` the request that set it), never
+  in the project's files: setting it does not reload the preview, make a version or show as a
+  change the person made.
+- It writes one `plan` event of the running request, the event the chat already draws, with each
+  status in the chat's words: `{"type": "plan", "entries": [{content, status}], "source": "set_plan"}`
+  where `pending` stays `pending`, `doing` is `in_progress` and `done` is `completed`. Events are
+  kept, so the plan is drawn again after a reload or a restart.
+- While the plan has an item that is not done, it is part of the current facts sent with every
+  message, one line per item with its state (at most 30 lines):
+  `- The plan for this project (set_plan; set in an earlier request or this one). Keep it current:`
+  then `  - [done] …`, `  - [doing] …`, `  - [ ] …`. A plan whose items are all done is not sent.
+- Only the main agent has it: the researcher's `disallowedTools` line names
+  `mcp__studio__set_plan`; the other helpers' `tools:` lists do not.
+- The harness draws it as the plan, not as a tool row (as it does for `TodoWrite`). The plan the
+  agent program's own task tools make (`TodoWrite`, `TaskCreate`) still makes `plan` events, but
+  it is not kept in the project record or sent in the facts.
+- The chat shows the newest plan only. At the request that last changed it: pinned while that
+  request runs, folded afterwards ("Plan · 2 of 5 done"). When a newer request is the last one
+  and the plan is unfinished, it is shown folded there instead, with the start of the request
+  that last changed it. Done items are struck through. An empty plan shows nothing.
+- The chat keeps the event's `source`. The project's plan is the newest `set_plan` one: a task list
+  of the agent program in a later request never hides it. A task list is drawn only in a thread
+  that has no `set_plan` plan.
+
+## Project notes: `notes/project.md`
+
+- A file the agent keeps for later requests: what the project is, the decisions the person made,
+  conventions (file layout, where data comes from, style), and what is still open. Short dated
+  lines; a stale line is replaced, not added to. Never a secret, key or password.
+- When it exists, its text is part of the standing facts (sent once per conversation, and again
+  when it changes), at most 6,000 characters (the studio reads at most the first 64 KB of the file,
+  so a huge file costs nothing); a longer file is cut and a line says so:
+  `- The project's notes (notes/project.md; keep them current):` then the text, indented.
+  No file, or an empty one: nothing is added.
+- The agent edits it with its own file tools; the person reads and edits it in the Files panel
+  under "Working files". It is versioned with the project, so restoring a version restores it,
+  and an edit the person makes there is in `<studio-user-changes>` like any file.
+- A change to a file under `notes/` does not reload the preview: `notes/` holds no page content.
+  The `files_changed` event is still written (the Files panel lists it).
+- It is left out of exports (as before) and out of a saved template (`notes/` at the top of the
+  project, like `state/`).
+- Not in an attached app: its lines say not to add the file there (an app edited in place is the
+  person's own folder, and a safe copy's work can go back into it). A notes file already there is
+  still read.
+
+## Room for a few requests at once
+
+- A working agent's processes peak near 0.8 GB. `STUDIO2_MAX_TURNS` (default `4`; `0` means no
+  limit) caps how many requests run at once in one studio, over all its projects. A model check's
+  requests count too.
+- A request that has waited for the person (an approval card or an `ask_person` card) for more
+  than 5 minutes no longer takes room: a card left open for days must not block the studio. When
+  the 5 minutes pass, a queued message may start in its place. When the person answers and it
+  carries on, it takes room again, so for a while one more request than the limit may run.
+- A new request that would go over it is refused: HTTP 429, code `studio_busy`, message
+  "The studio is already running 4 requests, its limit. Try again when one finishes.", with
+  `details: {running, limit}` (`running` here counts only the requests that take room). The chat
+  shows it above the message box, and the text stays in the box. Starting a request on a new
+  project ("ask about this skill") is refused before the project is made.
+- A message queued in a project (`queue: true`) is never refused for this: it waits. When its
+  turn comes and the studio is full, it stays in the queue and starts as soon as any request in
+  the studio ends, oldest queued first. So the limit is never passed.
+- A project that already has messages waiting puts a new message behind them, even when no request
+  of its own runs and the message did not ask to be queued: it is not refused while older ones
+  wait, and it never starts ahead of them. The interface asks for `queue: true` whenever a request
+  runs or messages wait.
+- A model check waits for room before each of its messages, so a full studio is never recorded as
+  the model failing.
+- The queue lives in the studio's memory. A restart of the studio drops what was waiting; the chat
+  then says which message was not sent and offers to put its text back in the message box.
+- **On a shared studio the limit holds guests back, not its owner.** A request the owner sends (the
+  gate signed in one of `STUDIO2_OWNERS`) is never refused for the limit and never waits behind a
+  guest's: it starts at once, or, when its own project is busy, waits only for that project. The
+  owner's requests still count, so guests get the room that is left. In a project's queue the
+  owner's messages go before guests' (each keeping its own order), and when room appears the
+  owner's waiting messages start first. A model check counts as the owner's.
+- **On a shared studio a project holds at most 20 waiting messages.** One more is refused: HTTP
+  429, code `queue_full`, "This project already has 20 messages waiting. Send more when some have
+  run.", `details: {waiting, cap}`.
+- Who queued a message is kept with it (`owner: true` only when the studio was sure it was the
+  owner); a message whose sender is not known runs as a guest's.
+- A studio that is not shared works as before: everyone there is its owner, and the limit applies
+  to all.
+- `GET /api/health` has `turns: {running, limit, waiting}`: `running` is every request running now,
+  `limit` is `0` for no limit, and `waiting` is how many of them have waited for the person longer
+  than 5 minutes and take no room.
+
+# `query_files` on big files, and what its SQL may read
+
+Until 25 November 2026 `query_files` ran DuckDB inside the studio's own process with no limits and
+with full access to the computer: `read_csv('/etc/hosts')`, `'../<other project id>/…'`, any file of
+the user and any `https://` address could be read through it, and the rules in "What an agent's
+shell may not reach" never saw it (they read shell commands and file tools, not SQL). A long query
+also held a server thread until it ended.
+
+**Where a query runs.** Each call starts a separate process (`filesql_worker.py`, run with Python's
+`-I` so nothing in the project is imported) whose working folder is the project folder. It gets no
+environment from the studio beyond `PATH`, `HOME` and the locale. Before the agent's statement runs,
+the worker:
+
+- sets `allowed_directories` to the project folder (as `./`, and by its full path) and to the call's
+  own temporary folder, then `enable_external_access = false` and `lock_configuration = true`. From
+  then on DuckDB opens no file outside those folders, follows a link only where it really ends (a link
+  in the project to a file outside it is refused), refuses `..` out of the project, and refuses every
+  `http://`, `https://`, `s3://` and other remote address. No later `SET` can change this.
+- does not install or load extensions (`autoinstall_known_extensions` and
+  `autoload_known_extensions` off). CSV, Parquet and JSON are built in; Excel (`read_xlsx`) is an
+  extension and is not offered: convert a workbook with a script first.
+- the statement must still be one read (`split_statement`: SELECT, WITH, SHOW, EXPLAIN, VALUES,
+  TABLE, DESCRIBE), so `COPY`, `ATTACH`, `INSTALL`, `LOAD`, `SET` and `PRAGMA` are refused before
+  DuckDB sees them, and DuckDB itself has no `getenv()` in this build.
+
+Reading the project's own files is unchanged: `'data/x.csv'`, `read_parquet('data/*.parquet')`, a
+full path inside the project, and patterns all work. Fetching from the internet inside SQL is not
+possible any more; `fetch_source` or a script does that (no studio text asked agents to do it in SQL).
+
+**Limits.** A call can no longer take the computer with it:
+
+| Limit | Default | Change it with | When it is reached |
+|---|---|---|---|
+| Memory | 2 GB | `STUDIO2_QUERY_MEMORY` (`4GB`, `512MB`) | DuckDB spills to disk first; past that the call fails: "needed more than the 2 GB memory limit" and what to do |
+| Threads | 4 | `STUDIO2_QUERY_THREADS` | (a speed limit only) |
+| Disk for spilling | 10 GB, never more than half the free disk | `STUDIO2_QUERY_SPILL` | the call fails and says so |
+| Time | 60 s | `timeout` argument, up to 300 s | the worker's whole process group is ended, the server thread is free at once, and the answer says the limit and what to do |
+
+Every limit message ends with what to do next: filter (`where`), select fewer columns, aggregate
+(`group by`) instead of returning rows, `profile` the file first, convert it to Parquet once and
+query that. The temporary folder is `<data folder>/run/query/<random>/`, outside every project, and
+is removed when the call ends, whatever happened.
+
+**`profile` instead of `sql`.** `query_files {profile: "data/big.csv"}` (also `.tsv`, `.parquet`,
+`.json`, `.jsonl`, `.ndjson`) answers:
+
+```json
+{"path": "data/big.csv", "bytes": 2148855922, "size": "2.0 GB", "format": "csv", "rows": 35400000,
+ "columns": [{"name": "region", "type": "VARCHAR", "missing": 0, "distinct_about": 5, "min": "central", "max": "west"}],
+ "sample": {"columns": ["…"], "rows": [["…"]]}, "sampled": false, "seconds": 7.4, "next": "…"}
+```
+
+- Every row is read, in one pass (per column `count`, `approx_count_distinct`, `min`, `max`; so
+  `missing` is exact), when that finishes in 60% of the time limit. Otherwise the
+  first 1,000,000 rows are profiled instead and the answer says `sampled: {"how": "the first 1,000,000
+  rows", "rows_read": …}`; `rows` is then counted on its own (Parquet: from its metadata) or, if even
+  that does not fit, left out with `rows_note`.
+- `distinct_about` is DuckDB's estimate, not an exact count. `min` and `max` are as DuckDB writes them.
+- `next` says to convert to Parquet when a CSV or JSON file is over 100 MB.
+- A wide file stays under the answer cap: the first 250 columns are described (`columns_cut` says
+  how many more), the sample shows the first 30 columns (`sample.columns_cut`), sample values of
+  80 characters at most and a min or max of 60.
+
+**`save_as` also takes `.parquet`.** The worker writes the whole result (no row limit; `limit` caps
+it only when given) to a file in its temporary folder through DuckDB's own Parquet writer, and the
+studio then moves it to the path, which must be inside the project (`safe_path`, as for `.csv` and
+`.json`). The agent's statement is never turned into a `COPY`: it is run as a relation and the
+relation is written. A call that fails or runs out of time leaves no half-written file in the project.
+
+**`check_page`** runs every `data-sql` of a page in one such process with the same limits (60 s for
+the whole page); each mark still gets its own verdict.
+
+**Not covered.** The project's own files are all open to the SQL, including anything the person put
+there. A back end or a script the agent runs is a separate program and is judged by the shell rules
+alone. Big files are still committed into the project's history like any file (versions are git);
+nothing here changes that.
+
+# Tests for a project's app: `run_tests`
+
+A project with a back end, or with logic worth protecting, should have tests, and the studio should
+know whether they pass. `run_tests {path?, filter?, timeout?}` runs them and keeps the result.
+
+**Which command.** In this order:
+1. `"test"` in the project's `studio.json` (a command string), run with `sh -c`.
+2. In an attached app without that: the checks of its confirmed ship recipe, joined with `&&`.
+3. pytest, when the project has a `tests/` folder or a `test_*.py` / `*_test.py` file at its top:
+   `.venv/bin/pytest` when the project has one, else `uv run --with pytest --with httpx
+   [--with-requirements requirements.lock | requirements.txt] pytest`, always with
+   `-q -p no:cacheprovider` (nothing written into the project). `httpx` is there for FastAPI's and
+   Starlette's `TestClient`.
+4. `npm test`, when `package.json` has a `test` script that is not npm's placeholder ("no test
+   specified"). Without `node_modules` it is not run and the answer says to install first.
+5. None: the answer says the project has no tests, and what to create (`tests/test_app.py`).
+
+`path` (a file or folder inside the project) is added at the end of any of these commands (after
+`--` for npm). `filter` (pytest's `-k`, vitest's and jest's `-t`) works only with the studio's own
+pytest or npm command; with a command from `studio.json` or a recipe the answer says to pass `path`.
+
+**How it runs.** In the project folder, with the environment a project's app gets (the short list
+in `apps.py`, never the studio's own: no keys, no access key) minus the app's own variables (no
+`PORT`, `STUDIO_TOKEN`, `STUDIO_DATA_URL`, `STUDIO_MODEL_URL`), plus `CI=1`,
+`PYTHONDONTWRITEBYTECODE=1` and **`STUDIO_TEST_STATE`**: a new empty folder for this run, outside
+the project, removed afterwards. An app reads its state folder as `STUDIO_TEST_STATE` when that is
+set, else `state/`, so tests never write into the live app's records (the `app-tests` skill and the
+templates do this). The command never starts, stops or restarts the app, and gets no port. Time limit
+300 s by default, `timeout` up to 900; at the limit the whole process group is ended. One run per
+project at a time.
+
+**The shell rules apply.** The command is judged by the same rules as an agent's shell command
+(`risk.risky_command`, with this project's reach). Any reason at all, a guarded one or not, and
+`run_tests` does not run it: the answer gives the reason and says the agent may run it with Bash,
+where the person is asked (or, on a shared studio, a guest is refused as for any such command). So a
+`"test"` the agent wrote into `studio.json` reaches nothing its shell could not reach without a card.
+The tests themselves are the project's own code, which the agent's shell can already run; a program
+that sets out to reach further gets as far as its shell would (see "Not caught").
+
+**An attached app.** A safe copy runs its tests in the copy, never in the original. A folder edited
+in place runs them in that folder, the person's own, exactly as the agent's shell would; the command
+is judged with the in-place rules. A recipe's checks are used only once the person confirmed the recipe.
+
+**The answer.**
+
+| Field | |
+|---|---|
+| `command` | what was run (or `null` when nothing was) |
+| `passed` | true only when the command ended with exit code 0 |
+| `counts` | `{passed, failed, errors, skipped}` read from pytest's summary line; vitest, jest and `node --test` as well as can be read; `null` when nothing could be read |
+| `failures` | `[{name, message}]`, 20 at most, messages 300 characters at most |
+| `output_tail` | the last 6,000 characters of the output |
+| `seconds`, `timed_out`, `exit_code` | |
+| `next` | what to do: on a failure, fix the code (or the test, when the test is wrong) and run again; never delete a test to make the run pass; say plainly what still fails |
+
+**What the studio keeps.** The last result goes into the project record as `tests_last` (`at`,
+`command`, `passed`, `counts`, `seconds`, `timed_out`, `fingerprint`), not into the project's files,
+so it reloads nothing and makes no version. The current part of the project facts then has one line:
+"Tests (`<command>`): 12 passed, 2 failed, 8 minutes ago; the app's files changed since." A project
+with tests that were never run here gets "Tests: this project has tests (`…`), not run here yet."
+
+"Changed since" is cheap to know: `fingerprint` is the count and the newest change time of the
+project's code files (`.py`, `.js`, `.ts`, `.tsx`, `.jsx`, `.mjs`, `.cjs`, `.vue`, `.svelte`,
+`.json`, `.toml`, `requirements*`), outside `.git`, `node_modules`, `.venv`, `state/`, `data/`,
+`sources/`, `checks/` and `attachments/`, stopping after 20,000 files (then the line leaves "changed
+since" out). Taken at the end of the run and again for each message: a few milliseconds.
+
+**Helpers.** The `checker` gets `run_tests` in its `tools:` line, so a review of an app can run
+its tests.
+
+# Where a shell command is judged from
+
+The agent program's shell keeps its folder from one call to the next: `cd data` in one call, and
+the next call starts in `data/`. The rules in "What an agent's shell may not reach" and
+"Approvals" used to read every command as if it started at the project's top, so `cd .. && mkdir
+-p data/agg` after a `cd data` was read as leaving the project and asked as "the studio's own
+settings" (a card for the owner, a refusal for a guest), though it wrote the project's own
+`data/agg`.
+
+- **What the studio is told.** The PreToolUse input of every tool call has `cwd`, the folder the
+  agent's shell is in at that moment; it follows `cd` (tried on CLI 2.1.327: after `cd data` the next
+  call reports `<project>/data`, and `cd ..` there brings the next one back to the top). A helper agent's
+  shell is another shell and its calls carry their own folder.
+- **How it is used.** A hook kept for Bash (`matcher: "Bash"`) notes `cwd` under the call's
+  `tool_use_id`; the permission callback, which gets the same id, judges `cd <that folder> && <command>`
+  (`risk.judged_from`), so every rule reads relative paths from where the shell really is. The card and
+  the refusal show the command as the agent wrote it. Nothing outlives the request.
+- **Never weaker.** A command that leaves the project from that folder is caught as before (`cd ../..`
+  from `data/` is the studio's records). A folder outside the project is read as itself, never as the
+  project: from another folder `touch notes.txt` writes outside the project and is caught, where read
+  from the top it had looked like a project file; a scratch folder such as `/tmp` is scratch, as when a
+  line says `cd /tmp` itself. With no folder reported (a call the hook said nothing about) the command
+  is read from the top, as before.
+- **From a scratch folder** (`/tmp`, `/private/tmp`, `/var/folders`) the rules keep the folder itself,
+  as written. A relative path that stays inside the scratch folders is scratch, as before; one that
+  climbs out is judged as the place it reaches, read both ways (`/tmp/..` is `/` to the shell's `cd`
+  and `/private` to a file read), on one line or across calls: `cd /tmp && cat ../Users/<user>/.ssh/id_rsa`
+  is a private place (until 25 November 2026 it was read as scratch and let through). A read that is
+  merely outside (`cd /tmp && cat ../etc/hosts`, `cd /private/tmp && ls ../../etc`) is not asked, like any
+  read outside the project.
+
+# Text a command only rewrites or prints
+
+The rule for paths inside text (code given to a program on the command line, such as
+`python3 -c "open('../../x')"`) read every `../` in a line from the project's top. So a page being
+rewritten for a folder (`sed 's#href="styles/#href="../../styles/#' a.html > build/b.html`, which the
+long-document method makes agents write) was read as reaching another project, a guarded card for
+the owner and a refusal for a guest.
+
+- **A relative climb is read from where its part of the line runs**, after an earlier `cd` on the line
+  or in an earlier call ("Where a shell command is judged from"), like every other word, and named as
+  the place it really reaches. A folder that cannot be known: from the project's top, as before.
+- **Arguments that are only text are not read for relative paths:**
+  - a `sed` script (the first word that is not an option, or every `-e`) made of nothing but
+    `s<d>pattern<d>replacement<d>flags` commands, joined by `;` or new lines, with flags among
+    `g p i I m` and digits. A script with anything else (an address, `r`, `R`, `w`, `W`, `e`, a `w` or
+    `e` flag, a block, `y`) and a script from a file (`-f`) are read as before;
+  - a `perl` `-e` (`-pe`, `-ne`, …) script of the same kind, without the `e` flag (which runs the
+    replacement as code);
+  - what `echo` or `printf` prints, up to the first redirection, when the output is not piped on
+    (into `xargs` or a shell the text can become a path or a command).
+- **Still read in those arguments:** an absolute or home path (`~/.ssh`, `/etc/…`, a studio's data
+  folder), an address, the keychain. **Always read:** the file a redirection writes, the files the
+  command is given, and every other program's text. `awk` is not covered (its `getline <` and
+  `print >` open files from inside its text).

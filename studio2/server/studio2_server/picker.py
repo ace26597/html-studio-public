@@ -375,7 +375,8 @@ class Picker:
             start.add_done_callback(lambda task: task.cancelled() or task.exception())
             endpoint = await asyncio.wait_for(asyncio.shield(start), timeout)
         return await cheap.ask(connection, system, prompt, timeout, secrets=self.studio.settings.secret_store(),
-                               workdir=str(scratch), endpoint=endpoint)
+                               workdir=str(scratch), endpoint=endpoint,
+                               run_dir=self.studio.registry.mcp_dir)
 
     async def _ask_model(self, text: str, connection: dict, shortlist: list, candidates: list[dict],
                          room: int) -> tuple[tuple[list, list] | None, str | None, str | None]:

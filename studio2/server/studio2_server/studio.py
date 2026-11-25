@@ -18,15 +18,15 @@ from . import effort
 from . import attach as attaching
 from . import context as contexts
 from . import workspace as ws
-from .access import AccessGuard, gate_for, known_names, preview_url_for
-from .apps import Apps
+from .access import AccessGuard, gate_for, is_owner, known_names, preview_url_for
+from .apps import Apps, read_config
 from .config import REPO_ROOT, Settings, known_studios, model_gateway, now_iso
 from .datasources import KINDS as DATA_KINDS
 from .datasources import DataSources, KeychainSecrets, MemorySecrets, driver_available
 from .events import EventHub, EventLog
 from .examples import Examples
 from .harness import Registry, empty_usage
-from . import generate, instructions, media, office, services, ship as shipping, tools
+from . import filesql, generate, instructions, media, office, services, ship as shipping, testrun, tools
 from .modelcheck import ModelChecks
 from .costs import CURRENT_TURN, RESTART_ERROR, Costs
 from .library import KeychainJson, Library, MemoryJson
@@ -44,6 +44,52 @@ from .watcher import Watchers
 log = logging.getLogger("studio2")
 
 
+
+NOTES_FILE, NOTES_CAP, PLAN_LINES = "notes/project.md", 6_000, 30
+NOTES_READ = 64 * 1024      # bytes read at most: always more than NOTES_CAP characters of UTF-8
+PLAN_MARK = {"done": "[done]", "doing": "[doing]", "pending": "[ ]"}
+
+
+def project_notes(workspace: Path) -> str:
+    """The project's own notes (CONTRACT.md, "Big projects") → the standing-facts lines, or "" when
+    there is no such file or it is empty. At most NOTES_CAP characters of it, with a line saying so."""
+    path = workspace / NOTES_FILE
+    try:
+        root = workspace.resolve()
+        if path.is_symlink() or not path.is_file() or root not in path.resolve().parents:
+            return ""
+        with path.open("rb") as handle:     # a huge file costs no more than its start
+            text = handle.read(NOTES_READ).decode("utf-8", errors="replace").strip()
+    except OSError:
+        return ""
+    if not text:
+        return ""
+    cut = len(text) > NOTES_CAP
+    if cut:
+        text = text[:NOTES_CAP].rsplit("\n", 1)[0] if "\n" in text[:NOTES_CAP] else text[:NOTES_CAP]
+    lines = [f"- The project's notes ({NOTES_FILE}; keep them current):"]
+    lines += [f"  {line}" if line.strip() else "" for line in text.splitlines()]
+    if cut:
+        lines.append(f"  (Cut here: the file is longer than {NOTES_CAP:,} characters. Shorten it: replace stale "
+                     "lines instead of adding.)")
+    return "\n".join(lines)
+
+
+def plan_lines(plan) -> str:
+    """The project's plan while it has an item not done → current-facts lines; else ""."""
+    items = [item for item in (plan or {}).get("items") or [] if isinstance(item, dict)]
+    if not items or all(item.get("status") == "done" for item in items):
+        return ""
+    lines = ["- The plan for this project (set_plan; set in an earlier request or this one). Keep it current:"]
+    lines += [f"  - {PLAN_MARK.get(item.get('status'), '[ ]')} {item.get('text') or ''}" for item in items[:PLAN_LINES]]
+    if len(items) > PLAN_LINES:
+        lines.append(f"  - … and {len(items) - PLAN_LINES} more")
+    return "\n".join(lines)
+
+RUN_NOT_SEEN = ("On a shared studio a project's app runs only with a run line the studio's owner has started. "
+                "This one is new or changed, so it was not started. Ask the owner to start the app once.")
+
+
 class Studio:
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -58,7 +104,9 @@ class Studio:
         self.gate = gate_for(settings)       # one for every port: it keeps the gate's keys
         self.previews = Previews(settings.hosts, tls=settings.tls, guard=lambda app: AccessGuard(
             app, settings.access_key, settings.port, own_login=False, open_tailnet=settings.open_tailnet,
-            names=self.names, gate=self.gate), sessions=self.sessions)
+            names=self.names, gate=self.gate), sessions=self.sessions,
+            # Key files are never served to a guest of a shared studio (CONTRACT.md, "What a guest may not do").
+            hide_keys=lambda scope: bool(settings.shared) and not is_owner(scope, settings))
         self.watchers = Watchers(self._files_changed)
         self.turns = TurnRunner(self)
         self.saved = Templates(settings)
@@ -67,6 +115,7 @@ class Studio:
         self.looker = Looker(self.sessions)
         self.ships = shipping.Shipper(self)
         self.generator = generate.Generator(settings.data_dir, settings.generate_daily_credits)
+        filesql.set_scratch_root(settings.data_dir / "run" / "query")     # query_files' temporary folders
         self.everywhere = instructions.Everywhere(settings.data_dir / "instructions.json")
         self.build = Build()      # the code this process started with (build.py)
         self.checks = ModelChecks(self)     # "check this model" (modelcheck.py)
@@ -363,9 +412,26 @@ class Studio:
 
     def app(self, project_id: str):
         project = self.store.get(project_id)
-        return self.apps.ensure(project, self.store.workspace(project_id), self.store.dir(project_id),
-                                {"STUDIO_TOKEN": self.token(project_id), "STUDIO_DATA_URL": self.data_url(project_id),
-                                 "STUDIO_MODEL_URL": self.model_url(project_id)})
+        found = self.apps.ensure(project, self.store.workspace(project_id), self.store.dir(project_id),
+                                 {"STUDIO_TOKEN": self.token(project_id), "STUDIO_DATA_URL": self.data_url(project_id),
+                                  "STUDIO_MODEL_URL": self.model_url(project_id)})
+        found.may_start = lambda run, app=found: self.run_refusal(project_id, run, app)
+        return found
+
+    def run_refusal(self, project_id: str, run: str | None, app=None) -> str | None:
+        """Why the studio does not start this run line now (CONTRACT.md, "What a guest may not do on a
+        shared studio"), or None. On a shared studio a project's app runs only a `studio.json` run line
+        the owner has started; the end of a request the owner started counts as the owner's start."""
+        if not self.settings.shared or not run or (app is not None and app.declared is not None):
+            return None
+        if self.store.get(project_id).get("run_seen") == run:
+            return None
+        turn = self.turns.active.get(project_id)
+        if turn is not None and turn in self.turns.by_owner:
+            self.store.update(project_id, run_seen=run)
+            return None
+        self.log(project_id).append("notice", turn, level="warning", message=RUN_NOT_SEEN)
+        return RUN_NOT_SEEN
 
     async def sync_app(self, project_id: str, restart: bool = False) -> None:
         if project_id in self.deleting:     # its app is being dropped; starting it again would leave it running
@@ -501,7 +567,12 @@ class Studio:
                 lines.append(standing)
         if self.looker.reason() is None:
             lines.append(self._signed_in_context(project))
+        kept_notes = project_notes(self.store.workspace(project_id))
+        if kept_notes:
+            lines.append(kept_notes)
         current = [self._library_context(project, picked)]
+        if planned := plan_lines(project.get("plan")):
+            current.append(planned)
         attached = project.get("attach")
         if attached:
             # With every message, not once per conversation: these are the lines that keep the person's
@@ -523,6 +594,9 @@ class Studio:
                               " (alive, not answering on its port after 90 s)" if app.slow else "") + ".")
         else:
             current.append("- This project has no back end yet (no studio.json); it is served as static files.")
+        tested = testrun.facts_line(project, self.store.workspace(project_id))   # CONTRACT.md, "run_tests"
+        if tested:
+            current.append(tested)
         return "\n".join(lines), "\n".join(current)
 
     def agent_context(self, project_id: str, picked: dict | None = None, standing: bool = True) -> str:
@@ -570,7 +644,7 @@ class Studio:
                 f"{where}, their real working copy. Change only files inside it, and nothing outside it. Do not run "
                 "git there at all (no commit, checkout, stash, reset, branch or push): the app's repository belongs "
                 "to the person; the studio keeps its own versions of your changes elsewhere. Do not write "
-                "studio.json into this folder.")
+                "studio.json or notes/project.md into this folder.")
             lines.append(
                 "- How the studio shows this app is set in the project, not in a file: to set or change it, "
                 f"`curl -s -X PUT {api} -H 'content-type: application/json' -d "
@@ -584,7 +658,8 @@ class Studio:
                 + (f", started from commit {str(attached.get('started_from'))[:7]} on branch "
                    f"{attached.get('branch') or '(detached)'}" if attached.get("started_from") else "")
                 + ". The original folder is the person's real app: never read from it for writing, never write to it, "
-                "never run commands in it. Change only files inside this project folder, and nothing outside it.")
+                "never run commands in it. Change only files inside this project folder, and nothing outside it. "
+                "Do not add notes/project.md: this copy's work can go back into the person's app.")
             if attached.get("studio_branch"):
                 lines.append(
                     f"- The studio commits your work on the branch {attached['studio_branch']}. Do not run git commands "
@@ -731,7 +806,7 @@ class Studio:
                   "address": address, "attached_at": now_iso()}
         project = self.store.create(label, self.registry.connections()[0]["id"], "attach", project_id=pid,
                                     make_workspace=False, attach=record, app_config=app_config,
-                                    head=facts["import_commit"])
+                                    head=facts["import_commit"], run_seen=command if mode == "copy" else None)
         project = await self.open_preview(project)
         self.spawn(self.sync_app(pid))   # a first start may install packages for minutes
         return project
@@ -767,6 +842,8 @@ class Studio:
                 self.costs.reconcile(project["id"])     # a read-back a restart cut short
                 project = self._into_range(project)
                 project = await self.open_preview(project, patient=True)
+                if "run_seen" not in project:   # made before the run line was kept: its current one, once
+                    project = self.store.update(project["id"], run_seen=read_config(self.store.workspace(project["id"]))[0])
                 self.spawn(self.sync_app(project["id"]))
             except Exception:
                 log.exception("Could not open project %s", project.get("id"))
@@ -851,7 +928,8 @@ class Studio:
             first = await asyncio.to_thread(ws.init_workspace, self.store.workspace(pid), name,
                                             self.examples.files(example), f"From the example “{shipped['title']}”",
                                             True)
-            self.store.update(pid, head=first["sha"])
+            # What an example or a template starts is the studio's or the owner's: it may run.
+            self.store.update(pid, head=first["sha"], run_seen=read_config(self.store.workspace(pid))[0])
             return await self.open_preview(self.store.get(pid))
         known = {item["id"]: item for item in self.templates()}
         if template != "blank" and template not in known:
@@ -868,7 +946,7 @@ class Studio:
         first = await asyncio.to_thread(ws.init_workspace, self.store.workspace(pid), name,
                                         files if files.is_dir() and not pattern else None, label, False,
                                         template_private if chosen.get("source") == "yours" else None)
-        self.store.update(pid, head=first["sha"])
+        self.store.update(pid, head=first["sha"], run_seen=read_config(self.store.workspace(pid))[0])
         if pattern:
             await self.use_template(pid, template)
         elif chosen.get("source") == "yours":

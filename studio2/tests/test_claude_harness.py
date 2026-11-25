@@ -18,7 +18,7 @@ from studio2_server.harness import Registry
 from studio2_server.harness.base import TurnRequest, TurnResult
 from studio2_server.harness.claude import (
     LIBRARY_DIR, ClaudeHarness, EventMapper, HarnessError, build_options, child_env, describe_tool, hidden_secrets,
-    outside_workspace,
+    outside_workspace, system_text,
 )
 
 SUB = {"id": "subscription", "label": "Claude subscription", "kind": "claude-subscription",
@@ -214,8 +214,8 @@ def test_options_isolate_the_session_and_guard_the_workspace(tmp_path, monkeypat
     assert options.setting_sources == [] and options.strict_mcp_config is True   # nothing personal is inherited
     assert options.permission_mode == "acceptEdits"
     assert options.plugins == [{"type": "local", "path": str(LIBRARY_DIR)}]
-    assert options.system_prompt["preset"] == "claude_code"
-    assert "Studio project" in options.system_prompt["append"]
+    assert options.system_prompt == {"type": "preset", "preset": "claude_code", "snapshot": False}
+    assert "Studio project" in system_text(request)
     assert options.thinking == {"type": "adaptive", "display": "summarized"}
     assert build_options(TurnRequest("p_1", "t_1", tmp_path, "hi", None, GATEWAY, "gpt-sol"), {}, None).thinking is None
 
@@ -238,9 +238,9 @@ def test_options_isolate_the_session_and_guard_the_workspace(tmp_path, monkeypat
 def test_a_text_only_model_is_kept_from_opening_pictures_and_from_nothing_else(tmp_path):
     """CONTRACT.md, "A model that cannot take pictures": the Read of a picture is refused before it runs."""
     request = TurnRequest("p_1", "t_1", tmp_path, "hi", None, GATEWAY, "openrouter/deepseek/deepseek-v4-pro-0813")
-    assert len(build_options(request, {}, None).hooks["PreToolUse"]) == 1          # a model that sees: no such guard
+    assert len(build_options(request, {}, None).hooks["PreToolUse"]) == 2          # a model that sees: no such guard (the other is the shell folder)
     guards = build_options(dataclasses.replace(request, pictures=False), {}, None).hooks["PreToolUse"]
-    assert [guard.matcher for guard in guards] == ["Write|Edit|MultiEdit|NotebookEdit", "Read"]
+    assert [guard.matcher for guard in guards] == ["Write|Edit|MultiEdit|NotebookEdit", "Read", "Bash"]
     hook = guards[1].hooks[0]
 
     def read(path):
@@ -647,11 +647,11 @@ def test_connector_secrets_are_in_an_owner_only_file_not_on_the_command_line(tmp
                           plugin_dir=plugin, mcp_servers=CONNECTORS)
     env, _scrub = child_env(GATEWAY, {"LITELLM_API_KEY": "sk-gateway-0123456789"}, "gpt-sol")
     path = write_mcp_config(request.mcp_servers, run)
-    argv = command_line(build_options(request, env, None, mcp_file=path))
+    argv = command_line(build_options(request, env, None, mcp_file=path, prompt_file=run / "prompt-x.md"))
     text = " ".join(argv)
     for secret in (SECRET_HEADER, SECRET_ENV, "sk-gateway-0123456789"):
         assert secret not in text
-    assert "--plugin-dir" in argv and "--append-system-prompt" in argv
+    assert "--plugin-dir" in argv and "--append-system-prompt-file" in argv
     # The studio's own tools (in the studio's process, no secret) stay inline; the rest is a file path.
     values = [argv[i + 1] for i, item in enumerate(argv) if item == "--mcp-config"]
     assert len(values) == 2 and json.loads(values[0]) == {"mcpServers": {"studio": {"type": "sdk", "name": "studio"}}}
@@ -669,6 +669,7 @@ def test_connector_secrets_are_in_an_owner_only_file_not_on_the_command_line(tmp
 class FailingClient:
     """Stands in for ClaudeSDKClient: records whether the settings file is there while the program runs."""
     seen: list = []
+    prompts: list = []
 
     def __init__(self, options):
         self.options = options
@@ -676,6 +677,8 @@ class FailingClient:
     async def connect(self):
         path = Path(self.options.extra_args["mcp-config"])
         FailingClient.seen.append((path, path.is_file()))
+        prompt = Path(self.options.extra_args["append-system-prompt-file"])
+        FailingClient.prompts.append((prompt, prompt.read_text(), oct(prompt.stat().st_mode & 0o777)))
 
     async def query(self, _prompt):
         raise RuntimeError("the program died")
@@ -692,17 +695,22 @@ async def test_the_connector_file_lives_as_long_as_the_turn_and_no_longer(tmp_pa
     from studio2_server.harness import claude as harness_module
     monkeypatch.setattr(harness_module, "ClaudeSDKClient", FailingClient)
     run = tmp_path / "run"
-    FailingClient.seen = []
-    request = TurnRequest("p_1", "t_1", tmp_path, "hi", None, GATEWAY, "gpt-sol", mcp_servers=CONNECTORS)
+    FailingClient.seen, FailingClient.prompts = [], []
+    request = TurnRequest("p_1", "t_1", tmp_path, "hi", None, GATEWAY, "gpt-sol", mcp_servers=CONNECTORS,
+                          context="## On this studio\n- marker-word")
     result, _ = await ClaudeHarness("anthropic-gateway", mcp_dir=run)._attempt(request, lambda _e: None, {}, set(), None)
     assert result.status == "failed" and "the program died" in result.error
     (path, during), (_same, before_exit) = FailingClient.seen
     assert during and before_exit and not path.exists() and list(run.iterdir()) == []
+    # The system text was in its own owner-only file while the program ran, and is gone with it.
+    [(prompt, text, mode)] = FailingClient.prompts
+    assert prompt.parent == run and mode == "0o600" and text.endswith("- marker-word") and not prompt.exists()
 
     # A studio that was killed mid-turn leaves its file; the next start removes it.
     registry = Registry(Settings(data_dir=tmp_path / "data", fake=True))
     registry.mcp_dir.mkdir(parents=True)
     (registry.mcp_dir / "mcp-old.json").write_text("{}")
+    (registry.mcp_dir / "prompt-old.md").write_text("old")
     registry.sweep()
     assert list(registry.mcp_dir.iterdir()) == []
 
@@ -769,8 +777,8 @@ def test_the_system_prompt_is_sent_again_on_every_request(tmp_path):
     """CONTRACT.md, "What the agent is told once": with `snapshot` left out the agent program keeps
     the system prompt a session started with (tried on CLI 2.1.327); False sends the new text."""
     request = TurnRequest("p_1", "t_1", tmp_path, "hi", "sess", SUB, "opus", context="## On this studio\n- marker")
-    prompt = build_options(request, {}, resume="sess").system_prompt
-    assert prompt["snapshot"] is False and prompt["append"].endswith("## On this studio\n- marker")
+    prompt = build_options(request, {}, resume="sess", prompt_file=tmp_path / "prompt.md").system_prompt
+    assert prompt["snapshot"] is False and system_text(request).endswith("## On this studio\n- marker")
 
 
 def test_a_compaction_is_reported_to_the_turn(tmp_path):
@@ -794,3 +802,56 @@ async def test_a_new_conversation_after_a_failed_resume_gets_the_facts_in_full(t
     request = TurnRequest("p_1", "t_1", tmp_path, "short", "sess", SUB, "opus", fresh_prompt="in full")
     result = await ClaudeHarness("claude-subscription").run(request, lambda _e: None)
     assert result.status == "completed" and sent == [("sess", "short"), (None, "in full")]
+
+
+# -- the system text stays off the agent program's command line --------------------------------------
+def test_no_standing_text_reaches_the_agent_programs_command_line(tmp_path, monkeypatch):
+    """A word in the system text (a tool's name in "On this studio", a person's instruction) on the
+    command line is shown by `ps` to every process, and a cleanup job matching words there killed a
+    request. Only names and paths go there; the text is in a file."""
+    from studio2_server.harness.claude import write_prompt_file
+    monkeypatch.setenv("STUDIO2_CLAUDE_CLI", "/bin/echo")
+    run = tmp_path / "run"
+    words = "the Higgsfield command-line tool, `higgsfield`, signed in; the person's instruction: serif headings"
+    request = TurnRequest("p_1", "t_1", tmp_path, "the person's message", "sess", SUB, "opus",
+                          context=f"## On this studio\n- {words}", mcp_servers={"studio": CONNECTORS["studio"]})
+    path = write_prompt_file(system_text(request), run)
+    argv = command_line(build_options(request, {}, "sess", prompt_file=path))
+    text = " ".join(argv)
+    assert "iggsfield" not in text and "serif" not in text and "the person's message" not in text
+    assert "Studio project" not in text and "--append-system-prompt" not in argv and "--system-prompt" not in argv
+    assert argv[argv.index("--append-system-prompt-file") + 1] == str(path)
+    assert path.read_text() == system_text(request) and (path.stat().st_mode & 0o777) == 0o600
+    assert (run.stat().st_mode & 0o777) == 0o700
+
+
+async def test_the_pickers_small_call_keeps_its_text_off_the_command_line_too(tmp_path, monkeypatch):
+    """The picker's system text lists the library's skills in the person's own words."""
+    from studio2_server.harness import cheap
+    monkeypatch.setenv("STUDIO2_CLAUDE_CLI", "/bin/echo")
+    seen = {}
+
+    class Client:
+        def __init__(self, options):
+            self.options = options
+
+        async def connect(self):
+            path = Path(self.options.system_prompt["path"])
+            seen.update(argv=command_line(self.options), path=path, text=path.read_text(),
+                        mode=path.stat().st_mode & 0o777)
+            raise RuntimeError("stop here")
+
+        async def disconnect(self):
+            return None
+
+    monkeypatch.setattr(cheap, "ClaudeSDKClient", Client)
+    run = tmp_path / "run"
+    words = "- higgsfield-generate: the person's own skill description"
+    with pytest.raises(cheap.CheapCallFailed):
+        await cheap.ask(SUB, words, "pick", 5.0, run_dir=run)
+    assert "iggsfield" not in " ".join(seen["argv"]) and "--system-prompt-file" in seen["argv"]
+    assert seen["text"] == words and seen["mode"] == 0o600 and seen["path"].parent == run
+    assert not seen["path"].exists() and list(run.iterdir()) == []
+    with pytest.raises(cheap.CheapCallFailed):     # without a run folder: a private one, removed after
+        await cheap.ask(SUB, words, "pick", 5.0)
+    assert not seen["path"].exists() and not seen["path"].parent.exists()

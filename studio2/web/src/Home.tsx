@@ -238,12 +238,12 @@ export function Home({ navigate, theme, onToggleTheme, site, shared = false, bui
     return () => window.clearInterval(timer);
   }, [load]);
 
-  const create = async (template: string | null) => {
+  const create = async (template: string | null, name = "") => {
     if (creating) return;
     setCreating(true);
     setCreateError(null);
     try {
-      const project = await api.createProject(template ? { template } : {});
+      const project = await api.createProject({ ...(template ? { template } : {}), ...(name ? { name } : {}) });
       navigate(`/p/${project.id}`);
     } catch (cause) {
       setCreateError(errorMessage(cause));
@@ -423,8 +423,8 @@ export function Home({ navigate, theme, onToggleTheme, site, shared = false, bui
         <NewProjectDialog
           creating={creating}
           createError={createError}
-          onCreate={(template) => void create(template)}
-          onAttach={(request) => void attachApp(request)}
+          onCreate={(template, name) => void create(template, name)}
+          onAttach={shared ? undefined : (request) => void attachApp(request)}
           onClose={() => setDialogOpen(false)}
           onSkill={
             shared

@@ -22,8 +22,9 @@ promise beyond the "checked" column.
    an attached copy. Everything in the project folder that git does not ignore is saved in the
    project's versions.
 4. **Keep the studio private.** Whoever can open the studio can run commands on that machine
-   through the agent. It listens on loopback only unless told otherwise; over Tailscale is the
-   only other arrangement that has been used. Do not put it on a public address.
+   through the agent. It listens on loopback only unless told otherwise; over Tailscale, and
+   behind a tunnel with a sign-in gate in front ([docs/safety.md](docs/safety.md)), are the only
+   other arrangements that have been used. Do not put it on a public address without a gate.
 5. **A machine for this should hold nothing else that matters.** There are no user accounts and
    no per-project isolation yet. On a box that only holds the studio and copies of apps, the
    damage an agent can do is limited to that box.

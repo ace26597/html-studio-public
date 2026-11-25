@@ -136,7 +136,7 @@ class Store:
             "connection": connection, "model": None, "session_id": None,
             "running_turn": None, "head": None, "approvals": "ask", "template": template,
             "data_sources": [], "library": {}, "token": secrets.token_urlsafe(24),
-            "attach": None, "app_config": None, **extra,
+            "attach": None, "app_config": None, "run_seen": None, **extra,
         })
 
     def delete(self, project_id: str) -> None:

@@ -475,3 +475,14 @@ def test_the_skill_is_short_and_points_at_files_that_exist():
         assert f"name: {agent}" in text and agent in skill
     assert "data/facts.json" in skill and "check_file" in skill and "render_document" in skill
     assert "renders in LibreOffice" in skill and "opens in PowerPoint" in skill
+    assert len(skill.splitlines()) <= 150
+    # The method is stated once; what is only for Office files or only for pages is in its own file.
+    assert "`reference/office.md`" in skill and "`reference/html.md`" in skill
+    office, pages = (folder / "reference" / "office.md").read_text(), (folder / "reference" / "html.md").read_text()
+    assert "check_file" in office and "slide-reviewer" in office and "check_site" not in office
+    assert "check_site" in pages and "check_page" in pages and "join-pages.py" in pages and "check_file" not in pages
+    for name in ("deck-helper.js", "assemble-deck.js", "section-example.js", "word-and-excel.md", "review.md",
+                 "plan-files.md", "join-pages.py"):
+        assert f"`{name}`" in office + pages and (folder / "reference" / name).is_file(), name
+    writer = (LIBRARY / "agents" / "section-writer.md").read_text()
+    assert "html.md" in writer and "{{fact:<key>}}" in writer and "join_pages.py" in writer

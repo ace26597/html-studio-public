@@ -8,17 +8,13 @@ so the database itself refuses writes; the statement check here only gives a cle
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import os
 import csv
-import datetime as dt
-import decimal
 import json
 import re
 import secrets
 import time
-import uuid
 from pathlib import Path
 
 from .config import now_iso
@@ -32,7 +28,7 @@ KINDS = {
 SSL_MODES = ("disable", "prefer", "require", "verify-full")
 FIELDS = ("name", "kind", "host", "port", "database", "user", "ssl", "ca_file")
 CA_FILE_MAX = 1024 * 1024
-READ_WORDS = {"select", "with", "show", "explain", "values", "table", "describe", "desc"}
+READ_WORDS = {"select", "with", "show", "explain", "values", "table", "describe", "desc", "summarize"}
 WRAPPABLE = {"select", "with", "values", "table"}
 INLINE_DEFAULT, INLINE_MAX, FILE_MAX_ROWS, FILE_MAX_BYTES = 1_000, 10_000, 500_000, 200 * 1024 * 1024
 STATEMENT_TIMEOUT_MS, CONNECT_TIMEOUT = 60_000, 10
@@ -134,29 +130,7 @@ def split_or_empty(rest: str) -> bool:
     return bool(cleaned.replace(";", "").strip())
 
 
-def to_json(value):
-    if value is None or isinstance(value, (bool, int, str)):
-        return value
-    if isinstance(value, float):
-        return value if value == value and value not in (float("inf"), float("-inf")) else None
-    if isinstance(value, decimal.Decimal):
-        if not value.is_finite():
-            return None
-        number = float(value)
-        return number if decimal.Decimal(repr(number)) == value else str(value)
-    if isinstance(value, (dt.datetime, dt.date, dt.time)):
-        return value.isoformat()
-    if isinstance(value, dt.timedelta):
-        return value.total_seconds()
-    if isinstance(value, (bytes, bytearray, memoryview)):
-        return base64.b64encode(bytes(value)).decode()
-    if isinstance(value, uuid.UUID):
-        return str(value)
-    if isinstance(value, (list, tuple)):
-        return [to_json(item) for item in value]
-    if isinstance(value, dict):
-        return {str(key): to_json(item) for key, item in value.items()}
-    return str(value)
+from .filesql_worker import to_json  # noqa: E402  one conversion for every studio query
 
 
 # -- who is trusted under verify-full ---------------------------------------------------------

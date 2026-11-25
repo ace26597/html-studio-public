@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DataSourcesManager, kindsOrKnown } from "./DataSources";
 import { LibraryIndexView } from "./LibraryIndexView";
-import { LibraryView, scrollSoon, useLibrary, type MoreBlock } from "./LibraryView";
+import { LibraryView, OWNER_ONLY_LINE, scrollSoon, useLibrary, type MoreBlock } from "./LibraryView";
 import { LibraryPlacesBlock } from "./LibraryPlacesBlock";
 import { ModelsView } from "./ModelsView";
 import { ServiceKeys } from "./ServiceKeysBlock";
@@ -33,6 +33,10 @@ interface LibraryPageProps {
 export const NEW_SKILL_HASH = "#new-skill";
 /** `/library#new-connector` (the New page dialog's "A connector") opens Add a connector at "Describe what you need". */
 export const NEW_CONNECTOR_HASH = "#new-connector";
+
+function OwnerOnly() {
+  return <p className="lib-empty">{OWNER_ONLY_LINE}</p>;
+}
 
 export function LibraryPage({ navigate, theme, onToggleTheme, shared = false }: LibraryPageProps) {
   const state = useLibrary();
@@ -67,7 +71,7 @@ export function LibraryPage({ navigate, theme, onToggleTheme, shared = false }: 
         id: "models",
         title: "Models",
         words: "model connection subscription gateway check",
-        render: () => <ModelsView />,
+        render: () => (shared ? <OwnerOnly /> : <ModelsView />),
       },
       {
         id: "places",
@@ -79,16 +83,16 @@ export function LibraryPage({ navigate, theme, onToggleTheme, shared = false }: 
         id: "service-keys",
         title: "Keys for other services",
         words: "key api token search",
-        render: () => <ServiceKeys />,
+        render: () => (shared ? <OwnerOnly /> : <ServiceKeys />),
       },
       {
         id: "data-sources",
         title: "Data sources",
         words: "database databases connect postgres mysql",
-        render: () => <DataSourcesManager kinds={kindsOrKnown(kinds)} />,
+        render: () => (shared ? <OwnerOnly /> : <DataSourcesManager kinds={kindsOrKnown(kinds)} />),
       },
     ],
-    [kinds],
+    [kinds, shared],
   );
 
   return (
@@ -123,7 +127,7 @@ export function LibraryPage({ navigate, theme, onToggleTheme, shared = false }: 
           startNewSkill={startNewSkill}
           startNewConnector={startNewConnector}
           onOpenProject={(id) => navigate(`/p/${id}`)}
-          yourTemplates={(query, heading) => <TemplatesManager query={query} heading={heading} />}
+          yourTemplates={(query, heading) => <TemplatesManager query={query} heading={heading} guest={shared} />}
           moreBlocks={moreBlocks}
           moreLine={MORE_LINE}
           openMore={MORE_HASHES.includes(hash)}

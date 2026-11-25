@@ -260,22 +260,26 @@ def kept_files(workspace: Path) -> list[str]:
     return sorted({name for name in out.split("\0") if name and (workspace / name).is_file()})
 
 
-def zip_workspace(workspace: Path, target: Path, kept_only: bool = False) -> None:
+def zip_workspace(workspace: Path, target: Path, kept_only: bool = False, without_keys: bool = False) -> None:
     """Everything a person would want to take away: no git history, no installed dependencies.
-    `kept_only` (an attached app): only what the history keeps, not build output or env files."""
+    `kept_only` (an attached app): only what the history keeps, not build output or env files.
+    `without_keys` (a guest of a shared studio): key files (keyfiles.py) are left out."""
     import zipfile
+    from . import keyfiles
     root = workspace.resolve()
     names = kept_files(root) if kept_only else None
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
         if names is not None:
             for name in names:
                 path = root / name
-                if not path.is_symlink():
+                if not path.is_symlink() and not (without_keys and keyfiles.is_key_file(str(name))):
                     archive.write(path, name)
             return
         for path in sorted(root.rglob("*")):
             rel = path.relative_to(root)
             if IGNORED_DIRS.intersection(rel.parts) or not path.is_file() or path.is_symlink():
+                continue
+            if without_keys and keyfiles.is_key_file(rel.parts):
                 continue
             archive.write(path, rel.as_posix())
 
@@ -367,8 +371,11 @@ def git_ok(workspace: Path, *args: str) -> bool:
     return True
 
 
-def diff(workspace: Path, sha: str, cap: int = 200_000) -> dict:
-    text = git(workspace, "show", "--format=", "--no-renames", "--root", sha)
+def diff(workspace: Path, sha: str, cap: int = 200_000, without_keys: bool = False) -> dict:
+    """`without_keys` (a guest of a shared studio): key files (keyfiles.py) are left out of it."""
+    from . import keyfiles
+    pathspec = ["--", ".", *keyfiles.PATHSPEC_EXCLUDES] if without_keys else []
+    text = git(workspace, "show", "--format=", "--no-renames", "--root", sha, *pathspec)
     return {"sha": sha, "diff": text[:cap], "truncated": len(text) > cap}
 
 

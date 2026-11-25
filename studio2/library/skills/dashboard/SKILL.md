@@ -6,9 +6,9 @@ description: Build a dashboard from data files or an attached database - headlin
 # Dashboard
 
 ## Understand the data before drawing anything
-- Files: `mcp__studio__query_files` with `describe select * from 'data/x.csv'`, then
-  `select count(*)`, min and max of the date column, distinct counts of likely categories,
-  and null counts. Databases: `database_schema`, then small aggregate queries.
+- Files: `mcp__studio__query_files` with `profile: "data/x.csv"` first (rows, and per column
+  its type, missing values, distinct values, min and max), then small queries for the counts of
+  likely categories. Databases: `database_schema`, then small aggregate queries.
 - Decide what each column is: an identifier, a category, a date, a measure that can be
   summed, or a measure that cannot (a rate, a price, a percentage). Never sum identifiers,
   postal codes, coordinates or rates.
@@ -25,7 +25,8 @@ description: Build a dashboard from data files or an attached database - headlin
 
 ## Build it
 - Static data up to a few tens of thousands of rows: load the file in the page and compute
-  in the browser. Larger, or a database: write a small back end (`app-backend` skill) with
+  in the browser. A big file (over about 100 MB, or millions of rows): profile it, convert it to
+  Parquet and save small aggregated files for the page (`data-analysis`, "Big files"). Larger, or a database: write a small back end (`app-backend` skill) with
   endpoints that run the aggregate queries, and have the page call them.
 - Layout: header with title and coverage; filter bar; headline row; charts in a 12-column
   grid, two per row at most; table last. Use the `theme` and `charts` skills.

@@ -41,9 +41,9 @@ import { holdUnload, setLeaveGuard, type Navigate } from "./router";
 import { holdSignIn } from "./signIn";
 import { loadString, saveString } from "./storage";
 import type { Theme } from "./theme";
-import { drawingHoldsReload, heldReloadNote, shouldReloadPreview, type ReloadReason } from "./reload";
+import { changesPage, drawingHoldsReload, heldReloadNote, shouldReloadPreview, type ReloadReason } from "./reload";
 import { optionsForText } from "./nextSteps";
-import { lastTurn, runningChangedPaths, waitingOnYou, type ApprovalItem, type Turn } from "./thread";
+import { lastTurn, runningChangedPaths, sendsQueued, waitingOnYou, type ApprovalItem, type Turn } from "./thread";
 import type { QuestionActions } from "./QuestionCard";
 import type { DecisionState } from "./ThreadView";
 import type {
@@ -209,7 +209,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   const onLive = useCallback(
     (event: StudioEvent) => {
       if (event.type === "files_changed") {
-        scheduleReload("files_changed");
+        if (changesPage(event.paths)) scheduleReload("files_changed");
         if (event.paths?.includes("studio.json")) refreshAppRef.current();
       } else if (event.type === "checkpoint" && event.kind === "restore") scheduleReload("restore");
       else if (event.type === "turn_finished") {
@@ -245,11 +245,14 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
 
   const { thread, stream, receivedSeq, applyAppInfo } = useProjectEvents(id, onLive, !loadError?.missing);
   const running = thread.runningTurnId !== null;
+  const queueing = sendsQueued(thread);
   const needsYou = waitingOnYou(thread) > 0;
   // The chips under the last answer: a message that is exactly one of them goes with its options.
   const lastSteps = useRef(lastTurn(thread)?.nextSteps ?? []);
   lastSteps.current = lastTurn(thread)?.nextSteps ?? [];
   const shipState = shipButton(project?.ship);
+  // A guest on a shared studio: making an app live, templates and context from this computer are the owner's.
+  const guest = health.shared === true && health.owner !== true;
   const attachedCount = project?.data_sources?.length ?? 0;
   // The library button counts both: the data sources attached and the context items.
   const libraryButton = libraryButtonText(attachedCount, project?.context?.length ?? 0);
@@ -516,8 +519,8 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
         connection: project.connection,
         model: project.model,
         attachments: paths,
-        // While a turn runs the message waits behind it.
-        queue: running,
+        // While a turn runs, or messages already wait, the message waits behind them.
+        queue: queueing,
         options:
           options ??
           (fromComposer ? optionsForText(lastSteps.current, typed) : undefined) ??
@@ -550,7 +553,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
         setStarting(false);
       }
     },
-    [id, project, starting, running, setDraft, toast, dropAttachments, clearDrawing],
+    [id, project, starting, queueing, setDraft, toast, dropAttachments, clearDrawing],
   );
 
   /** "Make a skill from this…": an ordinary request, so it queues behind a running one. */
@@ -948,7 +951,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
     ...(project?.attach
       ? ([
           { type: "section", label: attachLabel(project.attach), note: attachDetail(project.attach) },
-          { label: shipState.label, icon: "play", onSelect: () => setShipOpen(true) },
+          ...(guest ? [] : [{ label: shipState.label, icon: "play", onSelect: () => setShipOpen(true) }]),
         ] as MenuEntry[])
       : []),
     ...(project?.attach ? ([{ type: "separator" }] as MenuEntry[]) : []),
@@ -1003,8 +1006,8 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
     {
       label: "Save as template…",
       icon: "page",
-      hint: running ? "After the agent finishes" : undefined,
-      disabled: running,
+      hint: guest ? "Only the studio's owner" : running ? "After the agent finishes" : undefined,
+      disabled: running || guest,
       onSelect: () => setSavingTemplate(true),
     },
     makeSkillEntry(() => setMakingSkill(true)),
@@ -1083,7 +1086,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
               {effectiveMode === "select" ? "Select" : effectiveMode === "draw" ? "Draw" : "Edit"}
             </span>
           )}
-          {project?.attach && (
+          {project?.attach && !guest && (
             <button
               type="button"
               className={`ship-btn is-${shipState.state} is-compact`}
@@ -1204,7 +1207,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
         </div>
 
         <div className="topbar-side is-end">
-          {project?.attach && (
+          {project?.attach && !guest && (
             <button
               type="button"
               className={`ship-btn is-${shipState.state}`}
@@ -1485,7 +1488,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             onManage={() => navigate("/library#data-sources")}
             onClose={closeRight}
             tabRequest={libraryTab}
-            onAddContext={() => setContextDialog({ item: null })}
+            onAddContext={guest ? undefined : () => setContextDialog({ item: null })}
             onEditContext={(item) => setContextDialog({ item })}
             onContextChange={setContextItems}
           />
@@ -1579,7 +1582,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             hidden={compact && effectiveMode === "draw"}
             compact={compact}
             canDictate={Boolean(health.transcription?.available)}
-            onAddContext={() => setContextDialog({ item: null })}
+            onAddContext={guest ? undefined : () => setContextDialog({ item: null })}
             onOpenContext={openContextTab}
             onOpenInstructions={instructionsKept(project) ? () => setInstructionsOpen(true) : undefined}
             everywhereInstructions={everywhere}

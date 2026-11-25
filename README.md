@@ -26,6 +26,50 @@ on the same computer.
 It runs on your own machine. It is a personal project at an early stage: read
 [Safety](#safety) and [What it cannot do yet](#what-it-cannot-do-yet) before you rely on it.
 
+## Quick start
+
+You need macOS or Linux (x86-64 or ARM64), `git`, `bash` and `curl` or `wget`. Windows is not
+supported.
+
+```sh
+git clone https://github.com/ace26597/html-studio-public.git html-studio
+./html-studio/studio2/install.sh
+```
+
+The installer fetches what is missing (`uv`, Python 3.12 and the server's packages at tested
+versions, and Node when the one here is too old for the build), builds the interface and writes a `studio` command into `~/.local/bin`. It does not use sudo and is safe to
+run again. It asks up to four questions; `--yes` asks nothing.
+
+On first run, `studio setup` asks three things (also asked on screen if you skip it):
+
+1. **Which model account** (see below).
+2. **Where it runs:** this computer only (the default), or also a private network address,
+   port 8200 unless you change it.
+3. **Who uses it:** just you, or shared. Shared switches the Claude plan off for the people you
+   share with.
+
+Then `studio start` prints the address, normally `http://127.0.0.1:8200/`, and opens the browser.
+Press **New page** and type what you want. When something does not work, run `studio doctor`.
+
+Tested on macOS, and installed and running on Red Hat Enterprise Linux (the owner's report, 13 November 2026). Debian and Ubuntu have not been run.
+Full detail, every command and what was tested: [install and first run](studio2/docs/install.md).
+
+## Model accounts
+
+Claude models work best; other models are experimental, and the [benchmarks](https://ace26597.github.io/html-studio-public/benchmarks/) show which ones worked.
+
+| Account | What has actually been run |
+|---|---|
+| Your Claude plan, signed in on this computer | Almost every recorded run, on Opus, Sonnet and Haiku. For your own requests only: on a shared studio, guests never run on it |
+| An Anthropic API key | Environment tested; no paid request made |
+| Claude on Amazon Bedrock, Google Vertex AI or Microsoft Foundry | Environment tested; no paid request made |
+| A gateway you run that speaks Anthropic's format, such as LiteLLM | Whole requests on 26 models of twelve providers through LiteLLM and OpenRouter; [what each did](studio2/docs/model-comparison.md) |
+| A key from OpenAI, OpenRouter, Azure OpenAI or Gemini | One GPT model through a stand-in gateway; no real key of these providers used |
+
+Keys go in the system keychain (or a file only you can read, on a machine without one), never in
+the config file. Full text, setup commands and what to
+expect on non-Claude models: [model accounts](studio2/docs/models.md).
+
 ## Why it is different
 
 | | | |
@@ -162,59 +206,19 @@ repository and run on their own.
 A match means the words are in the saved source, not that the source is right. Full captions
 and what the runs would have cost at API prices: [examples](studio2/docs/examples.md).
 
-## Quick start
-
-You need macOS or Linux (x86-64 or ARM64), `git`, `bash` and `curl` or `wget`. Windows is not
-supported.
-
-```sh
-git clone https://github.com/ace26597/html-studio-public.git html-studio
-./html-studio/studio2/install.sh
-```
-
-The installer fetches what is missing (`uv`, Python 3.12 and the server's packages at tested
-versions, and Node when the one here is too old for the build), builds the interface and writes a `studio` command into `~/.local/bin`. It does not use sudo and is safe to
-run again. It asks up to four questions; `--yes` asks nothing.
-
-On first run, `studio setup` asks three things (also asked on screen if you skip it):
-
-1. **Which model account** (see below).
-2. **Where it runs:** this computer only (the default), or also a private network address,
-   port 8200 unless you change it.
-3. **Who uses it:** just you, or shared. Shared switches the Claude plan off for the people you
-   share with.
-
-Then `studio start` prints the address, normally `http://127.0.0.1:8200/`, and opens the browser.
-Press **New page** and type what you want. When something does not work, run `studio doctor`.
-
-Tested on macOS, and installed and running on Red Hat Enterprise Linux (the owner's report, 13 November 2026). Debian and Ubuntu have not been run.
-Full detail, every command and what was tested: [install and first run](studio2/docs/install.md).
-
-## Model accounts
-
-Claude models work best; other models are experimental, and the [benchmarks](https://ace26597.github.io/html-studio-public/benchmarks/) show which ones worked.
-
-| Account | What has actually been run |
-|---|---|
-| Your Claude plan, signed in on this computer | Almost every recorded run, on Opus, Sonnet and Haiku. Single-owner use only |
-| An Anthropic API key | Environment tested; no paid request made |
-| Claude on Amazon Bedrock, Google Vertex AI or Microsoft Foundry | Environment tested; no paid request made |
-| A gateway you run that speaks Anthropic's format, such as LiteLLM | Whole requests on 26 models of twelve providers through LiteLLM and OpenRouter; [what each did](studio2/docs/model-comparison.md) |
-| A key from OpenAI, OpenRouter, Azure OpenAI or Gemini | One GPT model through a stand-in gateway; no real key of these providers used |
-
-Keys go in the system keychain (or a file only you can read, on a machine without one), never in
-the config file. Full text, setup commands and what to
-expect on non-Claude models: [model accounts](studio2/docs/models.md).
-
 ## Safety
 
 - The agent runs commands as you, like a coding agent in a terminal. So does a project's back end.
 - Risky shell commands ask first; file writes outside the project are refused. These rules read
   the command text. They catch ordinary mistakes; they are not a sandbox.
 - Making an app live and buying generated media ask every time.
-- **Never put it on a public address.** There are no user accounts and no isolation between
-  projects yet, so whoever can open the studio can run commands on the machine.
-- **One trusted person per machine.** An agent that set out to could answer its own approval card.
+- **Never put it on a public address as it is.** There are no user accounts and no isolation
+  between projects yet, so whoever can open the studio can run commands on the machine.
+- **Sharing is for people you trust.** A shared studio sits behind a gate that signs people in;
+  everyone let in can still run commands on your machine, as you.
+- **The agent could get past the rules if it set out to.** Commands that reach the studio's own
+  interface, keys on the machine or another project always ask, but they are read as text; a
+  program the agent writes first can get past them.
 - A paid model account has no spending limit inside the studio; set one at the provider.
 
 Full text: [safety and limits](studio2/docs/safety.md).
@@ -222,7 +226,8 @@ Full text: [safety and limits](studio2/docs/safety.md).
 ## What it cannot do yet
 
 - On Linux only Red Hat has been run (by the owner); Debian and Ubuntu have not. Phones and tablets have not been tried on a real device.
-- No accounts, isolation or hosting. It is for one person on their own machine.
+- No accounts, isolation or hosting. A shared studio lets people you trust in through a gate, but
+  their requests run as you on your machine.
 - No request has been made with a real provider key, or on Bedrock, Vertex or Foundry.
 - Only Next.js and Vite apps have been attached for real. No real app has been made live yet.
 - A restart ends running requests.

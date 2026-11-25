@@ -12,7 +12,9 @@ import pytest
 from studio2_server import config
 from studio2_server.harness.base import TurnRequest
 from studio2_server.harness.claude import GUEST_REFUSED, build_options
-from studio2_server.risk import Guarded, reach_for, reach_reason, risky_command
+from claude_agent_sdk import ToolPermissionContext
+
+from studio2_server.risk import Guarded, judged_from, reach_for, reach_reason, risky_command
 
 OWN_PAGE = 8205
 GATEWAY = {"id": "litellm", "label": "LiteLLM", "kind": "anthropic-gateway", "base_url": "http://127.0.0.1:4000",
@@ -454,3 +456,185 @@ def test_the_projects_own_app_database_and_model_routes_on_its_studio_stay_calla
                  "curl -s http://127.0.0.1:8400/api/projects/p_me/app",                            # the other studio
                  f"curl -s {own}/app && curl -s http://127.0.0.1:8200/api/projects"):             # one allowed, one not
         assert isinstance(risky_command(line, workspace, reach=reach), Guarded), line
+
+
+# -- where a shell command is judged from (CONTRACT.md, "Where a shell command is judged from") ---
+def _shell(places, guest=False):
+    """→ (run(command, cwd, call id) → (behavior, cards for this call), the options). `cwd` is what the
+    agent program's PreToolUse input says about its shell (None: the hook never said)."""
+    cards: list = []
+    options = build_options(_request(places, guest=guest, approvals=cards), {}, None, studio_places=(places["data"],))
+    folder_hook = next(m for m in options.hooks["PreToolUse"] if m.matcher == "Bash").hooks[0]
+
+    def run(command, cwd=None, call="tu_1"):
+        before = len(cards)
+        if cwd is not None:
+            asyncio.run(folder_hook({"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd),
+                                     "tool_use_id": call}, call, None))
+        answer = asyncio.run(options.can_use_tool("Bash", {"command": command},
+                                                  ToolPermissionContext(tool_use_id=call)))
+        return answer, cards[before:]
+    return run, options
+
+
+EXACT = ("cd .. && mkdir -p data/agg && cat > build_agg.sql <<'EOF'\nEOF\nrm build_agg.sql; "
+         "uv run --with duckdb python -c \"import duckdb;print(duckdb.__version__)\"")
+
+
+def test_a_command_is_judged_from_where_the_last_cd_left_the_shell(places):
+    run, _options = _shell(places)
+    workspace = places["workspace"]
+    (workspace / "data").mkdir()
+    # The pair from a real request: `cd data` in one call, then this in the next. Read from the top it
+    # leaves the project and asked as the studio's own records; read from data/ it is the project's data/agg.
+    assert run("cd data", workspace, "tu_a")[0].behavior == "allow"
+    answer, cards = run(EXACT, workspace / "data", "tu_b")
+    assert answer.behavior == "allow" and cards == []
+    # Leaving the project from there is still caught: data/ → ../.. is the project's own folder in the studio.
+    answer, cards = run("cd ../.. && touch x", workspace / "data", "tu_c")
+    assert answer.behavior == "deny" and cards and cards[0][2].get("guarded")
+    answer, cards = run("touch ../../../p_other/workspace/x", workspace / "data", "tu_d")
+    assert answer.behavior == "deny" and cards
+    # The card shows the command as the agent wrote it, not the line it was judged as.
+    assert cards[0][0] == "touch ../../../p_other/workspace/x"
+
+
+def test_a_folder_outside_the_project_is_never_taken_as_the_project(places):
+    run, _options = _shell(places)
+    outside = Path.home() / "studio-test-elsewhere"     # not a scratch folder (the system's temporary one is)
+    # From a folder outside the project a relative write is outside the project; read from the top (as
+    # before this rule) it looked like the project's own file.
+    answer, cards = run("touch notes.txt", outside, "tu_e")
+    assert answer.behavior == "deny" and cards and "outside the project" in cards[0][1]
+    # /tmp is a scratch folder for every command, as when the line says `cd /tmp` itself.
+    assert run("touch x", "/tmp", "tu_f")[0].behavior == "allow"
+    assert run("cd /tmp && touch x")[0].behavior == "allow"
+    # Another project's folder in the studio is the studio's records.
+    answer, cards = run("touch x", places["data"] / "projects" / "p_other" / "workspace", "tu_g")
+    assert answer.behavior == "deny" and cards[0][2].get("guarded")
+
+
+def test_without_a_reported_folder_the_command_is_judged_from_the_top(places):
+    run, _options = _shell(places)
+    (places["workspace"] / "data").mkdir()
+    # A new conversation's shell, or a call the hook said nothing about: from the top, as before.
+    answer, cards = run(EXACT)
+    assert answer.behavior == "deny" and cards and "studio's own" in cards[0][1]
+    answer, _cards = run("touch x", places["workspace"], "tu_h")
+    assert answer.behavior == "allow"
+    # A new set of options (a new request or conversation) remembers nothing from an earlier one.
+    run("ls", places["workspace"] / "data", "tu_i")
+    fresh, _ = _shell(places)
+    assert fresh(EXACT, None, "tu_i")[0].behavior == "deny"
+
+
+def test_each_shell_is_judged_from_its_own_folder(places):
+    """A helper agent's shell is another shell: its calls carry their own folder (and ids)."""
+    run, _options = _shell(places)
+    workspace = places["workspace"]
+    (workspace / "data").mkdir()
+    assert run(EXACT, workspace / "data", "lead_1")[0].behavior == "allow"
+    assert run(EXACT, workspace, "helper_1")[0].behavior == "deny"         # the helper's shell is at the top
+    # A guest is refused for what is really outside, with no card, and allowed the real pair.
+    guest_run, _ = _shell(places, guest=True)
+    answer, cards = guest_run("cd ../.. && touch x", workspace / "data", "g_1")
+    assert answer.behavior == "deny" and cards == [] and GUEST_REFUSED in answer.message
+    assert guest_run(EXACT, workspace / "data", "g_2")[0].behavior == "allow"
+
+
+def test_judged_from_puts_the_folder_in_front_only_when_it_differs(places):
+    workspace = places["workspace"]
+    assert judged_from("ls", None, workspace) == "ls"
+    assert judged_from("ls", str(workspace), workspace) == "ls"
+    assert judged_from("ls", str(workspace / "a b"), workspace) == f"cd '{workspace / 'a b'}' && ls"
+
+
+# -- a relative path from a scratch folder is judged as where it really leads ----------------------
+def test_a_climb_out_of_a_scratch_folder_is_judged_as_the_place_it_reaches(places):
+    reach, workspace = places["reach"], places["workspace"]
+    judge = lambda line: risky_command(line, workspace, in_place=False, reach=reach)   # noqa: E731
+    # /tmp/.. is / to the shell's cd and /private to a file read: both are read.
+    assert isinstance(judge("cd /tmp && cat ../Users/x/.ssh/id_rsa"), Guarded)
+    assert "keys, passwords or sign-ins" in judge("cd /tmp && cat ../Users/x/.ssh/id_rsa")
+    # From /private/tmp, .. is /private: two levels lead to the home folders there.
+    assert isinstance(judge("cd /private/tmp && cat ../../Users/x/.secrets/env.sh"), Guarded)
+    assert judge("cd /private/tmp && cat ../Users/x/notes.txt") is None          # /private/Users: no one's home
+    assert isinstance(judge("cd /tmp && cd .. && cat Users/x/.ssh/id_rsa"), Guarded)
+    # Staying inside the scratch folder is scratch, as before.
+    assert judge("cd /tmp/work && cat ../other.txt") is None
+    assert judge("cd /tmp && touch x") is None
+    assert judge("cd /var/folders/ab/cd && touch ../x") is None
+    # A read that is merely outside stays what the rule for outside reads says: not asked.
+    assert judge("cd /tmp && cat ../etc/hosts") is None
+    assert judge("cd /private/tmp && ls ../etc") is None
+    # /var/folders climbs the same way.
+    assert isinstance(judge("cd /var/folders/ab && cat ../../../Users/x/.ssh/id_rsa"), Guarded)
+
+
+def test_the_climb_out_of_a_scratch_folder_is_caught_across_two_calls(places):
+    run, _options = _shell(places)
+    answer, cards = run("cat ../Users/x/.ssh/id_rsa", "/tmp", "tu_s1")
+    assert answer.behavior == "deny" and cards and cards[0][2].get("guarded")
+    assert run("cat notes.txt", "/tmp", "tu_s2")[0].behavior == "allow"
+    guest_run, _ = _shell(places, guest=True)
+    refused, cards = guest_run("cat ../../Users/x/.ssh/id_rsa", "/private/tmp", "tu_s3")
+    assert refused.behavior == "deny" and cards == [] and GUEST_REFUSED in refused.message
+
+
+def test_a_project_under_a_scratch_folder_is_still_judged_by_where_paths_lead(places):
+    """The test projects live under /var/folders, a scratch folder: another project's records from a
+    folder inside this one are the studio's records, not scratch."""
+    reach, workspace = places["reach"], places["workspace"]
+    (workspace / "data").mkdir()
+    line = f"cd {workspace / 'data'} && cat ../../../p_other/events.jsonl"
+    assert isinstance(risky_command(line, workspace, in_place=False, reach=reach), Guarded)
+
+
+# -- text a command only rewrites or prints (CONTRACT.md, "Text a command only rewrites or prints") --
+def _page_join(workspace):
+    return (f"cd {workspace}; mkdir -p build/test && sed 's#href=\"styles/#href=\"../../styles/#; "
+            "s#src=\"styles/#src=\"../../styles/#' /tmp/join-pages-6s613ohm/index.html > build/test/running.html; "
+            "ls build/test")
+
+
+CAUGHT_TEXT = ["sed 's#a#b#w ../../x' f", "sed -n '1r ../../secret' f", "python3 -c \"open('../../x')\"",
+               "sed -e 's/a/b/' -e '1r ../../p_other/events.jsonl' f", "perl -pe 's#a#../../b#e' f",
+               "printf '%s' ../../p_other/events.jsonl | xargs cat", "echo 'cat ../../p_other/events.jsonl' | sh",
+               "printf '<a>' > ../../p_other/page.html", "sed 's#x#~/.ssh/id_rsa#' f"]
+FINE_TEXT = ["printf '<a href=\"../../index.html\">' > page.html", "echo '<img src=\"../../logo.png\">' >> page.html",
+             "perl -pe 's#styles/#../../styles/#g' a.html > b.html"]
+
+
+@pytest.mark.parametrize("guest", [False, True])
+def test_a_relative_climb_in_text_that_is_only_rewritten_or_printed_asks_nothing(places, guest):
+    run, _options = _shell(places, guest=guest)
+    workspace = places["workspace"]
+    for line in [_page_join(workspace), *FINE_TEXT]:
+        answer, cards = run(line, workspace, "tu_t")
+        assert answer.behavior == "allow" and cards == [], line
+
+
+@pytest.mark.parametrize("guest", [False, True])
+def test_text_that_opens_writes_or_runs_something_is_still_judged(places, guest):
+    run, _options = _shell(places, guest=guest)
+    for line in CAUGHT_TEXT:
+        answer, cards = run(line, places["workspace"], "tu_c")
+        assert answer.behavior == "deny", line
+        assert (cards == [] and GUEST_REFUSED in answer.message) if guest else cards[0][2].get("guarded"), line
+
+
+def test_only_substitutions_is_read_strictly():
+    from studio2_server.risk import _only_substitutions, SED_FLAGS
+    assert _only_substitutions("s#a#../b#g; s|x|y|", SED_FLAGS)
+    assert _only_substitutions("s/a\\/b/c/2", SED_FLAGS)
+    for script in ("s#a#b#w out", "1r file", "s/a/b/e", "/x/d", "s/a/b/;r x", "y/ab/cd/", "s/a/b", "{s/a/b/}", ""):
+        assert not _only_substitutions(script, SED_FLAGS), script
+
+
+def test_a_climb_in_text_is_read_from_where_its_part_runs(places):
+    reach, workspace = places["reach"], places["workspace"]
+    # From /private/tmp, ../../etc is /etc: merely outside, a read the rules do not ask about.
+    assert risky_command("cd /private/tmp && ls ../../etc", workspace, in_place=False, reach=reach) is None
+    # From the top, the same climb is inside the studio's data folder, and is named as that.
+    said = risky_command("python3 -c \"open('../../p_other/events.jsonl')\"", workspace, in_place=False, reach=reach)
+    assert isinstance(said, Guarded) and "studio's own records" in said

@@ -1,125 +1,120 @@
 ---
 name: large-documents
-description: Build a very large deck, Word document or workbook that holds together - a plan first (outline, look, glossary, a ledger of every figure), a helper written once, section helpers in parallel, one assembler, deterministic checks, then one visual review in batches. Use for a deck over about 25 slides, a document over about 30 pages, a workbook over about 8 sheets, or a "large", "full" or "complete" deck or a board pack.
+description: Build a very large document that holds together: a long sourced report, a site of many pages, or a big deck, Word file or workbook, with a plan, one ledger of figures, a helper per section, one join and checks. Use above about 12 sections, 8 pages of facts, 25 slides, 30 pages or 8 sheets.
 ---
 
 # Large documents
 
-One agent writing one script holds together at ten slides and falls apart at a hundred: the
-script outgrows what can be re-read, the look drifts, one figure appears with two values, and
-nobody can say which slide is wrong. This procedure fixes each of those with a file or a check.
+One agent writing one file holds together at ten slides or one short page and falls apart at a
+hundred: the file outgrows what can be re-read, the look drifts, one figure appears with two
+values, and nobody can say which part is wrong. This method fixes each of those with a file or a
+check. It is the same for Office files and for pages; what differs is in two reference files.
 
-**When.** A deck of more than about 25 slides, a document of more than about 30 pages, a workbook
-of more than about 8 sheets, or when the person says "large", "full", "complete" or "board pack".
-Below that, the `office-files` skill and the kind's own skill (`pptx`, `docx`, `xlsx`) are faster
-and this is overhead. Read those skills too: their rules (structured decks, safe fonts, the
-workbook order, rendering and `check_file`) hold here.
+**When.** A long HTML report (more than about 12 sections or 150 figures), a site or a report in
+chapters of more than about 8 pages that state facts, a deck of more than about 25 slides, a
+document of more than about 30 pages, a workbook of more than about 8 sheets, or a board pack.
+Below that, one agent does it well and faster: a single page (`sourced-report`,
+`studio-page-basics`), a small site (`multi-page-site`) or the Office skills. (An 8-section
+sourced report of 100 figures came out clean that way in a few minutes.)
+
+**Read the part for your kind now**:
+- Office files (deck, Word, Excel): `reference/office.md`, and the `office-files` skill with the
+  kind's own (`pptx`, `docx`, `xlsx`).
+- Pages (a long report, a site): `reference/html.md`, and the `sourced-report` and, for a site,
+  `multi-page-site` skills.
 
 **Cost, said first.** A large build takes many agent turns and many minutes: the plan, several
-helpers, the checks and a review. Before starting, tell the person how big the job is (slides or
-pages, sections, how many helpers) and that it will take a while. Never quote a time or a price
-you have not measured in this project.
+helpers, the checks and a review. Before starting, tell the person how big the job is (pages,
+slides or sheets, sections, how many helpers) and that it will take a while. Never quote a time or
+a price you have not measured in this project.
 
-## 1. The plan, before any slide
+## 1. The plan, before any section
 
-Write these, in the project, so a later request can change one slide without redoing the rest.
+Write these in the project, so a later request can change one part without redoing the rest.
 Their shapes, with an example: `reference/plan-files.md`.
 
-- `build/outline.json`: sections; per slide an `id`, one `message` (the sentence it proves), a
-  `layout` (one of the helper's functions), the ledger `facts` it shows and its `visual`.
-- `build/look.json`: the look of this one document as named values (fonts, sizes, colours,
-  margins, footer), written from what the person asked for, their template or brand, or chosen for
-  this subject and audience. There is no house style: never reuse another document's look.
+- `build/outline.json`: the sections (or pages, or sheets); for each part an `id`, one `message`
+  (the sentence it proves), its layout or kind, the ledger `facts` it shows and its `visual`.
+- **The look, once**: `build/look.json` for an Office file; the shared stylesheet
+  `styles/site.css` with the `theme` tokens for pages. Written from what the person asked for, their
+  template or brand, or chosen for this subject and audience. Never reuse another document's look.
 - `build/glossary.md`: names, terms and abbreviations, each written one way.
-- `data/facts.json`, **the ledger**: every figure the document will show, with `key`, `label`,
-  `value` (in full), `unit`, `period`, `source` and `obtained` (`quoted` from a saved source,
-  `data` from a file under `data/`, `computed` with `from` and `formula`, or `given` by the person).
-  Fetch and save the sources first (`fetch_source`); no figure enters the ledger without one.
-
-`check_file` checks the ledger each time it runs on a file (its `ledger` block): `problems` names
-every fact that is not in its source, not in its data file, or whose formula does not give its
-value, and a fact with a problem vouches for nothing. The first time is the first section you
-build in step 2: fix every fact it names before the helpers start.
+- `data/facts.json`, **the ledger**, one for the whole project: every figure it will show, with
+  `key`, `label`, `value` (in full), `unit`, `period`, `source` and `obtained` (`quoted` from a
+  saved source, `data` from a file under `data/`, `computed` with `from` and `formula`, or `given`
+  by the person). Fetch and save the sources first (`fetch_source`); no figure enters the ledger
+  without one. Pages add `display` and, for data, `sql` (`reference/html.md`).
+- Write the project's conventions (file layout, naming, the look's file, the join command) in the
+  project notes (`notes/project.md`), so a later request follows them. The notes hold decisions,
+  not progress.
+- **The plan is `mcp__studio__set_plan`**: one item per section (or page, or sheet), plus the
+  frame, the join, the checks and the review. Mark each as it starts and ends; it is the only
+  record of progress, and it comes back in later requests.
 
 **Show the outline and wait.** Make `index.html` the outline while the job is large: the title,
-each section with its slides (number, message, layout, the figures and their sources), the facts
-still missing, and the look in a sentence. End the request asking whether to build it. Build only
-after a yes (or when the person said to go ahead without asking). While it builds, keep that page
-as the progress board: each section's state (written, assembled, checked, reviewed).
+each section with its parts (number, message, kind, the figures and their sources), the facts still
+missing, and the look in a sentence. End the request asking whether to build it. Build only after
+a yes (or when the person said to go ahead without asking). That page is for the person, not for
+you: while the sections are written it may say which are done, from the plan, and it goes when the
+first join or assembly writes the real `index.html` (for an Office file, when the preview of the
+built file takes its place). Never keep progress on the page that is not also in the plan.
 
 ## 2. The frame, written once
 
-Write the document's own helper from `look.json`, one function per layout, with placeholders
-filled by name; it is the only code that sets a colour, a font, a size or a position. Section code
-calls its functions and passes ledger keys, never numbers.
-
-- **Deck** (pptxgenjs, as the `pptx` skill installs it): copy `reference/deck-helper.js` to
-  `tools/deck_helper.js` and `reference/assemble-deck.js` to `tools/assemble_deck.js`, then change
-  the helper's layouts to this document's look and layout types. `h.fact("<key>", {scale})` is
-  the only way a figure reaches a slide; an unknown key stops the build with its name. A section
-  module looks like `reference/section-example.js`.
-- **Word** (one reference file, styles by name) and **Excel** (an Assumptions sheet written from
-  the ledger, one tested builder per sheet type, formulas only for derived cells):
-  `reference/word-and-excel.md`.
-
-Build one section yourself with the helper (`--only <section id>`) and render it before handing out
-the rest: a fault in the frame is cheaper to fix once than in every module.
+Write what every section shares before any helper starts: the deck helper, the Word reference file
+or the workbook builders (`reference/office.md`); the stylesheet, the page shell and the joiner
+(`reference/html.md`). It is the only place that sets a colour, a font or a size, and sections
+reach figures only by ledger key. Build one section yourself and check it before handing out the
+rest: a fault in the frame is cheaper to fix once than in every section. That first check is also
+the ledger's: fix every fact it names before the helpers start.
 
 ## 3. Section helpers
 
-Start one `section-writer` helper per section, several in one message so they run together.
-Each brief holds: the section's slice of the outline (pasted in), the module path to write
-(`build/sections/<nn>-<id>.js`, or `build/chapters/<nn>-<id>.md`), the helper's function list, the
-paths of `data/facts.json` and `build/glossary.md`, and this sentence: "Use numbers only by key;
-if a number you need is not in the ledger, do not invent it: write the slide without it and list
-it in your reply." Each returns only the module's path, its slide count and the missing facts;
-the content stays in the files. Never paste a helper's content back through yourself.
+Start one `section-writer` helper per section (or page), several in one message so they run
+together. Each brief holds: one sentence on the goal of the whole request, the section's slice of
+the outline (pasted in), the module path to write, what the frame offers (the helper's function
+list, or the stylesheet's classes and the shell), the paths of `data/facts.json` and
+`build/glossary.md`, and this sentence: "Use numbers only by key; if a number you need is not in
+the ledger, do not invent it: write the part without it and list it in your reply." Each returns
+only the module's path, what it made and the missing facts; the content stays in the files. Never
+paste a helper's content back through yourself.
 
 **At most four at once**, then the next four as they finish. Helpers run inside the agent program
-that started them and the request ends only when all have reported, so memory is not the
-limit; the account's rate of model requests and your own reading of their replies are.
-Helpers never render: the studio draws one file at a time, so the lead renders once.
+that started them and the request ends only when all have reported, so memory is not the limit;
+the account's rate of model requests and your own reading of their replies are.
 
 Missing facts: find their sources, add them to the ledger, and send the module back to its writer
 with the keys; or leave the figure out and say so.
 
-## 4. Assemble, then check without pictures, in this order
+## 4. Join, then check without pictures
 
-1. **Assemble with one command** (`NODE_PATH=tools/node_modules node tools/assemble_deck.js`). It
-   stops when a module's slides do not match the outline, and writes `build/slide-map.json`.
-2. **Structure**: the kind's own check (`validate.py` for a deck or document, as its skill runs it).
-3. **`check_file`** on the file: `not_found` figures (not in the ledger, data or sources),
-   `placeholders` (prompt text, template marks, TBD, lorem ipsum, empty placeholders), `conflicts`
-   (one label with two values), `ledger.problems`. `by_part` says which slides; the slide map says
-   which modules. Fix those modules (or their writers do), reassemble, check again.
-4. **`render_document`**: a workbook's formula errors; for a deck or document the PDF and up to
-   60 page pictures a call (`pages: "61-120"` for more; `not_drawn` says what has no picture yet),
-   and `overview`, every page small.
-5. **`check_file` again** after the last render, before anything is handed over.
+Join the sections with one command (the deck assembler, pandoc, or `tools/join_pages.py`), then run
+the checks in the order your reference file gives. In short:
+- Office: the kind's structure check, then `check_file` (figures not found, leftover placeholders,
+  conflicts, `ledger.problems`), then `render_document`, then `check_file` again.
+- Pages: `check_site` until it reports no findings, then `check_page` on every page that states
+  facts, then `look_at_page` on the start page and inner pages.
+Fix in the ledger or the module, never in the joined file, which the next join overwrites.
 
-## 5. One visual review, by someone else
+## 5. One review, by someone else
 
-Start a `slide-reviewer` helper (not a writer) with the file, the slide numbers to look at and why,
-the overview pictures and the outline. Up to 60 slides it looks at all; past that, every flagged
-slide, the first of each layout and section, every chart, table and picture slide, and one in four
-of the rest. It works in batches of 20 and writes defects by slide to `build/review.json`.
-How, and the questions: `reference/review.md`. Redo only the modules with defects, reassemble,
-re-run step 4 on the changed slides, then one second look at the changed slides only. Then stop
-and report what remains.
+A helper that did not write the parts looks at the result: `slide-reviewer` for a deck or document
+(batches of slide pictures, defects to `build/review.json`), `checker` for pages (every page's
+marks against their sources, to `research/review.md`). Redo only the modules with defects, join,
+run the checks on the changed parts, then one second look at those only. Then stop and report
+what remains.
 
 ## 6. What to tell the person
 
-Each gate on its own, with numbers, and what was not covered:
-
-> Structure passed. 2 formula errors fixed. Figures: 412 checked, 409 from the ledger, 3 not in
-> any source (slides 17, 41, 77). 0 leftover placeholders. 40 of 104 slides looked at, 6 defects
-> fixed, 1 left (slide 63: a crowded table). Renders in LibreOffice.
+Each gate on its own, with numbers, and what was not covered: how many parts, figures checked and
+from where, placeholders or site findings left, how many parts were looked at, defects fixed and
+left. An example for each kind is in its reference file.
 
 Say "renders in LibreOffice", never "opens in PowerPoint" or "works in Word" or "Excel": nothing here
 can test those programs. Name every check you did not run and every cap the results reported.
 
 ## 7. Changing one part later
 
-Change the ledger (a figure) or the one module (a slide), never the built file. Reassemble, run
-`check_file` on the whole file (it is quick), render only the changed slides' range, and look at
-those. A change to `look.json` or the helper changes every slide: say so and review the overview.
+Change the ledger (a figure, everywhere it appears) or the one module (a part), never the joined
+file. Join again, run the checks on the whole (they are quick), and look at the changed parts. A
+change to the look or the frame changes every part: say so and look at several.

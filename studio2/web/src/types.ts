@@ -715,6 +715,8 @@ export interface Health {
   page_sign_in?: boolean;
   /** Which code the server runs and whether newer code is on disk. Absent on a server started before it said. */
   build?: import("./buildNotice").Build | null;
+  /** Requests running now over all projects, and how many may (`limit` 0: no limit). Absent on an older server. */
+  turns?: { running: number; limit: number };
 }
 
 export interface FileEntry {
@@ -805,6 +807,7 @@ interface EventBase {
 
 export type ToolKind = "read" | "edit" | "execute" | "search" | "fetch" | "agent" | "think" | "other";
 
+/** One item of a `plan` event. The studio's `set_plan` maps doing → in_progress and done → completed. */
 export interface PlanEntry {
   content: string;
   status: "pending" | "in_progress" | "completed" | string;
@@ -928,6 +931,8 @@ export interface ToolResultEvent extends EventBase {
 export interface PlanEvent extends EventBase {
   type: "plan";
   entries: PlanEntry[];
+  /** "set_plan" for the project's plan; absent for the agent program's own task list (TodoWrite, TaskCreate). */
+  source?: string;
 }
 export interface FilesChangedEvent extends EventBase {
   type: "files_changed";

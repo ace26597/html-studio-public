@@ -89,7 +89,12 @@ function EditTemplateDialog({
   );
 }
 
-export function TemplatesManager({ query = "", heading }: { query?: string; heading?: string } = {}) {
+/** `guest`: someone on a shared studio who is not its owner; templates can be used and exported, not changed. */
+export function TemplatesManager({
+  query = "",
+  heading,
+  guest = false,
+}: { query?: string; heading?: string; guest?: boolean } = {}) {
   const toast = useToast();
   const confirm = useConfirm();
   const [templates, setTemplates] = useState<Template[] | null>(null);
@@ -184,15 +189,19 @@ export function TemplatesManager({ query = "", heading }: { query?: string; head
             void runImport(file, false);
           }}
         />
-        <button
-          type="button"
-          className="btn btn-small"
-          disabled={importState.phase !== "idle"}
-          onClick={() => fileInput.current?.click()}
-        >
-          {importState.phase === "idle" ? <Icon name="upload" size={14} /> : <Spinner size={12} />}
-          {importState.phase === "idle" ? "Import" : "Importing…"}
-        </button>
+        {guest ? (
+          <p className="ds-lede">On a shared studio only its owner saves, imports, edits or deletes templates.</p>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={importState.phase !== "idle"}
+            onClick={() => fileInput.current?.click()}
+          >
+            {importState.phase === "idle" ? <Icon name="upload" size={14} /> : <Spinner size={12} />}
+            {importState.phase === "idle" ? "Import" : "Importing…"}
+          </button>
+        )}
       </div>
       {error && (
         <div className="lib-error" role="alert">
@@ -234,24 +243,28 @@ export function TemplatesManager({ query = "", heading }: { query?: string; head
                   <a className="btn btn-small" href={api.templateExportUrl(template.id)} aria-label={`Export ${template.label}`}>
                     Export
                   </a>
-                  <button
-                    type="button"
-                    className="btn btn-small"
-                    aria-label={`Edit ${template.label}`}
-                    onClick={() => setEditing(template)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    aria-label={`Delete ${template.label}`}
-                    data-tip="Delete"
-                    data-tip-align="end"
-                    onClick={() => void remove(template)}
-                  >
-                    <Icon name="trash" size={15} />
-                  </button>
+                  {!guest && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-small"
+                        aria-label={`Edit ${template.label}`}
+                        onClick={() => setEditing(template)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={`Delete ${template.label}`}
+                        data-tip="Delete"
+                        data-tip-align="end"
+                        onClick={() => void remove(template)}
+                      >
+                        <Icon name="trash" size={15} />
+                      </button>
+                    </>
+                  )}
                 </div>
               </li>
             );

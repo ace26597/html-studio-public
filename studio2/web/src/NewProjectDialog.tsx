@@ -13,9 +13,10 @@ interface NewProjectDialogProps {
   creating: boolean;
   /** Error from creating the project, shown in the dialog. */
   createError: string | null;
-  onCreate: (template: string | null) => void;
-  /** Step 3k: create a project from an app on this computer. */
-  onAttach: (request: AttachRequest) => void;
+  /** `name` is what the person typed, trimmed; empty when they left it for the studio to name. */
+  onCreate: (template: string | null, name?: string) => void;
+  /** Step 3k: create a project from an app on this computer. Left out, the choice is not offered (a guest on a shared studio). */
+  onAttach?: (request: AttachRequest) => void;
   onClose: () => void;
   /** "A skill": open Library → New skill at "Describe it". Left out, the choice is not offered (a shared studio). */
   onSkill?: () => void;
@@ -26,14 +27,23 @@ interface NewProjectDialogProps {
 export type Source = "template" | "folder" | "skill" | "connector";
 
 /** The choices at the top of the dialog, in order. "A skill" only when it can be offered. */
-export function newPageSources(withSkill: boolean, withConnector: boolean = withSkill): { value: Source; label: string }[] {
+export function newPageSources(
+  withSkill: boolean,
+  withConnector: boolean = withSkill,
+  withFolder: boolean = true,
+): { value: Source; label: string }[] {
   const all: { value: Source; label: string }[] = [
     { value: "template", label: "A template or a blank page" },
     { value: "folder", label: "An app on this computer" },
     { value: "skill", label: "A skill" },
     { value: "connector", label: "A connector" },
   ];
-  return all.filter((item) => (item.value !== "skill" || withSkill) && (item.value !== "connector" || withConnector));
+  return all.filter(
+    (item) =>
+      (item.value !== "skill" || withSkill) &&
+      (item.value !== "connector" || withConnector) &&
+      (item.value !== "folder" || withFolder),
+  );
 }
 
 /** What "A skill" says: what a skill is, in plain words, and where the button goes. */
@@ -68,6 +78,12 @@ export function SkillChoice() {
 }
 
 const DEFAULT_TEMPLATE = "blank";
+const NAME_MAX = 80;
+
+/** The typed name as it is sent: outer spaces off, runs of spaces to one; "" means "not named". */
+export function cleanName(typed: string): string {
+  return typed.replace(/\s+/g, " ").trim().slice(0, NAME_MAX);
+}
 
 export function NewProjectDialog({
   creating,
@@ -83,12 +99,15 @@ export function NewProjectDialog({
   const [attachRequest, setAttachRequest] = useState<AttachRequest | null>(null);
   const [attachBlocker, setAttachBlocker] = useState<string | null>(null);
   const submitAttach = () => {
-    if (!creating && attachRequest) onAttach(attachRequest);
+    if (!creating && attachRequest && onAttach) onAttach(attachRequest);
   };
   const [templates, setTemplates] = useState<Template[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [chosen, setChosen] = useState<string>(DEFAULT_TEMPLATE);
+  const [name, setName] = useState("");
+  const nameId = useId();
+  const create = (template: string | null) => onCreate(template, cleanName(name));
   const dialog = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
@@ -135,7 +154,7 @@ export function NewProjectDialog({
       dialog.current?.querySelectorAll<HTMLElement>('[role="radio"]')[next]?.focus();
     } else if (event.key === "Enter") {
       event.preventDefault();
-      if (!creating) onCreate(templates_[index].id);
+      if (!creating) create(templates_[index].id);
     }
   };
 
@@ -153,7 +172,7 @@ export function NewProjectDialog({
         tabIndex={checked ? 0 : -1}
         className={`template-card${checked ? " is-checked" : ""}${yours ? " is-yours" : ""}`}
         onClick={() => setChosen(template.id)}
-        onDoubleClick={() => !creating && onCreate(template.id)}
+        onDoubleClick={() => !creating && create(template.id)}
         onKeyDown={(event) => onCardKey(event, index)}
       >
         {yours && (
@@ -190,10 +209,10 @@ export function NewProjectDialog({
         }
       }}
     >
-      <div className="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} ref={dialog}>
+      <div className="dialog dialog-wide newpage" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} ref={dialog}>
         <DialogHead titleId={titleId} title="New page" onClose={onClose} busy={creating} />
         <div className="newpage-tabs" role="tablist" aria-label="Start from">
-          {newPageSources(Boolean(onSkill), Boolean(onConnector)).map(({ value, label }) => (
+          {newPageSources(Boolean(onSkill), Boolean(onConnector), Boolean(onAttach)).map(({ value, label }) => (
             <button
               key={value}
               type="button"
@@ -207,6 +226,7 @@ export function NewProjectDialog({
             </button>
           ))}
         </div>
+        <div className="newpage-body">
         {source === "connector" ? (
           <ConnectorChoice />
         ) : source === "skill" ? (
@@ -223,6 +243,29 @@ export function NewProjectDialog({
         ) : (
         <>
         <p className="dialog-body">Choose what it starts from. You can change anything afterwards by asking the agent.</p>
+
+        <label className="field newpage-name" htmlFor={nameId}>
+          <span className="field-label">
+            Name <span className="field-optional">optional</span>
+          </span>
+          <input
+            id={nameId}
+            className="text-input"
+            type="text"
+            value={name}
+            maxLength={NAME_MAX}
+            disabled={creating}
+            placeholder="Leave empty and the studio offers a name after your first request"
+            autoComplete="off"
+            onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !creating && (templates || loadError)) {
+                event.preventDefault();
+                create(templates && templates.length ? chosen : null);
+              }
+            }}
+          />
+        </label>
 
         {templates === null && !loadError && (
           <div className="template-loading">
@@ -264,6 +307,8 @@ export function NewProjectDialog({
         </>
         )}
 
+        </div>
+
         {createError && (
           <p className="template-error" role="alert">
             <Icon name="alert" size={15} />
@@ -299,7 +344,7 @@ export function NewProjectDialog({
               type="button"
               className="btn btn-primary"
               disabled={creating || (templates === null && !loadError)}
-              onClick={() => onCreate(templates && templates.length ? chosen : null)}
+              onClick={() => create(templates && templates.length ? chosen : null)}
             >
               {creating && <Spinner size={14} />}
               {loadError ? "Create a blank page" : "Create"}

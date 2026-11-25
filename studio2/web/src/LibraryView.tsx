@@ -119,6 +119,9 @@ function useIndexHits(query: string, enabled: boolean): IndexHits {
 const DRAWER_MORE_LINE =
   "The studio’s own tools and helper agents, the models it can use, database types, and connectors found on this computer.";
 
+/** What a guest on a shared studio is told where the owner's controls are left out. */
+export const OWNER_ONLY_LINE = "On a shared studio only its owner adds, changes or tests these.";
+
 export function LibraryView({
   state,
   compact = false,
@@ -393,12 +396,13 @@ export function LibraryView({
           servers={serverSplit.main}
           query={query}
           onChanged={reload}
-          manage={manage}
+          manage={manage && !shared}
           startAdding={startNewConnector}
           sources={MAIN_MCP_SOURCES}
           level={2}
           headingId={`${moreId}-connectors`}
         />
+        {manage && shared && !searching && <p className="lib-intro">{OWNER_ONLY_LINE}</p>}
         {!searching && serverSplit.more.length > 0 && (
           <p className="lib-elsewhere">
             Another {countWords(serverSplit.more.length, "connectors")} found on this computer{" "}
@@ -453,7 +457,7 @@ export function LibraryView({
                 servers={serverSplit.more}
                 query={query}
                 onChanged={reload}
-                manage={manage}
+                manage={manage && !shared}
                 exclude={MAIN_MCP_SOURCES}
                 title="Connectors found on this computer"
                 secondary={null}

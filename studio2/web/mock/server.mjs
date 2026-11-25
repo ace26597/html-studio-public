@@ -1906,6 +1906,7 @@ function health() {
     fake: true,
     // The mock "transcribes" by returning a fixed, clearly marked sentence; no audio is read.
     transcription: { available: true, reason: null },
+    turns: { running: [...projects.values()].filter((item) => item.turn).length, limit: 4 },
     connections: [
       {
         id: "fake",
@@ -2413,6 +2414,9 @@ async function handleApi(req, res, url) {
     const attachments = Array.isArray(body.attachments) ? body.attachments.map((item) => checkPath(item)) : [];
     const missing = attachments.find((item) => !project.files.has(item));
     if (missing) throw new HttpError(400, "missing_attachment", `The attached file ${missing} is not in the project.`);
+    // A message that says "studio busy" is refused as the real studio refuses one over its limit.
+    if (/studio busy/i.test(text) && !body.queue)
+      throw new HttpError(429, "studio_busy", "The studio is already running 4 requests, its limit. Try again when one finishes.");
     const message = {
       text,
       selection: body.selection ?? null,
