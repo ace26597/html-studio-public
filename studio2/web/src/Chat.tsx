@@ -105,6 +105,8 @@ interface ChatProps {
   onUnqueue: (queuedId: string) => void;
   unqueuing: ReadonlySet<string>;
   onSetApprovals: (value: Approvals) => void;
+  /** A guest on a shared studio: what only its owner may allow is not offered (CONTRACT.md). */
+  guest?: boolean;
   /** Phone / iPad portrait: closed, the chat is the same round button as on a desktop; open, it is a
    * bottom sheet (half → full), never a floating window. */
   compact?: boolean;
@@ -125,17 +127,34 @@ interface ChatProps {
   everywhereInstructions?: string | null;
 }
 
-function ApprovalsMenu({ value, onChange }: { value: Approvals; onChange: (value: Approvals) => void }) {
+/** The approvals menu's rows. A guest sees "Allow everything" (ticked when the owner set it) but
+ * cannot choose it; "Ask before risky commands" stays theirs (CONTRACT.md, "Allow everything"). */
+export function approvalsEntries(value: Approvals, onChange: (value: Approvals) => void, guest = false): MenuEntry[] {
+  return [
+    { type: "section", label: "Risky commands" },
+    { label: "Ask before risky commands", checked: value === "ask", onSelect: () => onChange("ask") },
+    guest
+      ? { label: "Allow everything", checked: value === "allow", disabled: true, hint: "Owner only", onSelect: () => {} }
+      : { label: "Allow everything", checked: value === "allow", onSelect: () => onChange("allow") },
+  ];
+}
+
+function ApprovalsMenu({
+  value,
+  onChange,
+  guest = false,
+}: {
+  value: Approvals;
+  onChange: (value: Approvals) => void;
+  /** A guest may set it back to asking, never to allow (the server refuses it). */
+  guest?: boolean;
+}) {
   const label = value === "allow" ? "Allow everything" : "Ask before risky commands";
   return (
     <Menu
       label="Risky commands"
       align="end"
-      entries={[
-        { type: "section", label: "Risky commands" },
-        { label: "Ask before risky commands", checked: value === "ask", onSelect: () => onChange("ask") },
-        { label: "Allow everything", checked: value === "allow", onSelect: () => onChange("allow") },
-      ]}
+      entries={approvalsEntries(value, onChange, guest)}
       trigger={(props) => (
         <button
           type="button"
@@ -364,6 +383,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
     onShowChanges,
     onDecide,
     decisions,
+    guest = false,
     onAnswer,
     answering,
     fileHref,
@@ -576,6 +596,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
       canRetry: !running && !starting,
       onDecide,
       decisions,
+      guest,
       // Once answered, the chat follows the agent's work again (the card may have been read from its top).
       onAnswer: ((item, body) => {
         stick.current = true;
@@ -593,7 +614,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
       onPutBack: putBackNote,
       busy: starting || queue.length > 0,
     }),
-    [onRetry, onOpenVersion, running, starting, onDecide, decisions, onAnswer, answering, fileHref, chatFiles, onOpenFile, readDrawing, project.id, fillFromStep, putBackNote, queue.length, onShowChanges],
+    [onRetry, onOpenVersion, running, starting, onDecide, decisions, guest, onAnswer, answering, fileHref, chatFiles, onOpenFile, readDrawing, project.id, fillFromStep, putBackNote, queue.length, onShowChanges],
   );
 
   const activity = running ? latestActivity(thread) : null;
@@ -820,7 +841,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
           </button>
           {open && (
             <span className="chat-header-actions">
-              <ApprovalsMenu value={project.approvals === "allow" ? "allow" : "ask"} onChange={onSetApprovals} />
+              <ApprovalsMenu value={project.approvals === "allow" ? "allow" : "ask"} onChange={onSetApprovals} guest={guest} />
               <IconButton
                 icon={full ? "chevron-down" : "arrow-up"}
                 label={full ? "Make the chat smaller" : "Make the chat full screen"}
@@ -852,7 +873,7 @@ export const Chat = forwardRef<ChatHandle, ChatProps>(function Chat(props, ref) 
           )}
         </span>
         <span className="chat-header-actions">
-          <ApprovalsMenu value={project.approvals === "allow" ? "allow" : "ask"} onChange={onSetApprovals} />
+          <ApprovalsMenu value={project.approvals === "allow" ? "allow" : "ask"} onChange={onSetApprovals} guest={guest} />
           {open && (
             <IconButton
               icon={sizeToggle(large).icon}

@@ -6,7 +6,7 @@
 import { recheckFrom, verificationItem, type VerificationItem } from "./effort";
 import { stepsFrom, type NextStep } from "./nextSteps";
 import { asPick } from "./libraryPick";
-import type { FileChange, LibraryPick, PlanEntry, Selection, SkillApprovalInfo, StudioEvent, Usage } from "./types";
+import type { FileChange, LeftOutFile, LibraryPick, PlanEntry, Selection, SkillApprovalInfo, StudioEvent, Usage } from "./types";
 import { answersFrom, cardKind, questionsFrom, referencesFrom, type QuestionItem } from "./questions";
 
 export type TurnStatus = "running" | "completed" | "stopped" | "failed";
@@ -50,6 +50,8 @@ export interface CheckpointItem {
   kind: string;
   message: string;
   files: FileChange[];
+  /** Files too large for versions that this version left out; only set when there are any. */
+  leftOut?: { files: LeftOutFile[]; count: number };
   ts: string;
 }
 export interface NoticeItem {
@@ -78,6 +80,8 @@ export interface ApprovalItem {
   /** `save_skill`: the card is drawn from this when present (older events have none). */
   skill?: SkillApprovalInfo | null;
   reason: string;
+  /** On a shared studio only its owner may allow it (`owner_only`, or `guarded` on older events). */
+  ownerOnly?: boolean;
   status: ApprovalStatus;
   /** Who decided: `user`, or `turn_end` when the turn ended first. Null while waiting. */
   by: "user" | "turn_end" | null;
@@ -434,6 +438,7 @@ function applyEvent(state: ThreadState, event: StudioEvent): ThreadState {
         detail: event.detail ?? "",
         skill: event.skill ?? null,
         reason: event.reason ?? "",
+        ownerOnly: event.owner_only === true || event.guarded === true,
       };
       return withTurn(state, turnId, seq, ts, (turn) => {
         const repeated = updateApproval(turn.items, event.approval_id, (item) => ({ ...item, ...fields }));
@@ -628,6 +633,9 @@ function applyEvent(state: ThreadState, event: StudioEvent): ThreadState {
         files: Array.isArray(event.files) ? event.files : [],
         ts,
       };
+      const leftOut = Array.isArray(event.left_out) ? event.left_out : [];
+      const leftCount = Math.max(leftOut.length, typeof event.left_out_count === "number" ? event.left_out_count : 0);
+      if (leftCount > 0) item.leftOut = { files: leftOut, count: leftCount };
       const bumped = { ...state, filesRev: state.filesRev + 1, versionsRev: state.versionsRev + 1 };
       if (!event.turn_id) return { ...bumped, entries: [...bumped.entries, item] };
       return withTurn(bumped, event.turn_id, seq, ts, (turn) => ({ ...turn, items: [...turn.items, item] }));

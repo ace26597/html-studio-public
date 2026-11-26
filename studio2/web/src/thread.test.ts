@@ -465,6 +465,26 @@ describe("replay equals live", () => {
   });
 });
 
+describe("checkpoints with files too large for versions", () => {
+  it("keeps the left out files on the item only when there are any", () => {
+    const state = build(
+      { type: "checkpoint", sha: "a1", kind: "agent", message: "Plain", files: [] },
+      {
+        type: "checkpoint",
+        sha: "b2",
+        kind: "agent",
+        message: "With data",
+        files: [{ path: "data.csv", status: "deleted" }],
+        left_out: [{ path: "data.csv", size: 300 }],
+        left_out_count: 1,
+      },
+    );
+    const [plain, withData] = state.entries as { leftOut?: unknown }[];
+    expect(plain.leftOut).toBeUndefined();
+    expect(withData.leftOut).toEqual({ files: [{ path: "data.csv", size: 300 }], count: 1 });
+  });
+});
+
 describe("files, checkpoints and notices", () => {
   it("collects changed paths per turn without duplicates", () => {
     const state = build(

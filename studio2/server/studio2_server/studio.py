@@ -86,6 +86,8 @@ def plan_lines(plan) -> str:
         lines.append(f"  - … and {len(items) - PLAN_LINES} more")
     return "\n".join(lines)
 
+LEFT_OUT_FACTS = 10      # files named in the agent's line about files too large for versions
+
 RUN_NOT_SEEN = ("On a shared studio a project's app runs only with a run line the studio's owner has started. "
                 "This one is new or changed, so it was not started. Ask the owner to start the app once.")
 
@@ -573,6 +575,8 @@ class Studio:
         current = [self._library_context(project, picked)]
         if planned := plan_lines(project.get("plan")):
             current.append(planned)
+        if too_large := self._left_out_line(project_id):
+            current.append(too_large)
         attached = project.get("attach")
         if attached:
             # With every message, not once per conversation: these are the lines that keep the person's
@@ -598,6 +602,23 @@ class Studio:
         if tested:
             current.append(tested)
         return "\n".join(lines), "\n".join(current)
+
+    def _left_out_line(self, project_id: str) -> str:
+        """One line when files are too large for versions (CONTRACT.md, "Files too large for versions")."""
+        limit = self.version_limit(project_id)
+        if not limit:
+            return ""
+        try:
+            left = ws.left_out_files(self.store.workspace(project_id), limit)
+        except (ws.GitError, OSError):
+            return ""
+        if not left:
+            return ""
+        shown = ", ".join(entry["path"] for entry in left[:LEFT_OUT_FACTS])
+        more = f", and {len(left) - LEFT_OUT_FACTS} more" if len(left) > LEFT_OUT_FACTS else ""
+        megabytes = f"{limit / (1024 * 1024):g}"
+        return (f"- These files are larger than {megabytes} MB, so they are not saved in versions and undo cannot "
+                f"bring them back: {shown}{more}. Do not commit them with git yourself.")
 
     def agent_context(self, project_id: str, picked: dict | None = None, standing: bool = True) -> str:
         """The project facts for one message (turns.compose_prompt): in full, or (standing=False) with
@@ -927,7 +948,7 @@ class Studio:
             pid = project["id"]
             first = await asyncio.to_thread(ws.init_workspace, self.store.workspace(pid), name,
                                             self.examples.files(example), f"From the example “{shipped['title']}”",
-                                            True)
+                                            True, None, self.settings.version_max_file_bytes)
             # What an example or a template starts is the studio's or the owner's: it may run.
             self.store.update(pid, head=first["sha"], run_seen=read_config(self.store.workspace(pid))[0])
             return await self.open_preview(self.store.get(pid))
@@ -945,7 +966,8 @@ class Studio:
         # is put beside it for the agent to follow: its content must not show up as the new page.
         first = await asyncio.to_thread(ws.init_workspace, self.store.workspace(pid), name,
                                         files if files.is_dir() and not pattern else None, label, False,
-                                        template_private if chosen.get("source") == "yours" else None)
+                                        template_private if chosen.get("source") == "yours" else None,
+                                        self.settings.version_max_file_bytes)
         self.store.update(pid, head=first["sha"], run_seen=read_config(self.store.workspace(pid))[0])
         if pattern:
             await self.use_template(pid, template)
@@ -987,10 +1009,22 @@ class Studio:
             return
         self.log(project_id).append("checkpoint", turn_id, **checkpoint)
 
+    def version_limit(self, project_id: str) -> int:
+        """Bytes above which a file is left out of versions; 0 for an attached app, whose commits go
+        back to the person's own repository (CONTRACT.md, "Files too large for versions")."""
+        try:
+            if self.store.get(project_id).get("attach"):
+                return 0
+        except ProjectNotFound:
+            return 0
+        return max(0, int(self.settings.version_max_file_bytes or 0))
+
     async def checkpoint(self, project_id: str, kind: str, message: str,
                          turn_id: str | None = None) -> dict | None:
+        limit = self.version_limit(project_id)
         async with self.lock(project_id):
-            made = await asyncio.to_thread(ws.checkpoint, self.store.workspace(project_id), kind, message)
+            made = await asyncio.to_thread(ws.checkpoint, self.store.workspace(project_id), kind, message,
+                                           False, limit)
         if made:
             self.record_checkpoint(project_id, made, turn_id)
         return made
@@ -999,7 +1033,7 @@ class Studio:
         workspace = self.store.workspace(project_id)
         async with self.lock(project_id):
             before = await asyncio.to_thread(ws.head, workspace)
-            made = await asyncio.to_thread(ws.restore, workspace, sha)
+            made = await asyncio.to_thread(ws.restore, workspace, sha, self.version_limit(project_id))
             parent = await asyncio.to_thread(ws.git, workspace, "rev-parse", "HEAD~1")
         if parent.strip() != before:  # restore() saved uncommitted work first; announce that too
             saved = await asyncio.to_thread(ws.describe, workspace, parent.strip())

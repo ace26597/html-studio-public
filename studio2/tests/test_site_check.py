@@ -129,6 +129,58 @@ def test_a_missing_start_page_is_said_and_no_orphans_are_guessed(tmp_path):
     assert [f["kind"] for f in result["findings"]] == ["no_start"]
 
 
+def test_a_missing_start_page_names_the_index_pages_there_are(tmp_path):
+    root = clean_site(tmp_path)
+    (root / "guides").mkdir()
+    (root / "guides" / "index.htm").write_text(page("Guides", nav("../")))
+    [finding] = [f for f in check_site(root, start="home.html")["findings"] if f["kind"] == "no_start"]
+    assert finding["page"] == "home.html"
+    assert "are: index.html, guides/index.htm, plants/index.html." in finding["detail"]   # nearest the root first
+    result = check_site(root, start="home.html")
+    assert result["start"] == "home.html" and result["start_chosen"] is False and "start_note" not in result
+
+
+def test_without_a_root_index_the_nearest_index_page_is_the_start(tmp_path):
+    """A project made from the fastapi-app template keeps its pages in static/, which its app serves."""
+    root = tmp_path / "app"
+    root.mkdir()
+    (root / "studio.json").write_text(json.dumps({"run": "uv run uvicorn server:app --port $PORT"}))
+    (root / "server.py").write_text("app = None\n")
+    (root / "static").mkdir()
+    (root / "static" / "index.html").write_text(page("Orders", '<nav><a href="about.html">About</a></nav>', css=None))
+    (root / "static" / "about.html").write_text(page("About", '<nav><a href="index.html">Orders</a></nav>', css=None))
+    (root / "static" / "help").mkdir()
+    (root / "static" / "help" / "index.html").write_text(page("Help", '<a href="../index.html">Back</a>', css=None))
+    result = check_site(root)
+    assert result["start"] == "static/index.html" and result["start_chosen"] is True
+    assert "static/index.html" in result["start_note"] and "no index.html at the root" in result["start_note"]
+    assert [(f["page"], f["kind"]) for f in result["findings"]] == [("static/help/index.html", "orphan")]
+    given = check_site(root, start="static/about.html")
+    assert given["start"] == "static/about.html" and given["start_chosen"] is False and "start_note" not in given
+
+
+def test_a_root_index_is_the_start_without_a_note(tmp_path):
+    root = clean_site(tmp_path)
+    result = check_site(root)
+    assert result["start"] == "index.html" and result["start_chosen"] is True and "start_note" not in result
+
+
+def test_two_index_pages_at_the_same_depth_are_not_guessed_between(tmp_path):
+    root = tmp_path / "two"
+    for folder in ("public", "static"):
+        (root / folder).mkdir(parents=True)
+        (root / folder / "index.html").write_text(page(folder, "<p>x</p>", css=None))
+    result = check_site(root)
+    assert result["start"] == "index.html" and result["start_chosen"] is True and "start_note" not in result
+    [finding] = [f for f in result["findings"] if f["kind"] == "no_start"]
+    assert "public/index.html, static/index.html" in finding["detail"]
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    (empty / "about.html").write_text(page("About", "<p>x</p>", css=None))
+    [finding] = [f for f in check_site(empty)["findings"] if f["kind"] == "no_start"]
+    assert "no index page in the project" in finding["detail"]
+
+
 def test_in_an_app_a_path_that_is_no_file_is_unchecked_not_broken(tmp_path):
     root = clean_site(tmp_path)
     (root / "studio.json").write_text(json.dumps({"run": "uv run python server.py"}))
@@ -425,3 +477,19 @@ def test_the_joiner_reads_and_writes_only_inside_the_project(tmp_path):
         "pages": [{"id": "home", "path": "index.html", "module": "build/pages/home.html"}]}))
     assert join(root).returncode == 0
     assert "javascript:" not in (root / "index.html").read_text() and 'id="src-s1"' in (root / "index.html").read_text()
+
+
+async def test_a_project_made_from_the_app_template_is_checked_from_its_served_page(studio):
+    """The fault seen in a real request: the first call answered no_start for index.html."""
+    made = await studio.create_project("A back end", "fastapi-app")
+    workspace = studio.store.workspace(made["id"])
+    assert not (workspace / "index.html").exists() and (workspace / "static" / "index.html").is_file()
+    answer = await tools.call(studio, made["id"], "check_site", {})
+    result = json.loads(answer["content"][0]["text"])
+    assert result["start"] == "static/index.html" and result["start_chosen"] is True
+    assert not any(f["kind"] == "no_start" for f in result["findings"]), result["findings"]
+    answer = await tools.call(studio, made["id"], "check_site", {"start": "index.html"})
+    result = json.loads(answer["content"][0]["text"])
+    assert result["start_chosen"] is False
+    [finding] = [f for f in result["findings"] if f["kind"] == "no_start"]
+    assert "static/index.html" in finding["detail"]

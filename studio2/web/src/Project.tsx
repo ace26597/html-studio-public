@@ -1577,6 +1577,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             onUnqueue={unqueue}
             unqueuing={unqueuing}
             onSetApprovals={setApprovals}
+            guest={guest}
             drawingMarks={draw.count}
             onRemoveDrawing={clearDrawing}
             hidden={compact && effectiveMode === "draw"}

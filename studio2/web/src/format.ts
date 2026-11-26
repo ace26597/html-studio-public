@@ -206,6 +206,22 @@ export function projectFileUrl(previewUrl: string, path: string): string {
   return new URL(`__studio/files/${encoded}`, base).href;
 }
 
+/**
+ * The short words a version marker adds when large files were left out of it, and its tooltip
+ * lines (CONTRACT.md, "Files too large for versions"). `null` when none were.
+ */
+export function leftOutNote(
+  leftOut: { files: { path: string; size: number }[]; count: number } | undefined,
+): { label: string; detail: string } | null {
+  if (!leftOut || leftOut.count <= 0) return null;
+  const label = `${leftOut.count} large ${leftOut.count === 1 ? "file" : "files"} not in versions`;
+  const lines = leftOut.files.map((file) => `${file.path} (${formatBytes(file.size)})`);
+  const rest = leftOut.count - leftOut.files.length;
+  if (rest > 0) lines.push(`and ${rest} more`);
+  const detail = `Too large to save in versions, so undo cannot bring ${leftOut.count === 1 ? "it" : "them"} back. Kept on disk as ${leftOut.count === 1 ? "it is" : "they are"}:\n${lines.join("\n")}`;
+  return { label, detail };
+}
+
 const CHECKPOINT_LABEL: Record<string, string> = {
   agent: "Saved version",
   user: "Saved your edit",

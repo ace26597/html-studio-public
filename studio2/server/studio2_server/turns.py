@@ -29,6 +29,8 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("studio2")
 INPUT_CAP, SUMMARY_CAP = 8_000, 4_000
+# Cards for what only a shared studio's owner may do, whoever started the request (CONTRACT.md).
+OWNER_CARDS = frozenset({"save_skill", "save_template", "ship_recipe", "make_live"})
 
 
 def suggested_name(text: str, workspace) -> str | None:
@@ -349,6 +351,10 @@ class TurnRunner:
     def is_guarded(self, approval_id: str) -> bool:
         return approval_id in self.guarded
 
+    def card_needs_owner(self, turn_id: str, approval_id: str, tool: str | None) -> bool:
+        """On a shared studio only its owner may allow this card (CONTRACT.md, "Cards that need the owner")."""
+        return self.is_guarded(approval_id) or turn_id in self.by_owner or tool in OWNER_CARDS
+
     def answer(self, turn_id: str, approval_id: str, decision: str) -> bool:
         """The user's answer. → False when that approval is not waiting."""
         future = self.pending.get(turn_id, {}).get(approval_id)
@@ -372,10 +378,13 @@ class TurnRunner:
             self.pending.setdefault(turn_id, {})[approval_id] = future
             if guarded:     # what an agent may not reach: on a shared studio only the owner may allow it
                 self.guarded.add(approval_id)
+            # The server decides which cards a guest may not allow; the interface only shows it.
+            owner_only = bool(self.studio.settings.shared) and self.card_needs_owner(turn_id, approval_id, tool)
             events.append("approval_request", turn_id, approval_id=approval_id, tool=tool, title=title,
                           detail=detail[:detail_limit] if detail_limit else _clip(detail, 4_000), reason=reason,
                           **({"skill": skill} if skill is not None else {}),
-                          **({"guarded": True} if guarded else {}))
+                          **({"guarded": True} if guarded else {}),
+                          **({"owner_only": True} if owner_only else {}))
             self._wait_begins(turn_id)
             try:
                 allowed = await future  # cancelled when the turn ends first; _close_approvals announces that

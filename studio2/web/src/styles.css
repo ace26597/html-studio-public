@@ -2969,6 +2969,12 @@ a {
   font-size: 12px;
 }
 
+/* A guest's card that only the studio's owner may allow: a plain line where "Allow" would be. */
+.approval-owner-note {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
 .approval-record {
   display: flex;
   align-items: center;

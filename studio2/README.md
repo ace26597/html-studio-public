@@ -66,7 +66,9 @@ A project that declares a run command in `studio.json` gets its own back end, st
 studio on the page port + 100 and reached through the page port. It gets a project token
 instead of keys, and calls models and attached databases through the studio.
 
-Change [CONTRACT.md](CONTRACT.md) first, then the server and the interface.
+Change the contract first, then the server and the interface. It is one file per area in
+[contract/](contract/); [CONTRACT.md](CONTRACT.md) is the index of every section. After adding a
+section, `python3 tools/contract_split.py --index` rebuilds the index and `--check` checks it.
 
 ## Run from source
 
@@ -178,6 +180,7 @@ Limits and helper programs:
 |---|---|---|
 | `STUDIO2_APP_MODEL_DAILY_USD` | `2.00` | What one project's back end may spend on paid models per day |
 | `STUDIO2_MAX_TURNS` | `4` | How many requests may run at once in this studio (`0`: no limit). One more is refused with a plain message; a queued message waits. On a shared studio the limit holds guests back, never the owner |
+| `STUDIO2_VERSION_MAX_FILE_MB` | `100` | Files larger than this are left out of a project's versions and stay on disk as they are; restoring a version never touches them (`0`: no limit). An attached app is not limited |
 | `STUDIO2_QUERY_MEMORY` | `2GB` | Memory one `query_files` call may use before it spills to disk and then fails |
 | `STUDIO2_QUERY_THREADS` | `4` | Threads one `query_files` call may use |
 | `STUDIO2_QUERY_SPILL` | `10GB` | Disk one `query_files` call may use for spilling (never more than half the free disk) |
@@ -239,6 +242,7 @@ signs them in and shared mode ([docs/safety.md](docs/safety.md)).
 ## Links
 
 - [Front page](../README.md): what the studio is, install, model accounts, safety, limits.
-- [CONTRACT.md](CONTRACT.md): every route, event, tool and file format.
+- [CONTRACT.md](CONTRACT.md): the index of the contract (every route, event, tool and file format),
+  kept by area in [contract/](contract/).
 - [ATTACH.md](ATTACH.md): attaching an existing app and making it live, with `studio.json` for
   each kind of app.

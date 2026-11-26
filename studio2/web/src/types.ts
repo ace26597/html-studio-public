@@ -944,6 +944,15 @@ export interface CheckpointEvent extends EventBase {
   kind: VersionKind | string;
   message: string;
   files: FileChange[];
+  /** Files too large for versions, left out of this one (at most 50, largest first); absent when none. */
+  left_out?: LeftOutFile[];
+  /** How many were left out in all. */
+  left_out_count?: number;
+}
+/** A file the studio did not save in a version because of its size (CONTRACT.md, "Files too large for versions"). */
+export interface LeftOutFile {
+  path: string;
+  size: number;
 }
 export interface TurnFinishedEvent extends EventBase {
   type: "turn_finished";
@@ -993,6 +1002,10 @@ export interface ApprovalRequestEvent extends EventBase {
   reason: string;
   /** `save_skill` only (older events have none). */
   skill?: SkillApprovalInfo | null;
+  /** What an agent may not reach: on a shared studio only its owner may allow it. */
+  guarded?: boolean;
+  /** Shared studio: only its owner may allow this card (the server decides; CONTRACT.md). */
+  owner_only?: boolean;
 }
 export interface ApprovalResolvedEvent extends EventBase {
   type: "approval_resolved";

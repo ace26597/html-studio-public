@@ -10,6 +10,7 @@ import html
 import shutil
 import os
 import re
+import stat as stat_mode
 import subprocess
 import unicodedata
 from datetime import datetime, timezone
@@ -214,18 +215,23 @@ def hold_attributes(workspace: Path) -> None:
     target.write_text(HELD_ATTRIBUTES, "utf-8")
 
 
-def git(workspace: Path, *args: str, check: bool = True) -> str:
+def git(workspace: Path, *args: str, check: bool = True, input: bytes | None = None,
+        index: str | None = None) -> str:
+    """`input`: bytes for git's standard input. `index`: an index file of its own (an absolute path)."""
     hold_attributes(workspace)
     if args and args[0] in _DIFF_COMMANDS:
         args = (args[0], "--no-ext-diff", "--no-textconv", *args[1:])
-    proc = subprocess.run([*GIT_BASE, *args], cwd=workspace, env=git_env(workspace), capture_output=True)
+    env = git_env(workspace)
+    if index is not None:
+        env["GIT_INDEX_FILE"] = index
+    proc = subprocess.run([*GIT_BASE, *args], cwd=workspace, env=env, capture_output=True, input=input)
     if check and proc.returncode != 0:
         raise GitError(proc.stderr.decode("utf-8", "replace").strip() or f"git {args[0]} failed")
     return proc.stdout.decode("utf-8", "replace")
 
 
 def init_workspace(workspace: Path, title: str, template: Path | None = None, label: str = "Blank page",
-                   exact: bool = False, leave_out=None) -> dict:
+                   exact: bool = False, leave_out=None, max_bytes: int = 0) -> dict:
     """Create the workspace. `template` is a folder whose files are copied in; "{{title}}" in
     text files becomes the project name, unless `exact` (an example: its files are copied as they are).
     `leave_out(parts)` → True for a template path not to copy."""
@@ -251,7 +257,7 @@ def init_workspace(workspace: Path, title: str, template: Path | None = None, la
     if not (workspace / "index.html").is_file() and not (workspace / "studio.json").is_file():
         (workspace / "index.html").write_text(BLANK_INDEX.format(title=html.escape(title)), "utf-8")
     ensure_ignored(workspace)
-    return checkpoint(workspace, "init", label)
+    return checkpoint(workspace, "init", label, max_bytes=max_bytes)
 
 
 def kept_files(workspace: Path) -> list[str]:
@@ -317,14 +323,60 @@ def describe(workspace: Path, sha: str, base: str | None = None) -> dict:
             "files": _name_status(changed)}
 
 
-def checkpoint(workspace: Path, kind: str, message: str, allow_empty: bool = False) -> dict | None:
-    """Commit everything in the workspace. Returns None when there is nothing to commit."""
-    git(workspace, "add", "-A")
-    if not allow_empty and not git(workspace, "status", "--porcelain").strip():
-        return None
+# How many left out files a checkpoint names (CONTRACT.md, "Files too large for versions").
+LEFT_OUT_SHOWN = 50
+
+
+def left_out_files(workspace: Path, max_bytes: int) -> list[dict]:
+    """Files the next version would keep but that are larger than `max_bytes` (0: no limit), as
+    `{path, size}`, largest first. A symbolic link never counts: git keeps the link, not its target."""
+    if not max_bytes or max_bytes <= 0:
+        return []
+    root = Path(workspace)
+    out = git(workspace, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+    found = []
+    for name in {name for name in out.split("\0") if name}:
+        try:
+            info = os.lstat(root / name)
+        except OSError:
+            continue
+        if stat_mode.S_ISREG(info.st_mode) and info.st_size > max_bytes:
+            found.append({"path": name, "size": info.st_size})
+    found.sort(key=lambda entry: (-entry["size"], entry["path"]))
+    return found
+
+
+def _nul(paths) -> bytes:
+    return "".join(f"{path}\0" for path in paths).encode("utf-8")
+
+
+def checkpoint(workspace: Path, kind: str, message: str, allow_empty: bool = False,
+               max_bytes: int = 0) -> dict | None:
+    """Commit everything in the workspace. Returns None when there is nothing to commit.
+    `max_bytes` (0: no limit): files larger than that are left out of the commit and stay on disk
+    as they are; one already in the history leaves the tree (CONTRACT.md, "Files too large for versions")."""
+    left = left_out_files(workspace, max_bytes)
+    if not left:
+        git(workspace, "add", "-A")
+        if not allow_empty and not git(workspace, "status", "--porcelain").strip():
+            return None
+    else:
+        # Excluded before `add`, so git never reads such a file into its objects; then taken out of
+        # the index, where it is when the history already had it.
+        paths = [entry["path"] for entry in left]
+        git(workspace, "add", "-A", "--pathspec-from-file=-", "--pathspec-file-nul",
+            input=_nul([".", *(f":(exclude,literal){path}" for path in paths)]))
+        git(workspace, "update-index", "-z", "--force-remove", "--stdin", input=_nul(paths))
+        # Not `status`: a left out file is untracked, and status would always report it.
+        if not allow_empty and git_ok(workspace, "diff", "--cached", "--quiet"):
+            return None
     subject = " ".join(message.split())[:200] or kind
     git(workspace, "commit", "-q", "--allow-empty", "-m", f"[{kind}] {subject}")
-    return describe(workspace, "HEAD")
+    made = describe(workspace, "HEAD")
+    if left:
+        made["left_out"] = left[:LEFT_OUT_SHOWN]
+        made["left_out_count"] = len(left)
+    return made
 
 
 def _since(workspace: Path, base: str | None) -> list[str]:
@@ -379,11 +431,52 @@ def diff(workspace: Path, sha: str, cap: int = 200_000, without_keys: bool = Fal
     return {"sha": sha, "diff": text[:cap], "truncated": len(text) > cap}
 
 
-def restore(workspace: Path, sha: str) -> dict:
-    """New commit whose tree equals `sha`. Uncommitted work is checkpointed first, never lost."""
-    checkpoint(workspace, "user", "Changes before restore")
-    git(workspace, "read-tree", "--reset", "-u", sha)
-    return checkpoint(workspace, "restore", f"Restore version {sha[:7]}", allow_empty=True)
+def restore(workspace: Path, sha: str, max_bytes: int = 0) -> dict:
+    """New commit whose tree equals `sha`. Uncommitted work is checkpointed first, never lost.
+    With `max_bytes`, a file too large for versions is never deleted, overwritten or reverted:
+    the old tree is put on disk without it (CONTRACT.md, "Files too large for versions")."""
+    checkpoint(workspace, "user", "Changes before restore", max_bytes=max_bytes)
+    target = _tree_without_large(workspace, sha, max_bytes) if max_bytes and max_bytes > 0 else sha
+    git(workspace, "read-tree", "--reset", "-u", target)
+    return checkpoint(workspace, "restore", f"Restore version {sha[:7]}", allow_empty=True, max_bytes=max_bytes)
+
+
+def _tree_without_large(workspace: Path, sha: str, max_bytes: int) -> str:
+    """The tree of `sha` without what would touch a large file on disk: an entry at the path of a
+    regular file larger than `max_bytes` (left out, or one `.gitignore` hides), an entry inside such
+    a file's path, and a file where a left out file's folder is. → that tree's id (or `sha` itself
+    when nothing had to go)."""
+    import tempfile
+    left = {entry["path"] for entry in left_out_files(workspace, max_bytes)}
+    folders = {str(parent) for path in left for parent in Path(path).parents if str(parent) != "."}
+    git_dir = Path(git(workspace, "rev-parse", "--absolute-git-dir").strip())
+    handle, index = tempfile.mkstemp(prefix="studio-restore-", suffix=".index", dir=git_dir)
+    os.close(handle)
+    os.unlink(index)                       # git writes a new index there
+    root = Path(workspace)
+    try:
+        git(workspace, "read-tree", sha, index=index)
+        names = [name for name in git(workspace, "ls-files", "-z", index=index).split("\0") if name]
+        drop = []
+        for name in names:
+            if name in left or name in folders or any(str(parent) in left for parent in Path(name).parents):
+                drop.append(name)
+                continue
+            try:
+                info = os.lstat(root / name)
+            except OSError:
+                continue
+            if stat_mode.S_ISREG(info.st_mode) and info.st_size > max_bytes:
+                drop.append(name)
+        if not drop:
+            return sha
+        git(workspace, "update-index", "-z", "--force-remove", "--stdin", input=_nul(drop), index=index)
+        return git(workspace, "write-tree", index=index).strip()
+    finally:
+        try:
+            os.unlink(index)
+        except OSError:
+            pass
 
 
 def user_changes_since_agent(workspace: Path) -> list[dict]:

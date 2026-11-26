@@ -177,3 +177,46 @@ async def test_a_look_measures_what_is_wrong_and_cuts_a_tall_page(tmp_path):
         assert "tiles" not in bare and "layout" not in bare
     finally:
         await looker.close()
+
+
+DIALOGS = """<!doctype html><html><head><title>Dialogs</title></head><body>
+<ul id="list"><li id="item">A row</li></ul><p id="said"></p>
+<button id="remove" onclick="if (confirm('Remove this row?')) document.getElementById('item').remove()">Remove</button>
+<button id="name" onclick="document.getElementById('said').textContent = 'name=' + prompt('Your name?', 'Sam')">Name</button>
+<button id="hello" onclick="alert('Saved. ' + 'x'.repeat(500))">Hello</button>
+</body></html>"""
+
+
+@needs_browser
+async def test_dialogs_are_listed_and_answered_as_asked(tmp_path):
+    (tmp_path / "dialogs.html").write_text(DIALOGS)
+    url = (tmp_path / "dialogs.html").as_uri()
+    acts = [{"click": "#remove"}, {"click": "#name"}, {"click": "#hello"}]
+    looker = Looker()
+    try:
+        quiet = await looker.look(url, tmp_path / "looks", wait_ms=0, tiles=False, layout=False)
+        assert quiet["dialogs"] == []
+        seen = await looker.look(url, tmp_path / "looks", wait_ms=0, actions=acts, tiles=False, layout=False)
+        assert all(a["ok"] for a in seen["actions"]), seen["actions"]
+        assert [(d["type"], d["answer"]) for d in seen["dialogs"]] == [
+            ("confirm", "dismissed"), ("prompt", "dismissed"), ("alert", "dismissed")]
+        assert seen["dialogs"][0]["message"] == "Remove this row?" and "text" not in seen["dialogs"][1]
+        assert len(seen["dialogs"][2]["message"]) == look.TEXT_CAP            # a long message is cut
+        assert "A row" in seen["text_start"] and "name=null" in seen["text_start"]   # Cancel, as before
+        took = await looker.look(url, tmp_path / "looks", wait_ms=0, actions=acts, tiles=False, layout=False,
+                                 dialogs="accept")
+        assert [(d["type"], d["answer"]) for d in took["dialogs"]] == [
+            ("confirm", "accepted"), ("prompt", "accepted"), ("alert", "accepted")]
+        assert took["dialogs"][1]["text"] == "Sam" and took["dialogs"][1]["message"] == "Your name?"
+        assert "A row" not in took["text_start"] and "name=Sam" in took["text_start"]
+        with pytest.raises(ValueError):
+            await looker.look(url, tmp_path / "looks", dialogs="yes")
+    finally:
+        await looker.close()
+
+
+async def test_the_tool_refuses_an_unknown_dialogs_answer():
+    with pytest.raises(tools.ToolError, match="dismiss"):
+        await tools.t_look_at_page(None, "p1", {"dialogs": "maybe"})
+    schema = next(s for name, _d, s, _h in tools.TOOLS if name == "look_at_page")
+    assert schema["properties"]["dialogs"]["enum"] == ["dismiss", "accept"]

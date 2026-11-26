@@ -132,7 +132,10 @@ class _Site:
     def __init__(self, workspace: Path, start: str, max_pages: int, save_to: Path | None = None):
         self.root = workspace.resolve()
         self.save_to = Path(save_to) if save_to else None
-        self.start = posixpath.normpath(str(start or "index.html").strip().lstrip("/")) or "index.html"
+        given = str(start or "").strip().lstrip("/")
+        self.start = posixpath.normpath(given) if given else "index.html"
+        self.start_chosen = not given
+        self.start_note: str | None = None
         self.max_pages = max(1, min(int(max_pages or 200), MAX_PAGES))
         self.app = export._run_command(self.root) is not None
         kept = export.kept(self.root)
@@ -151,6 +154,27 @@ class _Site:
         self.pieces = 0
         self.read: dict[str, _Reader] = {}
         self.exists: dict[str, tuple[bool, bool, int]] = {}    # path → (inside, is file, size)
+        if self.start_chosen and self.start not in self.all_pages:
+            self._choose_start()
+
+    # -- the start page --------------------------------------------------------------------------------
+    def index_pages(self) -> list[str]:
+        """The index pages there are (index.html, index.htm), nearest the root first."""
+        return sorted((p for p in self.all_pages if posixpath.basename(p).lower() in ("index.html", "index.htm")),
+                      key=lambda p: (p.count("/"), p))
+
+    def _choose_start(self) -> None:
+        """No start given and no index.html at the root: an app serves its own folder (the fastapi-app
+        template serves static/), so the one index page nearest the root is the start. Two at the same
+        depth are not guessed between; the answer is then no_start, naming them."""
+        found = self.index_pages()
+        if not found:
+            return
+        nearest = [p for p in found if p.count("/") == found[0].count("/")]
+        if len(nearest) == 1:
+            self.start = nearest[0]
+            self.start_note = (f"No start was given and there is no index.html at the root, so {self.start}, the "
+                               "index page nearest the root, was used. Give start to check from another page.")
 
     # -- addresses -------------------------------------------------------------------------------------
     def resolve(self, page: str, address: str, base: str | None, count: bool = True) -> tuple[str, str | None, str | None]:
@@ -476,8 +500,15 @@ class _Site:
     def _reach(self, pages, links, framed) -> None:
         self.reachable: set[str] = set()
         if self.start not in self.read:
+            found = self.index_pages()
+            if found:
+                said = (f" The index pages there are: {', '.join(found[:3])}"
+                        + (f" and {len(found) - 3} more" if len(found) > 3 else "")
+                        + ". Call again with one of them as start.")
+            else:
+                said = " There is no index page in the project: give start as the page a reader opens first."
             self.add(self.start, "no_start", f"There is no start page at {self.start}, so which pages can be "
-                                             "reached was not checked.")
+                                             "reached was not checked." + said)
             self.reachable = set(pages)
             return
         queue = deque([self.start])
@@ -602,7 +633,8 @@ class _Site:
         listed = [{"path": page, "title": self.read[page].title, "links_out": len(links[page]),
                    "reachable": page in self.reachable} for page in pages]
         sites = [host for host, _n in self.outside.most_common(20)]
-        result = {"start": self.start, "pages": len(pages), "pieces": self.pieces, "findings": self.findings,
+        result = {"start": self.start, "start_chosen": self.start_chosen,
+                  **({"start_note": self.start_note} if self.start_note else {}), "pages": len(pages), "pieces": self.pieces, "findings": self.findings,
                   "by_kind": by_kind, "pages_list": listed,
                   "outside_links": {"count": sum(self.outside.values()), "sites": sites},
                   "unchecked": {"count": len(self.unchecked), "examples": self.unchecked[:10],
@@ -635,7 +667,8 @@ def _next(result: dict) -> str:
             "least one inner page, at 1440 and 390.")
 
 
-def check_site(workspace: Path, start: str = "index.html", max_pages: int = 200, save_to: Path | None = None) -> dict:
+def check_site(workspace: Path, start: str | None = None, max_pages: int = 200, save_to: Path | None = None) -> dict:
     """`save_to`: where the whole result is written instead of research/site-check.json in the project
-    (a project brought in from a folder, whose folder is the person's own app)."""
+    (a project brought in from a folder, whose folder is the person's own app). `start` None: index.html,
+    or the one index page nearest the root when the root has none (`start_chosen` in the answer)."""
     return _Site(Path(workspace), start, max_pages, save_to).run()

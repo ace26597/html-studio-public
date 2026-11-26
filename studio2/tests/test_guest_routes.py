@@ -389,6 +389,41 @@ async def test_a_guest_cannot_allow_the_owners_cards_or_a_card_for_what_is_the_o
                                            json={"decision": "allow"})).status_code == 204
 
 
+async def shown_card(studio, pid: str, turn: str, tool: str, guarded: bool = False) -> dict:
+    """A card as the turn's own approver shows it (turns.py): its `approval_request` event."""
+    import asyncio as aio
+    approve = studio.turns._approver(pid, turn)
+    waiting = aio.ensure_future(approve(tool, "t", "d", "r", always=True, guarded=guarded))
+    for _ in range(50):
+        if studio.turns.pending.get(turn):
+            break
+        await aio.sleep(0)
+    approval_id = next(iter(studio.turns.pending[turn]))
+    studio.turns.answer(turn, approval_id, "deny")
+    assert await waiting is False
+    return next(e for e in reversed(studio.log(pid).read())
+                if e.get("type") == "approval_request" and e.get("approval_id") == approval_id)
+
+
+async def test_the_card_says_when_only_the_owner_may_allow_it(shared, studio, project):
+    pid = project["id"]
+    with a_request_by(studio, pid, owner=True) as turn:
+        assert (await shown_card(studio, pid, turn, "Bash")).get("owner_only") is True
+    with a_request_by(studio, pid, owner=False) as turn:
+        for tool in ("save_skill", "save_template", "ship_recipe", "make_live"):
+            assert (await shown_card(studio, pid, turn, tool)).get("owner_only") is True, tool
+        assert (await shown_card(studio, pid, turn, "Bash", guarded=True)).get("owner_only") is True
+        assert "owner_only" not in await shown_card(studio, pid, turn, "Bash")     # the guest's own card
+
+
+async def test_a_studio_that_is_not_shared_never_marks_a_card(studio, project):
+    pid = project["id"]
+    with a_request_by(studio, pid, owner=True) as turn:
+        for tool in ("Bash", "save_skill", "make_live"):
+            assert "owner_only" not in await shown_card(studio, pid, turn, tool), tool
+        assert "owner_only" not in await shown_card(studio, pid, turn, "Bash", guarded=True)
+
+
 # -- allow everything is the owner's to switch on -----------------------------------------------
 async def test_only_the_owner_sets_a_project_to_allow_everything(shared, studio, project):
     pid = project["id"]

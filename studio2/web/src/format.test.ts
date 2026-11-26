@@ -138,7 +138,7 @@ describe("projectFileUrl", () => {
   });
 });
 
-import { checkpointLabel } from "./format";
+import { checkpointLabel, leftOutNote } from "./format";
 import { parseRoute } from "./router";
 
 describe("checkpointLabel", () => {
@@ -153,6 +153,29 @@ describe("checkpointLabel", () => {
     expect(checkpointLabel("restore", "Restore x")).toBe("Restored a version");
     expect(checkpointLabel("init", "Blank page")).toBe("Page created");
     expect(checkpointLabel("other", "Uploaded later")).toBe("Saved version");
+  });
+});
+
+describe("leftOutNote", () => {
+  it("is quiet when nothing was left out", () => {
+    expect(leftOutNote(undefined)).toBeNull();
+    expect(leftOutNote({ files: [], count: 0 })).toBeNull();
+  });
+
+  it("says how many briefly and names them with their sizes in the detail", () => {
+    const one = leftOutNote({ files: [{ path: "data/sales 2025.csv", size: 2 * 1024 * 1024 * 1024 }], count: 1 });
+    expect(one?.label).toBe("1 large file not in versions");
+    expect(one?.detail).toContain("data/sales 2025.csv (2048.0 MB)");
+    expect(one?.detail).toContain("undo cannot bring it back");
+    const many = leftOutNote({
+      files: [
+        { path: "a.parquet", size: 300 * 1024 * 1024 },
+        { path: "b.csv", size: 200 * 1024 * 1024 },
+      ],
+      count: 5,
+    });
+    expect(many?.label).toBe("5 large files not in versions");
+    expect(many?.detail.split("\n").slice(-3)).toEqual(["a.parquet (300.0 MB)", "b.csv (200.0 MB)", "and 3 more"]);
   });
 });
 

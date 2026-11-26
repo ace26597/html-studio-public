@@ -26,6 +26,7 @@ MAX_HEIGHT, KEEP = 6_000, 12
 NARROW = 700                    # below this a look is a phone's: twice the pixel density, shorter pieces
 TILE, TILE_NARROW = 1_300, 1_100   # a piece's height in page pixels: what a model still reads at full size
 TEXT_CAP, LIST_CAP = 300, 30
+DIALOG_ANSWERS = ("dismiss", "accept")
 RECHECK = 5.0       # seconds before a "cannot look" is checked again; a busy turn asks often
 PLAYWRIGHT_PIN = "playwright==1.62.0"   # the `look` extra in pyproject.toml
 
@@ -143,16 +144,41 @@ class Looker:
     async def look(self, url: str, directory: Path, *, width: int = 1440, height: int = 900,
                    dark: bool = False, full_page: bool = True, wait_ms: int = 1200,
                    actions: list[dict] | None = None, tiles: bool = True, layout: bool = True,
-                   top: int = 0, signed_in: bool = True) -> dict:
+                   top: int = 0, signed_in: bool = True, dialogs: str = "dismiss") -> dict:
         """Load `url`, act, and save a picture of it. `tiles`: also save the page as pieces a model
         can read (the one picture of a tall page reaches it scaled down). `layout`: also measure
         the page (layout.py). The studio's own looks ask for neither. `top`: where the picture
         starts, in page pixels, for the parts of a long page below the first MAX_HEIGHT.
-        `signed_in` False: a clean browser, for a picture that leaves the project."""
+        `signed_in` False: a clean browser, for a picture that leaves the project. `dialogs`: "dismiss"
+        (Cancel, as a browser with no one there would) or "accept" (OK; a prompt gets its default text)
+        for every alert, confirm, prompt or beforeunload during this look; each is listed in `dialogs`."""
+        if dialogs not in DIALOG_ANSWERS:
+            raise ValueError('dialogs is "dismiss" or "accept".')
         browser = await self._ensure()
         directory.mkdir(parents=True, exist_ok=True)
         console: list[dict] = []
         failed: list[dict] = []
+        seen_dialogs: list[dict] = []
+
+        async def answer(dialog) -> None:
+            # Once a handler is set Playwright no longer answers by itself: every dialog must be
+            # answered here, or the page waits on it until the look times out.
+            item = {"type": dialog.type, "message": dialog.message[:TEXT_CAP],
+                    "answer": "accepted" if dialogs == "accept" else "dismissed"}
+            try:
+                if dialogs == "accept":
+                    if dialog.type == "prompt":
+                        item["text"] = dialog.default_value[:TEXT_CAP]
+                        await dialog.accept(dialog.default_value)
+                    else:
+                        await dialog.accept()
+                else:
+                    await dialog.dismiss()
+            except Exception as exc:  # noqa: BLE001 - the page closed or moved on; say so, never stall the look
+                item["answer"] = "unanswered"
+                item["error"] = " ".join(str(exc).split())[:TEXT_CAP]
+            if len(seen_dialogs) < LIST_CAP:
+                seen_dialogs.append(item)
         async with self._slots:
             # A phone's screen has at least twice the pixels of its CSS width; the pieces use them.
             density = 2 if tiles and width < NARROW else 1
@@ -164,6 +190,7 @@ class Looker:
                 page = await context.new_page()
                 page.on("console", lambda m: console.append({"level": m.type, "text": m.text[:TEXT_CAP]})
                         if m.type in ("error", "warning") else None)
+                page.on("dialog", answer)
                 page.on("pageerror", lambda e: console.append({"level": "exception", "text": str(e)[:TEXT_CAP]}))
                 page.on("requestfailed", lambda r: failed.append(
                     {"url": r.url[:TEXT_CAP], "status": None, "error": (r.failure or "")[:120]}))
@@ -228,7 +255,7 @@ class Looker:
                 "page_height": size["h"], "captured_from": top, "captured_height": shot_height,
                 "cut_off": bool(full_page and size["h"] > top + shot_height),
                 "wider_than_viewport": size["w"] > width + 1,
-                "actions": done, "console": console[:LIST_CAP], "failed_requests": failed[:LIST_CAP],
+                "actions": done, "dialogs": seen_dialogs, "console": console[:LIST_CAP], "failed_requests": failed[:LIST_CAP],
                 "text_start": text, **extra}
 
     @staticmethod

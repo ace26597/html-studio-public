@@ -6,7 +6,7 @@ import { RECHECK_COVERS, fileProblemLine, recheckHeadline, type Recheck } from "
 import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { isDrawingAttachment } from "./drawing";
 import { isPastedText } from "./paste";
-import { baseName, checkpointLabel, costLabel, formatCount, formatDuration, isImagePath, prettyInput, truncate } from "./format";
+import { baseName, checkpointLabel, costLabel, leftOutNote, formatCount, formatDuration, isImagePath, prettyInput, truncate } from "./format";
 import {
   approvalFileRows,
   isSaveSkill,
@@ -49,6 +49,8 @@ export interface ThreadActions {
   canRetry: boolean;
   onDecide: (item: ApprovalItem, decision: "allow" | "deny") => void;
   decisions: Record<string, DecisionState>;
+  /** A guest on a shared studio: a card only the owner may allow offers them "Deny" alone. */
+  guest?: boolean;
   /** The person answered (or skipped) the agent's questions on a card. */
   onAnswer?: QuestionActions["onAnswer"];
   answering?: QuestionActions["answering"];
@@ -371,17 +373,20 @@ function Checkpoint({ item, onOpen }: { item: CheckpointItem; onOpen: (sha: stri
   const label = checkpointLabel(item.kind, item.message);
   // "Uploaded data.csv" already names the file.
   const count = label.startsWith("Uploaded ") ? 0 : item.files.length;
+  const left = leftOutNote(item.leftOut);
+  const title = item.message ? `${item.message} — show in Versions` : "Show in Versions";
   return (
     <button
       type="button"
       className="marker"
       onClick={() => onOpen(item.sha)}
-      title={item.message ? `${item.message} — show in Versions` : "Show in Versions"}
+      title={left ? `${title}\n\n${left.detail}` : title}
     >
       <Icon name="commit" size={14} />
       <span>
         {label}
         {count > 0 && ` · ${count} ${count === 1 ? "file" : "files"}`}
+        {left && ` · ${left.label}`}
       </span>
     </button>
   );
@@ -558,6 +563,7 @@ export function ApprovalCard({ item, actions }: { item: ApprovalItem; actions: T
     );
   }
   const busy = decision?.pending ?? null;
+  const ownersToAllow = actions.guest === true && item.ownerOnly === true;
   return (
     <section className="approval" aria-label={`Approval needed: ${item.title}`}>
       <div className="approval-head">
@@ -574,7 +580,11 @@ export function ApprovalCard({ item, actions }: { item: ApprovalItem; actions: T
         </p>
       )}
       <div className="approval-actions">
-        <span className="approval-hint">The agent is waiting for you.</span>
+        {ownersToAllow ? (
+          <span className="approval-hint approval-owner-note">Only the studio’s owner can allow this.</span>
+        ) : (
+          <span className="approval-hint">The agent is waiting for you.</span>
+        )}
         <button
           type="button"
           className="btn btn-small"
@@ -584,15 +594,17 @@ export function ApprovalCard({ item, actions }: { item: ApprovalItem; actions: T
         >
           {busy === "deny" ? "Denying…" : "Deny"}
         </button>
-        <button
-          type="button"
-          className="btn btn-small btn-primary"
-          disabled={busy !== null}
-          aria-label={`Allow: ${item.title}`}
-          onClick={() => actions.onDecide(item, "allow")}
-        >
-          {busy === "allow" ? "Allowing…" : "Allow"}
-        </button>
+        {!ownersToAllow && (
+          <button
+            type="button"
+            className="btn btn-small btn-primary"
+            disabled={busy !== null}
+            aria-label={`Allow: ${item.title}`}
+            onClick={() => actions.onDecide(item, "allow")}
+          >
+            {busy === "allow" ? "Allowing…" : "Allow"}
+          </button>
+        )}
       </div>
     </section>
   );

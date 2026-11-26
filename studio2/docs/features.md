@@ -6,6 +6,10 @@ You ask in the chat. On the page you can switch between four modes: **Browse** (
 **Select** (point the agent at one part), **Edit** (change text directly) and **Draw** (circle,
 box, note or drag things, then send the drawing with a message). Every request and every edit
 is saved as a version you can restore, and a running request can be stopped.
+A file larger than 100 MB (a big CSV or Parquet file, say) is not saved in versions, so the
+history stays small. It stays in the project as it is. Restoring a version never deletes or
+changes it, and undo cannot bring back an older copy of it. The chat says when a version left
+such a file out, and the agent is told too. The limit is a setting (`STUDIO2_VERSION_MAX_FILE_MB`).
 
 - **Sourced reports.** The agent searches, saves every page or PDF it reads into the project,
   and marks figures so a check can compare them with the saved source.

@@ -233,6 +233,9 @@ class Settings:
     # How many requests may run at once over all projects (STUDIO2_MAX_TURNS; 0: no limit). A working
     # agent's processes peak near 0.8 GB (CONTRACT.md, "Room for a few requests at once").
     max_turns: int = 4
+    # Files larger than this are left out of a project's versions (STUDIO2_VERSION_MAX_FILE_MB, default
+    # 100; 0: no limit). Kept in bytes so tests can use a tiny one. CONTRACT.md, "Files too large for versions".
+    version_max_file_bytes: int = 100 * 1024 * 1024
     generate_daily_credits: float = 100.0   # what the studio may spend on generated media per day (STUDIO2_GENERATE_DAILY_CREDITS)
     home: Path = field(default_factory=Path.home)   # where this machine's own skills and MCP servers are read from
     # Shared with other people (setup's "who uses it", or STUDIO2_SHARED=1): the Claude plan is
@@ -302,6 +305,11 @@ class Settings:
             settings.max_turns = max(0, int(env["STUDIO2_MAX_TURNS"])) if env.get("STUDIO2_MAX_TURNS", "").strip() else 4
         except ValueError:
             settings.max_turns = 4
+        try:
+            raw = (env.get("STUDIO2_VERSION_MAX_FILE_MB") or "").strip()
+            settings.version_max_file_bytes = int(max(0.0, float(raw)) * 1024 * 1024) if raw else 100 * 1024 * 1024
+        except ValueError:
+            settings.version_max_file_bytes = 100 * 1024 * 1024
         try:
             settings.generate_daily_credits = max(0.0, float(env.get("STUDIO2_GENERATE_DAILY_CREDITS") or 100.0))
         except ValueError:

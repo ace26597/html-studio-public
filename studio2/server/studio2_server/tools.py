@@ -277,6 +277,9 @@ async def t_query_database(studio, project_id, args):
 
 
 async def t_look_at_page(studio, project_id, args):
+    dialogs = str(args.get("dialogs") or "dismiss").strip().lower()
+    if dialogs not in ("dismiss", "accept"):
+        raise ToolError('dialogs is "dismiss" (the default: Cancel) or "accept" (OK, and a prompt gets its default text).')
     outside = str(args.get("url") or "").strip()
     if outside:
         # A page of an app the person added as context: never with anyone's sign-in (signed_in=False),
@@ -303,7 +306,7 @@ async def t_look_at_page(studio, project_id, args):
             width=max(320, min(int(args.get("width") or 1440), 2560)), dark=bool(args.get("dark")),
             full_page=args.get("full_page", True) is not False, wait_ms=int(args.get("wait_ms") or 1200),
             actions=args.get("actions") if isinstance(args.get("actions"), list) else None,
-            top=max(0, int(args.get("top") or 0)), signed_in=not outside)
+            top=max(0, int(args.get("top") or 0)), signed_in=not outside, dialogs=dialogs)
     except LookUnavailable as exc:
         raise ToolError(str(exc)) from None
     result["next"] = look_next(result)
@@ -374,7 +377,7 @@ async def t_check_site(studio, project_id, args):
     attached = bool(studio.store.get(project_id).get("attach"))
     save_to = studio.store.dir(project_id) / "site-check.json" if attached else None
     return await asyncio.to_thread(sitecheck.check_site, _workspace(studio, project_id),
-                                   str(args.get("start") or "index.html"), max_pages, save_to)
+                                   str(args.get("start") or "").strip() or None, max_pages, save_to)
 
 
 async def t_render_document(studio, project_id, args):
@@ -779,10 +782,12 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      "judge from the tiles), `layout` (what the studio measured: cut-off text, sideways scrolling, overlaps, small "
      "or faint text, missing padding), console errors and failed requests. `width`: 1440 desktop (default), 820 "
      "tablet, 390 phone; `dark`; `top` to start further down (one look covers 6,000 px). `actions` run first: "
-     "{fill, value}, {click}, {hover}, {press}, {select, value}, {wait_for}, {wait_ms}. `url` instead of `path`: "
+     "{fill, value}, {click}, {hover}, {press}, {select, value}, {wait_for}, {wait_ms}. Alerts, confirms and prompts "
+     "are listed in `dialogs` and dismissed; `dialogs: \"accept\"` answers OK for this look. `url` instead of `path`: "
      "a page under one of the project's context addresses, loaded without sign-in",
      _schema({"path": S, "url": S, "width": I, "dark": B, "full_page": B, "wait_ms": I, "top": I,
-              "actions": {"type": "array", "items": {"type": "object"}}}, []), t_look_at_page),
+              "actions": {"type": "array", "items": {"type": "object"}},
+              "dialogs": {"type": "string", "enum": ["dismiss", "accept"]}}, []), t_look_at_page),
     ("check_page", "Check every marked figure and quote on a page against its saved source or project data, and list "
      "numbers that carry no mark. Run it before finishing any page that states facts or figures.",
      _schema({"path": S}, []), t_check_page),
@@ -793,9 +798,10 @@ TOOLS: list[tuple[str, str, dict, Handler]] = [
      _schema({"path": S}, ["path"]), t_check_file),
     ("check_site", "Check all the pages of the project together, from their files (no browser): links and anchors "
      "between pages, missing or empty pictures, scripts and stylesheets, pages no link reaches from `start` "
-     "(index.html), pages that lead nowhere, missing or repeated titles, no viewport, and a menu (<nav>) or "
-     "stylesheet one page does not share with the rest. Returns `findings` [{page, kind, target, detail}], "
-     "`by_kind`, `pages_list` and what it does not cover. Run it before finishing any project of more than one page.",
+     "(index.html; without it, the one index page nearest the root when the root has none), pages that lead "
+     "nowhere, missing or repeated titles, no viewport, and a menu (<nav>) or stylesheet one page does not share "
+     "with the rest. Returns `findings` [{page, kind, target, detail}], `by_kind`, `pages_list` and what it does "
+     "not cover. Run it before finishing any project of more than one page.",
      _schema({"start": S, "max_pages": I}, []), t_check_site),
     ("report_verification", "Report the result of verifying the page(s), once, at the end of a request that was asked "
      "to verify: the counts (checked, passed, fixed, failed, unverifiable) and findings [{what, where, status: passed|"
