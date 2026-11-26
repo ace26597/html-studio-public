@@ -21,6 +21,7 @@ import { LibraryPickCard } from "./LibraryPickCard";
 import { FileCards } from "./FileCards";
 import type { ChatFiles } from "./chatFiles";
 import { Markdown } from "./markdown";
+import { chatKey } from "./find";
 import { draftHolds, shownSteps, type NextStep } from "./nextSteps";
 import {
   planPlacement,
@@ -690,7 +691,7 @@ const TurnView = memo(function TurnView({
   return (
     <article className={`turn is-${turn.status}`} aria-label="Exchange">
       {(turn.text || turn.selection || turn.attachments.length > 0) && (
-        <div className="msg-user">
+        <div className="msg-user" data-find={chatKey.you(turn.key)}>
           {turn.selection && <SelectionChip selection={turn.selection} />}
           <AttachmentList paths={turn.attachments} fileHref={actions.fileHref} readDrawing={actions.readDrawing} />
           {turn.text && <div className="msg-user-text">{turn.text}</div>}
@@ -704,7 +705,7 @@ const TurnView = memo(function TurnView({
         {items.map((item, index) => {
           switch (item.type) {
             case "message":
-              return <Markdown key={item.key} text={item.text} />;
+              return <Markdown key={item.key} text={item.text} findKey={chatKey.agent(item.key)} />;
             case "thought":
               return <ThoughtRow key={item.key} item={item} live={running && index === items.length - 1} />;
             case "tool":

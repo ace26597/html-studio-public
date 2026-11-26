@@ -19,7 +19,26 @@ export function parseRoute(path: string): Route {
   return { name: "missing" };
 }
 
-export type Navigate = (to: string, options?: { replace?: boolean }) => void;
+/**
+ * A project's address, optionally on one of its files and with words to find (CONTRACT.md, "Find
+ * words in a project's pages and across projects"): `/p/<id>?page=<path>&find=<words>`.
+ */
+export function projectHref(id: string, options: { page?: string | null; find?: string | null } = {}): string {
+  const params = new URLSearchParams();
+  if (options.page) params.set("page", options.page);
+  const find = options.find?.trim();
+  if (find) params.set("find", find);
+  const query = params.toString();
+  return `/p/${id}${query ? `?${query}` : ""}`;
+}
+
+/** The `page` and `find` a project's address carries (`location.search`), null when absent. */
+export function projectParams(search: string): { page: string | null; find: string | null } {
+  const params = new URLSearchParams(search);
+  return { page: params.get("page") || null, find: params.get("find")?.trim() || null };
+}
+
+export type Navigate =(to: string, options?: { replace?: boolean }) => void;
 
 /** A page that holds something unsaved: asks the person, true when it is fine to leave. */
 export type LeaveGuard = () => boolean;

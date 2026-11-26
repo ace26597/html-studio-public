@@ -907,3 +907,96 @@ that history like any page, and again with every change, so the disk filled and 
 - **The agent is told,** in the facts of each request and only when such files exist, one line:
   "These files are larger than N MB, so they are not saved in versions and undo cannot bring them
   back: <paths, at most 10, then "and N more">. Do not commit them with git yourself."
+
+# Find words in a project's pages and across projects
+
+A person types words and finds a project, a page, a section or any text in it, sees the matches
+and goes there. Plain matching on the server: no model, no index, no new dependency. The find
+panel inside a project (the open page, the chat) is a section of its own and uses the same
+matching rules, written here.
+
+## Matching
+
+- **Text is compared folded:** letters without their accents (Unicode NFKD, then every nonspacing
+  mark, category Mn, dropped: the browser's `\p{Mn}`, so the server, the page and the home page's
+  box drop the same ones), case ignored (`casefold`), every run of white space one space, the ends
+  trimmed. A query is read up to 500 characters.
+- **The query** is split into words on white space. Text inside double quotes is one exact phrase
+  (curly quotes “ ” count as double quotes; an unclosed quote runs to the end). A query whose folded text, quotes left out, is under two
+  characters finds nothing: the answer is the empty shape, not an error.
+- **A block matches** when its folded text contains every word and every phrase, as substrings
+  (`gard` matches "Garden"). A block is a heading (`h1` to `h6`), a paragraph, a list item, a table
+  cell, or any other run of text between block tags.
+- **Order:** headings (`h1` to `h6`, as on the page) first, then blocks that hold the whole query (quotes left out)
+  as one exact phrase, then the rest, each group in page order. Pages are ordered by their best
+  hit, then by path.
+
+## What is read
+
+- **Pages and notes:** every `.html`, `.htm` and `.md` file in the project's folder. Skipped: the
+  folders the studio never watches (`workspace.IGNORED_DIRS` and `watcher.BUILD_DIRS`), any folder
+  or file whose name starts with `.`, key files (`keyfiles.is_key_file`, for everyone, not only
+  guests), and links (symlinks): a link is never followed, so nothing outside the folder is read.
+- **HTML** is read with the standard library's `html.parser`. Text inside `script`, `style`,
+  `noscript`, `svg` and `template` is skipped. A page's `title` is its `<title>`, else its first
+  heading, else null. A title that matches and is not the same as the first heading is listed as a
+  heading hit. **Markdown:** `#` headings, paragraphs (lines joined), list items and table cells;
+  `**`, `__`, backticks and the address of `[text](address)` are taken out.
+- **`section`** is the text of the nearest `h1` to `h4` above the hit (null before the first one,
+  and for a heading hit itself). **`snippet`** is plain text, at most about 160 characters, around
+  the first match, with `…` where it was cut. The client makes the matched words bold.
+- **The chat** (across projects only): the person's messages (`turn_started.text`) and the agent's
+  words (`message_chunk`, joined per `message_id`), read from the project's `events.jsonl`. Never
+  hidden reasoning (`thought_chunk`), tool calls or their output, or any other event.
+- **An attached app** (`project.attach` set): its folder is the person's own repository, so v1 does
+  not read its files. Its name and its chat are searched; the answer says `attached: true`.
+- **Limits:** a file over 2 MB is not read; at most 2,000 pages and notes are looked at per
+  project, and at most 20,000 names of any kind are walked to find them (a data folder of very many
+  files holds no page and would otherwise be walked on every query; `venv` and `site-packages` are
+  skipped as well); a line of a note is read up to 20,000 characters; at most
+  20 hits are listed per page (`more` counts the rest) and 200 pages per project. Across projects
+  the scan stops after about 2 seconds (in one project, about 5 seconds) and answers with what it
+  has. When any limit was reached the answer has `capped: true`. The scan runs in a worker thread.
+- **Files are not trusted.** They are written by agents and, on a shared studio, by guests, and a
+  scan holds the interpreter while a pattern runs. So the patterns that read a note cannot
+  backtrack (a test feeds them lines made to), and a snippet is cut only for the hits that are
+  listed.
+- **At once:** two scans run at a time for the whole studio and up to eight more wait; past that
+  the answer is `429 find_busy`. A search whose browser has gone away (the person typed on) is not
+  run.
+- **Kept between searches:** each file's parsed, folded text, keyed on its path, size and time
+  (a changed file is read again), so the next query does not parse everything again. All of it is
+  dropped when it would pass a fixed size (`find.CACHE_CHARS`, counted as about the bytes held),
+  and when no search began for ten minutes (`find.CACHE_IDLE`).
+
+## REST
+
+- `GET /api/projects/{id}/find?q=<words>` →
+  `{query, attached, pages: [{path, title, hits: [{kind: "heading" | "text", section, snippet}],
+  more}], capped}`. `path` is relative to the project's folder. A project that does not exist, or an
+  id that is not one, is refused like every project route: `404 project_not_found`.
+- `GET /api/find?q=<words>` →
+  `{query, projects: [{id, name, name_match, attached, pages: [at most 3, as above, each with at
+  most 3 hits], chat: [{seq, role: "person" | "agent", snippet, at}] (at most 3, newest first), more: {pages,
+  chat}}], capped}`. Only the projects the caller sees in `GET /api/projects` are searched (one
+  function decides both; a hidden scratch project is in neither). A project is listed when its name
+  or anything in it matches; those whose name matches come first, then in the list's order. `seq` is
+  the event that starts the line (the turn's `turn_started`, or the message's first chunk), `at` its
+  time. `more.pages` and `more.chat` count what was found and not listed.
+- Both are open to guests on a shared studio: everyone let in sees every project there, so find
+  shows nothing the list and the project routes would not. Neither changes anything.
+
+## The home page's search box
+
+A box above the list of projects. Typing filters the cards by name at once, in the browser (folded
+as above, every word). After a short pause (about 250 ms) it asks `GET /api/find` and shows, below
+the cards ("By name"), under "Found inside" each project with matching pages or chat lines: its
+name, its pages (title, path, section, snippet with the matched words bold) and chat lines ("You"
+or "Agent"). A project opens it; a page hit opens the project on that page; a chat hit opens the
+project. Esc clears the box. "Nothing found" is said plainly; a capped answer says that not
+everything was searched. The examples are not shown while the box holds a query.
+
+**Addresses:** a page hit links to `/p/<id>?page=<path>&find=<words>`: `page` is the file to show
+(relative to the project's folder), `find` the words that were searched, for the find panel to open
+with. A project or chat hit links to `/p/<id>?find=<words>`. What the project view does with them:
+"Find on the page and in the chat", "Opened from the home page's search".

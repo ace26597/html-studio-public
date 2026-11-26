@@ -3,13 +3,15 @@
 import { buildLine, type Build } from "./buildNotice";
 import type { Example } from "./examples";
 import { ExamplesSection } from "./ExamplesSection";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage } from "./api";
 import { appStateLabel, relativeTime } from "./format";
+import { FindResults, HomeSearchBox, searchStatus, useStudioFind } from "./HomeFind";
+import { matchesAll, queryTerms } from "./homeSearch";
 import { Icon, Spinner } from "./icons";
 import { NEW_CONNECTOR_HASH, NEW_SKILL_HASH } from "./LibraryPage";
 import { NewProjectDialog } from "./NewProjectDialog";
-import type { Navigate } from "./router";
+import { projectHref, type Navigate } from "./router";
 import type { Theme } from "./theme";
 import { attachLabel, envSkippedNote } from "./attach";
 import type { AttachRequest, Project } from "./types";
@@ -203,6 +205,15 @@ export function Home({ navigate, theme, onToggleTheme, site, shared = false, bui
   const [now, setNow] = useState(() => Date.now());
   const [examples, setExamples] = useState<Example[]>([]);
   const [opening, setOpening] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const terms = useMemo(() => queryTerms(search), [search]);
+  const found = useStudioFind(search);
+  // The cards, filtered by name at once; what is inside the pages comes from the server after a pause.
+  const shown = useMemo(
+    () => (projects && terms.length ? projects.filter((project) => matchesAll(project.name, terms)) : projects),
+    [projects, terms],
+  );
+  const status = searchStatus(search, found, shown?.length ?? 0);
 
   useEffect(() => {
     // Examples are an extra: a studio without them, or one that cannot list them, shows none.
@@ -397,26 +408,32 @@ export function Home({ navigate, theme, onToggleTheme, site, shared = false, bui
               <div>
                 <h1>Pages</h1>
                 <p className="home-count">
-                  {projects.length} {projects.length === 1 ? "page" : "pages"}
+                  {terms.length && shown
+                    ? `${shown.length} of ${projects.length} ${projects.length === 1 ? "page" : "pages"} by name`
+                    : `${projects.length} ${projects.length === 1 ? "page" : "pages"}`}
                 </p>
               </div>
               {newButton}
             </div>
-            <ul className="grid">
-              {projects.map((project) => (
+            <HomeSearchBox value={search} onChange={setSearch} status={status} />
+            {status === "Nothing found" && <p className="find-nothing">Nothing found for “{search.trim()}”.</p>}
+            {terms.length > 0 && shown && shown.length > 0 && <h2 className="find-results-title">By name</h2>}
+            <ul className="grid" hidden={shown?.length === 0}>
+              {(shown ?? projects).map((project) => (
                 <ProjectCard
                   key={project.id}
                   project={project}
                   now={now}
-                  onOpen={() => navigate(`/p/${project.id}`)}
+                  onOpen={() => navigate(projectHref(project.id, { find: terms.length ? search : null }))}
                   onRename={(name) => rename(project, name)}
                   onDelete={() => void remove(project)}
                 />
               ))}
             </ul>
+            <FindResults state={found} onGo={(href) => navigate(href)} />
           </>
         )}
-        {projects && <ExamplesSection examples={examples} opening={opening} onOpen={(example) => void openExample(example)} />}
+        {projects && !terms.length && <ExamplesSection examples={examples} opening={opening} onOpen={(example) => void openExample(example)} />}
         {buildLine(build) && <p className="home-build">{buildLine(build)}</p>}
       </main>
       {dialogOpen && (

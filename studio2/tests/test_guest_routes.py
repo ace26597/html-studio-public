@@ -102,6 +102,7 @@ GUESTS_READ = {
     "/api/projects/{project_id}/cost", "/api/projects/{project_id}/ship", "/api/projects/{project_id}/ships",
     "/api/projects/{project_id}/ships/{ship_id}",
     "/api/projects/{project_id}/events",                # acts: opens the page port, watches the folder
+    "/api/find", "/api/projects/{project_id}/find",     # what the list and the files route show; no key files
     "/no-page/{rest:path}", "/site/{path:path}", "/site", "/{path:path}",
 }
 # Not an APIRoute, and judged: FastAPI's own description of the routes (no secrets in it).

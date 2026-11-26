@@ -25,6 +25,7 @@ from uvicorn.server import ServerState
 
 from . import __version__
 from . import drawing, effort, generate, instructions, voice
+from . import find as finding
 from . import models_api, setup_api
 from .attach import AttachError
 from . import context as contexts
@@ -378,10 +379,61 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "turns": {"running": len(studio.turns.active), "limit": studio.turns.limit,
                           "waiting": len(studio.turns.waiting_long())}}
 
+    def visible_projects() -> list[dict]:
+        """The projects a caller sees: the list and find both ask here, so they cannot drift.
+        A model check's scratch project is not one of the person's pages."""
+        return [project for project in studio.store.list() if not project.get("hidden")]
+
     @app.get("/api/projects")
     async def list_projects():
-        # A model check's scratch project is not one of the person's pages.
-        return [studio.view(project) for project in studio.store.list() if not project.get("hidden")]
+        return [studio.view(project) for project in visible_projects()]
+
+    # -- find (CONTRACT.md, "Find words in a project's pages and across projects") ---------------
+    # A scan reads files and folds text in a thread, and Python runs one such thread at a time: a
+    # few at once would slow every other request. So two scans run, a few more wait their turn, and
+    # past that the answer is "busy". A search the browser gave up on (the person typed on) is not run.
+    find_slots = asyncio.Semaphore(2)
+    find_waiting = 0
+    FIND_QUEUE = 8
+
+    async def find_scan(request: Request, empty: dict, scan, *args):
+        nonlocal find_waiting
+        if find_waiting >= FIND_QUEUE:
+            raise ApiError(429, "find_busy", "Too many searches at once. Try again in a moment.")
+        find_waiting += 1
+        try:
+            async with find_slots:
+                if await request.is_disconnected():
+                    return empty
+                # Find keeps parsed pages for the next query; they are let go when nobody searches.
+                finding.touch_cache()
+                asyncio.get_running_loop().call_later(finding.CACHE_IDLE + 1, finding.drop_if_idle)
+                return await asyncio.to_thread(scan, *args)
+        finally:
+            find_waiting -= 1
+
+    @app.get("/api/find")
+    async def find_everywhere(request: Request, q: str = ""):
+        q = q[:finding.MAX_QUERY]
+        empty = {"query": q, "projects": [], "capped": False}
+        query = finding.parse_query(q)
+        if query is None:
+            return empty
+        projects = await asyncio.to_thread(visible_projects)
+        return await find_scan(request, empty, finding.everywhere_answer, projects, studio.store.workspace,
+                               studio.store.events_path, query, q)
+
+    @app.get("/api/projects/{project_id}/find")
+    async def find_in_project(request: Request, project_id: str, q: str = ""):
+        q = q[:finding.MAX_QUERY]
+        project = studio.store.get(project_id)
+        attached = bool(project.get("attach"))
+        empty = {"query": q, "attached": attached, "pages": [], "capped": False}
+        query = finding.parse_query(q)
+        if query is None or attached:
+            return empty
+        return await find_scan(request, empty, finding.project_answer, studio.store.workspace(project_id),
+                               attached, query, q)
 
     @app.get("/api/templates")
     async def list_templates():

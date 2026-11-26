@@ -38,6 +38,8 @@ import type {
   Health,
   Project,
   ProjectCost,
+  ProjectFind,
+  StudioFind,
   Selection,
   ShipRecipe,
   ShipRecord,
@@ -191,6 +193,12 @@ export const api = {
   health: (signal?: AbortSignal) => request<Health>("GET", "/health", undefined, signal),
 
   listProjects: () => request<Project[]>("GET", "/projects"),
+  /** Words in every project the caller sees: names, pages and chat (CONTRACT.md, "Find words in a project's pages and across projects"). */
+  findEverywhere: (q: string, signal?: AbortSignal) =>
+    request<StudioFind>("GET", `/find?q=${enc(q)}`, undefined, signal),
+  /** Words in one project's pages and notes. */
+  findInProject: (id: string, q: string, signal?: AbortSignal) =>
+    request<ProjectFind>("GET", `/projects/${enc(id)}/find?q=${enc(q)}`, undefined, signal),
   createProject: (options: { name?: string; template?: string; example?: string } = {}) => {
     const body: Record<string, string> = {};
     if (options.name) body.name = options.name;

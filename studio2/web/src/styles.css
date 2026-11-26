@@ -10042,3 +10042,397 @@ a.card-name:hover {
     overflow: hidden;
   }
 }
+
+/* ---- Find on the page and in the chat ------------------------------------------------------------------------ */
+.find-panel {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  width: min(440px, calc(100% - 16px));
+  max-height: min(38dvh, calc(100% - 20px)); /* clear of the middle, where a match is put */
+  transform: translateX(-50%);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-float);
+  animation: find-in var(--fast) var(--ease);
+}
+
+@keyframes find-in {
+  from { opacity: 0; transform: translate(-50%, -4px); }
+}
+
+.find-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 5px 5px 12px;
+  color: var(--text-2);
+}
+
+.find-input {
+  flex: 1;
+  min-width: 0;
+  margin-left: 6px;
+  padding: 6px 2px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.find-input::-webkit-search-cancel-button { display: none; }
+
+.find-count {
+  flex: none;
+  padding: 0 6px;
+  color: var(--text-3, var(--text-2));
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.find-note {
+  margin: 0 10px 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12.5px;
+}
+
+.find-list {
+  position: relative;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--border);
+  padding: 4px 0 6px;
+}
+
+.find-group + .find-group { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 4px; }
+
+.find-group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 12px 2px;
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.find-group-count {
+  color: var(--text-3, var(--text-2));
+  font-weight: 500;
+}
+
+.find-group-note {
+  margin: 2px 12px 6px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.find-rows { margin: 0; padding: 0 4px; list-style: none; }
+
+.find-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.find-row:hover { background: var(--accent-soft); }
+.find-row:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: -2px; }
+.find-row.is-current { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+
+.find-row-where {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 11.5px;
+}
+
+.find-row-kind {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.find-row-section { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.find-row-hidden { flex: none; color: var(--warn); }
+
+.find-row-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.find-row-text strong { font-weight: 700; color: var(--text); background: rgba(250, 204, 21, 0.3); border-radius: 2px; }
+.find-row.is-heading .find-row-text { font-weight: 600; }
+.find-row.is-hidden .find-row-text { color: var(--text-2); }
+
+/* A chat message gone to from Find: a short flash. */
+.is-find-flash {
+  border-radius: 10px;
+  animation: find-flash 1.6s var(--ease);
+}
+
+@keyframes find-flash {
+  0%, 30% { box-shadow: 0 0 0 3px #f59e0b; background-color: rgba(245, 158, 11, 0.14); }
+  100% { box-shadow: 0 0 0 3px transparent; background-color: transparent; }
+}
+
+@media (max-width: 600px) {
+  .find-panel {
+    top: 6px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 34dvh;
+    transform: none;
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .find-panel, .is-find-flash { animation: none; }
+  .is-find-flash { box-shadow: 0 0 0 3px #f59e0b; }
+}
+
+/* The home page's search box and what it finds inside the pages
+   (CONTRACT.md, "Find words in a project's pages and across projects"). */
+.grid[hidden] {
+  display: none;
+}
+
+.lib-filter.home-search {
+  position: static;
+  height: 40px;
+  max-width: 640px;
+  margin: -12px 0 26px;
+  font-size: 14.5px;
+}
+
+.home-search input::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+.find-nothing {
+  margin: -10px 0 24px;
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+.find-results-title {
+  margin: 0 0 14px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.find-results {
+  margin-top: 34px;
+}
+
+.home-find-note {
+  margin: 14px 0 0;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.find-results > .home-find-note:first-child,
+.home-main > .home-find-note {
+  margin-top: 28px;
+}
+
+.home-find-note.is-error {
+  color: var(--err);
+}
+
+.find-projects,
+.find-pages,
+.find-chat {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.find-projects {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.find-project {
+  min-width: 0;
+  padding: 14px 16px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.find-project-name {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 650;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.find-project-name:hover {
+  color: var(--accent);
+}
+
+.find-page-link,
+.find-chat-link {
+  display: block;
+  margin: 0 -8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  color: var(--text-2);
+  text-decoration: none;
+}
+
+.find-page-link:hover,
+.find-chat-link:hover,
+.find-page-link:focus-visible,
+.find-chat-link:focus-visible {
+  background: var(--surface-2);
+}
+
+.find-page-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.find-page-head svg {
+  flex: none;
+  color: var(--text-3);
+}
+
+.find-page-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.find-page-path {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.find-hit {
+  display: block;
+  margin-top: 4px;
+  padding-left: 19px;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.find-hit-section {
+  display: block;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.find-hit-text.is-heading {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.find-chat {
+  margin-top: 2px;
+  border-top: 1px solid var(--border);
+  padding-top: 4px;
+}
+
+.find-chat-link {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.find-chat-who {
+  flex: none;
+  width: 44px;
+  color: var(--text-3);
+  font-size: 12px;
+  padding-top: 1px;
+}
+
+.find-more {
+  display: block;
+  margin: 4px 0 0;
+  padding-left: 19px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.find-project > .find-more {
+  padding-left: 0;
+}
+
+.find-projects mark,
+.find-project-name mark {
+  background: var(--accent-soft);
+  color: inherit;
+  font-weight: 700;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+@media (max-width: 600px) {
+  .lib-filter.home-search {
+    max-width: none;
+    margin: -6px 0 18px;
+  }
+
+  .find-results {
+    margin-top: 24px;
+  }
+}

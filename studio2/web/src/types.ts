@@ -725,6 +725,68 @@ export interface FileEntry {
   modified_at: string;
 }
 
+// -- find (CONTRACT.md, "Find words in a project's pages and across projects") ---------------------
+
+/** One matching heading or block of text in a page. */
+export interface FindHit {
+  kind: "heading" | "text";
+  /** The nearest h1-h4 above the hit; null before the first one and for a heading hit. */
+  section: string | null;
+  /** Plain text around the first match, `…` where it was cut. The client bolds the matched words. */
+  snippet: string;
+}
+
+/** A page or note with matches. */
+export interface FindPage {
+  /** Relative to the project's folder. */
+  path: string;
+  /** The `<title>`, else the first heading, else null. */
+  title: string | null;
+  hits: FindHit[];
+  /** Hits found and not listed. */
+  more: number;
+}
+
+/** `GET /api/projects/{id}/find?q=`. */
+export interface ProjectFind {
+  query: string;
+  /** An attached app: its files are not read, so `pages` is empty. */
+  attached: boolean;
+  pages: FindPage[];
+  /** A limit was reached (file size, file count, pages, time): not everything was searched. */
+  capped: boolean;
+}
+
+/** A matching chat line: the person's message or the agent's words. */
+export interface FindChatHit {
+  /** The event that starts the line. */
+  seq: number;
+  role: "person" | "agent";
+  snippet: string;
+  /** When it was said (ISO time). */
+  at: string;
+}
+
+export interface FindProject {
+  id: string;
+  name: string;
+  name_match: boolean;
+  attached: boolean;
+  /** At most 3, each with at most 3 hits. */
+  pages: FindPage[];
+  /** At most 3, newest first. */
+  chat: FindChatHit[];
+  /** Found and not listed. */
+  more: { pages: number; chat: number };
+}
+
+/** `GET /api/find?q=`: projects whose name matches first. */
+export interface StudioFind {
+  query: string;
+  projects: FindProject[];
+  capped: boolean;
+}
+
 export interface FileContent {
   path: string;
   content: string;

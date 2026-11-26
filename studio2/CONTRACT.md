@@ -13,13 +13,13 @@ To add a section: put it in the area's file under `contract/`, then run
 
 ## Areas
 
-- [Core](contract/core.md): 8 sections
+- [Core](contract/core.md): 9 sections
 - [Library](contract/library.md): 7 sections
 - [Access and safety](contract/access.md): 8 sections
 - [Apps](contract/apps.md): 4 sections
 - [Models, setup and cost](contract/models.md): 3 sections
 - [Output and checking](contract/output.md): 10 sections
-- [Interface and the agent's words](contract/interface.md): 13 sections
+- [Interface and the agent's words](contract/interface.md): 14 sections
 
 ## Index
 
@@ -214,6 +214,7 @@ To add a section: put it in the area's file under `contract/`, then run
 - [A picture in the page opens large](contract/interface.md#a-picture-in-the-page-opens-large)
 - [Long pasted text becomes an attachment](contract/interface.md#long-pasted-text-becomes-an-attachment)
 - [Show what changed, when asked](contract/interface.md#show-what-changed-when-asked)
+- [Find on the page and in the chat](contract/interface.md#find-on-the-page-and-in-the-chat)
 - [What an agent's shell may not reach](contract/access.md#what-an-agents-shell-may-not-reach)
   - [What is caught](contract/access.md#what-is-caught)
   - [What "caught" means](contract/access.md#what-caught-means)
@@ -237,3 +238,8 @@ To add a section: put it in the area's file under `contract/`, then run
 - [Where a shell command is judged from](contract/access.md#where-a-shell-command-is-judged-from)
 - [Text a command only rewrites or prints](contract/access.md#text-a-command-only-rewrites-or-prints)
 - [Files too large for versions](contract/core.md#files-too-large-for-versions)
+- [Find words in a project's pages and across projects](contract/core.md#find-words-in-a-projects-pages-and-across-projects)
+  - [Matching](contract/core.md#matching)
+  - [What is read](contract/core.md#what-is-read)
+  - [REST](contract/core.md#rest-5)
+  - [The home page's search box](contract/core.md#the-home-pages-search-box)

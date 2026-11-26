@@ -38,13 +38,25 @@ interface PreviewProps {
   /** The visible frame's `drawing` message. */
   onDrawing?: (count: number, drawing: Drawing | null) => void;
   /** A page loaded in the visible frame (its `ready`); any marks on it are gone. */
-  onPageLoad?: () => void;
+  /** A page is shown anew. `path` is the page's own word for where it is (absent when a page without the helper loaded). */
+  onPageLoad?: (path?: string) => void;
+  /** The visible frame's Find messages (`found`, `outline`, `find-open`, `find-close`, `find-went`,
+   * `outline-went`), unchecked: `find.ts` reads them. */
+  onFind?: (data: Record<string, unknown>) => void;
 }
 
 export interface PreviewHandle {
   /** Post a shell message (`draw-undo`, `draw-clear`, …) to the visible frame. */
   send: (message: Record<string, unknown>) => void;
+  /** Show another page of the project (a path on the page's own address) in the frame. */
+  show: (path: string) => void;
+  /** The path the visible frame shows now. */
+  path: () => string;
 }
+
+const FIND_MESSAGES = new Set(["found", "outline", "find-open", "find-close", "find-went", "outline-went"]);
+/** A page may ask for Find to open this often at most. */
+const FIND_OPEN_MS = 600;
 
 const SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads";
 
@@ -160,22 +172,26 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
     drawColor = "#ef4444",
     onDrawing,
     onPageLoad,
+    onFind,
   },
   ref,
 ) {
   const origin = useMemo(() => new URL(previewUrl).origin, [previewUrl]);
   const [frames, setFrames] = useState<Frame[]>(() => [{ key: 1, src: previewUrl }]);
   const [activeKey, setActiveKey] = useState(1);
+  // Bumped by `show` (another page of the project): loads like a reload.
+  const [reloadAsk, setReloadAsk] = useState(0);
 
   const elements = useRef(new Map<number, HTMLIFrameElement>());
   const activeRef = useRef(1);
   const pendingRef = useRef<number | null>(null);
   const nextKey = useRef(2);
   const pathRef = useRef(new URL(previewUrl).pathname || "/");
+  const findOpenAt = useRef(0);
   const modeRef = useRef(mode);
-  const handlers = useRef({ onSelect, onTextEdit, onAutoReload, onEnlarge, onCanShowChanges, onChanges, onDrawing, onPageLoad });
+  const handlers = useRef({ onSelect, onTextEdit, onAutoReload, onEnlarge, onCanShowChanges, onChanges, onDrawing, onPageLoad, onFind });
   useEffect(() => {
-    handlers.current = { onSelect, onTextEdit, onAutoReload, onEnlarge, onCanShowChanges, onChanges, onDrawing, onPageLoad };
+    handlers.current = { onSelect, onTextEdit, onAutoReload, onEnlarge, onCanShowChanges, onChanges, onDrawing, onPageLoad, onFind };
   });
   const drawRef = useRef({ tool: drawTool, color: drawColor });
   // What each frame's bridge said in `ready`; a frame that never said counts as true.
@@ -195,13 +211,13 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
     [origin],
   );
 
-  const promote = useCallback((key: number) => {
+  const promote = useCallback((key: number, path?: string) => {
     if (pendingRef.current !== key) return;
     pendingRef.current = null;
     activeRef.current = key;
     setActiveKey(key);
     // A fresh page: whatever was drawn on the old one is gone.
-    handlers.current.onPageLoad?.();
+    handlers.current.onPageLoad?.(path);
     handlers.current.onAutoReload?.(autoReloads.current.get(key) ?? true);
     handlers.current.onCanShowChanges?.(canChanges.current.get(key) ?? false);
     setFrames((list) => list.filter((frame) => frame.key === key));
@@ -231,8 +247,8 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
         post(key, { type: "draw", tool: drawRef.current.tool, color: drawRef.current.color });
         // Pictures in this page may offer to open large (a thumbnail's frame is never told so).
         post(key, { type: "enlarge-offer" });
-        if (key === pendingRef.current) promote(key);
-        else if (key === activeRef.current) handlers.current.onPageLoad?.();
+        if (key === pendingRef.current) promote(key, str(data.path, 2000) || "/");
+        else if (key === activeRef.current) handlers.current.onPageLoad?.(str(data.path, 2000) || "/");
         if (key === activeRef.current) pathRef.current = str(data.path, 2000) || "/";
         canChanges.current.set(key, data.changes === true);
         if (key === activeRef.current) handlers.current.onCanShowChanges?.(data.changes === true);
@@ -249,6 +265,17 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
         const count = typeof data.count === "number" ? data.count : 0;
         const drawing = data.drawing && typeof data.drawing === "object" ? (data.drawing as Drawing) : null;
         handlers.current.onDrawing?.(count, drawing);
+      } else if (FIND_MESSAGES.has(String(data.type))) {
+        // `find-open` and `find-close` follow a key pressed inside the page, so the page has the
+        // keyboard then. A page that sends them by itself (on a timer, to take the box and the
+        // focus away from the person) does not, and is not heard; nor is a burst of them.
+        if (data.type === "find-open" || data.type === "find-close") {
+          if (document.activeElement !== elements.current.get(key)) return;
+          const now = Date.now();
+          if (data.type === "find-open" && now - findOpenAt.current < FIND_OPEN_MS) return;
+          if (data.type === "find-open") findOpenAt.current = now;
+        }
+        handlers.current.onFind?.(data);
       } else if (data.type === "navigate") {
         pathRef.current = str(data.path, 2000) || "/";
       } else if (data.type === "select") {
@@ -285,6 +312,12 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
     ref,
     () => ({
       send: (message) => post(activeRef.current, message),
+      show: (path) => {
+        const clean = path.startsWith("/") ? path : `/${path}`;
+        pathRef.current = clean;
+        setReloadAsk((count) => count + 1);
+      },
+      path: () => pathRef.current,
     }),
     [post],
   );
@@ -295,9 +328,9 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
     for (const key of elements.current.keys()) post(key, { type: "set-mode", mode });
   }, [mode, post]);
 
-  // Reload: load the same in-frame path in a fresh iframe underneath.
+  // Reload: load the same in-frame path in a fresh iframe underneath. `show` asks the same way.
   useEffect(() => {
-    if (reloadToken === 0) return;
+    if (reloadToken === 0 && reloadAsk === 0) return;
     const key = nextKey.current++;
     const path = pathRef.current.startsWith("/") ? pathRef.current : `/${pathRef.current}`;
     pendingRef.current = key;
@@ -305,7 +338,7 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(function Preview(
     // A page that never reports `ready` (no bridge, slow assets) still takes over.
     const timer = window.setTimeout(() => promote(key), 4000);
     return () => window.clearTimeout(timer);
-  }, [reloadToken, origin, promote]);
+  }, [reloadToken, reloadAsk, origin, promote]);
 
   // Nothing heard from a page with its own name: say so instead of leaving an empty frame.
   useEffect(() => {

@@ -101,6 +101,7 @@ AREA_OF: dict[str, str] = {
     "A picture in the page opens large": "interface",
     "Long pasted text becomes an attachment": "interface",
     "Show what changed, when asked": "interface",
+    "Find on the page and in the chat": "interface",
     "What an agent's shell may not reach": "access",
     "What the agent is told once, and what with each message": "interface",
     "What a guest may not do on a shared studio": "access",
@@ -111,6 +112,7 @@ AREA_OF: dict[str, str] = {
     "Where a shell command is judged from": "access",
     "Text a command only rewrites or prints": "access",
     "Files too large for versions": "core",
+    "Find words in a project's pages and across projects": "core",
     # ---- ADD NEW HEADINGS HERE: "Exact heading text after '# '": "<area>", (areas: see AREAS) ----
 }
 

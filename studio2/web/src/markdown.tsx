@@ -299,6 +299,10 @@ export function renderMarkdown(source: string): ReactNode[] {
   return renderBlocks(parseBlocks(lines), "b");
 }
 
-export const Markdown = memo(function Markdown({ text }: { text: string }) {
-  return <div className="md">{renderMarkdown(text)}</div>;
+export const Markdown = memo(function Markdown({ text, findKey }: { text: string; /** `data-find`, for Find to scroll to it. */ findKey?: string }) {
+  return (
+    <div className="md" data-find={findKey}>
+      {renderMarkdown(text)}
+    </div>
+  );
 });

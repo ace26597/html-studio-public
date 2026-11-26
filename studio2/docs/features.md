@@ -264,6 +264,27 @@ On a desktop the chat floats at the bottom right of the page.
   agent reads the file. *Put in message* writes it into the box after all; *Keep in project*
   also saves it as a file of the project.
 
+## Finding things
+
+No model is asked: it is plain matching of your words, so it answers at once and costs nothing.
+
+- **In a project: Find.** The magnifier on the top bar, or Cmd+F on a Mac and Ctrl+F elsewhere
+  (pressed again in the box, it is the browser's own find). Type words and the panel lists every
+  match: on the page shown, in the chat, and in the project's other pages and notes. Each row says
+  which section it is under. Click one, or use Enter and Shift+Enter, and the page scrolls so the
+  match sits in the middle of the window, outlined, with your words marked. A match in another
+  page opens that page first.
+- **With the box empty it is a list of the page's sections.** Click a heading to go to it.
+- **Every word must be there.** `tomato seeds` finds a paragraph with both words, in any order;
+  `"tomato seeds"` in quotes finds exactly that. Capitals and accents do not matter.
+- **On the home page: the box above your pages.** It filters the pages by name as you type and,
+  a moment later, lists what was found inside them: page titles, sections, text and chat lines.
+  A result opens that project with Find already at the match.
+- **What it cannot see.** Words inside a picture or a chart drawn on a canvas. A match in a part
+  of the page that is not shown now (a closed tab) is listed and said to be hidden; a closed
+  "details" block is opened for you. In an attached app only the page shown and the chat are
+  searched, not its other files.
+
 ## A studio you share
 
 A studio can be opened to people you choose, behind a gate that signs them in. It then knows

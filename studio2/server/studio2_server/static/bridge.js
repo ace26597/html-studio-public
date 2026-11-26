@@ -84,7 +84,7 @@
   }
 
   function isOwn(el) {
-    return el === overlay || el === style || isDrawn(el) || isChip(el) || isMark(el);
+    return el === overlay || el === style || isDrawn(el) || isChip(el) || isMark(el) || isFound(el);
   }
 
   function isUnique(selector) {
@@ -1099,6 +1099,425 @@
     }, 7000);
   }
 
+  // ---- find ------------------------------------------------------------------------------
+  // The person looks for words on the page (CONTRACT.md, "Find on the page and in the chat").
+  // Nothing of the page's own is changed: the matched words are painted with the CSS Custom
+  // Highlight API where the browser has it, and the outline box is drawn in a layer of the
+  // studio's own outside <body>. Only a closed <details> holding a match is opened.
+
+  // ---- find: matching (the same rules as web/src/find.ts; find.test.ts runs both) ----
+  function findFold(source) {
+    var text = "", map = [], space = true;
+    for (var i = 0; i < source.length; i++) {
+      var ch = source.charAt(i);
+      if (/\s/.test(ch)) {
+        if (!space) { text += " "; map.push(i); space = true; }
+        continue;
+      }
+      space = false;
+      var parts = ch.normalize("NFKD").replace(/\p{Mn}/gu, "").toLowerCase();
+      for (var j = 0; j < parts.length; j++) { text += parts.charAt(j); map.push(i); }
+    }
+    if (text.charAt(text.length - 1) === " ") { text = text.slice(0, -1); map.pop(); }
+    return { text: text, map: map };
+  }
+
+  function findQuery(raw) {
+    var source = String(raw == null ? "" : raw).replace(/[“”]/g, '"');
+    var terms = [];
+    function add(part) {
+      var folded = findFold(part).text;
+      if (folded && terms.indexOf(folded) === -1) terms.push(folded);
+    }
+    var pieces = source.split('"');
+    for (var i = 0; i < pieces.length; i++) {
+      if (i % 2 === 1) add(pieces[i]);
+      else pieces[i].split(/\s+/).forEach(add);
+    }
+    var whole = findFold(source.replace(/"/g, " ")).text;
+    if (whole.length < 2 || !terms.length) return null;
+    return { terms: terms, whole: whole };
+  }
+
+  function findRanges(text, query) {
+    if (!query) return null;
+    var folded = findFold(text), found = [], i;
+    for (i = 0; i < query.terms.length; i++) {
+      var term = query.terms[i], at = folded.text.indexOf(term);
+      if (at === -1) return null;
+      while (at !== -1) {
+        found.push([folded.map[at], folded.map[at + term.length - 1] + 1]);
+        at = folded.text.indexOf(term, at + term.length);
+      }
+    }
+    found.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+    var merged = [];
+    for (i = 0; i < found.length; i++) {
+      var last = merged[merged.length - 1];
+      if (last && found[i][0] <= last[1]) last[1] = Math.max(last[1], found[i][1]);
+      else merged.push([found[i][0], found[i][1]]);
+    }
+    return merged;
+  }
+
+  function findRank(items, query) {
+    function tier(item) { return item.heading ? 0 : findFold(item.text).text.indexOf(query.whole) !== -1 ? 1 : 2; }
+    return items.map(function (item, index) { return { index: index, tier: tier(item) }; })
+      .sort(function (a, b) { return a.tier - b.tier || a.index - b.index; })
+      .map(function (entry) { return entry.index; });
+  }
+
+  function findSnippet(text, query, before, length) {
+    before = before == null ? 50 : before;
+    length = length == null ? 160 : length;
+    var flat = text.replace(/\s+/g, " ").trim();
+    var ranges = findRanges(flat, query);
+    var at = ranges && ranges.length ? ranges[0][0] : 0;
+    var start = Math.max(0, at - before);
+    if (start > 0) {
+      var space = flat.indexOf(" ", start);
+      if (space !== -1 && space < at) start = space + 1;
+    }
+    var end = Math.min(flat.length, start + length);
+    if (end < flat.length) {
+      var last = flat.lastIndexOf(" ", end);
+      if (last > at) end = last;
+    }
+    return (start > 0 ? "…" : "") + flat.slice(start, end) + (end < flat.length ? "…" : "");
+  }
+  // ---- find: end of matching ----
+
+  var FIND_CAP = 200, FIND_UNITS = 4000;
+  var HEADINGS = "h1,h2,h3,h4,h5,h6,[role=heading]";
+  var FIND_SKIP = { script: 1, style: 1, noscript: 1, template: 1, svg: 1, canvas: 1, textarea: 1, select: 1 };
+  var find = { hits: [], outline: [], raw: "", id: 0, target: null, layer: null, box: null, style: null,
+               frame: 0, active: false };
+
+  function isFound(el) {
+    return !!el && ((find.layer && (el === find.layer || find.layer.contains(el))) || el === find.style);
+  }
+
+  function oneLine(text, limit) {
+    return clip(String(text || "").replace(/\s+/g, " ").trim(), limit);
+  }
+
+  function isInline(el, cache) {
+    var display = cache.get(el);
+    if (display === undefined) {
+      try { display = getComputedStyle(el).display; } catch (e) { display = "block"; }
+      cache.set(el, display);
+    }
+    return display === "inline" || display === "contents";
+  }
+
+  // The page as blocks of text: each text run belongs to its nearest block (so "total <b>revenue</b>"
+  // is one piece), a heading is one piece, and each piece knows the heading it is under.
+  function findUnits() {
+    var units = [], byEl = new Map(), headingBefore = new Map(), cache = new Map();
+    var section = null, lastNode = null;
+    if (!document.body) return units;
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+      acceptNode: function (node) {
+        if (node.nodeType === 1) {
+          if (FIND_SKIP[node.localName] || node.ownerSVGElement || isOwn(node)) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+        return /\S/.test(node.nodeValue || "") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      }
+    });
+    for (var node = walker.nextNode(); node && units.length < FIND_UNITS; node = walker.nextNode()) {
+      if (node.nodeType === 1) {
+        if (node.matches(HEADINGS) && !headingBefore.has(node)) {
+          headingBefore.set(node, section);
+          var label = oneLine(node.textContent, 120);
+          if (label) section = label;
+        }
+        continue;
+      }
+      var el = node.parentElement;
+      if (!el) continue;
+      var heading = el.closest(HEADINGS);
+      if (heading && document.body.contains(heading)) el = heading;
+      else while (el !== document.body && el.parentElement && isInline(el, cache)) el = el.parentElement;
+      var unit = byEl.get(el);
+      if (!unit) {
+        unit = { el: el, text: "", nodes: [], heading: !!heading,
+                 section: heading ? (headingBefore.get(heading) || null) : section };
+        byEl.set(el, unit);
+        units.push(unit);
+      } else if (unit.last !== lastNode) {
+        unit.text += " ";               // a block in between: the words on each side are apart
+      }
+      unit.nodes.push({ node: node, start: unit.text.length });
+      unit.text += node.nodeValue;
+      unit.last = node;
+      lastNode = node;
+    }
+    return units;
+  }
+
+  // A DOM range for [start, end) of a unit's text.
+  function findDomRange(unit, start, end) {
+    var from = null, to = null;
+    for (var i = 0; i < unit.nodes.length; i++) {
+      var part = unit.nodes[i], length = part.node.nodeValue.length;
+      if (!from && start < part.start + length) from = [part.node, Math.max(0, start - part.start)];
+      if (end <= part.start + length && end > part.start) { to = [part.node, end - part.start]; break; }
+    }
+    if (!from || !to || !from[0].isConnected || !to[0].isConnected) return null;
+    try {
+      var range = document.createRange();
+      range.setStart(from[0], from[1]);
+      range.setEnd(to[0], to[1]);
+      return range;
+    } catch (e) { return null; }
+  }
+
+  function closedDetails(el) {
+    var out = [];
+    for (var node = el; node && node !== document.body; node = node.parentElement) {
+      var parent = node.parentElement;
+      if (parent && parent.localName === "details" && !parent.open && node.localName !== "summary") out.push(parent);
+    }
+    return out;
+  }
+
+  function hasBox(el) {
+    var rects = el.getClientRects();
+    for (var i = 0; i < rects.length; i++) if (rects[i].width > 0 || rects[i].height > 0) return true;
+    return false;
+  }
+
+  // Shown, or shown once its closed <details> are opened.
+  function findHidden(el) {
+    return !hasBox(el) && !closedDetails(el).length;
+  }
+
+  function findAnswer() {
+    return find.hits.map(function (hit, n) {
+      return { n: n, kind: hit.unit.heading ? "heading" : "text", section: hit.unit.section,
+               snippet: findSnippet(hit.unit.text, find.query), hidden: findHidden(hit.unit.el) };
+    });
+  }
+
+  var HIGHLIGHT = typeof CSS !== "undefined" && CSS.highlights && typeof Highlight === "function";
+
+  function findChrome() {
+    if (!find.style) {
+      find.style = document.createElement("style");
+      find.style.setAttribute("data-studio-bridge", "find-style");
+      find.style.textContent = "::highlight(studio-find-all){background-color:rgba(250,204,21,.38);}" +
+        "::highlight(studio-find){background-color:#f59e0b;color:#111;}";
+      document.documentElement.appendChild(find.style);
+    }
+    if (!find.layer) {
+      find.layer = document.createElement("div");
+      find.layer.setAttribute("data-studio-bridge", "find");
+      find.layer.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;z-index:2147483645;pointer-events:none;";
+      find.box = document.createElement("div");
+      find.box.style.cssText = "position:fixed;box-sizing:border-box;border:2px solid #f59e0b;border-radius:6px;" +
+        "box-shadow:0 0 0 4px rgba(245,158,11,.22);display:none;pointer-events:none;";
+      find.layer.appendChild(find.box);
+      document.documentElement.appendChild(find.layer);
+    }
+  }
+
+  function setHighlight(name, ranges) {
+    if (!HIGHLIGHT) return;
+    try {
+      if (!ranges || !ranges.length) { CSS.highlights.delete(name); return; }
+      var highlight = new Highlight();
+      ranges.forEach(function (range) { highlight.add(range); });
+      CSS.highlights.set(name, highlight);
+    } catch (e) {}
+  }
+
+  function hitRanges(hit) {
+    var out = [];
+    for (var i = 0; i < hit.ranges.length; i++) {
+      var range = findDomRange(hit.unit, hit.ranges[i][0], hit.ranges[i][1]);
+      if (range) out.push(range);
+    }
+    return out;
+  }
+
+  // The box to outline: the block itself, or only the matched words when the block is taller
+  // than half the window (a long article in one element).
+  function targetBox() {
+    var target = find.target;
+    if (!target || !target.el.isConnected) return null;
+    var box = target.el.getBoundingClientRect();
+    if (box.height > window.innerHeight / 2 && target.ranges.length) {
+      var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      target.ranges.forEach(function (range) {
+        var r = range.getBoundingClientRect();
+        if (!r.width && !r.height) return;
+        x0 = Math.min(x0, r.left); y0 = Math.min(y0, r.top); x1 = Math.max(x1, r.right); y1 = Math.max(y1, r.bottom);
+      });
+      if (x1 > x0) return { left: x0, top: y0, width: x1 - x0, height: y1 - y0 };
+    }
+    return box.width || box.height ? box : null;
+  }
+
+  function paintFind() {
+    find.frame = 0;
+    if (!find.box) return;
+    var box = targetBox();
+    if (!box) { find.box.style.display = "none"; return; }
+    find.box.style.display = "block";
+    find.box.style.left = (box.left - 5) + "px";
+    find.box.style.top = (box.top - 4) + "px";
+    find.box.style.width = (box.width + 10) + "px";
+    find.box.style.height = (box.height + 8) + "px";
+  }
+
+  function repaintFind() {
+    if (find.target && !find.frame) find.frame = requestAnimationFrame(paintFind);
+  }
+
+  function scrollerOf(el) {
+    for (var node = el.parentElement; node && node !== document.body && node !== document.documentElement; node = node.parentElement) {
+      var overflow = getComputedStyle(node).overflowY;
+      if ((overflow === "auto" || overflow === "scroll" || overflow === "overlay") && node.scrollHeight > node.clientHeight + 1) return node;
+    }
+    return null;
+  }
+
+  function centre(el, box) {
+    var reduce = false;
+    try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+    var behavior = reduce ? "auto" : "smooth";
+    if (scrollerOf(el)) {
+      try { el.scrollIntoView({ block: "center", inline: "nearest", behavior: behavior }); } catch (e) { el.scrollIntoView(); }
+      return;
+    }
+    var top = window.scrollY + box.top + box.height / 2 - window.innerHeight / 2;
+    try { window.scrollTo({ top: Math.max(0, top), behavior: behavior }); } catch (e) { window.scrollTo(0, Math.max(0, top)); }
+  }
+
+  function clearFind() {
+    find.hits = []; find.outline = []; find.target = null; find.active = false; find.query = null;
+    if (find.frame) { cancelAnimationFrame(find.frame); find.frame = 0; }
+    setHighlight("studio-find", null);
+    setHighlight("studio-find-all", null);
+    if (find.layer) { find.layer.remove(); find.layer = null; find.box = null; }
+    if (find.style) { find.style.remove(); find.style = null; }
+  }
+
+  function runFind(raw, id) {
+    clearFind();
+    find.raw = String(raw == null ? "" : raw).slice(0, 500);
+    find.id = id;
+    find.query = findQuery(find.raw);
+    if (!find.query) { post("found", { id: id, total: 0, capped: false, hits: [] }); return; }
+    var units = findUnits(), matched = [];
+    // A page longer than is read here: the answer says so, or "nothing found" would be a guess.
+    var partial = units.length >= FIND_UNITS;
+    for (var i = 0; i < units.length; i++) {
+      var ranges = findRanges(units[i].text, find.query);
+      if (ranges) matched.push({ unit: units[i], ranges: ranges, text: units[i].text, heading: units[i].heading });
+    }
+    var order = findRank(matched, find.query);
+    find.hits = order.slice(0, FIND_CAP).map(function (index) { return matched[index]; });
+    find.active = true;
+    findChrome();
+    var all = [];
+    find.hits.forEach(function (hit) { all = all.concat(hitRanges(hit)); });
+    setHighlight("studio-find-all", all);
+    post("found", { id: id, total: order.length, capped: order.length > FIND_CAP, partial: partial, hits: findAnswer() });
+  }
+
+  // Show one place: open what hides it, centre it, outline it. Says whether it could be shown.
+  function goTo(el, ranges, n, type) {
+    closedDetails(el).forEach(function (details) { details.open = true; });
+    find.active = true;
+    findChrome();
+    find.target = { el: el, ranges: ranges };
+    setHighlight("studio-find", ranges);
+    var box = targetBox();
+    if (!box) {
+      find.target = null;
+      if (find.box) find.box.style.display = "none";
+      post(type, { n: n, hidden: true });
+      return;
+    }
+    centre(el, box);
+    paintFind();
+    post(type, { n: n, hidden: false });
+  }
+
+  function goFind(n) {
+    var hit = find.hits[n];
+    if (hit && !hit.unit.el.isConnected) {     // the page drew itself again: look once more
+      runFind(find.raw, find.id);
+      hit = find.hits[n];
+    }
+    if (!hit) return;
+    goTo(hit.unit.el, hitRanges(hit), n, "find-went");
+  }
+
+  function headingLevel(el) {
+    var match = /^h([1-6])$/.exec(el.localName);
+    if (match) return +match[1];
+    var level = parseInt(el.getAttribute("aria-level"), 10);
+    return level >= 1 && level <= 6 ? level : 2;
+  }
+
+  function runOutline() {
+    clearFind();
+    var out = [];
+    if (document.body) {
+      var all = document.body.querySelectorAll(HEADINGS);
+      for (var i = 0; i < all.length && out.length < FIND_CAP; i++) {
+        var el = all[i];
+        if (isOwn(el) || el.closest("script,style,noscript,template,svg")) continue;
+        var text = oneLine(el.textContent, 120);
+        if (text) out.push(el);
+      }
+    }
+    find.outline = out;
+    post("outline", { items: out.map(function (el, n) {
+      return { n: n, level: headingLevel(el), text: oneLine(el.textContent, 120), hidden: findHidden(el) };
+    }) });
+  }
+
+  function goOutline(n) {
+    var el = find.outline[n];
+    if (!el || !el.isConnected) return;
+    goTo(el, [], n, "outline-went");
+  }
+
+  var FIND_MAC = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent || "");
+  function isFindKey(event) {
+    if (event.altKey || event.shiftKey || String(event.key).toLowerCase() !== "f") return false;
+    return FIND_MAC ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+  }
+
+  // Cmd/Ctrl+F inside the page opens the studio's Find (with the words picked on the page, if
+  // any); Escape closes it while it shows something here. Caught first, before the page's own.
+  document.addEventListener("keydown", function (event) {
+    if (isFindKey(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      var picked = "";
+      try { picked = oneLine(String(window.getSelection() || ""), 200); } catch (e) {}
+      post("find-open", { text: picked });
+    } else if (event.key === "Escape" && find.active) {
+      post("find-close", {});
+    }
+  }, true);
+  window.addEventListener("scroll", repaintFind, true);
+  window.addEventListener("resize", repaintFind);
+
+  function onFindMessage(data) {
+    if (data.type === "find") { runFind(data.query, typeof data.id === "number" ? data.id : 0); return true; }
+    if (data.type === "find-go") { goFind(+data.n); return true; }
+    if (data.type === "find-clear") { clearFind(); return true; }
+    if (data.type === "outline") { runOutline(); return true; }
+    if (data.type === "outline-go") { goOutline(+data.n); return true; }
+    return false;
+  }
+
   // ---- capture-phase listeners (page handlers never see events we consume) -----------------
   function swallow(event) {
     event.preventDefault();
@@ -1196,7 +1615,7 @@
     else if (data.type === "enlarge-offer") { large.on = true; refreshLarge(); }
     else if (data.type === "changes-base") saveBase();
     else if (data.type === "show-changes") showChanges();
-    else onDrawMessage(data);
+    else if (!onFindMessage(data)) onDrawMessage(data);
   });
 
   // ---- navigation ------------------------------------------------------------------------
@@ -1253,7 +1672,7 @@
     });
     window.addEventListener("load", refreshLarge);
     var reloadMeta = document.querySelector('meta[name="studio-reload"]');
-    post("ready", { path: location.pathname + location.search + location.hash, title: document.title, changes: true,
+    post("ready", { path: location.pathname + location.search + location.hash, title: document.title, changes: true, find: true,
                     auto_reload: !(reloadMeta && String(reloadMeta.content).toLowerCase() === "off") });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ready);

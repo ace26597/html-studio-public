@@ -34,10 +34,14 @@ import { SaveTemplateDialog } from "./SaveTemplateDialog";
 import { fromWorkRequest } from "./skillMaking";
 import { PictureViewer } from "./PictureViewer";
 import { Preview, type PreviewHandle } from "./Preview";
+import { FindPanel } from "./FindPanel";
+import { isWebPage } from "./otherPages";
+import { useFind } from "./useFind";
+import { isMac } from "./find";
 import { refreshFailure, REFRESH_RETRY_MS } from "./projectLoad";
 import { mayDiscard } from "./discard";
 import { escapeTarget, MODAL_SELECTOR } from "./escape";
-import { holdUnload, setLeaveGuard, type Navigate } from "./router";
+import { holdUnload, projectParams, setLeaveGuard, type Navigate } from "./router";
 import { holdSignIn } from "./signIn";
 import { loadString, saveString } from "./storage";
 import type { Theme } from "./theme";
@@ -466,6 +470,41 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
   }, [holdReload, reloadWaiting]);
   // What changed on the page, when asked. A request beginning is the moment the page notes what it says.
   const showChanges = useCallback(() => preview.current?.send({ type: "show-changes" }), []);
+  // Find on the page and in the chat. `find.jumpToPage(path, query, text)` shows another page and
+  // goes to a match there; `extraGroups` adds result groups (the project's other pages).
+  const openChatForFind = useCallback(() => setChatOpen(true), [setChatOpen]);
+  // On a phone or iPad the chat is a sheet over the page: going to a place on the page lowers it.
+  const lowerChatForFind = useCallback(() => {
+    if (compact) setChatOpen(false);
+  }, [compact, setChatOpen]);
+  const searchPages = useCallback((query: string, signal: AbortSignal) => api.findInProject(id, query, signal), [id]);
+  const find = useFind({
+    preview,
+    entries: thread.entries,
+    openChat: openChatForFind,
+    onPageGo: lowerChatForFind,
+    searchPages,
+    openFile: openFileFromChat,
+  });
+  // Opened from the home page's search (`/p/<id>?page=<path>&find=<words>`): Find opens with the
+  // words, on that page when it is a web page. The address is then put back to the plain one, so
+  // a reload does not search again.
+  const askedInAddress = useRef(projectParams(window.location.search));
+  const jumpFromAddress = find.jumpToPage;
+  const openFindFromAddress = find.openFind;
+  useEffect(() => {
+    const asked = askedInAddress.current;
+    if (!previewUrl || (!asked.find && !asked.page)) return;
+    askedInAddress.current = { page: null, find: null };
+    window.history.replaceState(window.history.state, "", window.location.pathname + window.location.hash);
+    if (asked.page && isWebPage(asked.page)) {
+      if (asked.find) jumpFromAddress(asked.page, asked.find, "");
+      else preview.current?.show(asked.page);
+      return;
+    }
+    if (asked.page) openFileFromChat(asked.page);
+    if (asked.find) openFindFromAddress(asked.find);
+  }, [previewUrl, jumpFromAddress, openFindFromAddress, openFileFromChat]);
   const runningTurn = thread.runningTurnId;
   useEffect(() => {
     if (runningTurn) preview.current?.send({ type: "changes-base" });
@@ -964,6 +1003,7 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
       onSelect: () => setMode(item.id),
     })),
     { type: "separator" },
+    { label: "Find", icon: "search", onSelect: () => find.openFind() },
     { label: "Files", icon: "folder", onSelect: () => setFilesOpen(true) },
     { label: "Versions", icon: "history", onSelect: () => openVersions(null) },
     { label: "Cost", icon: "dollar", onSelect: () => setCostOpen(true) },
@@ -1246,6 +1286,14 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
               onClick={toggleLogs}
             />
           )}
+          <IconButton
+            icon="search"
+            label="Find"
+            tip={`Find on the page and in the chat (${isMac() ? "⌘F" : "Ctrl+F"})`}
+            tipAlign="end"
+            active={find.open}
+            onClick={() => (find.open ? find.close() : find.openFind())}
+          />
           <button
             type="button"
             className={`icon-btn lib-btn${libraryOpen ? " is-active" : ""}`}
@@ -1432,11 +1480,17 @@ export function ProjectPage({ id, health, navigate, theme, onToggleTheme }: Proj
             drawTool={draw.tool}
             drawColor={draw.color}
             onDrawing={(count, drawing) => dispatchDraw({ type: "frame-drawing", count, drawing })}
-            onPageLoad={() => dispatchDraw({ type: "frame-ready" })}
+            onPageLoad={(path) => {
+              dispatchDraw({ type: "frame-ready" });
+              find.onPageLoad(path);
+            }}
+            onFind={find.onFindMessage}
           />
         ) : (
           <div className="preview" />
         )}
+
+        {find.open && <FindPanel find={find} />}
 
         {shipOpen && project?.attach && project.ship && (
           <ShipPanel

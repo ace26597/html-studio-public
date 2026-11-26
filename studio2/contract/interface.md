@@ -711,6 +711,106 @@ it outlines the places that changed for a few seconds and scrolls to the first.
   another page is not on this one, and a page drawn by scripts after it loads may differ in ways
   the request did not cause. The shell says so when the count is 0.
 
+# Find on the page and in the chat
+
+The person types words and finds a title, a section or any text, on the page shown and in the
+chat, sees the matches as a list and goes to one. No model is called: it is plain matching in
+the browser.
+
+- **Opening.** "Find" on the project's top bar (in the page menu on a phone or iPad), and Cmd+F
+  on a Mac or Ctrl+F elsewhere (Ctrl+F on a Mac moves the cursor in a text box, so it is left
+  alone there). The key works with focus in the studio and with focus inside the page: the bridge
+  catches it first, before the page's own handlers, and sends frame → shell `find-open` with
+  `text`, the words picked on the page (200 characters at most, often empty), which the box then
+  starts with. The key pressed again while the box has focus is not caught, so the browser's own
+  find opens. Escape in the panel, the close button, or Escape inside the page while it shows
+  marks (frame → shell `find-close`, the page's own handlers still hear the key) closes the panel
+  and takes every mark away.
+- **Matching** (the same on the page, in the chat and in `web/src/find.ts`; `find.test.ts` runs
+  the bridge's copy on the same cases). Text is folded: NFKD, combining accents dropped, lower
+  case, every run of white space one space, trimmed. The query is split into words; text in
+  double quotes (straight or curly, an unclosed quote runs to the end) is one exact phrase. A
+  query under two characters once folded finds nothing. A piece matches when it holds every word
+  and every phrase. Order: headings first, then pieces holding the whole query (quotes removed) as
+  one run, then the rest, each in page order. At most 200 are listed, and the panel says when
+  there were more.
+- **The pieces of the page** are blocks of text: each text run belongs to its nearest ancestor
+  whose `display` is not `inline` or `contents`, so `total <b>revenue</b>` is one piece; a
+  heading (`h1`–`h6`, `role=heading`) is one piece and is marked as a section; every piece knows
+  the last heading before it. Text in `script`, `style`, `noscript`, `template`, `svg`, `canvas`,
+  `textarea` and `select` is not searched, nor anything of the studio's own. 4,000 pieces at most.
+- **Messages.** shell → frame:
+
+  | Message | |
+  |---|---|
+  | `find {query, id}` | look for `query` (500 characters at most); answered with `found` carrying the same `id` |
+  | `find-go {n}` | go to match `n` of the last `found` |
+  | `find-clear` | take every mark away |
+  | `outline` | list the page's headings; answered with `outline` |
+  | `outline-go {n}` | go to heading `n` of the last `outline` |
+
+  frame → shell: `found {id, total, capped, partial, hits: [{n, kind: "heading" | "text", section,
+  snippet, hidden}]}` (`snippet` is about 160 characters round the first match; `hidden` when the
+  piece has no box on the page and no closed `<details>` hides it; `partial` when the page has
+  more pieces than are read, so the panel says only its first part was searched instead of
+  "nothing"), `outline {items: [{n, level, text,
+  hidden}]}`, and `find-went {n, hidden}` / `outline-went {n, hidden}` after a go. The shell takes
+  these from the visible frame only, keeps a `found` only when its `id` is the last one asked,
+  and checks every field (a hit whose `n` came before is dropped). `find-open` and `find-close`
+  follow a key pressed inside the page, so they are heard only while that frame has the keyboard
+  (`document.activeElement` is the frame), and `find-open` at most once in 600 ms: a page cannot
+  open the panel or take the focus by itself. `ready` says `find: true`.
+- **Going to a match on the page.** The bridge opens every closed `<details>` the match is in
+  (outside its `summary`), scrolls so the match sits in the middle of the window (smoothly,
+  unless the person asked for less motion; a page that scrolls inside a box of its own scrolls
+  that box), outlines the block (only the matched words' box when the block is taller than half
+  the window) and paints the matched words. The outline stays until the next go or `find-clear`,
+  and follows the page through scrolling and resizing. A match that still has no box (a hidden
+  tab, `display: none`) is not scrolled to: `hidden: true` comes back and the panel says it is in
+  a part of the page not shown now, naming its section.
+- **Nothing of the page is changed** apart from opening those `<details>`: no `<mark>` is put in
+  its text. Matched words are painted with the CSS Custom Highlight API (`CSS.highlights`, the
+  highlights `studio-find-all` for every match and `studio-find` for the current one) where the
+  browser has it; elsewhere the outline box alone shows the place. The box and the highlight
+  style live outside `<body>` in nodes marked `data-studio-bridge`, which selecting, editing,
+  drawing and "show what changed" all leave out.
+- **A page that loads again** (a save, a navigation) while the panel is open is searched again;
+  the list is the new page's.
+- **The chat.** The whole thread is in the browser (the event stream replays it from the start),
+  so the chat is searched there: the person's messages and the agent's prose, not its thinking or
+  tool output. A row of the agent's words shows, as its section, the start of the person's message
+  it answers. Going to one
+  opens the chat if it is closed, scrolls the chat (only the chat) so the message sits in its
+  middle and flashes it briefly.
+- **The panel.** The box, the count ("3 of 12"), previous and next, and the matches in groups,
+  "On this page" then "In the chat"; each row shows the section it is under and the snippet with
+  the matched words bold. Enter goes to the next, Shift+Enter to the previous, the arrow keys
+  walk the list the same way, a click goes to that row. With the box empty the panel lists the
+  page's headings, indented by level, under "Sections on this page". When the page does not
+  answer within 2.5 s the group says so. A group is a title and rows `{key, section, snippet,
+  kind, onGo}`, so more groups can follow (the project's other pages). The panel sits at the top
+  of the page area and stays out of its middle, where a match is put. Desktop first; on a phone
+  it spans the width, and on a phone or iPad going to a place on the page lowers the chat sheet,
+  which would cover it.
+- **Other pages.** A third group, "Other pages", lists the matches in the project's other pages
+  and notes: the answer of `GET /api/projects/{id}/find` ("Find words in a project's pages and
+  across projects"), asked about 250 ms after the last key, without the file of the page shown
+  (a path that ends in `/` is its `index.html`). A row names the page (its title and path) and
+  the section. Going to a row of a web page (`.html`, `.htm`) shows that page and, when it is
+  ready, finds the same words there and goes to the match that holds the words round the server's
+  match (the first match when none does: the server reads the file and the page reads what is
+  drawn, so the two cannot be matched by position). A page still loading that answers first is
+  not taken for the one asked for, and a jump that has not happened within 10 seconds, or before
+  the person typed or went to another match, is forgotten. A row of a note (`.md`) opens it in the Files panel. Enter
+  walks into this group after the chat, so it can move from page to page. The group says when
+  there are more matches than listed, when a limit was reached, when the search failed, and that
+  an attached app's other pages are not searched.
+- **Opened from the home page's search.** `/p/<id>?page=<path>&find=<words>` opens the project
+  with Find holding the words: on that page, at its first match, when `page` is a web page; with
+  the note open in the Files panel when it is not. `?find=` alone opens Find with the words on
+  the page the project starts with. The address is then put back to `/p/<id>`, so a reload does
+  not search again.
+
 # What the agent is told once, and what with each message
 
 Everything the agent is told that does not change between requests is said once, in the system
